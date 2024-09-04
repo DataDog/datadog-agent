@@ -224,6 +224,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
+	path.Origin = payload.PathOriginNetworkTraffic
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -309,7 +310,6 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
-		telemetry.CollectorTypeNetworkPathCollector,
 		checkDuration,
 		checkInterval,
 		[]string{},

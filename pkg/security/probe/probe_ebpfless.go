@@ -634,6 +634,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
 	opts.normalize()
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	var grpcOpts []grpc.ServerOption
@@ -646,7 +651,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
-		processKiller:     NewProcessKiller(),
+		processKiller:     processKiller,
 		containerContexts: make(map[string]*ebpfless.ContainerContext),
 	}
 
@@ -654,7 +659,6 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		TagsResolver: opts.TagsResolver,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err

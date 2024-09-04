@@ -100,6 +100,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestChdir/syscall-context",
 			"TestLoginUID/login-uid-open-test",
 			"TestLoginUID/login-uid-exec-test",
+			"TestActionKillExcludeBinary",
 		}
 
 		if disableSeccomp {

@@ -186,6 +186,10 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case socket:
 		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog().GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		if injectedVol {
+			common.MarkVolumeAsSafeToEvictForAutoscaler(pod, DatadogVolumeName)
+		}
+
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol

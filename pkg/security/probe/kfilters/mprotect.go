@@ -15,12 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var mprotectCapabilities = Capabilities{
-	"mprotect.req_protection": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+var mprotectCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "mprotect.req_protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"mprotect.vm_protection": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mprotect.vm_protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

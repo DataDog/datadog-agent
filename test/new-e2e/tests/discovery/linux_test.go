@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -35,7 +36,7 @@ type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-var services = []string{"python-svc", "python-instrumented", "node-json-server"}
+var services = []string{"python-svc", "python-instrumented", "node-json-server", "node-instrumented"}
 
 func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
@@ -88,14 +89,44 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			}
 		}
 
-		found := foundMap["python.server"]
+		found := foundMap["json-server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "json-server", found.Payload.ServiceName)
+			assert.Equal(c, "json-server", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
+		}
+
+		found = foundMap["node-instrumented"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "node-instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "node-instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
+		}
+
+		found = foundMap["python-svc-dd"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "python-svc-dd", found.Payload.ServiceName)
+			assert.Equal(c, "python.server", found.Payload.GeneratedServiceName)
+			assert.Equal(c, "python-svc-dd", found.Payload.DDService)
+			assert.Equal(c, "provided", found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		assert.Contains(c, foundMap, "json-server")

@@ -153,7 +153,7 @@ func parseIPv4(s string, sep byte) (parsed bool, lastIndex int) {
 			val = 0
 			digLen = 0
 		} else {
-			if pos == 3 {
+			if pos == 3 && digLen > 0 {
 				fields[3] = uint8(val)
 				return true, i
 			}

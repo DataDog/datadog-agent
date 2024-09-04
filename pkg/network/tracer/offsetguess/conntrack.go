@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
 package offsetguess
 
 import (
@@ -45,7 +44,6 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
 	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
@@ -80,7 +78,6 @@ func (c *conntrackOffsetGuesser) Close() {
 	}
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) Probes(*config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)

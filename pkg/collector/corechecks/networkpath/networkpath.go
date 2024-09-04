@@ -105,7 +105,7 @@ func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path pay
 	c.lastCheckTime = startTime
 	checkDuration := time.Since(startTime)
 
-	telemetry.SubmitNetworkPathTelemetry(metricSender, path, telemetry.CollectorTypeNetworkPathIntegration, checkDuration, checkInterval, metricTags)
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check
