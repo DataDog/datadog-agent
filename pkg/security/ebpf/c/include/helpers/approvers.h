@@ -49,20 +49,13 @@ int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->setattr.dentry, EVENT_CHOWN);
 }
 
-int __attribute__((always_inline)) lookup_flags(void *map, u32 *flags) {
+int __attribute__((always_inline)) lookup_u32_flags(void *map, u32 *flags) {
     u32 key = 0;
-    u32 *flags_ptr = bpf_map_lookup_elem(map, &key);
-    if (flags_ptr == NULL) {
+    struct u32_flags_filter_t *filter = bpf_map_lookup_elem(map, &key);
+    if (filter == NULL || !filter->is_set) {
         return 0;
     }
-
-    *flags = *flags_ptr;
-
-    // bit 0 is used to specify is the value is set or not
-    if ((*flags & 1) == 0) {
-        return 0;
-    }
-    *flags >>= 1;
+    *flags = filter->flags;
 
     return 1;
 }
@@ -70,7 +63,7 @@ int __attribute__((always_inline)) lookup_flags(void *map, u32 *flags) {
 int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&mmap_flags_approvers, &flags);
+    int exists = lookup_u32_flags(&mmap_flags_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -85,7 +78,7 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&mmap_protection_approvers, &flags);
+    int exists = lookup_u32_flags(&mmap_protection_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -130,7 +123,7 @@ int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *sysca
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&mprotect_vm_protection_approvers, &flags);
+    int exists = lookup_u32_flags(&mprotect_vm_protection_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -145,7 +138,7 @@ int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct sysc
 int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&mprotect_req_protection_approvers, &flags);
+    int exists = lookup_u32_flags(&mprotect_req_protection_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -169,7 +162,7 @@ int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *sy
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&open_flags_approvers, &flags);
+    int exists = lookup_u32_flags(&open_flags_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -207,7 +200,7 @@ int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *sysca
 int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&splice_entry_flags_approvers, &flags);
+    int exists = lookup_u32_flags(&splice_entry_flags_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -222,7 +215,7 @@ int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_
 int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
-    int exists = lookup_flags(&splice_exit_flags_approvers, &flags);
+    int exists = lookup_u32_flags(&splice_exit_flags_approvers, &flags);
     if (!exists) {
         return 0;
     }
@@ -261,20 +254,12 @@ int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *sysca
 
 int __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u64 *cmd_bitmask_ptr = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
-    if (cmd_bitmask_ptr == NULL) {
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
+    if (filter == NULL || !filter->is_set) {
         return 0;
     }
 
-    u64 cmd_bitmask = *cmd_bitmask_ptr;
-
-    // bit 0 is used to specify is the value is set or not
-    if ((cmd_bitmask & 1) == 0) {
-        return 0;
-    }
-    cmd_bitmask >>= 1;
-
-    if (((1 << syscall->bpf.cmd) & cmd_bitmask) > 0) {
+    if (((1 << syscall->bpf.cmd) & filter->flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }

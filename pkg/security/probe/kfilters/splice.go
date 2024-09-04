@@ -46,13 +46,13 @@ func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "splice.file.name", "splice.file.path": // already handled by getBasenameKFilters
 		case "splice.pipe_entry_flag":
-			kfilter, err := getFlagsKFilters("splice_entry_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("splice_entry_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			spliceKFilters = append(spliceKFilters, kfilter)
 		case "splice.pipe_exit_flag":
-			kfilter, err := getFlagsKFilters("splice_exit_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("splice_exit_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}

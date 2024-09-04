@@ -44,7 +44,7 @@ func newBasenameKFilters(tableName string, eventType model.EventType, basenames 
 	return approvers, nil
 }
 
-func intValues[I int32 | int64](fvs rules.FilterValues) []I {
+func uintValues[I uint32 | uint64](fvs rules.FilterValues) []I {
 	var values []I
 	for _, v := range fvs {
 		values = append(values, I(v.Value.(int)))
@@ -52,36 +52,44 @@ func intValues[I int32 | int64](fvs rules.FilterValues) []I {
 	return values
 }
 
-func newKFilterWithFlags[I int32 | int64](tableName string, flags ...I) (activeKFilter, error) {
-	var flagsItem I
-
-	flagsItem |= 1 // use the bit 0 as a way to specify is there is a value or not
+func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter, error) {
+	var bitmask uint32
 	for _, flag := range flags {
-		flagsItem |= flag << 1
+		bitmask |= flag
 	}
 
-	if flagsItem != 0 {
-		return &arrayEntry{
-			tableName: tableName,
-			index:     uint32(0),
-			value:     flagsItem,
-			zeroValue: I(0),
-		}, nil
+	return &arrayEntry{
+		tableName: tableName,
+		index:     uint32(0),
+		value:     ebpf.NewUint32FlagsMapItem(bitmask),
+		zeroValue: ebpf.Uint32FlagsZeroMapItem,
+	}, nil
+}
+
+func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter, error) {
+	var bitmask uint64
+	for _, flag := range flags {
+		bitmask |= flag
 	}
 
-	return nil, nil
+	return &arrayEntry{
+		tableName: tableName,
+		index:     uint32(0),
+		value:     ebpf.NewUint64FlagsMapItem(bitmask),
+		zeroValue: ebpf.Uint64FlagsZeroMapItem,
+	}, nil
 }
 
-func getFlagsKFilters(tableName string, flags ...int32) (activeKFilter, error) {
-	return newKFilterWithFlags(tableName, flags...)
+func getFlagsKFilter(tableName string, flags ...uint32) (activeKFilter, error) {
+	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
-func getEnumsKFilters(tableName string, enums ...int64) (activeKFilter, error) {
-	var flags []int64
+func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) {
+	var flags []uint64
 	for _, enum := range enums {
 		flags = append(flags, 1<<enum)
 	}
-	return newKFilterWithFlags(tableName, flags...)
+	return newKFilterWithUInt64Flags(tableName, flags...)
 }
 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]activeKFilter, error) {
