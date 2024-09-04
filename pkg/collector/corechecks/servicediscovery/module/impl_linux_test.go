@@ -475,6 +475,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 				assertStat(t, portMap[pid])
+				assertCPU(t, url, pid)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -501,6 +502,21 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	}
 
 	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+}
+
+func assertCPU(t *testing.T, url string, pid int) {
+	proc, err := process.NewProcess(int32(pid))
+	require.NoError(t, err, "could not create gopsutil process handle")
+
+	// Compare CPU usage measurement over an interval.
+	_ = getServicesMap(t, url)
+	referenceValue, err := proc.Percent(1 * time.Second)
+	require.NoError(t, err, "could not get gopsutil cpu usage value")
+
+	// Calling getServicesMap a second time us the CPU usage percentage since the last call, which should be close to gopsutil value.
+	portMap := getServicesMap(t, url)
+	assert.Contains(t, portMap, pid)
+	assert.InDelta(t, referenceValue, portMap[pid].CPUUsage, 0.10)
 }
 
 func TestCommandLineSanitization(t *testing.T) {
