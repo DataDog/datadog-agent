@@ -30,6 +30,10 @@ type ECSSuite struct {
 	e2e.BaseSuite[ecsCPUStressEnv]
 }
 
+type ECSFargateSuite struct {
+	e2e.BaseSuite[ecsCPUStressEnv]
+}
+
 type ecsCPUStressEnv struct {
 	environments.ECS
 }
@@ -121,7 +125,18 @@ func (s *ECSSuite) TestECSEC2ProcessCheckInCoreAgent() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSSuite) TestECSFargateProcessCheck() {
+func TestECSFargateTestSuite(t *testing.T) {
+	// t.Parallel()
+	s := ECSFargateSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false, true), nil)),
+		e2e.WithDevMode(),
+	}
+
+	e2e.Run(t, &s, e2eParams...)
+}
+
+func (s *ECSFargateSuite) TestECSFargateProcessCheck() {
 	t := s.T()
 	// PROCS-4219
 	// flake.Mark(t)
