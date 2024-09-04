@@ -1631,8 +1631,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	onDemandRate := rate.Limit(math.Inf(1))
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
@@ -1642,6 +1640,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
 		probe:                probe,

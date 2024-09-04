@@ -1160,12 +1160,12 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	processKiller, err := NewProcessKiller(config)
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
 		config:            config,

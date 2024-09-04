@@ -634,12 +634,12 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
 	opts.normalize()
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	processKiller, err := NewProcessKiller(config)
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	var grpcOpts []grpc.ServerOption
 	p := &EBPFLessProbe{
