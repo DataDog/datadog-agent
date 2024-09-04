@@ -25,7 +25,7 @@ func TestLinuxConfigCheckSuite(t *testing.T) {
 	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
-// cpu, disk, file_handle, io, load, memory, network, ntp, uptime, service_discovery
+// cpu, disk, file_handle, io, load, memory, network, ntp, uptime
 func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 	testChecks := []CheckConfigOutput{
 		{
@@ -80,12 +80,6 @@ func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 			CheckName:  "uptime",
 			Filepath:   "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default",
 			InstanceID: "uptime:",
-			Settings:   "{}",
-		},
-		{
-			CheckName:  "service_discovery",
-			Filepath:   "file:/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml.default",
-			InstanceID: "service_discovery:",
 			Settings:   "{}",
 		},
 	}

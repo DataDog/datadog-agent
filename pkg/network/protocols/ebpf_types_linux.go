@@ -44,17 +44,21 @@ const (
 
 	ProgramKafkaResponseRecordBatchParserV12 ProgramType = 0xd
 
-	ProgramKafkaTermination ProgramType = 0xe
+	ProgramKafkaProduceResponsePartitionParserV0 ProgramType = 0xe
 
-	ProgramPostgres ProgramType = 0x10
+	ProgramKafkaProduceResponsePartitionParserV9 ProgramType = 0xf
 
-	ProgramPostgresParseMessage ProgramType = 0x11
+	ProgramKafkaTermination ProgramType = 0x10
 
-	ProgramPostgresTermination ProgramType = 0x12
+	ProgramPostgres ProgramType = 0x12
 
-	ProgramRedis ProgramType = 0x13
+	ProgramPostgresParseMessage ProgramType = 0x13
 
-	ProgramRedisTermination ProgramType = 0x14
+	ProgramPostgresTermination ProgramType = 0x14
+
+	ProgramRedis ProgramType = 0x15
+
+	ProgramRedisTermination ProgramType = 0x16
 )
 
 type ebpfProtocolType uint16

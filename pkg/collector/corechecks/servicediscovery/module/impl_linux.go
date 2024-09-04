@@ -43,8 +43,9 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name               string
-	nameFromDDService  bool
+	generatedName      string
+	ddServiceName      string
+	ddServiceInjected  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
@@ -317,7 +318,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
+	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
@@ -325,10 +326,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
 
 	return &serviceInfo{
-		name:               name,
+		generatedName:      nameMeta.Name,
+		ddServiceName:      nameMeta.DDService,
 		language:           lang,
 		apmInstrumentation: apmInstrumentation,
-		nameFromDDService:  fromDDService,
+		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 		startTimeSecs:      uint64(createTime / 1000),
 	}, nil
@@ -447,15 +449,17 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
-	nameSource := "generated"
-	if info.nameFromDDService {
-		nameSource = "provided"
+	name := info.ddServiceName
+	if name == "" {
+		name = info.generatedName
 	}
 
 	return &model.Service{
 		PID:                int(pid),
-		Name:               info.name,
-		NameSource:         nameSource,
+		Name:               name,
+		GeneratedName:      info.generatedName,
+		DDService:          info.ddServiceName,
+		DDServiceInjected:  info.ddServiceInjected,
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
