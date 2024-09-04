@@ -57,8 +57,6 @@ github.com/Code-Hex/go-generics-cache v1.3.1 h1:i8rLwyhoyhaerr7JpjtYjJZUcCbWOdiY
 github.com/Code-Hex/go-generics-cache v1.3.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/DataDog/agent-payload/v5 v5.0.123 h1:fc/mME+zXBPo8i8690rVJXeqlZ1o+8ixIzNu43XP+o8=
 github.com/DataDog/agent-payload/v5 v5.0.123/go.mod h1:FgVQKmVdqdmZTbxIptqJC/l+xEzdiXsaAOs/vGAvWzs=
-github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.1 h1:9WpqKeK4bAc8pSb0sK4fY03bUOqhWUZdGoVh55KBaNI=
-github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.1/go.mod h1:NhSO8oDfl4gs8SFyRSWoKxajDjkNmhZV9MEqdr4LQ7g=
 github.com/DataDog/datadog-agent/comp/core/log v0.54.0 h1:wP3bJua8qmURqLXkmYxrbELMJQ2oO1MuVNfxHJT4wiQ=
 github.com/DataDog/datadog-agent/comp/core/log v0.54.0/go.mod h1:mtMxZiwg13b4bHgDf8xE6FHgTcadzI5Cc0lx2MSY1mE=
 github.com/DataDog/datadog-api-client-go/v2 v2.26.0 h1:bZr0hu+hx8L91+yU5EGw8wK3FlCVEIashpx+cylWsf0=
