@@ -10,6 +10,7 @@
 BPF_HASH_MAP(offsets_data, go_tls_offsets_data_key_t, tls_offsets_data_t, 1024)
 
 // Maps PID to the <device id>-<inode> tuple, that is used to find the offsets_data map for the binary.
+// Size is a 10 times the size of the offsets_data map, to have enough space for all the binaries.
 BPF_HASH_MAP(pid_to_device_inode, u32, go_tls_offsets_data_key_t, 10240)
 
 /* go_tls_read_args is used to get the read function info when running in the read-return uprobe.
