@@ -262,6 +262,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, etcVolume.Name, tt.pod.Spec.Volumes[1].Name,
 				"expected datadog-etc volume to be injected")
 
+			volumesMarkedAsSafeToEvict := strings.Split(tt.pod.Annotations[common.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
+			require.Contains(t, volumesMarkedAsSafeToEvict, volumeName, "expected volume %s to be marked as safe to evict", volumeName)
+			require.Contains(t, volumesMarkedAsSafeToEvict, etcVolume.Name, "expected volume %s to be marked as safe to evict", etcVolume.Name)
+
 			require.Equal(t, len(tt.libInfo.libs)+1, len(tt.pod.Spec.InitContainers),
 				"expected there to be one more than the number of libs to inject for init containers")
 
