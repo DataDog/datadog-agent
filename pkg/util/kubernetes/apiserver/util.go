@@ -23,6 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SyncInformersError represents an Informer synchronization error.
+type SyncInformersError struct {
+	Name InformerName
+}
+
+// Error returns the error message.
+func (e *SyncInformersError) Error() string {
+	return fmt.Sprintf("couldn't sync informer %s", e.Name)
+}
+
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
 // An extra timeout duration can be provided depending on the informer
@@ -42,7 +52,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 				end := time.Now()
 				cacheSyncTimeouts.Inc()
 				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
-				return fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start))
+				return &SyncInformersError{name}
 			}
 			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Since(start), informers[name].LastSyncResourceVersion())
 			return nil

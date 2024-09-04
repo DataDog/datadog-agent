@@ -10,11 +10,11 @@ package start
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -471,7 +471,8 @@ func start(log log.Component,
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
 		// Ignore the error if it's related to the missing validatingwebhookconfigurations RBACs
-		if err != nil && !strings.HasPrefix(err.Error(), "couldn't sync informer admissionregistration.k8s.io/v1/validatingwebhookconfigurations") {
+		var syncInformerError *apiserver.SyncInformersError
+		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			if err != nil {
