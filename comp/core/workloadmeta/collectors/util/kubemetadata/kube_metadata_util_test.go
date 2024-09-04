@@ -5,14 +5,14 @@
 
 //go:build kubeapiserver
 
-package util
+package kubemetadata
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 )
 
 func TestGenerateKubeMetadataEntityID(t *testing.T) {
@@ -22,7 +22,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 		namespace    string
 		resourceType string
 		resourceName string
-		expectedID   workloadmeta.KubeMetadataEntityID
+		expectedID   kubemetadata.KubeMetadataEntityID
 	}{
 		{
 			name:         "namespace scoped resource",
@@ -53,7 +53,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 func TestParseKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
-		entityID          workloadmeta.KubeMetadataEntityID
+		entityID          kubemetadata.KubeMetadataEntityID
 		expectedGroup     string
 		expectedName      string
 		expectedNamespace string

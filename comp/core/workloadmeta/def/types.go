@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
@@ -786,7 +787,7 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 }
 
 // KubeMetadataEntityID is a unique ID for Kube Metadata Entity
-type KubeMetadataEntityID string
+type KubeMetadataEntityID kubemetadata.KubeMetadataEntityID
 
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
