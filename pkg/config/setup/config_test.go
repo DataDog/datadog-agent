@@ -661,7 +661,7 @@ network_devices:
 
 func TestNetworkPathDefaults(t *testing.T) {
 	datadogYaml := ""
-	config := ConfFromYAML(datadogYaml)
+	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
