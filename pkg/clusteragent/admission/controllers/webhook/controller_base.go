@@ -99,6 +99,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 
 	// Add Validating webhooks.
 	if c.config.getValidationEnabled() {
+		// Future validating webhooks can be added here.
 		validatingWebhooks = []Webhook{}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}

@@ -470,7 +470,7 @@ func start(log log.Component,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
-		// Ignore the error if it's related to the missing validatingwebhookconfigurations RBACs
+		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
 			pkglog.Errorf("Could not start admission controller: %v", err)
