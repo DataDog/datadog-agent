@@ -6,8 +6,8 @@ init_config:
     # min_collection_interval: 60
 
     ## @param timeout - integer - optional - default: 10000
-    ## Specifies how much time the full traceroute should take
-    ## in milliseconds
+    ## Specifies the allowed time for a full traceroute to take in
+    ## milliseconds before marked as unreachable.
     #
     # timeout: 10000
 
@@ -37,8 +37,8 @@ instances:
     # max_ttl: <PORT>
 
     ## @param timeout - integer - optional - default: 10000
-    ## Specifies how much time the full traceroute should take
-    ## in milliseconds
+    ## Specifies the allowed time for a full traceroute to take in
+    ## milliseconds before marked as unreachable.
     #
     # timeout: 10000
 
