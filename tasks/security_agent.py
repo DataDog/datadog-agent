@@ -256,7 +256,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     nw.build(
         inputs=[syscall_tester_c_file],
         outputs=[syscall_tester_exe_file],
-        rule="exe"+compiler,
+        rule="exe" + compiler,
         variables={
             "exeflags": flags,
             "exelibs": libs,
@@ -308,11 +308,15 @@ def build_embed_latency_tools(ctx, static=True):
 
 
 def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
-    return ninja_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler)
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler
+    )
 
 
 def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
-    return ninja_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler)
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler
+    )
 
 
 def create_dir_if_needed(dir):
