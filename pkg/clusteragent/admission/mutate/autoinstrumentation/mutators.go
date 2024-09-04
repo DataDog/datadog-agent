@@ -101,6 +101,8 @@ func (v volume) mount(mount corev1.VolumeMount) volumeMount {
 
 // mutatePod implements podMutator for volume.
 func (v volume) mutatePod(pod *corev1.Pod) error {
+	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, v.Name)
+
 	vol := v.Volume
 	for idx, i := range pod.Spec.Volumes {
 		if i.Name == v.Volume.Name {

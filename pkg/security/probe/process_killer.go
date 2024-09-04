@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -28,12 +30,29 @@ const (
 type ProcessKiller struct {
 	sync.Mutex
 
-	pendingReports []*KillActionReport
+	pendingReports   []*KillActionReport
+	binariesExcluded []*eval.Glob
+	sourceAllowed    []string
 }
 
 // NewProcessKiller returns a new ProcessKiller
-func NewProcessKiller() *ProcessKiller {
-	return &ProcessKiller{}
+func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
+	p := &ProcessKiller{
+		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
+	}
+
+	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
+
+	for _, str := range binaries {
+		glob, err := eval.NewGlob(str, false, false)
+		if err != nil {
+			return nil, err
+		}
+
+		p.binariesExcluded = append(p.binariesExcluded, glob)
+	}
+
+	return p, nil
 }
 
 // AddPendingReports add a pending reports
@@ -79,8 +98,32 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	})
 }
 
+func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
+	for i, pid := range pids {
+		if pid <= 1 || pid == utils.Getpid() {
+			return false
+		}
+
+		if slices.ContainsFunc(p.binariesExcluded, func(glob *eval.Glob) bool {
+			return glob.Matches(paths[i])
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
+func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
+	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
+}
+
 // KillAndReport kill and report
 func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.Rule, ev *model.Event, killFnc func(pid uint32, sig uint32) error) {
+	if !p.isRuleAllowed(rule) {
+		log.Warnf("unable to kill, the source is not allowed: %v", rule)
+		return
+	}
+
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
 		return
@@ -92,9 +135,15 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		scope = "process"
 	}
 
-	pids, err := p.getPids(scope, ev, entry)
+	pids, paths, err := p.getProcesses(scope, ev, entry)
 	if err != nil {
 		log.Errorf("unable to kill: %s", err)
+		return
+	}
+
+	// if one pids is not allowed don't kill anything
+	if !p.isKillAllowed(pids, paths) {
+		log.Warnf("unable to kill, some processes are protected: %v, %v", pids, paths)
 		return
 	}
 
@@ -102,10 +151,6 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 	killedAt := time.Now()
 	for _, pid := range pids {
-		if pid <= 1 || pid == utils.Getpid() {
-			continue
-		}
-
 		log.Debugf("requesting signal %s to be sent to %d", signal, pid)
 
 		if err := killFnc(uint32(pid), uint32(sig)); err != nil {

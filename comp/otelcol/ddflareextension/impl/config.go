@@ -16,15 +16,14 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-type extractDebugEndpoint func(conf *confmap.Conf) (string, bool, error)
+type extractDebugEndpoint func(conf *confmap.Conf) (string, error)
 
 var (
 	errHTTPEndpointRequired  = errors.New("http endpoint required")
 	supportedDebugExtensions = map[string]extractDebugEndpoint{
 		"health_check": healthExtractEndpoint,
-		// disabled zpages from flare until solution to display data.
-		// "zpages":       zPagesExtractEndpoint,
-		"pprof": pprofExtractEndpoint,
+		"zpages":       zPagesExtractEndpoint,
+		"pprof":        pprofExtractEndpoint,
 	}
 )
 
@@ -58,20 +57,19 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	return nil
 }
 
-// todo: uncomment once zpages data is re-added to flare
-// func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
-// 	endpoint, err := regularStringEndpointExtractor(c)
-// 	return endpoint, true, err
-// }
-
-func pprofExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+func zPagesExtractEndpoint(c *confmap.Conf) (string, error) {
 	endpoint, err := regularStringEndpointExtractor(c)
-	return endpoint, false, err
+	return endpoint, err
 }
 
-func healthExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+func pprofExtractEndpoint(c *confmap.Conf) (string, error) {
 	endpoint, err := regularStringEndpointExtractor(c)
-	return endpoint, false, err
+	return endpoint, err
+}
+
+func healthExtractEndpoint(c *confmap.Conf) (string, error) {
+	endpoint, err := regularStringEndpointExtractor(c)
+	return endpoint, err
 }
 
 func regularStringEndpointExtractor(c *confmap.Conf) (string, error) {

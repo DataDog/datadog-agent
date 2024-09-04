@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -48,7 +46,7 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ workloadmeta.Component, telemetryComponent telemetryComponent.Component) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -63,7 +61,7 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ workloadmeta.Compon
 		log.Info("enabling universal service monitoring (USM)")
 	}
 
-	t, err := tracer.NewTracer(ncfg, telemetryComponent)
+	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
 
 	done := make(chan struct{})
 	if err == nil {
