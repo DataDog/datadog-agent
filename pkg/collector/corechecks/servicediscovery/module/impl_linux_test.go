@@ -723,7 +723,10 @@ func TestCache(t *testing.T) {
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
-	module, err := NewDiscoveryModule(nil, wmeta, nil)
+	deps := module.FactoryDependencies{
+		WMeta: wmeta,
+	}
+	module, err := NewDiscoveryModule(nil, deps)
 	require.NoError(t, err)
 	discovery := module.(*discovery)
 
