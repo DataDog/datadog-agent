@@ -61,4 +61,4 @@ The raw response can be found in `otel-response.json`. This corresponds to the d
 
 ## Data collected for inventory
 
-The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../metadata/inventoryotel/README.md).
+The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../../metadata/inventoryotel/README.md).
