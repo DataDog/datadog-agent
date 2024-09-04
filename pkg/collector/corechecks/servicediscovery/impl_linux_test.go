@@ -9,155 +9,118 @@ package servicediscovery
 
 import (
 	"cmp"
-	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/prometheus/procfs"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
 type testProc struct {
-	pid     int
-	cmdline []string
-	env     []string
-	cwd     string
-	stat    procfs.ProcStat
+	pid int
+	env []string
+	cwd string
 }
 
 var (
 	bootTimeSeconds = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).Unix())
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
-	procLaunchedClicks = uint64((12 * time.Hour).Seconds()) * 100
-	pythonCommandLine  = []string{"python", "-m", "foobar.main", "--", "--password", "secret",
-		"--other-stuff", "--more-things", "--even-more",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAA",
-		"--a-long-argument-total-over-max-length",
-	}
-	eventPythonCommandLine = []string{"python", "-m", "foobar.main", "--", "--password", "********",
-		"--other-stuff", "--more-things", "--even-more",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAA",
-		"--a-long-argument"}
+	procLaunchedSeconds = bootTimeSeconds + uint64((12 * time.Hour).Seconds())
+	pythonCommandLine   = []string{"python", "-m", "foobar.main"}
 )
 
 var (
-	procSSHD = testProc{
-		pid:     6,
-		cmdline: []string{"sshd"},
-		env:     nil,
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
-	}
 	procTestService1 = testProc{
-		pid:     99,
-		cmdline: []string{"test-service-1"},
-		env:     []string{},
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
+		pid: 99,
+		env: []string{},
+		cwd: "",
 	}
 	procPythonService = testProc{
-		pid:     500,
-		cmdline: pythonCommandLine,
-		env:     []string{},
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
+		pid: 500,
+		env: []string{},
+		cwd: "",
 	}
 	procIgnoreService1 = testProc{
-		pid:     100,
-		cmdline: []string{"ignore-1"},
-		env:     nil,
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
+		pid: 100,
+		env: nil,
+		cwd: "",
 	}
 	procTestService1Repeat = testProc{
-		pid:     101,
-		cmdline: []string{"test-service-1"}, // same name as procTestService1
-		env:     []string{},
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
+		pid: 101,
+		env: []string{},
+		cwd: "",
 	}
 	procTestService1DifferentPID = testProc{
-		pid:     102,
-		cmdline: []string{"test-service-1"},
-		env:     []string{},
-		cwd:     "",
-		stat: procfs.ProcStat{
-			Starttime: procLaunchedClicks,
-		},
+		pid: 102,
+		env: []string{},
+		cwd: "",
 	}
 )
 
 var (
-	portTCP22 = model.Service{
-		PID:   procSSHD.pid,
-		Name:  "sshd",
-		Ports: []uint16{22},
-	}
 	portTCP8080 = model.Service{
-		PID:   procTestService1.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		NameSource:         "provided",
+		RSS:                100 * 1024 * 1024,
+		CommandLine:        []string{"test-service-1"},
+		StartTimeSecs:      procLaunchedSeconds,
+	}
+	portTCP8080UpdatedRSS = model.Service{
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		NameSource:         "provided",
+		RSS:                200 * 1024 * 1024,
+		CommandLine:        []string{"test-service-1"},
+		StartTimeSecs:      procLaunchedSeconds,
 	}
 	portTCP8080DifferentPID = model.Service{
-		PID:   procTestService1DifferentPID.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1DifferentPID.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.Injected),
+		NameSource:         "generated",
+		CommandLine:        []string{"test-service-1"},
+		StartTimeSecs:      procLaunchedSeconds,
 	}
 	portTCP8081 = model.Service{
-		PID:   procIgnoreService1.pid,
-		Name:  "ignore-1",
-		Ports: []uint16{8081},
+		PID:           procIgnoreService1.pid,
+		Name:          "ignore-1",
+		Ports:         []uint16{8081},
+		StartTimeSecs: procLaunchedSeconds,
 	}
 	portTCP5000 = model.Service{
-		PID:   procPythonService.pid,
-		Name:  "python-service",
-		Ports: []uint16{5000},
+		PID:           procPythonService.pid,
+		Name:          "python-service",
+		Language:      "python",
+		Ports:         []uint16{5000},
+		CommandLine:   pythonCommandLine,
+		StartTimeSecs: procLaunchedSeconds,
 	}
 	portTCP5432 = model.Service{
-		PID:   procTestService1Repeat.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{5432},
+		PID:           procTestService1Repeat.pid,
+		Name:          "test-service-1",
+		Ports:         []uint16{5432},
+		CommandLine:   []string{"test-service-1"},
+		StartTimeSecs: procLaunchedSeconds,
 	}
 )
 
-func mockProc(
-	ctrl *gomock.Controller,
-	p testProc,
-) proc {
-	m := NewMockproc(ctrl)
-	m.EXPECT().PID().Return(p.pid).AnyTimes()
-	m.EXPECT().CmdLine().Return(p.cmdline, nil).AnyTimes()
-	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
-	return m
-}
-
 func calcTime(additionalTime time.Duration) time.Time {
-	unix := time.Unix(int64(bootTimeSeconds+(procLaunchedClicks/100)), 0)
+	unix := time.Unix(int64(procLaunchedSeconds), 0)
 	return unix.Add(additionalTime)
 }
 
@@ -195,7 +158,6 @@ func Test_linuxImpl(t *testing.T) {
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
-		aliveProcs   []testProc
 		servicesResp *model.ServicesResponse
 		time         time.Time
 	}
@@ -209,14 +171,7 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 						portTCP8080,
 						portTCP8081,
@@ -224,14 +179,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 						portTCP8080,
 						portTCP8081,
@@ -239,27 +187,15 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
-						portTCP8080,
+						portTCP8080UpdatedRSS,
 						portTCP8081,
 					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 					}},
 					time: calcTime(21 * time.Minute),
@@ -280,6 +216,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
@@ -296,6 +235,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           200 * 1024 * 1024,
 					},
 				},
 				{
@@ -312,6 +254,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           200 * 1024 * 1024,
 					},
 				},
 				{
@@ -328,7 +273,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{5000},
 						PID:                 500,
 						ServiceLanguage:     "python",
-						CommandLine:         eventPythonCommandLine,
+						CommandLine:         pythonCommandLine,
 					},
 				},
 				{
@@ -345,7 +290,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{5000},
 						PID:                 500,
 						ServiceLanguage:     "python",
-						CommandLine:         eventPythonCommandLine,
+						CommandLine:         pythonCommandLine,
 					},
 				},
 			},
@@ -354,14 +299,7 @@ func Test_linuxImpl(t *testing.T) {
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -369,14 +307,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -384,14 +315,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -399,12 +323,7 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 					}},
 					time: calcTime(21 * time.Minute),
@@ -441,6 +360,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
@@ -489,6 +411,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 			},
@@ -499,49 +424,27 @@ func Test_linuxImpl(t *testing.T) {
 			name: "restart_service",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 					}},
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 					}},
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1DifferentPID,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080DifferentPID,
 					}},
 					time: calcTime(21 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1DifferentPID,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080DifferentPID,
 					}},
 					time: calcTime(22 * time.Minute),
@@ -562,6 +465,9 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
@@ -578,6 +484,8 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 102,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "injected",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},
@@ -611,26 +519,16 @@ func Test_linuxImpl(t *testing.T) {
 					Return(cr.servicesResp, nil).
 					Times(1)
 
-				var procs []proc
-				for _, p := range cr.aliveProcs {
-					procs = append(procs, mockProc(ctrl, p))
-				}
-
 				_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
-
-				mProcFS := NewMockprocFS(ctrl)
-				mProcFS.EXPECT().AllProcs().Return(procs, nil).Times(1)
 
 				mTimer := NewMocktimer(ctrl)
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).procfs = mProcFS
 				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
 					return mSysProbe, nil
 				}
 				check.os.(*linuxImpl).time = mTimer
-				check.os.(*linuxImpl).bootTime = bootTimeSeconds
 				check.sender.hostname = mHostname
 
 				err = check.Run()
@@ -646,76 +544,5 @@ func Test_linuxImpl(t *testing.T) {
 				t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-type errorProcFS struct{}
-
-func (errorProcFS) AllProcs() ([]proc, error) {
-	return nil, errors.New("procFS failure")
-}
-
-func Test_linuxImpl_errors(t *testing.T) {
-	t.Setenv("DD_DISCOVERY_ENABLED", "true")
-
-	// bad procFS
-	{
-		li := linuxImpl{
-			procfs: errorProcFS{},
-		}
-		ds, err := li.DiscoverServices()
-		if ds != nil {
-			t.Error("expected nil discovery service")
-		}
-		var expected errWithCode
-		if errors.As(err, &expected) {
-			if expected.Code() != errorCodeProcfs {
-				t.Errorf("expected error code procfs: %#v", expected)
-			}
-		} else {
-			t.Error("expected errWithCode, got", err)
-		}
-	}
-}
-
-func TestTruncateCmdline(t *testing.T) {
-	type testData struct {
-		original []string
-		result   []string
-	}
-
-	tests := []testData{
-		{
-			original: []string{},
-			result:   nil,
-		},
-		{
-			original: []string{"a", "b", "", "c", "d"},
-			result:   []string{"a", "b", "c", "d"},
-		},
-		{
-			original: []string{"x", strings.Repeat("A", maxCommandLine-1)},
-			result:   []string{"x", strings.Repeat("A", maxCommandLine-1)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine), "B"},
-			result:   []string{strings.Repeat("A", maxCommandLine)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine+1)},
-			result:   []string{strings.Repeat("A", maxCommandLine)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine-1), "", "B"},
-			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine-1), "BCD"},
-			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
-		},
-	}
-
-	for _, test := range tests {
-		assert.Equal(t, test.result, truncateCmdline(test.original))
 	}
 }

@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (
@@ -15,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -121,10 +121,6 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
-	if _, err := tracefs.Root(); err != nil {
-		return nil, fmt.Errorf("system-probe unsupported: %s", err)
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -139,12 +135,16 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	if cfg.ServiceMonitoringEnabled {
-		if !usmconfig.IsUSMSupported() {
-			errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", usmconfig.MinimumKernelVersion, currKernelVersion)
+		if err := usmconfig.CheckUSMSupported(cfg); err != nil {
+			// this is the case where USM is enabled and NPM is not enabled
+			// in config; we implicitly enable the network tracer module
+			// in system-probe if USM is enabled
 			if !cfg.NPMEnabled {
-				return nil, fmt.Errorf(errStr)
+				return nil, err
 			}
-			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+
+			log.Warn(err)
+			log.Warnf("NPM is explicitly enabled, so system-probe will continue with only NPM features enabled")
 		}
 	}
 
@@ -244,30 +244,33 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 	var c netlink.Conntracker
 	var err error
 
-	ns, err := cfg.GetRootNetNs()
-	if err != nil {
-		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
-	} else {
-		defer ns.Close()
-		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+	if !cfg.EnableEbpfless {
+		ns, err := cfg.GetRootNetNs()
+		if err != nil {
+			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+		} else {
+			defer ns.Close()
+			if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+				log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+			}
 		}
-	}
-	if cfg.EnableEbpfConntracker {
-		if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
-			return c, nil
+		if cfg.EnableEbpfConntracker {
+			if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
+				return c, nil
+			}
+			log.Warnf("error initializing ebpf conntracker: %s", err)
+		} else {
+			log.Info("ebpf conntracker disabled")
 		}
-		log.Warnf("error initializing ebpf conntracker: %s", err)
-	} else {
-		log.Info("ebpf conntracker disabled")
+
+		log.Info("falling back to netlink conntracker")
 	}
 
-	log.Info("falling back to netlink conntracker")
 	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
 		return c, nil
 	}
 
-	if cfg.IgnoreConntrackInitFailure {
+	if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -207,7 +208,7 @@ func IsOrchestratorECSExplorerEnabled() bool {
 		return false
 	}
 
-	if config.IsECS() || config.IsECSFargate() {
+	if env.IsECS() || env.IsECSFargate() {
 		return true
 	}
 

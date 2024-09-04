@@ -63,6 +63,7 @@ type testOpts struct {
 	disableOnDemandRateLimiter                 bool
 	ebpfLessEnabled                            bool
 	dontWaitEBPFLessClient                     bool
+	enforcementExcludeBinary                   string
 }
 
 type dynamicTestOpts struct {
@@ -137,5 +138,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.preStartCallback == nil && opts.preStartCallback == nil &&
 		to.networkIngressEnabled == opts.networkIngressEnabled &&
 		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
-		to.ebpfLessEnabled == opts.ebpfLessEnabled
+		to.ebpfLessEnabled == opts.ebpfLessEnabled &&
+		to.enforcementExcludeBinary == opts.enforcementExcludeBinary
 }

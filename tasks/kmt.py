@@ -37,6 +37,7 @@ from tasks.kernel_matrix_testing.infra import (
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -211,14 +212,20 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
+    failed_tests: set[str] = set()
     for test_job in test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = test_job.get_test_results()
-            failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
+            results = test_job.get_test_results()
+            for test, result in results.items():
+                if result is False:
+                    package, test = test.split(":")
+                    failed_tests.add(test)
+                    failed_packages.add(package)
+
             vm_name = f"{vm_arch}-{test_job.distro}-distro"
             info(f"[+] Adding {vm_name} from failed job {test_job.name}")
             vms.add(vm_name)
@@ -233,7 +240,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
+    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -674,10 +681,12 @@ def prepare(
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
-    cc = get_compiler(ctx)
 
-    if arch_obj.is_cross_compiling():
-        cc.ensure_ready_for_cross_compile()
+    if not ci:
+        cc = get_compiler(ctx)
+
+        if arch_obj.is_cross_compiling():
+            cc.ensure_ready_for_cross_compile()
 
     pkgs = ""
     if packages:
@@ -807,6 +816,7 @@ def build_target_packages(filter_packages):
     if filter_packages == []:
         return all_packages
 
+    filter_packages = [os.path.relpath(p) for p in go_package_dirs(filter_packages, [NPM_TAG, BPF_TAG])]
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
@@ -869,7 +879,7 @@ def kmt_sysprobe_prepare(
 
     filter_pkgs = []
     if packages:
-        filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
+        filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
@@ -961,6 +971,7 @@ def kmt_sysprobe_prepare(
                 "external_unix_proxy_server",
                 "fmapper",
                 "prefetch_file",
+                "fake_server",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1088,7 +1099,7 @@ def test(
 
     pkgs = []
     if packages is not None:
-        pkgs = packages.split(",")
+        pkgs = [os.path.relpath(p) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
 
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
@@ -2103,7 +2114,7 @@ def install_ddagent(
     for d in domains:
         d.run_cmd(
             ctx,
-            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            f"curl -L https://install.datadoghq.com/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
             verbose=verbose,
         )
         d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
@@ -2122,8 +2133,14 @@ def install_ddagent(
         build_layout(ctx, domains, layout, verbose)
 
 
-@task
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
 
@@ -2147,8 +2164,22 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
                 continue
 
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
+
             tar = tarfile.open(fileobj=io.BytesIO(data))
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
             print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+
+
+@task
+def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+    if dest_folder is None:
+        dest_folder = "."
+    dest_folder = Path(dest_folder)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)

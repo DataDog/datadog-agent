@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -327,7 +328,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Supply(flare.NewParams(
+		flare.Module(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
 			path.DefaultLogFile,
@@ -335,23 +336,13 @@ func getSharedFxOption() fx.Option {
 			path.DefaultDogstatsDLogFile,
 			path.DefaultStreamlogsLogFile,
 		)),
-		flare.Module(),
 		core.Bundle(),
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
-		forwarder.Bundle(),
-		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
-			params := defaultforwarder.NewParams(config, log)
-			// Enable core agent specific features like persistence-to-disk
-			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
-			return params
-		}),
-
+		lsof.Module(),
+		// Enable core agent specific features like persistence-to-disk
+		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		fx.Provide(defaults.DefaultParams),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(defaults.DefaultParams()),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
@@ -387,7 +378,7 @@ func getSharedFxOption() fx.Option {
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		demultiplexerendpointfx.Module(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return optional.NewOption[logsagentpipeline.Component](la)
@@ -434,8 +425,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
@@ -445,9 +435,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
-		}),
-		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
-			return optional.NewOption[integrations.Component](logReceiver)
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),

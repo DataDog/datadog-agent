@@ -6,17 +6,18 @@
 // Package infra implements utilities to interact with a Pulumi infrastructure
 package infra
 
-type retryType string
+// RetryType is an enum to specify the type of retry to perform
+type RetryType string
 
 const (
-	reUp     retryType = "ReUp"     // Retry the up operation
-	reCreate retryType = "ReCreate" // Retry the up operation after destroying the stack
-	noRetry  retryType = "NoRetry"
+	ReUp     RetryType = "ReUp"     // ReUp retries the up operation
+	ReCreate RetryType = "ReCreate" // ReCreate retries the up operation after destroying the stack
+	NoRetry  RetryType = "NoRetry"  // NoRetry does not retry the up operation
 )
 
 type knownError struct {
 	errorMessage string
-	retryType    retryType
+	retryType    RetryType
 }
 
 func getKnownErrors() []knownError {
@@ -24,17 +25,22 @@ func getKnownErrors() []knownError {
 	return []knownError{
 		{
 			errorMessage: "i/o timeout",
-			retryType:    reCreate,
+			retryType:    ReCreate,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-1
 			errorMessage: "failed attempts: dial tcp :22: connect: connection refused",
-			retryType:    reCreate,
+			retryType:    ReCreate,
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-295
 			errorMessage: "Resource provider reported that the resource did not exist while updating",
-			retryType:    reCreate,
+			retryType:    ReCreate,
+		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-558
+			errorMessage: "Process exited with status 2: running \" sudo cloud-init status --wait\"",
+			retryType:    ReCreate,
 		},
 	}
 }
