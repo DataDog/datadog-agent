@@ -443,8 +443,7 @@ func getSharedFxOption() fx.Option {
 		collectorimpl.Module(),
 		process.Bundle(),
 		guiimpl.Module(),
-		agent.Bundle(),
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
+		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),
