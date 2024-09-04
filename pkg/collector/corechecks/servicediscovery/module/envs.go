@@ -66,8 +66,11 @@ func extractInjectionMeta(path string) (*InjectedProcess, error) {
 	defer reader.Close()
 
 	data, err := io.ReadAll(io.LimitReader(reader, memFdMaxSize))
-	if err != nil || len(data) == memFdMaxSize {
+	if err != nil {
 		return nil, err
+	}
+	if len(data) == memFdMaxSize {
+		return nil, io.ErrShortBuffer
 	}
 
 	var injectedProc InjectedProcess
