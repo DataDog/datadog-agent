@@ -37,7 +37,6 @@ type RuntimeSecurityAgent struct {
 	connected               *atomic.Bool
 	eventReceived           *atomic.Uint64
 	activityDumpReceived    *atomic.Uint64
-	telemetry               *telemetry
 	profContainersTelemetry *profContainersTelemetry
 	endpoints               *config.Endpoints
 	cancel                  context.CancelFunc
@@ -67,11 +66,6 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 		// Start activity dumps listener
 		go rsa.StartActivityDumpListener()
 		go rsa.startActivityDumpStorageTelemetry(ctx)
-	}
-
-	if rsa.telemetry != nil {
-		// Send Runtime Security Agent telemetry
-		go rsa.telemetry.run(ctx)
 	}
 
 	if rsa.profContainersTelemetry != nil {
