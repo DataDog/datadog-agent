@@ -354,7 +354,7 @@ func customNewProcess(pid int32) (*process.Process, error) {
 }
 
 // ignoreComms is a list of process names (matched against /proc/PID/comm) to
-// never report as a service.
+// never report as a service. Note that comm is limited to 16 characters.
 var ignoreComms = map[string]struct{}{
 	"sshd":             {},
 	"dhclient":         {},

@@ -558,6 +558,13 @@ func TestIgnore(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+func TestIgnoreCommsLengths(t *testing.T) {
+	for comm := range ignoreComms {
+		// /proc/PID/comm is limited to 16 characters.
+		assert.LessOrEqual(t, len(comm), 16, "Process name %q too big", comm)
+	}
+}
+
 func TestNodeDocker(t *testing.T) {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
