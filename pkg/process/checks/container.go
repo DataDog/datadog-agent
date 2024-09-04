@@ -73,7 +73,7 @@ func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) er
 		}
 	}
 
-	networkID, err := retryGetNetworkId(tu)
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

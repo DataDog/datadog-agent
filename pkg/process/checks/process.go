@@ -152,7 +152,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		}
 	}
 
-	networkID, err := retryGetNetworkId(tu)
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
