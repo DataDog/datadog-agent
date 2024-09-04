@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 )
 
@@ -43,8 +44,8 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func GetServiceName(cmdline []string, env map[string]string, root string, contextMap usm.DetectorContextMap) (string, bool) {
+func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) (string, bool) {
 	fs := usm.NewSubDirFS(root)
-	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, contextMap)
+	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
 	return makeFinalName(meta), meta.FromDDService
 }

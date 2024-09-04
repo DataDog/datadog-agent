@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -49,6 +50,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		name                       string
 		cmdline                    []string
 		envs                       map[string]string
+		lang                       language.Language
 		expectedServiceTag         string
 		expectedAdditionalServices []string
 		fromDDService              bool
@@ -109,6 +111,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
+			lang:               language.Python,
 			expectedServiceTag: "flask",
 			envs:               map[string]string{"PWD": "testdata/python"},
 			fs:                 &subUsmTestData,
@@ -118,6 +121,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "testdata/python/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
+			lang:               language.Python,
 			expectedServiceTag: "flask",
 			fs:                 &subUsmTestData,
 		},
@@ -126,6 +130,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
+			lang:               language.Python,
 			envs:               map[string]string{"PWD": "testdata/python"},
 			expectedServiceTag: "flask",
 			fs:                 &subUsmTestData,
@@ -135,6 +140,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"python3", "-m", "hello",
 			},
+			lang:               language.Python,
 			expectedServiceTag: "hello",
 		},
 		{
@@ -142,6 +148,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
+			lang:               language.Ruby,
 			expectedServiceTag: "td-agent",
 		},
 		{
@@ -149,6 +156,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "myservice",
 		},
 		{
@@ -156,6 +164,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "HelloWorld",
 		},
 		{
@@ -163,6 +172,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "Kafka",
 		},
 		{
@@ -173,6 +183,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
 				"org.apache.cassandra.service.CassandraDaemon",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "cassandra",
 		},
 		{
@@ -180,8 +191,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "cat",
-		}, {
+		},
+		{
 			name: "node js with package.json not present",
 			cmdline: []string{
 				"/usr/bin/node",
@@ -191,6 +204,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
+			lang:               language.Node,
 			expectedServiceTag: "node",
 		},
 		{
@@ -199,6 +213,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/node",
 				"./testdata/inner/index.js",
 			},
+			lang:               language.Node,
 			expectedServiceTag: "node",
 		},
 		{
@@ -211,6 +226,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"./testdata/index.js",
 			},
+			lang:               language.Node,
 			expectedServiceTag: "my-awesome-package",
 			fs:                 &subUsmTestData,
 		},
@@ -224,6 +240,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/bins/broken",
 				"./testdata/bins/json-server",
 			},
+			lang:               language.Node,
 			expectedServiceTag: "json-server-package",
 			skipOnWindows:      true,
 			fs:                 &subUsmTestData,
@@ -238,6 +255,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"index.js",
 			},
+			lang:               language.Node,
 			envs:               map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
 			fs:                 &subUsmTestData,
 			expectedServiceTag: "my-awesome-package",
@@ -249,11 +267,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-jar",
 				springBootAppFullPath,
 			},
+			lang:               language.Java,
 			expectedServiceTag: "default-app",
 		},
 		{
 			name: "wildfly 18 standalone",
-			cmdline: []string{"home/app/.sdkman/candidates/java/17.0.4.1-tem/bin/java",
+			cmdline: []string{
+				"home/app/.sdkman/candidates/java/17.0.4.1-tem/bin/java",
 				"-D[Standalone]",
 				"-server",
 				"-Xms64m",
@@ -274,7 +294,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"" + jbossTestAppRoot + "/modules",
 				"org.jboss.as.standalone",
 				"-Djboss.home.dir=" + jbossTestAppRoot,
-				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone"},
+				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone",
+			},
+			lang:                       language.Java,
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
 			fs:                         &sub,
@@ -282,7 +304,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 		},
 		{
 			name: "wildfly 18 domain",
-			cmdline: []string{"/home/app/.sdkman/candidates/java/17.0.4.1-tem/bin/java",
+			cmdline: []string{
+				"/home/app/.sdkman/candidates/java/17.0.4.1-tem/bin/java",
 				"--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
 				"--add-exports=jdk.unsupported/sun.reflect=ALL-UNNAMED",
 				"--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED",
@@ -306,7 +329,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"" + jbossTestAppRoot + "/jboss-modules.jar",
 				"-mp",
 				"" + jbossTestAppRoot + "/modules",
-				"org.jboss.as.server"},
+				"org.jboss.as.server",
+			},
+			lang:                       language.Java,
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"web3", "web4"},
 			fs:                         &sub,
@@ -315,7 +340,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name: "weblogic 12",
 			fs:   &sub,
-			cmdline: []string{"/u01/jdk/bin/java",
+			cmdline: []string{
+				"/u01/jdk/bin/java",
 				"-Djava.security.egd=file:/dev/./urandom",
 				"-cp",
 				"/u01/oracle/wlserver/server/lib/weblogic-launcher.jar",
@@ -327,7 +353,9 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-da",
 				"-Dwls.home=/u01/oracle/wlserver/server",
 				"-Dweblogic.home=/u01/oracle/wlserver/server",
-				"weblogic.Server"},
+				"weblogic.Server",
+			},
+			lang:                       language.Java,
 			envs:                       map[string]string{"PWD": weblogicTestAppRootAbsolute},
 			expectedServiceTag:         "Server",
 			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
@@ -337,6 +365,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
+			lang:               language.Java,
 			expectedServiceTag: "custom",
 			fromDDService:      true,
 		},
@@ -362,6 +391,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"org.apache.catalina.startup.Bootstrap",
 				"start",
 			},
+			lang:                       language.Java,
 			expectedServiceTag:         "catalina",
 			expectedAdditionalServices: []string{"app2", "custom"},
 			fs:                         &subUsmTestData,
@@ -371,6 +401,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
+			lang:               language.DotNet,
 			expectedServiceTag: "myservice",
 		},
 		{
@@ -378,6 +409,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
 			},
+			lang:               language.DotNet,
 			expectedServiceTag: "myservice",
 		},
 		{
@@ -385,6 +417,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
+			lang:               language.DotNet,
 			expectedServiceTag: "dotnet",
 		},
 		{
@@ -394,6 +427,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"serve",
 			},
+			lang:               language.PHP,
 			expectedServiceTag: "laravel",
 		},
 		{
@@ -403,6 +437,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-ddatadog.service=foo",
 				"swoole-server.php",
 			},
+			lang:               language.PHP,
 			expectedServiceTag: "foo",
 		},
 		{
@@ -412,6 +447,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
+			lang:               language.PHP,
 			expectedServiceTag: "laravel",
 		},
 		{
@@ -421,6 +457,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
+			lang:               language.PHP,
 			expectedServiceTag: "laravel",
 		},
 		{
@@ -549,7 +586,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			if tt.fs != nil {
 				fs = *tt.fs
 			}
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, make(DetectorContextMap))
+			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, tt.lang, make(DetectorContextMap))
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
