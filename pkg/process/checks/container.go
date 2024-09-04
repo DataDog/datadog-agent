@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -16,9 +15,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,11 +52,28 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	var tu *net.RemoteSysProbeUtil
+	var err error
+	if syscfg.NetworkTracerModuleEnabled {
+		// Calling the remote tracer will cause it to initialize and check connectivity
+		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
+		if err != nil {
+			log.Warnf("could not initiate connection with system probe: %s", err)
+		} else {
+			// Register process agent as a system probe's client
+			// This ensures we start recording data from now to the first call to `Run`
+			err = tu.Register(ProcessAgentClientID)
+			if err != nil {
+				log.Warnf("could not register process-agent to system-probe: %s", err)
+			}
+		}
+	}
+
+	networkID, err := retryGetNetworkId(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}

@@ -44,6 +44,7 @@ type Conn interface {
 
 const (
 	contentTypeProtobuf = "application/protobuf"
+	contentTypeJson     = "application/json"
 )
 
 var (
@@ -166,6 +167,33 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
+	networkIdPath := "/network_id"
+	req, err := http.NewRequest("GET", "/network_id", nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Accept", contentTypeJson)
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIdPath, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
+}
+
 // GetPing returns the results of a ping to a host
 func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&count=%d&interval=%d&timeout=%d", pingURL, host, clientID, count, interval, timeout), nil)
@@ -173,7 +201,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", contentTypeJson)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -205,7 +233,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", contentTypeJson)
 	resp, err := r.extendedTimeoutClient.Do(req)
 	if err != nil {
 		return nil, err
