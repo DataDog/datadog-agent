@@ -6,7 +6,7 @@ import pkg_resources
 from packaging import version
 import subprocess
 
-DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation proces\n"
+DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation process\n"
 
 def run_command(command):
     """
