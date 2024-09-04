@@ -70,12 +70,14 @@ func TestECSTestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false, false), nil))}
+		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false, false), nil)),
+		e2e.WithDevMode(),
+	}
 
 	e2e.Run(t, &s, e2eParams...)
 }
 
-func (s *ECSSuite) TestECSProcessCheck() {
+func (s *ECSSuite) TestECSEC2ProcessCheck() {
 	t := s.T()
 	// PROCS-4219
 	// flake.Mark(t)
@@ -94,7 +96,7 @@ func (s *ECSSuite) TestECSProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSSuite) TestECSProcessCheckInCoreAgent() {
+func (s *ECSSuite) TestECSEC2ProcessCheckInCoreAgent() {
 	t := s.T()
 	// PROCS-4219
 	// flake.Mark(t)
