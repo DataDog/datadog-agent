@@ -14,7 +14,6 @@ import (
 
 	"github.com/cenkalti/backoff"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -377,7 +376,7 @@ func (w *workloadmeta) GetImage(id string) (*wmdef.ContainerImageMetadata, error
 }
 
 // GetKubernetesMetadata implements Store#GetKubernetesMetadata.
-func (w *workloadmeta) GetKubernetesMetadata(id kubemetadata.KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
+func (w *workloadmeta) GetKubernetesMetadata(id KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, string(id))
 	if err != nil {
 		return nil, err

@@ -68,7 +68,7 @@ type Component interface {
 
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
-	GetKubernetesMetadata(id kubemetadata.KubeMetadataEntityID) (*KubernetesMetadata, error)
+	GetKubernetesMetadata(id kubemetadata.EntityID) (*KubernetesMetadata, error)
 
 	// ListKubernetesMetadata returns all the kubernetes metadata objects for
 	// which the passed filter evaluates to true.
