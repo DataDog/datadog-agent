@@ -39,11 +39,6 @@ var (
 )
 
 var (
-	procSSHD = testProc{
-		pid: 6,
-		env: nil,
-		cwd: "",
-	}
 	procTestService1 = testProc{
 		pid: 99,
 		env: []string{},
@@ -72,12 +67,6 @@ var (
 )
 
 var (
-	portTCP22 = model.Service{
-		PID:           procSSHD.pid,
-		Name:          "sshd",
-		GeneratedName: "sshd",
-		Ports:         []uint16{22},
-	}
 	portTCP8080 = model.Service{
 		PID:                procTestService1.pid,
 		Name:               "test-service-1",
@@ -191,7 +180,6 @@ func Test_linuxImpl(t *testing.T) {
 			checkRun: []*checkRun{
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 						portTCP8080,
 						portTCP8081,
@@ -200,7 +188,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 						portTCP8080,
 						portTCP8081,
@@ -209,7 +196,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 						portTCP8080UpdatedRSS,
 						portTCP8081,
@@ -218,7 +204,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP5000,
 					}},
 					time: calcTime(21 * time.Minute),
@@ -331,7 +316,6 @@ func Test_linuxImpl(t *testing.T) {
 			checkRun: []*checkRun{
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -340,7 +324,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -349,7 +332,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
@@ -358,7 +340,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 					}},
 					time: calcTime(21 * time.Minute),
@@ -467,7 +448,6 @@ func Test_linuxImpl(t *testing.T) {
 			checkRun: []*checkRun{
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -475,7 +455,6 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -483,14 +462,12 @@ func Test_linuxImpl(t *testing.T) {
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080DifferentPID,
 					}},
 					time: calcTime(21 * time.Minute),
 				},
 				{
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
-						portTCP22,
 						portTCP8080DifferentPID,
 					}},
 					time: calcTime(22 * time.Minute),

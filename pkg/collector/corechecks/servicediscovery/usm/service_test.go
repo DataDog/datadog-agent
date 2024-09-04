@@ -550,6 +550,24 @@ func TestExtractServiceMetadata(t *testing.T) {
 			envs:                  map[string]string{"WSGI_APP": "test:app"},
 			expectedGeneratedName: "test",
 		},
+		{
+			name: "gunicorn with replaced cmdline with colon",
+			cmdline: []string{
+				"gunicorn:",
+				"master",
+				"[domains.foo.apps.bar:create_server()]",
+			},
+			expectedGeneratedName: "domains.foo.apps.bar",
+		},
+		{
+			name: "gunicorn with replaced cmdline",
+			cmdline: []string{
+				"gunicorn:",
+				"master",
+				"[mcservice]",
+			},
+			expectedGeneratedName: "mcservice",
+		},
 	}
 
 	for _, tt := range tests {

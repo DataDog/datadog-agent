@@ -24,7 +24,8 @@ type remoteConfigClient interface {
 	Start()
 	Close()
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+	GetInstallerState() []*pbgo.PackageState
+	SetInstallerState(packages []*pbgo.PackageState)
 }
 
 type remoteConfig struct {
@@ -63,9 +64,14 @@ func (rc *remoteConfig) Close() {
 	rc.client.Close()
 }
 
-// SetState sets the state of the given package.
+// GetState gets the state of the remote config client.
+func (rc *remoteConfig) GetState() []*pbgo.PackageState {
+	return rc.client.GetInstallerState()
+}
+
+// SetState sets the state of the remote config client.
 func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
-	rc.client.SetUpdaterPackagesState(packages)
+	rc.client.SetInstallerState(packages)
 }
 
 // Package represents a downloadable package.
