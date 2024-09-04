@@ -55,8 +55,9 @@ func intValues[I int32 | int64](fvs rules.FilterValues) []I {
 func newKFilterWithFlags[I int32 | int64](tableName string, flags ...I) (activeKFilter, error) {
 	var flagsItem I
 
+	flagsItem |= 1 // use the bit 0 as a way to specify is there is a value or not
 	for _, flag := range flags {
-		flagsItem |= flag
+		flagsItem |= flag << 1
 	}
 
 	if flagsItem != 0 {
