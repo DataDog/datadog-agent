@@ -47,7 +47,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
+					ID:   string(kubemetadata.GenerateEntityID("apps", "deployments", "default", "test-app")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-app",
@@ -81,7 +81,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -115,7 +115,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -151,7 +151,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",

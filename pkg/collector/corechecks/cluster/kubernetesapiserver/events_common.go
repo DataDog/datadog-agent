@@ -260,7 +260,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://%s", string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
+		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://%s", string(kubemetadata.GenerateEntityID("", "namespaces", "", involvedObject.Namespace)))
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)

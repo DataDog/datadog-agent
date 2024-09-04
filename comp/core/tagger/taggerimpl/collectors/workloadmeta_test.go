@@ -1227,7 +1227,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 func TestHandleKubeDeployment(t *testing.T) {
 	const deploymentName = "fooapp"
 
-	kubeMetadataID := string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", deploymentName))
+	kubeMetadataID := string(kubemetadata.GenerateEntityID("apps", "deployments", "default", deploymentName))
 
 	kubeMetadataEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesMetadata,

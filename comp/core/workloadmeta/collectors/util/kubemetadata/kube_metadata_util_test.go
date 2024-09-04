@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGenerateKubeMetadataEntityID(t *testing.T) {
+func TestGenerateEntityID(t *testing.T) {
 	tests := []struct {
 		name         string
 		group        string
@@ -42,13 +42,13 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedID, GenerateKubeMetadataEntityID(test.group, test.resourceType, test.namespace, test.resourceName))
+			assert.Equal(tt, test.expectedID, GenerateEntityID(test.group, test.resourceType, test.namespace, test.resourceName))
 		})
 	}
 
 }
 
-func TestParseKubeMetadataEntityID(t *testing.T) {
+func TestParseEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
 		entityID          EntityID
@@ -73,7 +73,7 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 			expectedNamespace: "",
 			expectedResource:  "nodes",
 			expectedName:      "foo-node",
-			entityID:          GenerateKubeMetadataEntityID("", "nodes", "", "foo-node"),
+			entityID:          GenerateEntityID("", "nodes", "", "foo-node"),
 			expectError:       false,
 		},
 		{
@@ -89,7 +89,7 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			group, resource, namespace, name, err := ParseKubeMetadataEntityID(test.entityID)
+			group, resource, namespace, name, err := ParseEntityID(test.entityID)
 			if test.expectError {
 				assert.Error(tt, err)
 			} else {

@@ -47,7 +47,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						ID:   string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
+						ID:   string(kubemetadata.GenerateEntityID("apps", "deployments", "default", "test-app")),
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{

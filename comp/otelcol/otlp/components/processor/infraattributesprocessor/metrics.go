@@ -61,11 +61,11 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", namespace.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(kubemetadata.GenerateEntityID("", "namespaces", "", namespace.AsString()))))
 	}
 
 	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(kubemetadata.GenerateKubeMetadataEntityID("", "nodes", "", nodeName.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(kubemetadata.GenerateEntityID("", "nodes", "", nodeName.AsString()))))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))
