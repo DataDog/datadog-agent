@@ -23,17 +23,6 @@ func init() {
 	newOSImpl = newLinuxImpl
 }
 
-var ignoreCfgLinux = []string{
-	"sshd",
-	"dhclient",
-	"systemd",
-	"systemd-resolved",
-	"systemd-networkd",
-	"datadog-agent",
-	"livenessprobe",
-	"docker-proxy", // remove when we have docker support in place
-}
-
 type linuxImpl struct {
 	getSysProbeClient func() (systemProbeClient, error)
 	time              timer
@@ -46,9 +35,6 @@ type linuxImpl struct {
 }
 
 func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
-	for _, i := range ignoreCfgLinux {
-		ignoreCfg[i] = true
-	}
 	return &linuxImpl{
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
