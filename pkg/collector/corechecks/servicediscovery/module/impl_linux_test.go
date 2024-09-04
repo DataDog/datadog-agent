@@ -561,6 +561,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
+		assertCPU(t, url, pid)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
