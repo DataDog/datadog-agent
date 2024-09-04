@@ -16,7 +16,25 @@ import (
 
 const encoding = "zstd"
 
-type compressor struct{}
+type compressor struct {
+}
+
+type writer struct {
+	underlyingWriter io.Writer
+}
+
+func (w *writer) Write(data []byte) (n int, err error) {
+	res, err := zstd.CompressLevel(nil, data, zstd.BestSpeed)
+	if err != nil {
+		return 0, err
+	}
+	n, err = w.underlyingWriter.Write(res)
+	return n, err
+}
+
+func (w *writer) Close() (err error) {
+	return nil
+}
 
 // NewComponent creates a new compression component
 func NewComponent() compression.Component {
@@ -24,7 +42,9 @@ func NewComponent() compression.Component {
 }
 
 func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
-	return zstd.NewWriterLevel(w, zstd.BestSpeed), nil
+	return &writer{
+		underlyingWriter: w,
+	}, nil
 }
 
 func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
