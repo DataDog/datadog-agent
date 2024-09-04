@@ -8,6 +8,8 @@ package workloadmeta
 
 // team: container-platform
 
+import "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
+
 // Component is the component type.
 type Component interface {
 	// Subscribe subscribes the caller to events representing changes to the
@@ -66,7 +68,7 @@ type Component interface {
 
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
-	GetKubernetesMetadata(id KubeMetadataEntityID) (*KubernetesMetadata, error)
+	GetKubernetesMetadata(id kubemetadata.KubeMetadataEntityID) (*KubernetesMetadata, error)
 
 	// ListKubernetesMetadata returns all the kubernetes metadata objects for
 	// which the passed filter evaluates to true.
