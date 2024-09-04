@@ -118,8 +118,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
-		remotePort := uint16(conn.Raddr.GetPort())
 		protocol := convertProtocol(conn.GetType())
+		var remotePort uint16
+		// UDP traces should not be done to the active
+		// port
+		if protocol != payload.ProtocolUDP {
+			remotePort = uint16(conn.Raddr.GetPort())
+		}
 		if !shouldScheduleNetworkPathForConn(conn) {
 			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
 			continue
