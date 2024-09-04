@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck source=/dev/null
+source /root/.bashrc
 # junit file name can differ in kitchen or macos context
 junit_files="junit-*.tgz"
 if [[ -n "$1" ]]; then

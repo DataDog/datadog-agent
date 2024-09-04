@@ -338,13 +338,8 @@ func getSharedFxOption() fx.Option {
 		)),
 		core.Bundle(),
 		lsof.Module(),
-		forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
-			params := defaultforwarder.NewParams(config, log)
-			// Enable core agent specific features like persistence-to-disk
-			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
-			return params
-		}),
-
+		// Enable core agent specific features like persistence-to-disk
+		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(defaults.DefaultParams()),

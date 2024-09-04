@@ -4,6 +4,9 @@ retry_count=0
 max_retries=10
 parameter_name="$1"
 
+# shellcheck disable=SC1091
+source /root/.bashrc > /dev/null 2>&1
+
 set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
