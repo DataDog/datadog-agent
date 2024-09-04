@@ -67,7 +67,7 @@ func ecsCPUStressProvisioner(runInCoreAgent bool, fargate bool) e2e.PulumiEnvRun
 }
 
 func TestECSTestSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	s := ECSSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false, false), nil)),
