@@ -54,7 +54,6 @@ func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
 	run(t, s, systemProbeNoFIMConfig)
 }
 
-
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
 	s := &agentServiceCommandSuite{}
