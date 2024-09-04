@@ -205,7 +205,7 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 
 	x := []byte{}
 	buf := bytes.NewBuffer(x)
-	err := generateHeaderText(slice.ParameterPieces[0], out)
+	err := generateHeaderText(slice.ParameterPieces[0], buf)
 	if err != nil {
 		return err
 	}
