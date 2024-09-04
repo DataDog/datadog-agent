@@ -10,7 +10,7 @@ if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
 if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~4
 
 set OMNIBUS_BUILD=omnibus.build
-set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
+set OMNIBUS_ARGS=--fips-mode --python-runtimes "%PY_RUNTIMES%"
 
 if "%OMNIBUS_TARGET%" == "" set OMNIBUS_TARGET=main
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot

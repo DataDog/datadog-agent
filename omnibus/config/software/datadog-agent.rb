@@ -35,7 +35,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_arg = "--no-fips-mode"
+  fips_arg = ""
   if fips_mode?
     fips_arg = "--fips-mode"
   end
@@ -83,7 +83,7 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --fips-mode --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e agent.build #{fips_arg} --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
     command "inv -e rtloader.clean"
@@ -95,7 +95,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --fips-mode --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    command "inv -e agent.build #{fips_arg} --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
       command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
@@ -129,7 +129,7 @@ build do
 
   if not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --fips-mode --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build #{fips_arg} --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -140,7 +140,7 @@ build do
 
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --fips-mode --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
+    command "invoke -e process-agent.build #{fips_arg} --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
   end
 
   if windows_target?
@@ -156,7 +156,7 @@ build do
       if windows_target?
         command "invoke -e system-probe.build"
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle --fips-mode"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle #{fips_arg}"
       end
     end
 
@@ -179,7 +179,7 @@ build do
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
     if not bundled_agents.include? "security-agent"
-      command "invoke -e security-agent.build --fips-mode --install-path=#{install_dir} --major-version #{major_version_arg} --no-bundle", :env => env
+      command "invoke -e security-agent.build #{fips_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --no-bundle", :env => env
     end
     if windows_target?
       copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"

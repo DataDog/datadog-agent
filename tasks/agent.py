@@ -227,6 +227,7 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
+    print("Running cmd = ", cmd.format(**args), " env = ", env)
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
 

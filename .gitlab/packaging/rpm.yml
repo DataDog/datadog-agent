@@ -12,7 +12,7 @@
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --fips-mode --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
   stage: packaging
