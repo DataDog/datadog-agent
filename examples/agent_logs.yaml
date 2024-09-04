@@ -4,6 +4,9 @@
 ## The Datadog API key used by your Agent to submit metrics and events to Datadog.
 api_key:
 
+## The site of the Datadog intake to send Agent data to.
+site: datadoghq.com  
+
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.  
 env:
@@ -15,3 +18,6 @@ tags:
 
 
 logs_enabled: true
+
+apm_config:
+  enabled: false

@@ -8,6 +8,9 @@ api_key:
 ## metric, event, log, trace, and service check emitted by this Agent.  
 env:
 
+## The site of the Datadog intake to send Agent data to.
+site: datadoghq.com
+
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 tags:
   - example:changeme
@@ -16,3 +19,6 @@ tags:
 process_config:
   process_collection:
     enabled: true
+
+apm_config:
+  enabled: false
