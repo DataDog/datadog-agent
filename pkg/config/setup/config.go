@@ -716,6 +716,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.type_socket_volumes", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.pod_owners_cache_validity", 10) // in minutes
