@@ -175,6 +175,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 	span.AvgThreadCount /= uint64(span.NumKernels)
 	span.AvgConstantMem /= uint64(span.NumKernels)
 	span.AvgSharedMem /= uint64(span.NumKernels)
+	span.AvgKernelSize /= uint64(span.NumKernels)
 
 	return &span
 }
@@ -187,6 +188,7 @@ func getAssociatedAllocations(span *model.KernelSpan) []*model.MemoryAllocation 
 	allocations := []*model.MemoryAllocation{
 		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgConstantMem, Type: model.ConstantMemAlloc},
 		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgSharedMem, Type: model.SharedMemAlloc},
+		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgKernelSize, Type: model.KernelMemAlloc},
 	}
 
 	return allocations
