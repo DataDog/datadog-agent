@@ -245,7 +245,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 
 	if lp.SubProcessor != nil {
 		lp.SubProcessor.OnInvokeStart(startDetails, lp.requestHandler)
-
 	}
 
 	if !lp.DetectLambdaLibrary() {
