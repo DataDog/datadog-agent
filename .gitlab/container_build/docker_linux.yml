@@ -14,9 +14,10 @@
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     # DockerHub login for build to limit rate limit when pulling base images
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD || exit $?
     - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN || exit $?
-    - pop_ssm | docker login --username "$(pop_ssm)" --password-stdin "$DOCKER_REGISTRY_URL"
+    - DOCKER_LOGIN=$(pop_ssm)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD || exit $?
+    - pop_ssm | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Build image, use target none label to avoid replication
     - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." --label "target=none" $BUILD_CONTEXT
     # Squash image
