@@ -230,16 +230,31 @@ func (ac *AttacherConfig) Validate() error {
 // ProbeManager is an interface that defines the methods that a Manager implements,
 // so that we can replace it in tests for a mock object
 type ProbeManager interface {
-	AddHook(string, *manager.Probe) error
+	// AddHook adds a hook to the manager with the given UID and probe
+	AddHook(UID string, probe *manager.Probe) error
+
+	// DetachHook detaches the hook with the ID pair
 	DetachHook(manager.ProbeIdentificationPair) error
+
+	// GetProbe returns the probe with the given ID pair, and a boolean indicating if it was found
 	GetProbe(manager.ProbeIdentificationPair) (*manager.Probe, bool)
 }
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
+	// Register registers a file path to be tracked by the attacher for the given PID. The registry will call the activationCB when the file is opened
+	// the first time, and the deactivationCB when the file is closed. If the file is already registered, the alreadyRegistered callback
+	// will be called instead of the activationCB.
 	Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error
+
+	// Unregister unregisters a file path from the attacher. The deactivation callback will be called for all
+	// files that were registered with the given PID and aren't used anymore.
 	Unregister(uint32) error
+
+	// Clear clears the registry, removing all registered files
 	Clear()
+
+	// GetRegisteredProcesses returns a map of all the processes that are currently registered in the registry
 	GetRegisteredProcesses() map[uint32]struct{}
 }
 
