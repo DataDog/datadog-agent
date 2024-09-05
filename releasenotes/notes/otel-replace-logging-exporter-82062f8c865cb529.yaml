@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    Removed deprecated config option ``otlp_config.debug.loglevel`` in favor of ``otlp_config.debug.verbosity``:
+    Removed the deprecated config option ``otlp_config.debug.loglevel`` in favor of ``otlp_config.debug.verbosity``:
     * ``loglevel: debug`` maps to ``verbosity: detailed``
     * ``loglevel: info`` maps to ``verbosity: normal``
     * ``loglevel: warn/error`` maps to ``verbosity: basic``
