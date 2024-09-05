@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -365,7 +364,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	)
 
 	if strings.Contains(imageSpec, "@sha256") {
-		name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(imageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 		}
@@ -378,13 +377,13 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 			return image
 		}
 
-		name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(resolvedImageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
-			if errors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
-				name, registry, shortName, tag, err = pkgcontainersimage.SplitImageName(imageSpec)
+			if errors.Is(err, containers.ErrImageIsSha256) {
+				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 					return image
