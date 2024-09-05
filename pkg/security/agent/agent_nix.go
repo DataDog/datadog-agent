@@ -25,7 +25,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 	}
 
 	// on windows do no telemetry
-	telemetry, err := newTelemetry(statsdClient, wmeta, opts.IgnoreDDAgentContainers)
+	telemetry, err := newTelemetry(statsdClient, wmeta)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}

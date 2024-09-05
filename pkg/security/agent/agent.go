@@ -48,8 +48,7 @@ type RuntimeSecurityAgent struct {
 
 // RSAOptions represents the runtime security agent options
 type RSAOptions struct {
-	LogProfiledWorkloads    bool
-	IgnoreDDAgentContainers bool
+	LogProfiledWorkloads bool
 }
 
 // Start the runtime security agent
@@ -190,7 +189,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 		log.Errorf("%v", err)
 		return
 	}
-	if rsa.telemetry != nil {
+	if rsa.profContainersTelemetry != nil {
 		// register for telemetry for this container
 		imageName, imageTag := dump.GetImageNameTag()
 		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)

@@ -331,6 +331,8 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	return nil
 }
 
@@ -1572,6 +1574,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
+	p.processKiller.Reset()
+
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
 		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
@@ -1631,12 +1635,17 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	onDemandRate := rate.Limit(math.Inf(1))
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
+
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
 		probe:                probe,
@@ -1652,7 +1661,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(config),
+		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 
