@@ -25,17 +25,19 @@ import (
 // cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
 type cudaEventConsumer struct {
-	eventHandler   ddebpf.EventHandler
-	once           sync.Once
-	closed         chan struct{}
-	streamHandlers map[model.StreamKey]*StreamHandler
-	wg             sync.WaitGroup
-	running        atomic.Bool
-	cfg            *Config
+	eventHandler                    ddebpf.EventHandler
+	once                            sync.Once
+	closed                          chan struct{}
+	streamHandlers                  map[model.StreamKey]*StreamHandler
+	wg                              sync.WaitGroup
+	scanTerminatedProcessesInterval time.Duration
+	running                         atomic.Bool
+	gpuInfo                         *gpuSystemInfo
+	cfg                             *Config
 }
 
 // NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config) *cudaEventConsumer {
+func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, gpuInfo *gpuSystemInfo) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
@@ -107,7 +109,7 @@ func (c *cudaEventConsumer) Start() {
 				streamKey := model.StreamKey{Pid: pid, Stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = newStreamHandler()
+					c.streamHandlers[streamKey] = newStreamHandler(&streamKey, c.gpuInfo)
 				}
 
 				switch header.Type {

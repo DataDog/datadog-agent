@@ -7,6 +7,23 @@
 // the gpu core agent check
 package model
 
+// MemAllocType represents the possible values of memory allocation types
+type MemAllocType string
+
+const (
+	// KernelMemAlloc represents allocations due to kernel binary size
+	KernelMemAlloc MemAllocType = "kernel"
+
+	// GlobalMemAlloc represents allocations due to global memory
+	GlobalMemAlloc MemAllocType = "global"
+
+	// SharedMemAlloc represents allocations in shared memory space
+	SharedMemAlloc MemAllocType = "shared"
+
+	// ConstantMemAlloc represents allocations in constant memory space
+	ConstantMemAlloc MemAllocType = "constant"
+)
+
 // MemoryAllocation represents a memory allocation event
 type MemoryAllocation struct {
 	// Start is the kernel-time timestamp of the allocation event
@@ -20,6 +37,9 @@ type MemoryAllocation struct {
 
 	// IsLeaked is true if the allocation was not deallocated
 	IsLeaked bool `json:"is_leaked"`
+
+	// Type is the type of the allocation
+	Type MemAllocType `json:"type"`
 }
 
 // KernelSpan represents a span of time during which one or more kernels were running on a GPU until
@@ -36,6 +56,15 @@ type KernelSpan struct {
 
 	// NumKernels is the number of kernels that were launched during the span
 	NumKernels uint64 `json:"num_kernels"`
+
+	// AvgSharedMem is the average amount of shared memory used during the span
+	AvgSharedMem uint64 `json:"avg_shared_mem"`
+
+	// AvgConstantMem is the average amount of constant memory used during the span
+	AvgConstantMem uint64 `json:"avg_constant_mem"`
+
+	// AvgKernelSize is the average amount of kernel binary size used during the span
+	AvgKernelSize uint64 `json:"avg_kernel_size"`
 }
 
 // StreamKey is a unique identifier for a CUDA stream
