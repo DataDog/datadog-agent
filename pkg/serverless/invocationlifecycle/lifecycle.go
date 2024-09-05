@@ -233,7 +233,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
 	case trigger.StepFunctionEvent:
 		var event events.StepFunctionEvent
-		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
