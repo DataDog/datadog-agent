@@ -98,8 +98,9 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 		}
 	}
 	if lineHandler == nil {
-		if pkgConfig.Datadog().GetBool("logs_config.experimental_auto_multi_line_detection") {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgConfig.Datadog()))
+		if source.Config().ExperimentalAutoMultiLineEnabled(pkgConfig.Datadog()) {
+			log.Infof("Experimental Auto multi line log detection enabled")
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgConfig.Datadog()), tailerInfo)
 
 		} else if source.Config().AutoMultiLineEnabled(pkgConfig.Datadog()) {
 			log.Infof("Auto multi line log detection enabled")

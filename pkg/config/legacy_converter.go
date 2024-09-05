@@ -6,8 +6,6 @@
 package config
 
 import (
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -25,10 +23,5 @@ func (c *LegacyConfigConverter) Set(key string, value interface{}) {
 
 // NewConfigConverter is creating and returning a config converter
 func NewConfigConverter() *LegacyConfigConverter {
-	// Configure Datadog global configuration
-	newCfg := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	// Configuration defaults
-	pkgconfigsetup.SetDatadog(newCfg)
-	pkgconfigsetup.InitConfig(newCfg)
-	return &LegacyConfigConverter{newCfg}
+	return &LegacyConfigConverter{pkgconfigsetup.Datadog()}
 }

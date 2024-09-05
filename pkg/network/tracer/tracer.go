@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (

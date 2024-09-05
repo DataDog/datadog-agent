@@ -92,6 +92,10 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 
 	volume, volumeMount := socketsVolume()
 	injected := common.InjectVolume(pod, volume, volumeMount)
+	if injected {
+		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volume.Name)
+	}
+
 	mutated = mutated || injected
 
 	// ShareProcessNamespace is required for the process collection feature

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -34,21 +35,9 @@ const (
 )
 
 type serviceInfo struct {
-	process       processInfo
 	meta          ServiceMetadata
+	service       model.Service
 	LastHeartbeat time.Time
-}
-
-type procStat struct {
-	StartTime uint64
-}
-
-type processInfo struct {
-	PID     int
-	CmdLine []string
-	Env     map[string]string
-	Stat    procStat
-	Ports   []uint16
 }
 
 type serviceEvents struct {
@@ -58,8 +47,6 @@ type serviceEvents struct {
 }
 
 type discoveredServices struct {
-	aliveProcsCount int
-
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
 	runningServices map[int]*serviceInfo
@@ -162,8 +149,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d",
-		disc.aliveProcsCount,
+	log.Debugf("ignoreProcs: %d | runningServices: %d | potentials: %d",
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
 		len(disc.potentials),
@@ -179,7 +165,7 @@ func (c *Check) Run() error {
 			continue
 		}
 		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.process.PID] {
+			if c.sentRepeatedEventPIDs[svc.service.PID] {
 				continue
 			}
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
@@ -189,7 +175,7 @@ func (c *Check) Run() error {
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.process.PID] = true
+			c.sentRepeatedEventPIDs[svc.service.PID] = true
 		}
 	}
 
@@ -213,9 +199,9 @@ func (c *Check) Run() error {
 			continue
 		}
 		eventsByName.addStop(p)
-		if c.sentRepeatedEventPIDs[p.process.PID] {
+		if c.sentRepeatedEventPIDs[p.service.PID] {
 			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.process.PID)
+			delete(c.sentRepeatedEventPIDs, p.service.PID)
 		}
 	}
 
