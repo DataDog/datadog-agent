@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package gpu
+package cuda
 
 import (
 	"errors"

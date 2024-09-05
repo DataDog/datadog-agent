@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,7 +32,7 @@ type StreamHandler struct {
 
 type enrichedKernelLaunch struct {
 	gpuebpf.CudaKernelLaunch
-	kernel *CubinKernel
+	kernel *cuda.CubinKernel
 }
 
 func newStreamHandler(key *model.StreamKey, gpuInfo *gpuSystemInfo) *StreamHandler {
@@ -79,7 +80,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
 	}
 
-	kern := fileData.fatbin.getKernel(symbol, uint32(sh.gpuInfo.deviceSmVersions[0]))
+	kern := fileData.fatbin.GetKernel(symbol, uint32(sh.gpuInfo.deviceSmVersions[0]))
 	if kern == nil {
 		return fmt.Errorf("could not find kernel for symbol %s", symbol)
 	}

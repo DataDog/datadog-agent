@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package gpu
+package cuda
 
 import (
 	"fmt"
