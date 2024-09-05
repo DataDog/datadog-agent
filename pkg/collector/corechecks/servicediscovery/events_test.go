@@ -55,16 +55,16 @@ func Test_telemetrySender(t *testing.T) {
 	ts.hostname = mHostname
 
 	svc := serviceInfo{
-		process: processInfo{
-			PID:     99,
-			CmdLine: []string{"test-service", "--args"},
+		service: model.Service{
+			PID:               99,
+			CommandLine:       []string{"test-service", "--args"},
 			Ports:             []uint16{80, 8080},
 			StartTimeSecs:     uint64(now.Add(-20 * time.Minute).Unix()),
 			RSS:               500 * 1024 * 1024,
 			GeneratedName:     "generated-name",
 			DDService:         "dd-service",
 			DDServiceInjected: true,
-				CPUCores:  1.5,
+			CPUCores:          1.5,
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -100,7 +100,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
-				CPUCores:            1.5,
+				CPUCores:             1.5,
 			},
 		},
 		{
@@ -123,7 +123,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
-				CPUCores:            1.5,
+				CPUCores:             1.5,
 			},
 		},
 		{
@@ -146,7 +146,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
-				CPUCores:            1.5,
+				CPUCores:             1.5,
 			},
 		},
 	}

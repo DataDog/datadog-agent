@@ -231,7 +231,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -253,7 +253,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -275,7 +275,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -387,7 +387,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -443,7 +443,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 			},
@@ -500,7 +500,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
-						CPUCores:            1.5,
+						CPUCores:             1.5,
 					},
 				},
 				{
