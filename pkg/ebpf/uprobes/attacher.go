@@ -436,7 +436,7 @@ func (ua *UprobeAttacher) Start() error {
 			log.Infof("uprobe attacher %s stopped", ua.name)
 		}()
 
-		var sharedLibDataChan <-chan *ebpf.DataEvent
+		var sharedLibDataChan <-chan ebpf.DataEvent
 		var sharedLibLostChan <-chan uint64
 
 		if ua.soWatcher != nil {
@@ -455,7 +455,7 @@ func (ua *UprobeAttacher) Start() error {
 				if !ok {
 					return
 				}
-				_ = ua.handleLibraryOpen(event)
+				_ = ua.handleLibraryOpen(&event)
 			case <-sharedLibLostChan:
 				// Nothing to do in this case
 				break
