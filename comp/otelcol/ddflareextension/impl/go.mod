@@ -108,6 +108,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/api v0.56.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0
 	github.com/gorilla/mux v1.8.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
@@ -183,8 +185,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3 // indirect

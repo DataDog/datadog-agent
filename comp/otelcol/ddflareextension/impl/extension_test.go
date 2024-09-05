@@ -11,9 +11,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
@@ -71,11 +76,25 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
+	oldConfig := pkgconfigsetup.Datadog()
+	defer func() {
+		pkgconfigsetup.SetDatadog(oldConfig)
+	}()
+
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetDatadog(conf)
+	err := apiutil.CreateAndSetAuthToken(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
 
 	// Create a ResponseRecorder
 	rr := httptest.NewRecorder()
