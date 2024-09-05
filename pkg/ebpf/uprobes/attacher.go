@@ -24,6 +24,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -755,90 +756,100 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	for _, rule := range matchingRules {
 		for _, selector := range rule.ProbesSelector {
-			_, isBestEffort := selector.(*manager.BestEffort)
-			for _, probeID := range selector.GetProbesIdentificationPairList() {
-				probeOpts, err := rule.getProbeOptions(probeID)
-				if err != nil {
-					return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
-				}
-				data, found := inspectResult[probeOpts.Symbol]
-				if !found {
-					if isBestEffort {
-						continue
-					}
-					// This should not happen, as Inspect should have already
-					// returned an error if mandatory symbols weren't found.
-					// However and for safety, we'll check again and return an
-					// error if the symbol is not found.
-					return fmt.Errorf("symbol %s not found in %s", probeOpts.Symbol, fpath.HostPath)
-				}
+			err = ua.attachProbeSelector(selector, fpath, uid, rule, inspectResult)
+			if err != nil {
+				return err
+			}
+		}
+	}
 
-				var locationsToAttach []uint64
-				var probeTypeCode string // to make unique UIDs between return/non-return probes
-				if probeOpts.IsManualReturn {
-					locationsToAttach = data.ReturnLocations
-					probeTypeCode = "r"
-				} else {
-					locationsToAttach = []uint64{data.EntryLocation}
-					probeTypeCode = "d"
-				}
+	return nil
+}
 
-				for i, location := range locationsToAttach {
-					newProbeID := manager.ProbeIdentificationPair{
-						EBPFFuncName: probeID.EBPFFuncName,
-						UID:          fmt.Sprintf("%s%s%d", uid, probeTypeCode, i), // Make UID unique even if we have multiple locations
-					}
+func (ua *UprobeAttacher) attachProbeSelector(selector manager.ProbesSelector, fpath utils.FilePath, fpathUID string, rule *AttachRule, inspectResult map[string]bininspect.FunctionMetadata) error {
+	_, isBestEffort := selector.(*manager.BestEffort)
 
-					probe, found := ua.manager.GetProbe(newProbeID)
-					if found {
-						// We have already probed this process, just ensure it's running and skip it
-						if !probe.IsRunning() {
-							err := probe.Attach()
-							if err != nil {
-								return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
-							}
-						}
-						if ua.config.EnableDetailedLogging {
-							log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
-						}
-						continue
-					}
+	for _, probeID := range selector.GetProbesIdentificationPairList() {
+		probeOpts, err := rule.getProbeOptions(probeID)
+		if err != nil {
+			return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
+		}
 
-					newProbe := &manager.Probe{
-						ProbeIdentificationPair: newProbeID,
-						BinaryPath:              fpath.HostPath,
-						UprobeOffset:            location,
-						HookFuncName:            probeOpts.Symbol,
-					}
-					err = ua.manager.AddHook("", newProbe)
+		data, found := inspectResult[probeOpts.Symbol]
+		if !found {
+			if isBestEffort {
+				return nil
+			}
+			// This should not happen, as Inspect should have already
+			// returned an error if mandatory symbols weren't found.
+			// However and for safety, we'll check again and return an
+			// error if the symbol is not found.
+			return fmt.Errorf("symbol %s not found in %s", probeOpts.Symbol, fpath.HostPath)
+		}
+
+		var locationsToAttach []uint64
+		var probeTypeCode string // to make unique UIDs between return/non-return probes
+		if probeOpts.IsManualReturn {
+			locationsToAttach = data.ReturnLocations
+			probeTypeCode = "r"
+		} else {
+			locationsToAttach = []uint64{data.EntryLocation}
+			probeTypeCode = "d"
+		}
+
+		for i, location := range locationsToAttach {
+			newProbeID := manager.ProbeIdentificationPair{
+				EBPFFuncName: probeID.EBPFFuncName,
+				UID:          fmt.Sprintf("%s%s%d", fpathUID, probeTypeCode, i), // Make UID unique even if we have multiple locations
+			}
+
+			probe, found := ua.manager.GetProbe(newProbeID)
+			if found {
+				// We have already probed this process, just ensure it's running and skip it
+				if !probe.IsRunning() {
+					err := probe.Attach()
 					if err != nil {
-						return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
-					}
-
-					ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
-					ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
-
-					if ua.onAttachCallback != nil {
-						ua.onAttachCallback(newProbe, &fpath)
-					}
-
-					// Update the probe IDs with the new UID, so that the validator can find them
-					// correctly (we're changing UIDs every time)
-					selector.EditProbeIdentificationPair(probeID, newProbeID)
-
-					if ua.config.EnableDetailedLogging {
-						log.Debugf("Attached probe %v to %s (PID %d)", newProbeID, fpath.HostPath, fpath.PID)
+						return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
 					}
 				}
-
-			}
-
-			manager, ok := ua.manager.(*manager.Manager)
-			if ok {
-				if err := selector.RunValidator(manager); err != nil {
-					return fmt.Errorf("error validating probes: %w", err)
+				if ua.config.EnableDetailedLogging {
+					log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
 				}
+				continue
 			}
+
+			newProbe := &manager.Probe{
+				ProbeIdentificationPair: newProbeID,
+				BinaryPath:              fpath.HostPath,
+				UprobeOffset:            location,
+				HookFuncName:            probeOpts.Symbol,
+			}
+			err = ua.manager.AddHook("", newProbe)
+			if err != nil {
+				return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
+			}
+
+			ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
+			ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
+
+			if ua.onAttachCallback != nil {
+				ua.onAttachCallback(newProbe, &fpath)
+			}
+
+			// Update the probe IDs with the new UID, so that the validator can find them
+			// correctly (we're changing UIDs every time)
+			selector.EditProbeIdentificationPair(probeID, newProbeID)
+
+			if ua.config.EnableDetailedLogging {
+				log.Debugf("Attached probe %v to %s (PID %d)", newProbeID, fpath.HostPath, fpath.PID)
+			}
+		}
+	}
+
+	manager, ok := ua.manager.(*manager.Manager)
+	if ok {
+		if err := selector.RunValidator(manager); err != nil {
+			return fmt.Errorf("error validating probes: %w", err)
 		}
 	}
 
