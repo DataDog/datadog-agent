@@ -391,15 +391,6 @@ func (ua *UprobeAttacher) Start() error {
 	// We always want to track process deletions, to avoid memory leaks
 	cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
 
-	if ua.config.PerformInitialScan {
-		// Initial scan only looks at existing processes, and as it's the first scan
-		// we don't have to track deletions
-		err := ua.Sync(true, false)
-		if err != nil {
-			return fmt.Errorf("error during initial scan: %w", err)
-		}
-	}
-
 	if ua.handlesLibraries() {
 		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
 			return errors.New("shared libraries tracing not supported for this platform")
@@ -414,6 +405,15 @@ func (ua *UprobeAttacher) Start() error {
 		err = ua.soWatcher.Start()
 		if err != nil {
 			return fmt.Errorf("error starting shared library program: %w", err)
+		}
+	}
+
+	if ua.config.PerformInitialScan {
+		// Initial scan only looks at existing processes, and as it's the first scan
+		// we don't have to track deletions
+		err := ua.Sync(true, false)
+		if err != nil {
+			return fmt.Errorf("error during initial scan: %w", err)
 		}
 	}
 
