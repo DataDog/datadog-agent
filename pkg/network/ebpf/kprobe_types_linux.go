@@ -48,6 +48,10 @@ type SkpConn struct {
 	Sk  *_Ctype_struct_sock
 	Tup ConnTuple
 }
+type PidTs struct {
+	Tgid      uint64
+	Timestamp uint64
+}
 type Batch struct {
 	C0        Conn
 	C1        Conn

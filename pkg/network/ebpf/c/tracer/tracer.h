@@ -157,4 +157,9 @@ typedef struct {
     conn_tuple_t tup;
 } skp_conn_tuple_t;
 
+typedef struct {
+    __u64 pid_tgid;
+    __u64 timestamp;
+} pid_ts_t;
+
 #endif

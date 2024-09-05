@@ -23,8 +23,8 @@ BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 */
 BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
-/* Will hold the PIDs initiating TCP connections keyed by socket */
-BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, __u64, 0)
+/* Will hold the PIDs initiating TCP connections keyed by socket + tuple. PIDs have a timestamp attached so they can age out */
+BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
 
 /* debug */
 BPF_HASH_MAP(tcp_ongoing_connect_tuple, struct sock *, conn_tuple_t, 8192)
@@ -119,11 +119,6 @@ BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
  * Values: the args of the tcp_retransmit_skb call being instrumented.
  */
 BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
-
-/*
-     TODO: DOCSTRING
-*/
-BPF_HASH_MAP(pending_tcp_connect, __u64, skp_conn_tuple_t, 8192)
 
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes

@@ -210,10 +210,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    skp_conn_tuple_t skp_conn = {};
-    skp_conn.sk = sk;
-    skp_conn.tup = t;
-
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     int err = 0;
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0) {
@@ -292,11 +289,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
 
-    skp_conn_tuple_t skp_conn = {};
-    skp_conn.sk = sk;
-    skp_conn.tup = t;
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
-
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
@@ -976,43 +970,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     }
 
     skp_conn_tuple_t skp_conn = {.sk = skp, .tup = t};
-    bpf_map_update_elem(&pending_tcp_connect, &pid_tgid, &skp_conn, BPF_ANY);
-
-    return 0;
-}
-
-SEC("kretprobe/tcp_connect")
-int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_connect, int rc) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kretprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-    if (rc < 0) {
-        log_debug("kretprobe/tcp_connect: connect failed, rc: %d", rc);
-        bpf_map_delete_elem(&pending_tcp_connect, &pid_tgid);
-        return 0;
-    }
-
-    skp_conn_tuple_t *skp_conn = bpf_map_lookup_elem(&pending_tcp_connect, &pid_tgid);
-    if (skp_conn == NULL) {
-        return 0;
-    }
-
-    bpf_map_delete_elem(&pending_tcp_connect, &pid_tgid);
-    skp_conn_tuple_t skp_conn_val = *skp_conn;
-
-    u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn_val);
-    if (existing_pid) {
-        if (*existing_pid == pid_tgid) {
-            log_debug("adamk kretprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
-            increment_telemetry_count(tcp_connect_pid_match);
-        } else {
-            log_debug("adamk kretprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
-            increment_telemetry_count(tcp_connect_pid_mismatch);
-        }
-    }
-
+    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
     if (tcp_failed_connections_enabled()) {
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_tuple, &skp_conn_val.sk, &skp_conn_val.tup, BPF_NOEXIST);
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn_val, &pid_tgid, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_tuple, &skp_conn.sk, &skp_conn.tup, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_NOEXIST);
     }
 
     return 0;
@@ -1065,13 +1026,12 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
 
     
     t.pid = 0;
-    skp_conn_tuple_t skp_conn = {};
-    skp_conn.sk = sk;
-    skp_conn.tup = t;
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     log_debug("kretprobe/inet_csk_accept: skp_conn.tup.pid: %u", skp_conn.tup.pid);
 
     if (tcp_failed_connections_enabled()) {
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_ANY);
+        pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_NOEXIST);
     }
 
     log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
