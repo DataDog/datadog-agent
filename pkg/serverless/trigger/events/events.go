@@ -335,45 +335,18 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 	UserAgent string
 }
 
-// StepFunctionEvent is the event you get when you put
-// ```
-//
-//	"Parameters": {
-//	       "Payload.$": "States.JsonMerge($$, $, false)",
-//	       "FunctionName": "${lambdaArn}"
-//	     },
-//
-// ```
-// into a Lambda:Invoke task state, as is recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
+// StepFunctionEvent is the event you get when you instrument a StepFunction's Lambda:Invoke task state
+// as recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
 // This isn't an "official" event, as a default StepFunction invocation will just contain {}
 type StepFunctionEvent struct {
 	Payload StepFunctionPayload
 }
 type StepFunctionPayload struct {
-	Execution    StepFunctionExecution
-	StateMachine StepFunctionStateMachine
-	State        StepFunctionState
-}
-
-// StepFunctionExecution is the JSON object that represents a StepFunction execution, that is passed as part of the Lambda function input
-type StepFunctionExecution struct {
-	ID           string
-	StartTime    string
-	Name         string
-	RoleArn      string
-	RedriveCount int64
-	Input        interface{}
-}
-
-// StepFunctionStateMachine is the JSON object that represents a State Machine
-type StepFunctionStateMachine struct {
-	ID   string
-	Name string
-}
-
-// StepFunctionState is the JSON object that represents the state that invoked a Lambda execution
-type StepFunctionState struct {
-	Name        string
-	EnteredTime string
-	RetryCount  int64
+	Execution struct {
+		ID string
+	}
+	State struct {
+		Name        string
+		EnteredTime string
+	}
 }
