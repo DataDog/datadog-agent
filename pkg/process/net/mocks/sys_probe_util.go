@@ -43,6 +43,34 @@ func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, e
 	return r0, r1
 }
 
+// GetNetworkID provides a mock function with given fields:
+func (_m *SysProbeUtil) GetNetworkID() (string, error) {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetNetworkID")
+	}
+
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (string, error)); ok {
+		return rf()
+	}
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetProcStats provides a mock function with given fields: pids
 func (_m *SysProbeUtil) GetProcStats(pids []int32) (*process.ProcStatsWithPermByPID, error) {
 	ret := _m.Called(pids)
@@ -119,31 +147,6 @@ func (_m *SysProbeUtil) Register(clientID string) error {
 	}
 
 	return r0
-}
-
-// GetNetworkID provides a mock function with given fields: network_id
-func (_m *SysProbeUtil) GetNetworkID() (string, error) {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetNetworkID")
-	}
-
-	var r0 string
-	var r1 error
-	if rf, ok := ret.Get(0).(func() string); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.String(0)
-	}
-
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
 }
 
 // NewSysProbeUtil creates a new instance of SysProbeUtil. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
