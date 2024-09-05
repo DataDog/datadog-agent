@@ -111,6 +111,10 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+{{ if gt .EventServerRetention 0 }}
+  event_server:
+    retention: {{ .EventServerRetention }}
+{{ end }}
   internal_monitoring:
     enabled: true
   remote_configuration:
@@ -177,6 +181,18 @@ runtime_security_config:
   {{end}}
   ebpfless:
     enabled: {{.EBPFLessEnabled}}
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    disarmer:
+      container:
+        enabled: {{.EnforcementDisarmerContainerEnabled}}
+        max_allowed: {{.EnforcementDisarmerContainerMaxAllowed}}
+        period: {{.EnforcementDisarmerContainerPeriod}}
+      executable:
+        enabled: {{.EnforcementDisarmerExecutableEnabled}}
+        max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
+        period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
 type onRuleHandler func(*model.Event, *rules.Rule)

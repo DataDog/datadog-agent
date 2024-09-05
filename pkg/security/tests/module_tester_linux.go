@@ -105,6 +105,10 @@ runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
     enabled: true
+{{ if gt .EventServerRetention 0 }}
+  event_server:
+    retention: {{ .EventServerRetention }}
+{{ end }}
   remote_configuration:
     enabled: false
   on_demand:
@@ -116,11 +120,6 @@ runtime_security_config:
     enabled: {{ .SBOMEnabled }}
     host:
       enabled: {{ .HostSBOMEnabled }}
-  enforcement:
-    exclude_binaries:
-      - {{ .EnforcementExcludeBinary }}
-    rule_source_allowed:
-      - file
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:
@@ -193,6 +192,20 @@ runtime_security_config:
     enabled: {{.EBPFLessEnabled}}
   hash_resolver:
     enabled: true
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
+    disarmer:
+      container:
+        enabled: {{.EnforcementDisarmerContainerEnabled}}
+        max_allowed: {{.EnforcementDisarmerContainerMaxAllowed}}
+        period: {{.EnforcementDisarmerContainerPeriod}}
+      executable:
+        enabled: {{.EnforcementDisarmerExecutableEnabled}}
+        max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
+        period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
 const testPolicy = `---
