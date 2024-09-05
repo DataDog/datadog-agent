@@ -508,9 +508,10 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 func retryGetNetworkID(sysProbeUtil *net.RemoteSysProbeUtil) (string, error) {
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil && sysProbeUtil != nil {
-		log.Infof("no network ID detected: %s", err)
+		log.Infof("no network ID detected. retrying via system-probe: %s", err)
 		networkID, err = sysProbeUtil.GetNetworkID()
 		if err != nil {
+			log.Infof("failed to get network ID from system-probe: %s", err)
 			return "", err
 		}
 	}
