@@ -278,7 +278,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
-		metrics.MetricSourceTibocoEMS,
+		metrics.MetricSourceTibcoEMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -866,7 +866,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 417
 	case metrics.MetricSourceKyverno:
 		return 418
-	case metrics.MetricSourceTibocoEMS:
+	case metrics.MetricSourceTibcoEMS:
 		return 419
 	default:
 		return 0
