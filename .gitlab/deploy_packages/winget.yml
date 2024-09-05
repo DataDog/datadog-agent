@@ -11,9 +11,9 @@ publish_winget_7_x64:
     ARCH: "x64"
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
-    - (& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" $Env:WINGET_PAT_SSM_NAME $tmpfile)
+    - (& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:WINGET_PAT_SSM_NAME" "$tmpfile")
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - $wingetPat=$(& cat $tmpfile)
+    - $wingetPat=$(cat "$tmpfile")
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
@@ -26,3 +26,4 @@ publish_winget_7_x64:
       Powershell
       -C "C:\mnt\tasks\winbuildscripts\Update-Winget.ps1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - Remove-Item "$tmpfile"

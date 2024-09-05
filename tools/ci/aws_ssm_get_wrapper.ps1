@@ -10,7 +10,7 @@ while ($retryCount -lt $maxRetries) {
     $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> awsErrorFile.txt)
     $error = Get-Content awsErrorFile.txt
     if ($result) {
-        $result > $tempFile
+        "$result" | Out-File -FilePath "$tempFile" -Encoding ASCII
         exit 0
     }
     if ($error -match "Unable to locate credentials") {
