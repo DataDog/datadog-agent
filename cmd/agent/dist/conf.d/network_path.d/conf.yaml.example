@@ -6,8 +6,8 @@ init_config:
     # min_collection_interval: 60
 
     ## @param timeout - integer - optional - default: 1000
-    ## Specifies how much time traceroute should wait for a response
-    ## from each hop before timing out.
+    ## Specifies how much time in milliseconds traceroute should
+    ## wait for a response from each hop before timing out.
     #
     # timeout: 1000
 
@@ -37,8 +37,8 @@ instances:
     # max_ttl: <PORT>
 
     ## @param timeout - integer - optional - default: 1000
-    ## Specifies how much time traceroute should wait for a response
-    ## from each hop before timing out.
+    ## Specifies how much time in milliseconds traceroute should
+    ## wait for a response from each hop before timing out.
     #
     # timeout: 1000
 
