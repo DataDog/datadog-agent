@@ -31,19 +31,9 @@ const (
 )
 
 // getInjectionMeta gets metadata from auto injector injection, if
-// present. The auto injector creates a memfd file with a specific name into which
-// it writes the environment variables. In order to find the correct file, we
-// need to iterate the list of files (named after file descriptor numbers) in
-// /proc/$PID/fd and get the name from the target of the symbolic link.
-//
-// ```
-// $ ls -l /proc/1750097/fd/
-// total 0
-// lrwx------ 1 foo foo 64 Aug 13 14:24 0 -> /dev/pts/6
-// lrwx------ 1 foo foo 64 Aug 13 14:24 1 -> /dev/pts/6
-// lrwx------ 1 foo foo 64 Aug 13 14:24 2 -> /dev/pts/6
-// lrwx------ 1 foo foo 64 Aug 13 14:24 3 -> '/memfd:dd_environ (deleted)'
-// ```
+// present. The auto injector creates a memfd file where it writes
+// injection metadata such as injected environment variables, or versions
+// of the auto injector and the library.
 func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
 	path, found := findInjectorFile(proc)
 	if !found {
@@ -80,6 +70,19 @@ func extractInjectionMeta(path string) (*InjectedProcess, error) {
 	return &injectedProc, nil
 }
 
+// findInjectorFile searches for the injector file in the process open file descriptors.
+// In order to find the correct file, we
+// need to iterate the list of files (named after file descriptor numbers) in
+// /proc/$PID/fd and get the name from the target of the symbolic link.
+//
+// ```
+// $ ls -l /proc/1750097/fd/
+// total 0
+// lrwx------ 1 foo foo 64 Aug 13 14:24 0 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 1 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 2 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 3 -> '/dd_process_inject_info.msgpac (deleted)'
+// ```
 func findInjectorFile(proc *process.Process) (string, bool) {
 	fdsPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "fd")
 	// quick path, the shadow file is the first opened file by the process
@@ -88,16 +91,23 @@ func findInjectorFile(proc *process.Process) (string, bool) {
 	if isInjectorFile(path) {
 		return path, true
 	}
-	entries, err := os.ReadDir(fdsPath)
+	fdDir, err := os.Open(fdsPath)
 	if err != nil {
+		log.Warnf("failed to open %s: %s", fdsPath, err)
 		return "", false
 	}
-	for _, entry := range entries {
-		switch entry.Name() {
+	defer fdDir.Close()
+	fds, err := fdDir.Readdirnames(-1)
+	if err != nil {
+		log.Warnf("failed to read %s: %s", fdsPath, err)
+		return "", false
+	}
+	for _, fd := range fds {
+		switch fd {
 		case "0", "1", "2", "3":
 			continue
 		default:
-			path := filepath.Join(fdsPath, entry.Name())
+			path := filepath.Join(fdsPath, fd)
 			if isInjectorFile(path) {
 				return path, true
 			}
