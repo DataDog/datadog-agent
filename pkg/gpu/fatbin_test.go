@@ -15,7 +15,8 @@ import (
 )
 
 func TestParseFatbinFromPath(t *testing.T) {
-	path := "/home/gjulianm/cuda-samples/Samples/0_Introduction/matrixMul/matrixMul"
+	//path := "/home/gjulianm/cuda-samples/Samples/0_Introduction/matrixMul/matrixMul"
+	path := "/home/gjulianm/.local/lib/python3.10/site-packages/torch/lib/libtorch_cuda.so"
 	res, err := ParseFatbinFromELFFilePath(path)
 	require.NoError(t, err)
 	fmt.Printf("Fatbin: %v\n", res)

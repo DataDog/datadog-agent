@@ -64,7 +64,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	entry := maps.FindEntryForAddress(event.Kernel_addr)
 	if entry == nil {
-		return fmt.Errorf("could not find entry for kernel address: %v", event.Kernel_addr)
+		return fmt.Errorf("could not find entry for kernel address 0x%x", event.Kernel_addr)
 	}
 
 	offsetInFile := event.Kernel_addr - entry.Start + entry.Offset
@@ -76,12 +76,12 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	symbol, ok := fileData.symbolTable[offsetInFile]
 	if !ok {
-		return fmt.Errorf("could not find symbol for address: %v", event.Kernel_addr)
+		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
 	}
 
 	kern := fileData.fatbin.getKernel(symbol, uint32(sh.gpuInfo.deviceSmVersions[0]))
 	if kern == nil {
-		return fmt.Errorf("could not find kernel for symbol: %v", symbol)
+		return fmt.Errorf("could not find kernel for symbol %s", symbol)
 	}
 
 	event.kernel = kern
