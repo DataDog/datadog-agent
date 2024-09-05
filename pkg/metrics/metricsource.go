@@ -291,7 +291,7 @@ const (
 	MetricSourceYarn
 	MetricSourceZk
 	MetricSourceAwsNeuron
-	MetricSourceTibocoEMS
+	MetricSourceTibcoEMS
 	MetricSourceSlurm
 	MetricSourceKyverno
 	MetricSourceKubeflow
