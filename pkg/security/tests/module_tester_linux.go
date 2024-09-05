@@ -822,7 +822,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

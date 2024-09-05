@@ -58,9 +58,7 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var (
-	newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
-)
+var newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
 
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`
