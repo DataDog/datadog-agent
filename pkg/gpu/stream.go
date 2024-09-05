@@ -180,6 +180,10 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 }
 
 func getAssociatedAllocations(span *model.KernelSpan) []*model.MemoryAllocation {
+	if span == nil {
+		return nil
+	}
+
 	allocations := []*model.MemoryAllocation{
 		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgConstantMem, Type: model.ConstantMemAlloc},
 		{StartKtime: span.StartKtime, EndKtime: span.EndKtime, Size: span.AvgSharedMem, Type: model.SharedMemAlloc},
