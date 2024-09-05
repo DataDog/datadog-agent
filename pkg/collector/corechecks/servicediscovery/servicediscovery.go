@@ -135,7 +135,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 // Run executes the check.
 func (c *Check) Run() error {
 	if !pkgconfig.SystemProbe().GetBool("discovery.enabled") {
-		return errors.New("service discovery is disabled")
+		return nil
 	}
 
 	start := time.Now()
