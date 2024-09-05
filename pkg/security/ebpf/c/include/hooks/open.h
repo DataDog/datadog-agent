@@ -12,10 +12,6 @@
 
 int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
-    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,

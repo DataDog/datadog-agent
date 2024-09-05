@@ -118,7 +118,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+	if !gotlstestutil.GoTLSSupported(config.New()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -183,7 +183,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
+	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(cfg)
 	cfg.BypassEnabled = true
 	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
@@ -308,10 +308,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 		t.Skip("TLS classification platform not supported")
 	}
 
-	const srvPort = 9111
-	srvAddress := fmt.Sprintf("localhost:%d", srvPort)
-
-	srv := testutil.NewTLSServerWithSpecificVersion(srvAddress, func(conn net.Conn) {
+	srv := testutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
 		defer conn.Close()
 		// Echo back whatever is received
 		_, err := io.Copy(conn, conn)
@@ -323,6 +320,11 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	done := make(chan struct{})
 	require.NoError(t, srv.Run(done))
 	t.Cleanup(func() { close(done) })
+	_, srvPortStr, err := net.SplitHostPort(srv.Address())
+	require.NoError(t, err)
+	srvPort, err := strconv.Atoi(srvPortStr)
+	require.NoError(t, err)
+	srvPortU16 := uint16(srvPort)
 
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
@@ -397,7 +399,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 					Port: int(clientPort),
 				},
 			}
-			conn, err := dialer.Dial("tcp", srvAddress)
+			conn, err := dialer.Dial("tcp", srv.Address())
 			require.NoError(t, err)
 			defer conn.Close()
 			tlsConn := tls.Client(conn, tlsConfig)
@@ -408,7 +410,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 				Daddr_h:  addrHigh,
 				Daddr_l:  addrLow,
 				Sport:    clientPort,
-				Dport:    srvPort,
+				Dport:    srvPortU16,
 				Metadata: uint32(netebpf.TCP),
 			}
 			protocolValue := netebpf.ProtocolStackWrapper{
@@ -426,7 +428,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
 				for _, c := range payload.Conns {
-					if c.DPort == srvPort || c.SPort == srvPort {
+					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
 					}
 				}

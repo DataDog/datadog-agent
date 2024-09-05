@@ -30,6 +30,9 @@ const (
 	maxByteCountChange uint64 = 375 << 30
 	// use typical small MTU size, 1300, to get max packet count
 	maxPacketCountChange uint64 = maxByteCountChange / 1300
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // ConnectionType will be either TCP or UDP
@@ -223,7 +226,9 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// StatCookie A 64-bit hash designed to uniquely identify a connection.
+// In eBPF this is 32 bits but it gets re-hashed to 64 bits in userspace to
+// reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -330,6 +335,15 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 // Currently this key is used only for the aggregation of ephemeral connections.
 func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
+}
+
+// IsValid returns `true` if the connection has a valid source and dest
+// ports and IPs
+func (c ConnectionStats) IsValid() bool {
+	return c.Source.IsValid() &&
+		c.Dest.IsValid() &&
+		c.SPort > 0 &&
+		c.DPort > 0
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"

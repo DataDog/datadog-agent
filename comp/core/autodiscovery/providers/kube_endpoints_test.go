@@ -9,7 +9,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -463,7 +462,7 @@ func TestGenerateConfigs(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			cfgs := generateConfigs(tc.template, tc.resolveMode, tc.endpoints)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})

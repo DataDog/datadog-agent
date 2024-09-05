@@ -14,7 +14,6 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
@@ -211,7 +210,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
+		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -290,7 +289,7 @@ func TestContainersRunning(t *testing.T) {
 		instance:        &DockerConfig{},
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
-		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
+		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams())),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)

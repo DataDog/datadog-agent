@@ -19,6 +19,26 @@ type containerMutator interface {
 	mutateContainer(*corev1.Container) error
 }
 
+// containerMutatorFunc is a containerMutator as a function.
+type containerMutatorFunc func(*corev1.Container) error
+
+// mutateContainer implements containerMutator for containerMutatorFunc.
+func (f containerMutatorFunc) mutateContainer(c *corev1.Container) error {
+	return f(c)
+}
+
+type containerMutators []containerMutator
+
+func (mutators containerMutators) mutateContainer(c *corev1.Container) error {
+	for _, m := range mutators {
+		if err := m.mutateContainer(c); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // podMutator describes something that can mutate a pod.
 type podMutator interface {
 	mutatePod(*corev1.Pod) error
@@ -40,7 +60,7 @@ func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
 type initContainer struct {
 	corev1.Container
 	Prepend  bool
-	Mutators []containerMutator
+	Mutators containerMutators
 }
 
 var _ podMutator = (*initContainer)(nil)
@@ -48,10 +68,9 @@ var _ podMutator = (*initContainer)(nil)
 // mutatePod implements podMutator for initContainer.
 func (i initContainer) mutatePod(pod *corev1.Pod) error {
 	container := i.Container
-	for _, m := range i.Mutators {
-		if err := m.mutateContainer(&container); err != nil {
-			return err
-		}
+
+	if err := i.Mutators.mutateContainer(&container); err != nil {
+		return err
 	}
 
 	for idx, c := range pod.Spec.InitContainers {
@@ -82,6 +101,8 @@ func (v volume) mount(mount corev1.VolumeMount) volumeMount {
 
 // mutatePod implements podMutator for volume.
 func (v volume) mutatePod(pod *corev1.Pod) error {
+	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, v.Name)
+
 	vol := v.Volume
 	for idx, i := range pod.Spec.Volumes {
 		if i.Name == v.Volume.Name {

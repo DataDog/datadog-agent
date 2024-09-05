@@ -342,9 +342,9 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.NotNil(t, stringArrayVar)
 	assert.True(t, ok)
 
-	assert.True(t, stringArrayVar.Contains("foo"))
+	assert.True(t, stringArrayVar.LRU.Has("foo"))
 	time.Sleep(time.Second + 100*time.Millisecond)
-	assert.False(t, stringArrayVar.Contains("foo"))
+	assert.False(t, stringArrayVar.LRU.Has("foo"))
 }
 
 func TestActionSetVariableConflict(t *testing.T) {

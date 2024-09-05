@@ -256,7 +256,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
 			}
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 
 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")

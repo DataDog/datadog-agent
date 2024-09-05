@@ -249,10 +249,7 @@ func TestCollection(t *testing.T) {
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				fx.Supply(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 			))
 
 			time.Sleep(time.Second)

@@ -65,7 +65,8 @@ import (
 )
 
 type CLIParams struct {
-	confPath string
+	confPath   string
+	socketPath string
 }
 
 type DogstatsdComponents struct {
@@ -93,10 +94,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	// local flags
 	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-
-	var socketPath string
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog().BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	startCmd.PersistentFlags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
 }
@@ -109,15 +107,23 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	params := &Params{
 		DefaultLogFile: defaultLogFile,
 	}
+
+	configOptions := []func(*config.Params){
+		config.WithConfFilePath(cliParams.confPath),
+		config.WithConfigMissingOK(true),
+		config.WithConfigName("dogstatsd"),
+	}
+	if cliParams.socketPath != "" {
+		configOptions = append(configOptions, config.WithCLIOverride("dogstatsd_socket", cliParams.socketPath))
+	}
+
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(params),
 		fx.Supply(config.NewParams(
 			defaultConfPath,
-			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigMissingOK(true),
-			config.WithConfigName("dogstatsd")),
-		),
+			configOptions...,
+		)),
 		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](comp)
 		}),
@@ -126,15 +132,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
 		logfx.Module(),
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
-		dogstatsd.Bundle(),
-		forwarder.Bundle(),
-		fx.Provide(defaultforwarder.NewParams),
+		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
+		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 			catalog := workloadmeta.NodeAgent
 			instantiate := config.GetBool("dogstatsd_origin_detection")
 
@@ -144,16 +146,15 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmetafx.Module(),
+
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDisabledParams()),
 		taggerimpl.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.

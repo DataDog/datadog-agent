@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var bpfCapabilities = Capabilities{
-	"bpf.cmd": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+var bpfCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "bpf.cmd",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
@@ -27,7 +28,7 @@ func bpfKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
-			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", intValues[int64](values)...)
+			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", uintValues[uint64](values)...)
 			if err != nil {
 				return nil, err
 			}

@@ -78,14 +78,15 @@ build do
   }
 
   # Install dependencies
+  python_version = "2.7"
   lockfile_name = case
     when linux_target?
-      arm_target? ? "linux-aarch64_py2.txt" : "linux-x86_64_py2.txt"
+      arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64_py2.txt"
+      "macos-x86_64"
     when windows_target?
-      "windows-x86_64_py2.txt"
-  end
+      "windows-x86_64"
+  end + "_#{python_version}.txt"
   lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
   command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
 

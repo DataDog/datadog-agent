@@ -13,11 +13,13 @@ license_file "./LICENSE"
 
 dependency 'datadog-agent-integrations-py3-dependencies'
 
+python_version = "3.12"
+
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.12/site-packages/.libsaerospike"
-whitelist_file "embedded/lib/python3.12/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python3.12/site-packages/psycopg2"
-whitelist_file "embedded/lib/python3.12/site-packages/pymqi"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/.libsaerospike"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/aerospike.libs"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/psycopg2"
+whitelist_file "embedded/lib/python#{python_version}/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -79,12 +81,12 @@ build do
   # Install dependencies
   lockfile_name = case
     when linux_target?
-      arm_target? ? "linux-aarch64_py3.txt" : "linux-x86_64_py3.txt"
+      arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64_py3.txt"
+      "macos-x86_64"
     when windows_target?
-      "windows-x86_64_py3.txt"
-  end
+      "windows-x86_64"
+  end + "_#{python_version}.txt"
   lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
   command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
 
@@ -227,7 +229,7 @@ build do
   if windows_target?
     patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
   else
-    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.12/site-packages/psutil/__init__.py"
+    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python#{python_version}/site-packages/psutil/__init__.py"
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
@@ -237,7 +239,7 @@ build do
   if windows_target?
     delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
   else
-    delete "#{install_dir}/embedded/lib/python3.12/site-packages/Cryptodome/SelfTest/"
+    delete "#{install_dir}/embedded/lib/python#{python_version}/site-packages/Cryptodome/SelfTest/"
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
