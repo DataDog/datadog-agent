@@ -8,8 +8,7 @@ package host
 import (
 	"io/fs"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 )
 
 // scanRequest defines a scan request. This struct should be
@@ -20,18 +19,18 @@ type scanRequest struct {
 }
 
 // NewScanRequest creates a new scan request
-func NewScanRequest(path string, fs fs.FS) sbom.ScanRequest {
+func NewScanRequest(path string, fs fs.FS) types.ScanRequest {
 	return scanRequest{Path: path, FS: fs}
 }
 
 // Collector returns the collector name
 func (r scanRequest) Collector() string {
-	return collectors.HostCollector
+	return "host"
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type(sbom.ScanOptions) string {
-	return sbom.ScanFilesystemType
+func (r scanRequest) Type(types.ScanOptions) string {
+	return "filesystem"
 }
 
 // ID returns the scan request ID
