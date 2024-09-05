@@ -50,7 +50,7 @@ func New(t testing.TB) log.Component {
 	})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, "debug")
+	pkglog.ChangeLogLevel(iface, "error")
 
 	return pkglog.NewWrapper(2)
 }
