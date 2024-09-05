@@ -114,7 +114,7 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.StepFunctionPayload:
-		tc, err := createTraceContextFromStepFunctionInput(ev)
+		tc, err := extractTraceContextFromStepFunctionContext(ev)
 		if err == nil {
 			return tc, nil
 		}
