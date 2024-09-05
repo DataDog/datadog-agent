@@ -263,20 +263,47 @@ type AttachCallback func(*manager.Probe, *utils.FilePath)
 
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
-	name         string
-	done         chan struct{}
-	wg           sync.WaitGroup
-	config       AttacherConfig // Not a pointer, we want a copy of the configuration so that the user cannot change it, as we have certain cached values that we have no way to invalidate if the config changes after the attacher is created
-	fileRegistry FileRegistry
-	manager      ProbeManager
-	inspector    BinaryInspector
+	// name contains the name of this attacher for identification
+	name string
 
-	// pathToAttachedProbes maps a filesystem path to the probes attached to it. Used to detach them
-	// once the path is no longer used.
-	pathToAttachedProbes     map[string][]manager.ProbeIdentificationPair
-	onAttachCallback         AttachCallback
-	soWatcher                *sharedlibraries.EbpfProgram
-	handlesLibrariesCached   *bool
+	// done is a channel to signal the attacher to stop
+	done chan struct{}
+
+	// wg is a wait group to wait for the attacher to stop
+	wg sync.WaitGroup
+
+	// config holds the configuration of the attacher. Not a pointer as we want
+	// a copy of the configuration so that the user cannot change it, as we have
+	// certain cached values that we have no way to invalidate if the config
+	// changes after the attacher is created
+	config AttacherConfig
+
+	// fileRegistry is used to keep track of the files we are attached to, and attach only once to each file
+	fileRegistry FileRegistry
+
+	// manager is used to manage the eBPF probes (attach/detach to processes)
+	manager ProbeManager
+
+	// inspector is used  extract the metadata from the binaries
+	inspector BinaryInspector
+
+	// pathToAttachedProbes maps a filesystem path to the probes attached to it.
+	// Used to detach them once the path is no longer used.
+	pathToAttachedProbes map[string][]manager.ProbeIdentificationPair
+
+	// onAttachCallback is a callback that is called whenever a probe is attached
+	onAttachCallback AttachCallback
+
+	// soWatcher is the program that launches events whenever shared libraries are
+	// opened
+	soWatcher *sharedlibraries.EbpfProgram
+
+	// handlesLibrariesCached is a cache for the handlesLibraries function, avoiding
+	// recomputation every time
+	handlesLibrariesCached *bool
+
+	// handlesExecutablesCached is a cache for the handlesExecutables function, avoiding
+	// recomputation every time
 	handlesExecutablesCached *bool
 }
 
