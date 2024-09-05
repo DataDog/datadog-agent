@@ -20,6 +20,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -131,30 +132,26 @@ func (r *AttachRule) getProbeOptions(probeID manager.ProbeIdentificationPair) (P
 
 // Validate checks whether the rule is valid, returns nil if it is, an error message otherwise
 func (r *AttachRule) Validate() error {
-	var errs []string
+	var result error
 
 	if r.Targets == 0 {
-		errs = append(errs, "no targets specified")
+		result = multierror.Append(result, errors.New("no targets specified"))
 	}
 
 	if r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex == nil {
-		errs = append(errs, "no library name regex specified")
+		result = multierror.Append(result, errors.New("no library name regex specified"))
 	}
 
 	for _, selector := range r.ProbesSelector {
 		for _, probeID := range selector.GetProbesIdentificationPairList() {
 			_, err := r.getProbeOptions(probeID)
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("invalid probe name %s: %s", probeID.EBPFFuncName, err))
+				result = multierror.Append(result, fmt.Errorf("cannot get options for probe %s: %w", probeID.EBPFFuncName, err))
 			}
 		}
 	}
 
-	if len(errs) == 0 {
-		return nil
-	}
-
-	return errors.New("invalid rule: " + strings.Join(errs, ", "))
+	return result
 }
 
 // AttacherConfig defines the configuration for the attacher
