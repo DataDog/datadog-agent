@@ -42,7 +42,7 @@ type serviceInfo struct {
 type procStat struct {
 	StartTime uint64
 	RSS       uint64
-	CPUUsage  float64
+	CPUCores  float64
 }
 
 type processInfo struct {
@@ -71,9 +71,7 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var (
-	newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
-)
+var newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
 
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`

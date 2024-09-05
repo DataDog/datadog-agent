@@ -31,7 +31,7 @@ type ServiceDiscoveryPayload struct {
 		APMInstrumentation  string  `json:"apm_instrumentation"`
 		ServiceNameSource   string  `json:"service_name_source"`
 		RSSMemory           uint64  `json:"rss_memory"`
-		CPUUsage            float64 `json:"cpu_usage"`
+		CPUCores            float64 `json:"cpu_cores"`
 	} `json:"payload"`
 }
 

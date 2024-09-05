@@ -363,7 +363,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		nameSource = "provided"
 	}
 
-	cpu, err := updateCPUUsageStats(proc, info, s.lastGlobalCPUTime, context.globalCPUTime)
+	cpu, err := updateCPUCoresStats(proc, info, s.lastGlobalCPUTime, context.globalCPUTime)
 	if err != nil {
 		return nil
 	}
@@ -378,7 +378,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
 		StartTimeSecs:      info.startTimeSecs,
-		CPUUsage:           cpu,
+		CPUCores:           cpu,
 	}
 }
 

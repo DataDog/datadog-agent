@@ -85,7 +85,7 @@ func getGlobalCPUTime() (uint64, error) {
 	return totalTime, nil
 }
 
-func updateCPUUsageStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) (float64, error) {
+func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) (float64, error) {
 	statPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "stat")
 
 	// This file is very small so just read it fully.

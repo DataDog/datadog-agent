@@ -92,7 +92,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if service, ok := serviceMap[pid]; ok {
 			svc.LastHeartbeat = now
 			svc.process.Stat.RSS = service.RSS
-			svc.process.Stat.CPUUsage = service.CPUUsage
+			svc.process.Stat.CPUCores = service.CPUCores
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
 		}
@@ -127,7 +127,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
 			svc.process.Stat.RSS = service.RSS
-			svc.process.Stat.CPUUsage = service.CPUUsage
+			svc.process.Stat.CPUCores = service.CPUCores
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
