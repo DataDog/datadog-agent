@@ -159,7 +159,7 @@ remove_apm_remote_config()
 }
 
 if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
-    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}"
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
 fi
 stop_agent
 deregister_agent
