@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package containers
+// Package image provides utilities to handle container images for pkg/util/containers
+package image
 
 import (
 	"errors"

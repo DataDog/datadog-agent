@@ -26,9 +26,8 @@ type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, error)
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
 func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (activeKFilter, error) {
-	return &mapEventMask{
+	return &eventMaskEntry{
 		tableName: tableName,
-		key:       basename,
 		tableKey:  ebpf.NewStringMapItem(basename, BasenameFilterSize),
 		eventMask: uint64(1 << (eventType - 1)),
 	}, nil

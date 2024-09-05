@@ -16,19 +16,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var mmapCapabilities = Capabilities{
-	"mmap.file.path": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:      validateBasenameFilter,
+var mmapCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "mmap.file.path",
+		TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc: validateBasenameFilter,
 	},
-	"mmap.file.name": {
-		ValueTypeBitmask: eval.ScalarValueType,
+	{
+		Field:       "mmap.file.name",
+		TypeBitmask: eval.ScalarValueType,
 	},
-	"mmap.protection": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mmap.protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"mmap.flags": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mmap.flags",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
