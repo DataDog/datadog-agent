@@ -633,6 +633,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFLessProbe) EnableEnforcement(state bool) {
+	p.processKiller.enabled = state
+}
+
 // NewEBPFLessProbe returns a new eBPF less probe
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
 	opts.normalize()

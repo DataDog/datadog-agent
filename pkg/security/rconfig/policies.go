@@ -41,12 +41,13 @@ type RCPolicyProvider struct {
 	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
 	dumpPolicies         bool
+	setEnforcementCb     func(bool)
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(dumpPolicies bool) (*RCPolicyProvider, error) {
+func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (*RCPolicyProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
@@ -68,8 +69,9 @@ func NewRCPolicyProvider(dumpPolicies bool) (*RCPolicyProvider, error) {
 	}
 
 	r := &RCPolicyProvider{
-		client:       c,
-		dumpPolicies: dumpPolicies,
+		client:           c,
+		dumpPolicies:     dumpPolicies,
+		setEnforcementCb: setEnforcementCallback,
 	}
 	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
 
@@ -82,10 +84,16 @@ func (r *RCPolicyProvider) Start() {
 
 	r.debouncer.Start()
 
-	r.client.Subscribe(state.ProductCWSDD, r.rcDefaultsUpdateCallback)
-	r.client.Subscribe(state.ProductCWSCustom, r.rcCustomsUpdateCallback)
+	r.client.Subscribe(state.ProductCWSDD, client.NewListener(r.rcDefaultsUpdateCallback, r.rcStateChanged))
+	r.client.Subscribe(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
 
 	r.client.Start()
+}
+
+func (r *RCPolicyProvider) rcStateChanged(state bool) {
+	if r.setEnforcementCb != nil {
+		r.setEnforcementCb(state)
+	}
 }
 
 func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
@@ -191,6 +199,10 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 	defer r.RUnlock()
 
 	if r.onNewPoliciesReadyCb != nil {
+		if r.setEnforcementCb != nil {
+			r.setEnforcementCb(true)
+		}
+
 		r.onNewPoliciesReadyCb()
 	}
 }

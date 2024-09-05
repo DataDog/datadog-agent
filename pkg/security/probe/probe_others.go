@@ -107,3 +107,6 @@ func (p *Probe) RefreshUserCache(_ string) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(state bool) {}

@@ -55,6 +55,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
+	EnableEnforcement(bool)
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model

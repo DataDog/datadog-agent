@@ -1628,6 +1628,11 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.ToDot(withArgs)
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFProbe) EnableEnforcement(state bool) {
+	p.processKiller.enabled = state
+}
+
 // NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
