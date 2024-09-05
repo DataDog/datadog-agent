@@ -169,27 +169,25 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 
 // GetNetworkID fetches the network_id (vpc_id) from system-probe
 func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
-	networkIDPath := "/network_id"
-	req, err := http.NewRequest("GET", networkIDPath, nil)
+	req, err := http.NewRequest("GET", networkIDURL, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to execute request: %w", err)
 	}
-
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDPath, resp.StatusCode)
+		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDURL, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return string(body), nil
