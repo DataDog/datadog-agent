@@ -1,8 +1,8 @@
 # Infra Attributes Processor
 
-The infra attributes processor extracts [Kubernetes Datadog tags](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags) based on labels or annotations and assigns these tags as resource attributes on traces, metrics, and logs.
+The infra attributes processor extracts [Kubernetes tags](https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags) based on labels or annotations and assigns these tags as resource attributes on traces, metrics, and logs.
 
-When telemetry is exported from the otel-agent, these infra attributes will be converted into Kubernetes Datadog tags and used as metadata in [Container Monitoring](https://docs.datadoghq.com/containers/).
+When telemetry is exported from the otel-agent, these infra attributes will be converted into Datadog tags and used as metadata in [Container Monitoring](https://docs.datadoghq.com/containers/).
 
 ## Configuration
 
@@ -13,7 +13,7 @@ processors:
     cardinality: 0
 ```
 
-The infra attributes processor also needs to be included in the pipelines section in order to be enabled:
+The infra attributes processor also needs to be included in the pipelines in order to take effect:
 ```
 service:
   pipelines:
@@ -53,4 +53,4 @@ The infra attributes processor looks up the following resource attributes in ord
 
 ## List of Kubernetes Tags
 
-For the full list of Kubernetes Datadog Tags added by the infra attributes processor, see [comp/core/tagger/tags/tags.go](../../../../../../comp/core/tagger/tags/tags.go).
+For the full list of Kubernetes Tags added by the infra attributes processor, see [comp/core/tagger/tags/tags.go](../../../../../../comp/core/tagger/tags/tags.go).
