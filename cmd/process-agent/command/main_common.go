@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -61,16 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-const (
-	agent6DisabledMessage = `process-agent not enabled.
-Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
-process_config:
-  process_collection:
-    enabled: true
-to your datadog.yaml file.
-Exiting.`
 )
 
 // errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
@@ -137,12 +128,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
 
-		// Provide ep forwarder bundle so fx knows where to find components
-		fx.Provide(func() eventplatformimpl.Params {
-			return eventplatformimpl.NewDefaultParams()
-		}),
 		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 
 		// Provide network path bundle
 		networkpath.Bundle(),
@@ -194,7 +181,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
-		fxutil.FxAgentBase(),
+		fxutil.FxAgentBase(true),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -210,6 +197,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
+			cfg config.Component,
 			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
@@ -218,7 +206,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			processAgent agent.Component,
 			_ autoexit.Component,
 		) error {
-			if !processAgent.Enabled() {
+			if !processAgent.Enabled() && !collector.Enabled(cfg) {
 				return errAgentDisabled
 			}
 			return nil
@@ -238,33 +226,23 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		settingsimpl.Module(),
 	)
 
-	if err := app.Err(); err != nil {
-
-		if errors.Is(err, errAgentDisabled) {
-			log.Info("process-agent is not enabled, exiting...")
-			return nil
-		}
-
-		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
-		// stdout just in case.
-		if appInitDeps.Logger == nil {
-			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		} else {
-			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		}
-		return err
-	}
-
-	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !shouldEnableProcessAgent(appInitDeps.Checks, appInitDeps.Config) {
-		log.Infof(agent6DisabledMessage)
-		return nil
-	}
-
 	err := app.Start(ctx)
 	if err != nil {
-		log.Criticalf("Failed to start process agent: %v", err)
-		return err
+		if errors.Is(err, errAgentDisabled) {
+			if !shouldStayAlive(appInitDeps.Config) {
+				log.Info("process-agent is not enabled, exiting...")
+				return nil
+			}
+		} else {
+			// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
+			// stdout just in case.
+			if appInitDeps.Logger == nil {
+				fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			} else {
+				appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			}
+			return err
+		}
 	}
 
 	// Wait for exit signal
@@ -283,19 +261,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
-}
-
-func anyChecksEnabled(checks []types.CheckComponent) bool {
-	for _, check := range checks {
-		if check.Object().IsEnabled() {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
-	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 
 type miscDeps struct {
@@ -342,4 +307,16 @@ func initMisc(deps miscDeps) error {
 	})
 
 	return nil
+}
+
+// shouldStayAlive determines whether the process agent should stay alive when no checks are running.
+// This can happen when the checks are running on the core agent but a process agent container is
+// still brought up. The process-agent is kept alive to prevent crash loops.
+func shouldStayAlive(cfg ddconfig.Reader) bool {
+	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
+		return true
+	}
+
+	return false
 }

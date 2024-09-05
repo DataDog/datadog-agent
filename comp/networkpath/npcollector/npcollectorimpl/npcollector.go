@@ -75,8 +75,10 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
+	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
+		collectorConfigs.timeout,
+		collectorConfigs.maxTTL,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
 		collectorConfigs.pathtestContextsLimit,
@@ -210,8 +212,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	cfg := traceroute.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
-		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
+		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
+		Timeout:      s.collectorConfigs.timeout,
 		Protocol:     ptest.Pathtest.Protocol,
 	}
 

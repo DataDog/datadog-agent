@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -49,17 +51,19 @@ type CWSConsumer struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
 	reloader      ReloaderInterface
+	crtelemetry   *telemetry.ContainersRunningTelemetry
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts) (*CWSConsumer, error) {
+	crtelemetry, err := telemetry.NewContainersRunningTelemetry(cfg, evm.StatsdClient, wmeta)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	var (
-		selfTester *selftests.SelfTester
-		err        error
-	)
-
+	var selfTester *selftests.SelfTester
 	if cfg.SelfTestEnabled {
 		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
 		if err != nil {
@@ -82,6 +86,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
+		crtelemetry:   crtelemetry,
 	}
 
 	// set sender
@@ -150,6 +155,11 @@ func (c *CWSConsumer) Start() error {
 
 	c.wg.Add(1)
 	go c.statsSender()
+
+	if c.crtelemetry != nil {
+		// Send containers running telemetry
+		go c.crtelemetry.Run(c.ctx)
+	}
 
 	seclog.Infof("runtime security started")
 

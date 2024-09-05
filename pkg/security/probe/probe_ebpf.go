@@ -65,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -331,6 +330,8 @@ func (p *EBPFProbe) Init() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.Start(p.ctx, &p.wg)
 
 	return nil
 }
@@ -1083,7 +1084,7 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode, flags kfilters.PolicyFlag) error {
+func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := managerhelper.Map(p.Manager, "filter_policy")
 	if err != nil {
@@ -1095,10 +1096,7 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 		return errors.New("unable to parse the eval event type")
 	}
 
-	policy := &kfilters.FilterPolicy{
-		Mode:  mode,
-		Flags: flags,
-	}
+	policy := &kfilters.FilterPolicy{Mode: mode}
 
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
@@ -1316,11 +1314,6 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
-	if err != nil {
-		return nil, err
-	}
-
 	statsFB, err := managerhelper.Map(p.Manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
@@ -1331,7 +1324,7 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, inodeMap, statsFB, statsBB)
 	if err != nil {
 		return nil, err
 	}
@@ -1537,7 +1530,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
 			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
 		}
 	}
@@ -1568,7 +1561,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+		if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
 			return nil, err
 		}
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
@@ -1580,6 +1573,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	p.processKiller.Reset()
 
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
@@ -1634,18 +1629,23 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	onDemandRate := rate.Limit(math.Inf(1))
 	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
+
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &EBPFProbe{
 		probe:                probe,
@@ -1661,7 +1661,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(),
+		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 

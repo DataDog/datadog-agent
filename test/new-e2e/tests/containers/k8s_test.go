@@ -983,8 +983,13 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}
 	}
 
+	volumesMarkedAsSafeToEvict := strings.Split(
+		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
+	)
+
 	if suite.Contains(hostPathVolumes, "datadog") {
 		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
 	volumeMounts := make(map[string][]string)
@@ -1006,7 +1011,14 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}
 		}
 
-		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
+		}
+
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
+		}
+
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
 			suite.ElementsMatch([]string{
 				"/opt/datadog-packages/datadog-apm-inject",

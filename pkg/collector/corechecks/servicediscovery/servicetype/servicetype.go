@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 // Package servicetype provides functionality to detect the service type for a given process.
 package servicetype
@@ -84,25 +84,16 @@ var (
 		80:  FrontEnd,
 		443: FrontEnd,
 	}
-
-	// for now, this is unpopulated, but
-	// as we find common service names that are listening on a
-	// commonly used port, we can add them here
-	nameMap = map[string]ServiceType{}
 )
 
 // Detect returns the ServiceType from the provided process information.
-func Detect(name string, ports []uint16) ServiceType {
+func Detect(ports []uint16) ServiceType {
 	// start with ports
 	for _, v := range ports {
 		if st, ok := portMap[v]; ok {
 			return st
 		}
 
-	}
-	// next check name
-	if st, ok := nameMap[name]; ok {
-		return st
 	}
 
 	// anything else is a webservice

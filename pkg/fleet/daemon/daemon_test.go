@@ -47,6 +47,16 @@ func (m *testPackageManager) States() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
+func (m *testPackageManager) ConfigState(pkg string) (repository.State, error) {
+	args := m.Called(pkg)
+	return args.Get(0).(repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) ConfigStates() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
 	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
@@ -116,7 +126,11 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
 }
 
-func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
+}
+
+func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+	return nil
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
@@ -170,6 +184,7 @@ type testInstaller struct {
 func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
+	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
@@ -273,11 +288,8 @@ func TestRemoteRequest(t *testing.T) {
 	defer i.Stop()
 
 	testStablePackage := Package{
-		Name:     "test-package",
-		Version:  "0.0.1",
-		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
-		Platform: runtime.GOOS,
-		Arch:     runtime.GOARCH,
+		Name:    "test-package",
+		Version: "0.0.1",
 	}
 	testExperimentPackage := Package{
 		Name:     "test-package",

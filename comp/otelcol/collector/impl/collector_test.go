@@ -44,7 +44,7 @@ func TestGetConfDump(t *testing.T) {
 	configstore, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
-	provider, err := converter.NewConverter()
+	provider, err := converter.NewConverter(converter.Requires{})
 	assert.NoError(t, err)
 
 	conf := setup.Datadog()
@@ -121,7 +121,7 @@ func TestGetConfDumpConverterDisabled(t *testing.T) {
 	configstore, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
-	provider, err := converter.NewConverter()
+	provider, err := converter.NewConverter(converter.Requires{})
 	assert.NoError(t, err)
 
 	conf := setup.Datadog()
