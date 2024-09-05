@@ -35,8 +35,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -795,12 +793,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	wmeta := fxutil.Test[workloadmeta.Component](t,
+
+	fxDeps := fxutil.Test[testModuleFxDeps](
+		t,
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, wmeta, telemetry)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
 	if err != nil {
 		return nil, err
 	}
