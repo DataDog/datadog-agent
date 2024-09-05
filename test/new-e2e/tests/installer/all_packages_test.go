@@ -125,6 +125,11 @@ func TestPackages(t *testing.T) {
 				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
+
+				// FIXME: Ansible tests are flaky on multiple tests/os
+				if method == installMethodAnsible {
+					flake.Mark(t)
+				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),

@@ -32,19 +32,18 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 		}
 	}
 	prevArgIsFlag := false
-	shouldSkipArg := false
 	for _, arg := range args {
-		hasFlagPrefix := shouldSkipArg || strings.HasPrefix(arg, "-")
-		includesAssignment := shouldSkipArg || strings.ContainsRune(arg, '=') || strings.HasPrefix(arg, "-d")
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		hasFlagPrefix := strings.HasPrefix(arg, "-")
 
-		if !shouldSkipArg {
+		// If the previous argument was a flag, or is the current arg is a flag, skip the argument. Otherwise, process it.
+		if !prevArgIsFlag && !hasFlagPrefix {
 			basePath := removeFilePath(arg)
 			if isRuneLetterAt(basePath, 0) && basePath == artisanConsole {
 				return NewServiceMetadata(newLaravelParser(p.ctx).GetLaravelAppName(arg)), true
 			}
 		}
 
+		includesAssignment := strings.ContainsRune(arg, '=')
 		prevArgIsFlag = hasFlagPrefix && !includesAssignment
 	}
 

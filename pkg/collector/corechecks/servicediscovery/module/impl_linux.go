@@ -6,7 +6,10 @@
 package module
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,14 +17,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -43,8 +43,9 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name               string
-	nameFromDDService  bool
+	generatedName      string
+	ddServiceName      string
+	ddServiceInjected  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
@@ -65,7 +66,7 @@ type discovery struct {
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component) (module.Module, error) {
+func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
 	return &discovery{
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
@@ -168,51 +169,117 @@ const (
 	udpListen        = tcpClose
 )
 
-// addSockets adds only listening sockets to a map to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
-	for _, sock := range sockets {
-		if sock.St != state {
+const (
+	// readLimit is used by io.LimitReader while reading the content of the
+	// /proc/net/udp{,6} files. The number of lines inside such a file is dynamic
+	// as each line represents a single used socket.
+	// In theory, the number of available sockets is 65535 (2^16 - 1) per IP.
+	// With e.g. 150 Byte per line and the maximum number of 65535,
+	// the reader needs to handle 150 Byte * 65535 =~ 10 MB for a single IP.
+	// Taken from net_ip_socket.go from github.com/prometheus/procfs.
+	readLimit = 4294967296 // Byte -> 4 GiB
+)
+
+var (
+	errInvalidLine      = errors.New("invalid line")
+	errInvalidState     = errors.New("invalid state field")
+	errUnsupportedState = errors.New("unsupported state field")
+	errInvalidLocalIP   = errors.New("invalid local ip format")
+	errInvalidLocalPort = errors.New("invalid local port format")
+	errInvalidInode     = errors.New("invalid inode format")
+)
+
+// parseNetIPSocketLine parses a single line, represented by a list of fields.
+// It returns the inode and local port of the socket if the line is valid.
+// Based on parseNetIPSocketLine() in net_ip_socket.go from github.com/prometheus/procfs.
+func parseNetIPSocketLine(fields []string, expectedState uint64) (uint64, uint16, error) {
+	if len(fields) < 10 {
+		return 0, 0, errInvalidLine
+	}
+	var localPort uint16
+	var inode uint64
+
+	if state, err := strconv.ParseUint(fields[3], 16, 64); err != nil {
+		return 0, 0, errInvalidState
+	} else if state != expectedState {
+		return 0, 0, errUnsupportedState
+	}
+
+	// local_address
+	l := strings.Split(fields[1], ":")
+	if len(l) != 2 {
+		return 0, 0, errInvalidLocalIP
+	}
+	localPortTemp, err := strconv.ParseUint(l[1], 16, 64)
+	if err != nil {
+		return 0, 0, errInvalidLocalPort
+	}
+	localPort = uint16(localPortTemp)
+
+	if inode, err = strconv.ParseUint(fields[9], 0, 64); err != nil {
+		return 0, 0, errInvalidInode
+	}
+
+	return inode, localPort, nil
+}
+
+// newNetIPSocket reads the content of the provided file and returns a map of socket inodes to ports.
+// Based on newNetIPSocket() in net_ip_socket.go from github.com/prometheus/procfs
+func newNetIPSocket(file string, expectedState uint64) (map[uint64]uint16, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	netIPSocket := make(map[uint64]uint16)
+
+	lr := io.LimitReader(f, readLimit)
+	s := bufio.NewScanner(lr)
+	s.Scan() // skip first line with headers
+	for s.Scan() {
+		fields := strings.Fields(s.Text())
+		inode, port, err := parseNetIPSocketLine(fields, expectedState)
+		if err != nil {
 			continue
 		}
-		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
+		netIPSocket[inode] = port
 	}
+	if err := s.Err(); err != nil {
+		return nil, err
+	}
+	return netIPSocket, nil
 }
 
 // getNsInfo gets the list of open ports with socket inodes for all supported
 // protocols for the provided namespace. Based on snapshotBoundSockets() in
 // pkg/security/security_profile/activity_tree/process_node_snapshot.go.
 func getNsInfo(pid int) (*namespaceInfo, error) {
-	path := kernel.HostProc(fmt.Sprintf("%d", pid))
-	proc, err := procfs.NewFS(path)
-	if err != nil {
-		log.Warnf("error while opening procfs (pid: %v): %s", pid, err)
-		return nil, err
-	}
-
-	TCP, err := proc.NetTCP()
+	tcp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid)), tcpListen)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP sockets: %v", err)
 	}
-	UDP, err := proc.NetUDP()
+	udp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp", pid)), udpListen)
 	if err != nil {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
-	TCP6, err := proc.NetTCP6()
+	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
-	UDP6, err := proc.NetUDP6()
+	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen)
 	if err != nil {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
-	listeningSockets := make(map[uint64]socketInfo)
-
-	addSockets(listeningSockets, TCP, tcpListen)
-	addSockets(listeningSockets, TCP6, tcpListen)
-	addSockets(listeningSockets, UDP, udpListen)
-	addSockets(listeningSockets, UDP6, udpListen)
-
+	listeningSockets := make(map[uint64]socketInfo, len(tcp)+len(udp)+len(tcpv6)+len(udpv6))
+	for _, mmap := range []map[uint64]uint16{tcp, udp, tcpv6, udpv6} {
+		for inode, info := range mmap {
+			listeningSockets[inode] = socketInfo{
+				port: info,
+			}
+		}
+	}
 	return &namespaceInfo{
 		listeningSockets: listeningSockets,
 	}, nil
@@ -251,7 +318,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
+	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
@@ -259,10 +326,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
 
 	return &serviceInfo{
-		name:               name,
+		generatedName:      nameMeta.Name,
+		ddServiceName:      nameMeta.DDService,
 		language:           lang,
 		apmInstrumentation: apmInstrumentation,
-		nameFromDDService:  fromDDService,
+		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 		startTimeSecs:      uint64(createTime / 1000),
 	}, nil
@@ -285,10 +353,32 @@ func customNewProcess(pid int32) (*process.Process, error) {
 	return p, nil
 }
 
+// ignoreComms is a list of process names (matched against /proc/PID/comm) to
+// never report as a service. Note that comm is limited to 16 characters.
+var ignoreComms = map[string]struct{}{
+	"sshd":             {},
+	"dhclient":         {},
+	"systemd":          {},
+	"systemd-resolved": {},
+	"systemd-networkd": {},
+	"datadog-agent":    {},
+	"livenessprobe":    {},
+	"docker-proxy":     {},
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	proc, err := customNewProcess(pid)
 	if err != nil {
+		return nil
+	}
+
+	comm, err := proc.Name()
+	if err != nil {
+		return nil
+	}
+
+	if _, found := ignoreComms[comm]; found {
 		return nil
 	}
 
@@ -359,15 +449,17 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
-	nameSource := "generated"
-	if info.nameFromDDService {
-		nameSource = "provided"
+	name := info.ddServiceName
+	if name == "" {
+		name = info.generatedName
 	}
 
 	return &model.Service{
 		PID:                int(pid),
-		Name:               info.name,
-		NameSource:         nameSource,
+		Name:               name,
+		GeneratedName:      info.generatedName,
+		DDService:          info.ddServiceName,
+		DDServiceInjected:  info.ddServiceInjected,
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
