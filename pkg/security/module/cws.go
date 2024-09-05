@@ -56,23 +56,19 @@ type CWSConsumer struct {
 
 // NewCWSConsumer initializes the module with options
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts) (*CWSConsumer, error) {
+	crtelemetry, err := telemetry.NewContainersRunningTelemetry(cfg, evm.StatsdClient, wmeta)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	var (
-		selfTester *selftests.SelfTester
-		err        error
-	)
-
+	var selfTester *selftests.SelfTester
 	if cfg.SelfTestEnabled {
 		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
 		if err != nil {
 			seclog.Errorf("unable to instantiate self tests: %s", err)
 		}
-	}
-
-	crtelemetry, err := telemetry.NewContainersRunningTelemetry(cfg, evm.StatsdClient, wmeta)
-	if err != nil {
-		return nil, err
 	}
 
 	family, address := config.GetFamilyAddress(cfg.SocketPath)

@@ -23,6 +23,7 @@ type ContainersRunningTelemetry struct {
 	containers *ContainersTelemetry
 }
 
+// NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance
 func NewContainersRunningTelemetry(cfg *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*ContainersRunningTelemetry, error) {
 	telemetrySender := NewSimpleTelemetrySenderFromStatsd(statsdClient)
 	containersTelemetry, err := NewContainersTelemetry(telemetrySender, wmeta)
@@ -36,6 +37,7 @@ func NewContainersRunningTelemetry(cfg *config.RuntimeSecurityConfig, statsdClie
 	}, nil
 }
 
+// Run starts the telemetry collection
 func (t *ContainersRunningTelemetry) Run(ctx context.Context) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")

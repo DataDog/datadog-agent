@@ -15,10 +15,13 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// ContainersRunningTelemetry reports environment information (e.g containers running) when the runtime security component is running
 type ContainersRunningTelemetry struct{}
 
+// NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance (not supported on non-linux platforms)
 func NewContainersRunningTelemetry(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*ContainersRunningTelemetry, error) {
 	return nil, nil
 }
 
+// Run starts the telemetry collection
 func (t *ContainersRunningTelemetry) Run(_ context.Context) {}
