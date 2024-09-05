@@ -32,7 +32,7 @@ service:
 ```
 
 ### Cardinality
-The cardinality option sets the [TagCardinality]((../../../../../../comp/core/tagger/README.md#tagcardinality)) in the Datadog Agent tagger component. Possible values for this option include:
+The cardinality option sets the [TagCardinality](../../../../../../comp/core/tagger/README.md#tagcardinality) in the Datadog Agent tagger component. Possible values for this option include:
 * `cardinality: 0` - **LowCardinality**: in the host count order of magnitude
 * `cardinality: 1` - **OrchestratorCardinality**: tags that change value for each pod or task
 * `cardinality: 2` - **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
@@ -51,6 +51,6 @@ The infra attributes processor looks up the following resource attributes in ord
 | workloadmeta.KindKubernetesPod                                       | `k8s.pod.uid`                               |
 | workloadmeta.KindProcess                                             | `process.pid`                               |
 
-## Kubernetes Datadog Tags List
+## List of Kubernetes Tags
 
-For the full list of Kubernetes Datadog Tags added by the infra attributes processor, see [comp/core/tagger/tags/tags.go](../../../../../../comp/core/tagger/tags.go).
+For the full list of Kubernetes Datadog Tags added by the infra attributes processor, see [comp/core/tagger/tags/tags.go](../../../../../../comp/core/tagger/tags/tags.go).
