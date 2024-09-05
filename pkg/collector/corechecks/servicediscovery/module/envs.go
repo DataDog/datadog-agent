@@ -51,7 +51,7 @@ func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
 	}
 	injectionMeta, err := extractInjectionMeta(path)
 	if err != nil {
-		log.Warnf("error extracting injected envs: %s", err)
+		log.Warnf("failed extracting injected envs: %s", err)
 		return nil, false
 	}
 	return injectionMeta, true
@@ -74,8 +74,7 @@ func extractInjectionMeta(path string) (*InjectedProcess, error) {
 	}
 
 	var injectedProc InjectedProcess
-	_, err = injectedProc.UnmarshalMsg(data)
-	if err != nil {
+	if _, err = injectedProc.UnmarshalMsg(data); err != nil {
 		return nil, err
 	}
 	return &injectedProc, nil
