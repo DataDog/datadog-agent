@@ -118,8 +118,10 @@ func TestExtensionHTTPHandler(t *testing.T) {
 	ddExt.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
+	handler := ddExt.server.srv.Handler
+
 	// Call the handler's ServeHTTP method
-	ddExt.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,

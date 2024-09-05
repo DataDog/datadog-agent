@@ -7,6 +7,7 @@
 package ddflareextensionimpl
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -23,6 +24,11 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type server struct {
+	srv      *http.Server
+	listener net.Listener
+}
+
 // validateToken - validates token for legacy API
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,18 +39,18 @@ func validateToken(next http.Handler) http.Handler {
 	})
 }
 
-func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.Listener, error) {
+func newServer(endpoint string, handler http.Handler) (*server, error) {
 
 	// Generate a self-signed certificate
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	template := x509.Certificate{
@@ -70,12 +76,12 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// parse the resulting certificate so we can use it again
 	_, err = x509.ParseCertificate(certDER)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// PEM encode the certificate (this is a standard TLS encoding)
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
@@ -87,13 +93,13 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+		return nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
 	}
 
 	tlsCertPool := x509.NewCertPool()
 	ok := tlsCertPool.AppendCertsFromPEM(certPEM)
 	if !ok {
-		return nil, nil, fmt.Errorf("unable to add new certificate to pool")
+		return nil, fmt.Errorf("unable to add new certificate to pool")
 	}
 
 	// Create TLS configuration
@@ -108,7 +114,7 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 
 	r.Use(validateToken)
 
-	server := &http.Server{
+	s := &http.Server{
 		Addr:      endpoint,
 		TLSConfig: tlsConfig,
 		Handler:   r,
@@ -116,14 +122,22 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	tlsListener := tls.NewListener(listener, server.TLSConfig)
-	go func() {
-		_ = server.Serve(tlsListener)
-	}()
+	tlsListener := tls.NewListener(listener, s.TLSConfig)
 
-	return server, tlsListener, nil
+	return &server{
+		srv:      s,
+		listener: tlsListener,
+	}, nil
 
+}
+
+func (s *server) start() error {
+	return s.srv.Serve(s.listener)
+}
+
+func (s *server) shutdown(ctx context.Context) error {
+	return s.srv.Shutdown(ctx)
 }
