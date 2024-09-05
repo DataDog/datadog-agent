@@ -193,7 +193,7 @@ func (ac *AttacherConfig) SetDefaults() {
 	}
 
 	if ac.ProcRoot == "" {
-		ac.ProcRoot = "/proc"
+		ac.ProcRoot = kernel.HostProc()
 	}
 
 	if ac.EbpfConfig == nil {
