@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -157,11 +156,11 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		var encoder compression.Component
-		encoder = strategy.NewNoopStrategy()
+		encoder = compressionimpl.NewNoopCompressor()
 		if endpoints.Main.UseCompression {
 			encoder = compressionimpl.GetCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string { "zstd", "gzip" })
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, strategy.NewNoopStrategy())
+	return sender.NewStreamStrategy(inputChan, outputChan, compressionimpl.NewNoopCompressor())
 }

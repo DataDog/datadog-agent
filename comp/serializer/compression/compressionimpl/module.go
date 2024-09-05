@@ -5,6 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,4 +23,8 @@ func NewCompressor(cfg config.Component) compression.Component {
 		"serializer_compressor_kind",
 		[]string { "zstd", "zlib" },
 	)
+}
+
+func NewNoopCompressor() compression.Component {
+	return strategy.NewNoopStrategy()
 }

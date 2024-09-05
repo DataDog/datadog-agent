@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -78,7 +77,6 @@ type dependencies struct {
 	Lc                 fx.Lifecycle
 	Log                log.Component
 	Config             configComponent.Component
-	Compression 	   compression.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
@@ -102,7 +100,6 @@ type provides struct {
 type logAgent struct {
 	log            log.Component
 	config         pkgConfig.Reader
-	compression    compression.Component
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
@@ -141,7 +138,6 @@ func newLogsAgent(deps dependencies) provides {
 		logsAgent := &logAgent{
 			log:            deps.Log,
 			config:         deps.Config,
-			compression:    deps.Compression,
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
 			started:        atomic.NewUint32(status.StatusNotStarted),
