@@ -9,6 +9,7 @@ package runcmd
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/dig"
@@ -35,9 +36,10 @@ func Run(cmd *cobra.Command) int {
 // these are simply printed with an "Error: " prefix, but some kinds of errors
 // are first simplified to reduce user confusion.
 func displayError(err error, w io.Writer) {
+	_, traceFxSet := os.LookupEnv("TRACE_FX")
 	// RootCause returns the error it was given if it cannot find a "root cause",
 	// and otherwise returns the root cause, which is more useful to the user.
-	if rc := dig.RootCause(err); rc != err {
+	if rc := dig.RootCause(err); rc != err && !traceFxSet {
 		fmt.Fprintln(w, "Error:", rc.Error())
 		return
 	}

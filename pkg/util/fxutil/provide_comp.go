@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"go.uber.org/fx"
 )
 
@@ -302,13 +301,12 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 }
 
 // FxAgentBase returns all of our adapters from compdef types to fx types
-func FxAgentBase(logFxEvents bool) fx.Option {
-	options := []fx.Option{fx.Provide(newFxLifecycleAdapter),
-		fx.Provide(newFxShutdownerAdapter)}
-	if logFxEvents {
-		options = append(options, logging.FxLoggingOption())
-	}
-	return fx.Options(options...)
+func FxAgentBase() fx.Option {
+	return fx.Options(
+		FxLoggingOption(),
+		fx.Provide(newFxLifecycleAdapter),
+		fx.Provide(newFxShutdownerAdapter),
+	)
 }
 
 // Lifecycle is a compdef interface compatible with fx.Lifecycle, to provide start/stop hooks

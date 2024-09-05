@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // Module defines the fx options for this component.
@@ -96,7 +95,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// careful never to double-instantiate anything. Do not use this solution
 	// elsewhere if possible.
 	app := fx.New(
-		logging.FxLoggingOption(),
+		fxutil.FxLoggingOption(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,
