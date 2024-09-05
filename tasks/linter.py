@@ -563,9 +563,6 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
-        'new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64',
-        'new-e2e-agent-platform-package-signing-debian-a7-x86_64',
-        'new-e2e-agent-platform-package-signing-suse-a7-x86_64',
         'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
@@ -590,11 +587,14 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-npm-docker',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
+        'new-e2e-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-package-signing-debian-a7-x86_64',
+        'new-e2e-package-signing-suse-a7-x86_64',
         'new-e2e_windows_powershell_module_test',
         'trigger-flakes-finder',
     }
 
-    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
     # Read and parse gitlab config
     # The config is filtered to only include jobs

@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocolly/colly/v2"
-
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,51 +61,49 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	// retrieve each source of configuration
 	for name, src := range responseInfo.Sources {
-		sourceURL := src.URL
-		if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
-			sourceURL = fmt.Sprintf("http://%s", sourceURL)
-		}
-		response, err := http.Get(sourceURL)
-		if err != nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
-			continue
-		}
-		defer response.Body.Close()
-
-		data, err := io.ReadAll(response.Body)
-		if err != nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
-			continue
-		}
-		fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
-
-		if !src.Crawl {
-			continue
-		}
-
-		// crawl the url by following any hyperlinks
-		col := colly.NewCollector()
-		col.OnHTML("a", func(e *colly.HTMLElement) {
-			// visit all links
-			link := e.Attr("href")
-			if err := e.Request.Visit(e.Request.AbsoluteURL(link)); err != nil {
-				filename := strings.ReplaceAll(url.PathEscape(link), ":", "_")
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s.err", filename), []byte(err.Error()))
+		sourceURLs := src.URLs
+		for _, sourceURL := range sourceURLs {
+			if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
+				sourceURL = fmt.Sprintf("http://%s", sourceURL)
 			}
-		})
-		col.OnResponse(func(r *colly.Response) {
-			// the root sources (from the extension.Response) were already fetched earlier
-			// don't re-fetch them
-			responseURL := r.Request.URL.String()
-			if responseURL == src.URL {
-				return
+
+			urll, err := url.Parse(sourceURL)
+			if err != nil {
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
+				continue
 			}
-			// use the url as the basis for the filename saved in the flare
-			filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body)
-		})
-		if err := col.Visit(sourceURL); err != nil {
-			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error()))
+
+			path := strings.ReplaceAll(urll.Path, "/", "_")
+			name := name + path
+
+			response, err := http.Get(sourceURL)
+			if err != nil {
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
+				continue
+			}
+			defer response.Body.Close()
+
+			data, err := io.ReadAll(response.Body)
+			if err != nil {
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
+				continue
+			}
+
+			isOctetStream := false
+			if contentTypeSlice, ok := response.Header["Content-Type"]; ok {
+				for _, contentType := range contentTypeSlice {
+					if contentType == "application/octet-stream" {
+						isOctetStream = true
+					}
+				}
+			}
+
+			if isOctetStream {
+				fb.AddFileWithoutScrubbing(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
+			} else {
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
+			}
+
 		}
 	}
 	return nil

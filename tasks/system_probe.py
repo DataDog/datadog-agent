@@ -141,10 +141,10 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     )
 
 
-def ninja_define_exe_compiler(nw: NinjaWriter):
+def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
-        name="execlang",
-        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
+        name="exe" + compiler,
+        command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 

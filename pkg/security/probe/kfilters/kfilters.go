@@ -9,11 +9,10 @@ package kfilters
 
 // FilterPolicy describes a filtering policy
 type FilterPolicy struct {
-	Mode  PolicyMode
-	Flags PolicyFlag
+	Mode PolicyMode
 }
 
 // Bytes returns the binary representation of a FilterPolicy
 func (f *FilterPolicy) Bytes() ([]byte, error) {
-	return []byte{uint8(f.Mode), uint8(f.Flags)}, nil
+	return []byte{uint8(f.Mode)}, nil
 }

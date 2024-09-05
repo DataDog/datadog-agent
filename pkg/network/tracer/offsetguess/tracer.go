@@ -77,7 +77,6 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
@@ -287,7 +286,6 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
-//nolint:revive // TODO(NET) Fix revive linter
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -677,10 +675,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			if !t.guessTCPv6 && !t.guessUDPv6 {
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
 				return t.setReadyState(mp)
-			} else { //nolint:revive // TODO(NET) Fix revive linter
-				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
-				break
 			}
+			t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
+			break
 		}
 		t.status.Offset_sk_buff_head++
 		t.status.Offset_sk_buff_head, _ = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
@@ -1088,8 +1085,6 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -1154,7 +1149,6 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {

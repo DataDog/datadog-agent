@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestUserPatternsInvalidConfig(t *testing.T) {
@@ -20,7 +20,7 @@ logs_config:
   auto_multi_line_detection_custom_samples:
     - foo bar
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 0, len(samples.samples))
@@ -34,7 +34,7 @@ logs_config:
       match_threshold: "abcd"
       label: foo bar
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 0, len(samples.samples))
@@ -49,7 +49,7 @@ logs_config:
   auto_multi_line_detection_custom_samples:
     - sample: "sample"
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
@@ -71,7 +71,7 @@ logs_config:
     - sample: "4"
       label: "invalid"
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 3, len(samples.samples))
@@ -97,7 +97,7 @@ logs_config:
     - match_threshold: 0.1
     - label: no_aggregate
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 2, len(samples.samples))
@@ -113,7 +113,7 @@ logs_config:
     - sample: "!!![$my custom prefix%]"
 `
 
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig)
 	tokenizer := NewTokenizer(60)
 
@@ -152,7 +152,7 @@ logs_config:
       label: no_aggregate
 `
 
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig)
 	tokenizer := NewTokenizer(60)
 
