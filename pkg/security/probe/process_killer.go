@@ -9,11 +9,15 @@
 package probe
 
 import (
+	"context"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/jellydator/ttlcache/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -23,23 +27,43 @@ import (
 
 const (
 	defaultKillActionFlushDelay = 2 * time.Second
+	dismarmerCacheFlushInterval = 5 * time.Second
 )
 
 // ProcessKiller defines a process killer structure
 type ProcessKiller struct {
 	sync.Mutex
 
+	cfg *config.Config
+
 	pendingReports   []*KillActionReport
-	binariesExcluded []string
+	binariesExcluded []*eval.Glob
 	sourceAllowed    []string
+
+	ruleDisarmersLock sync.Mutex
+	ruleDisarmers     map[rules.RuleID]*killDisarmer
 }
 
 // NewProcessKiller returns a new ProcessKiller
-func NewProcessKiller(cfg *config.Config) *ProcessKiller {
-	return &ProcessKiller{
-		binariesExcluded: append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...),
-		sourceAllowed:    cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
+func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
+	p := &ProcessKiller{
+		cfg:           cfg,
+		ruleDisarmers: make(map[rules.RuleID]*killDisarmer),
+		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
+
+	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
+
+	for _, str := range binaries {
+		glob, err := eval.NewGlob(str, false, false)
+		if err != nil {
+			return nil, err
+		}
+
+		p.binariesExcluded = append(p.binariesExcluded, glob)
+	}
+
+	return p, nil
 }
 
 // AddPendingReports add a pending reports
@@ -91,7 +115,9 @@ func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
 			return false
 		}
 
-		if slices.Contains(p.binariesExcluded, paths[i]) {
+		if slices.ContainsFunc(p.binariesExcluded, func(glob *eval.Glob) bool {
+			return glob.Matches(paths[i])
+		}) {
 			return false
 		}
 	}
@@ -112,6 +138,39 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
 		return
+	}
+
+	rsConfig := p.cfg.RuntimeSecurity
+
+	if rsConfig.EnforcementDisarmerContainerEnabled || rsConfig.EnforcementDisarmerExecutableEnabled {
+		var dismarmer *killDisarmer
+		p.ruleDisarmersLock.Lock()
+		if dismarmer = p.ruleDisarmers[rule.ID]; dismarmer == nil {
+			dismarmer = newKillDisarmer(rsConfig, rule.ID)
+			p.ruleDisarmers[rule.ID] = dismarmer
+		}
+		p.ruleDisarmersLock.Unlock()
+
+		if rsConfig.EnforcementDisarmerContainerEnabled {
+			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
+				if !dismarmer.allow(dismarmer.containerCache, containerID, func() {
+					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, dismarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
+				}) {
+					seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+					return
+				}
+			}
+		}
+
+		if rsConfig.EnforcementDisarmerExecutableEnabled {
+			executable := entry.Process.FileEvent.PathnameStr
+			if !dismarmer.allow(dismarmer.executableCache, executable, func() {
+				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, dismarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
+			}) {
+				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
+				return
+			}
+		}
 	}
 
 	switch scope {
@@ -157,4 +216,126 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
+}
+
+// Reset resets the disarmer state
+func (p *ProcessKiller) Reset() {
+	p.ruleDisarmersLock.Lock()
+	clear(p.ruleDisarmers)
+	p.ruleDisarmersLock.Unlock()
+}
+
+// Start starts the go rountine responsible for flushing the disarmer caches
+func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
+	if !p.cfg.RuntimeSecurity.EnforcementEnabled || (!p.cfg.RuntimeSecurity.EnforcementDisarmerContainerEnabled && !p.cfg.RuntimeSecurity.EnforcementDisarmerExecutableEnabled) {
+		return
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(dismarmerCacheFlushInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				p.ruleDisarmersLock.Lock()
+				for _, disarmer := range p.ruleDisarmers {
+					disarmer.Lock()
+					var cLength, eLength int
+					if disarmer.containerCache != nil {
+						cLength = disarmer.containerCache.flush()
+					}
+					if disarmer.executableCache != nil {
+						eLength = disarmer.executableCache.flush()
+					}
+					if disarmer.disarmed && cLength == 0 && eLength == 0 {
+						disarmer.disarmed = false
+						seclog.Infof("kill action of rule `%s` has been re-armed", disarmer.ruleID)
+					}
+					disarmer.Unlock()
+				}
+				p.ruleDisarmersLock.Unlock()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+type killDisarmer struct {
+	sync.Mutex
+	disarmed        bool
+	ruleID          rules.RuleID
+	containerCache  *disarmerCache[string, bool]
+	executableCache *disarmerCache[string, bool]
+}
+
+type disarmerCache[K comparable, V any] struct {
+	*ttlcache.Cache[K, V]
+	capacity uint64
+}
+
+func newDisarmerCache[K comparable, V any](capacity uint64, period time.Duration) *disarmerCache[K, V] {
+	cacheOpts := []ttlcache.Option[K, V]{
+		ttlcache.WithCapacity[K, V](capacity),
+	}
+
+	if period > 0 {
+		cacheOpts = append(cacheOpts, ttlcache.WithTTL[K, V](period))
+	}
+
+	return &disarmerCache[K, V]{
+		Cache:    ttlcache.New[K, V](cacheOpts...),
+		capacity: capacity,
+	}
+}
+
+func (c *disarmerCache[K, V]) flush() int {
+	c.DeleteExpired()
+	return c.Len()
+}
+
+func newKillDisarmer(cfg *config.RuntimeSecurityConfig, ruleID rules.RuleID) *killDisarmer {
+	kd := &killDisarmer{
+		disarmed: false,
+		ruleID:   ruleID,
+	}
+
+	if cfg.EnforcementDisarmerContainerEnabled {
+		kd.containerCache = newDisarmerCache[string, bool](uint64(cfg.EnforcementDisarmerContainerMaxAllowed), cfg.EnforcementDisarmerContainerPeriod)
+	}
+
+	if cfg.EnforcementDisarmerExecutableEnabled {
+		kd.executableCache = newDisarmerCache[string, bool](uint64(cfg.EnforcementDisarmerExecutableMaxAllowed), cfg.EnforcementDisarmerExecutablePeriod)
+	}
+
+	return kd
+}
+
+func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], key string, onDisarm func()) bool {
+	kd.Lock()
+	defer kd.Unlock()
+
+	if kd.disarmed {
+		return false
+	}
+
+	if cache == nil {
+		return true
+	}
+
+	cache.DeleteExpired()
+	// if the key is not in the cache, check if the new key causes the number of keys to exceed the capacity
+	// otherwise, the key is already in the cache and cache.Get will update its TTL
+	if cache.Get(key) == nil {
+		alreadyAtCapacity := uint64(cache.Len()) >= cache.capacity
+		cache.Set(key, true, ttlcache.DefaultTTL)
+		if alreadyAtCapacity && !kd.disarmed {
+			kd.disarmed = true
+			onDisarm()
+		}
+	}
+
+	return !kd.disarmed
 }

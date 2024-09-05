@@ -307,7 +307,6 @@ func testOffsetGuess(t *testing.T) {
 			}
 
 			var offset uint64
-			//nolint:revive // TODO(NET) Fix revive linter
 			var name offsetT = o
 			require.NoError(t, mp.Lookup(&name, &offset))
 			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
