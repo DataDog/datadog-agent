@@ -46,10 +46,10 @@ type extractionFailureCounter struct {
 // newExtractionFailureCounter creates and returns a new instance
 func newExtractionFailureCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *extractionFailureCounter {
 	return &extractionFailureCounter{
-		countTableAndOperationFound: metricGroup.NewCounter(metricName, append(tags, "fulfilled:table_and_op")...),
-		countOperationNotFound:      metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_operation")...),
-		countTableNameNotFound:      metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_table_name")...),
-		countTableAndOpNotFound:     metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_table_no_op")...),
+		countTableAndOperationFound: metricGroup.NewCounter(metricName, append(tags, "state:table_and_op")...),
+		countOperationNotFound:      metricGroup.NewCounter(metricName, append(tags, "state:no_operation")...),
+		countTableNameNotFound:      metricGroup.NewCounter(metricName, append(tags, "state:no_table_name")...),
+		countTableAndOpNotFound:     metricGroup.NewCounter(metricName, append(tags, "state:no_table_no_op")...),
 	}
 }
 
