@@ -12,11 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 )
 
-// channelSize defines the result channel size
-// It doesn't need more than 1 because the host collector should
-// not trigger multiple scans at the same time unlike for container-images.
-const channelSize = 1
-
 // scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
 type scanRequest struct {
