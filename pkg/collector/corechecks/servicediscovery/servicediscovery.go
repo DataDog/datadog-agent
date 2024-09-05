@@ -103,9 +103,6 @@ func newCheck() check.Check {
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if !pkgconfig.SystemProbe().GetBool("discovery.enabled") {
-		return errors.New("service discovery is disabled")
-	}
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
@@ -137,6 +134,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 
 // Run executes the check.
 func (c *Check) Run() error {
+	if !pkgconfig.SystemProbe().GetBool("discovery.enabled") {
+		return errors.New("service discovery is disabled")
+	}
+
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
