@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -849,4 +850,18 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 	}
 
 	return monitor
+}
+
+// GetNetworkID retrieves the vpc_id (network_id) from IMDS
+func (t *Tracer) GetNetworkID() (string, error) {
+	id := ""
+	err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+		var err error
+		id, err = ec2.GetNetworkID(context.TODO())
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }

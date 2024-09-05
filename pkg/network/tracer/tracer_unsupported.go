@@ -34,6 +34,11 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// GetNetworkID is not implemented on this OS for Tracer
+func (t *Tracer) GetNetworkID(_ string) (string, error) {
+	return "", ebpf.ErrNotImplemented
+}
+
 // RegisterClient registers the client
 func (t *Tracer) RegisterClient(_ string) error {
 	return ebpf.ErrNotImplemented

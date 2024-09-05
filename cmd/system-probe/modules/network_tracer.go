@@ -35,8 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -111,12 +109,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	}))
 
 	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
-		id := ""
-		err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
-			var err error
-			id, err = ec2.GetNetworkID(context.TODO())
-			return err
-		})
+		id, err := nt.tracer.GetNetworkID()
 		if err != nil {
 			log.Errorf("unable to retrieve network_id: %s", err)
 			w.WriteHeader(500)
