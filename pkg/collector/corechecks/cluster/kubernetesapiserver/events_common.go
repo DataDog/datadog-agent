@@ -283,7 +283,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			apiGroup = ""
 		}
 		resourceType := strings.ToLower(involvedObject.Kind) + "s"
-		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
+		entityID = types.NewEntityID(types.KubernetesMetadata, string(kubemetadata.GenerateEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
 	}
 
 	entity, err := taggerInstance.GetEntity(entityID)
