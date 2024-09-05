@@ -17,7 +17,7 @@ import (
 
 type ContainersRunningTelemetry struct{}
 
-func NewContainersRunningTelemetry(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component, _ bool) (*ContainersRunningTelemetry, error) {
+func NewContainersRunningTelemetry(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*ContainersRunningTelemetry, error) {
 	return nil, nil
 }
 
