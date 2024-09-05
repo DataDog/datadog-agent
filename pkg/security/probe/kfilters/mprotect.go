@@ -32,13 +32,13 @@ func mprotectKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 	for field, values := range approvers {
 		switch field {
 		case "mprotect.vm_protection":
-			kfilter, err := getFlagsKFilters("mprotect_vm_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_vm_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			mprotectKFilters = append(mprotectKFilters, kfilter)
 		case "mprotect.req_protection":
-			kfilter, err := getFlagsKFilters("mprotect_req_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_req_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
