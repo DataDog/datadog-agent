@@ -105,8 +105,9 @@ func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPU
 		return 0, errors.New("invalid stat format")
 	}
 
-	// Parse fields at index 15 and 16, resp. User and System CPU time.
+	// Parse fields number 14 and 15, resp. User and System CPU time.
 	// See proc_pid_stat(5), for details.
+	// Here we address 11 & 12 since we skipped the first two fields.
 	usrTime, err := strconv.ParseUint(fields[11], 10, 64)
 	if err != nil {
 		return 0, err
