@@ -152,6 +152,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+
+			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams.UseNoopEventPlatformForwarder = true
+
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
@@ -164,32 +168,25 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(defaults.DefaultParams),
-				workloadmetafx.Module(),
+				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(),
-				fx.Provide(func() eventplatformimpl.Params {
-					params := eventplatformimpl.NewDefaultParams()
-					params.UseNoopEventPlatformForwarder = true
-					return params
-				}),
+				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -220,8 +217,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() pidmap.Component { return nil }),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(),
-				fx.Supply(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 			)
 		},
 	}
@@ -241,8 +237,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
-
-	pkgconfig.Datadog().BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")

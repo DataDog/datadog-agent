@@ -141,10 +141,10 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     )
 
 
-def ninja_define_exe_compiler(nw: NinjaWriter):
+def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
-        name="execlang",
-        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
+        name="exe" + compiler,
+        command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 
@@ -947,6 +947,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "gotls_server",
             "grpc_external_server",
             "prefetch_file",
+            "fake_server",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):

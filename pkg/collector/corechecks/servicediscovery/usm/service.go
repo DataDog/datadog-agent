@@ -7,6 +7,9 @@
 package usm
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -14,11 +17,22 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-
-	"go.uber.org/zap"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
+
+// DetectorContextMap is a map for passing data between the different detectors
+// of the service discovery (i.e between the service name detector and the
+// instrumentation detector)
+type DetectorContextMap map[int]interface{}
+
+// DetectorContextMap keys enum
+const (
+	// The path to the Node service's package.json
+	NodePackageJSONPath = iota
+	// The SubdirFS instance package.json path is valid in.
+	ServiceSubFS = iota
+)
 
 const (
 	javaJarFlag      = "-jar"
@@ -30,9 +44,10 @@ const (
 
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
-	Name            string
-	AdditionalNames []string
-	FromDDService   bool
+	Name              string
+	AdditionalNames   []string
+	DDService         string
+	DDServiceInjected bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -43,6 +58,21 @@ func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
 		slices.Sort(additional)
 	}
 	return ServiceMetadata{Name: name, AdditionalNames: additional}
+}
+
+// SetAdditionalNames set additional names for the service
+func (s *ServiceMetadata) SetAdditionalNames(additional ...string) {
+	if len(additional) > 1 {
+		// names are discovered in unpredictable order. We need to keep them sorted if we're going to join them
+		slices.Sort(additional)
+	}
+	s.AdditionalNames = additional
+}
+
+// SetNames sets generated names for the service.
+func (s *ServiceMetadata) SetNames(name string, additional ...string) {
+	s.Name = name
+	s.SetAdditionalNames(additional...)
 }
 
 // GetServiceKey returns the key for the service.
@@ -68,41 +98,37 @@ type dotnetDetector struct {
 func newSimpleDetector(ctx DetectionContext) detector {
 	return &simpleDetector{ctx: ctx}
 }
+
 func newDotnetDetector(ctx DetectionContext) detector {
 	return &dotnetDetector{ctx: ctx}
 }
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	logger *zap.Logger
-	args   []string
-	envs   []string
-	fs     fs.SubFS
+	args       []string
+	envs       map[string]string
+	fs         fs.SubFS
+	contextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(logger *zap.Logger, args []string, envs []string, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(args []string, envs map[string]string, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     fs,
+		args: args,
+		envs: envs,
+		fs:   fs,
 	}
 }
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
-func workingDirFromEnvs(envs []string) (string, bool) {
+func workingDirFromEnvs(envs map[string]string) (string, bool) {
 	return extractEnvVar(envs, "PWD")
 }
 
-func extractEnvVar(envs []string, name string) (string, bool) {
-	value := ""
-	prefix := name + "="
-	for _, v := range envs {
-		if strings.HasPrefix(v, prefix) {
-			_, value, _ = strings.Cut(v, "=")
-			break
-		}
+func extractEnvVar(envs map[string]string, name string) (string, bool) {
+	value, ok := envs[name]
+	if !ok {
+		return "", false
 	}
 	return value, len(value) > 0
 }
@@ -115,13 +141,28 @@ func abs(p string, cwd string) string {
 	return path.Join(cwd, p)
 }
 
-// canSafelyParse determines if a file's size is less than the maximum allowed to prevent OOM when parsing.
-func canSafelyParse(file fs.File) (bool, error) {
+// SizeVerifiedReader returns a reader for the file after ensuring that the file
+// is a regular file and that the size that can be read from the reader will not
+// exceed a pre-defined safety limit to control memory usage.
+func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	fi, err := file.Stat()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return fi.Size() <= maxParseFileSize, nil
+
+	// Don't try to read device files, etc.
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+
+	size := fi.Size()
+	if size > maxParseFileSize {
+		return nil, fmt.Errorf("file too large (%d bytes)", size)
+	}
+
+	// Additional limit the reader to avoid suprises if the file size changes
+	// while reading it.
+	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
 // List of binaries that usually have additional process context of what's running
@@ -140,41 +181,37 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"gunicorn":  newGunicornDetector,
 }
 
-func checkForInjectionNaming(envs []string) bool {
-	fromDDService := true
-outer:
-	for _, v := range envs {
-		if strings.HasPrefix(v, "DD_INJECTION_ENABLED=") {
-			values := strings.Split(v[len("DD_INJECTION_ENABLED="):], ",")
-			for _, v := range values {
-				if v == "service_name" {
-					fromDDService = false
-					break outer
-				}
+func serviceNameInjected(envs map[string]string) bool {
+	if env, ok := envs["DD_INJECTION_ENABLED"]; ok {
+		values := strings.Split(env, ",")
+		for _, v := range values {
+			if v == "service_name" {
+				return true
 			}
 		}
 	}
-	return fromDDService
+	return false
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(logger *zap.Logger, args []string, envs []string) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
 	dc := DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     RealFs{},
+		args:       args,
+		envs:       envs,
+		fs:         fs,
+		contextMap: contextMap,
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return ServiceMetadata{}, false
+		return
 	}
 
+	// We always return a service name from here on
+	success = true
+
 	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
-		metadata := NewServiceMetadata(value)
-		// we only want to set FromDDService to true if the name wasn't assigned by injection
-		metadata.FromDDService = checkForInjectionNaming(dc.envs)
-		return metadata, true
+		metadata.DDService = value
+		metadata.DDServiceInjected = serviceNameInjected(envs)
 	}
 
 	exe := cmd[0]
@@ -198,7 +235,20 @@ func ExtractServiceMetadata(logger *zap.Logger, args []string, envs []string) (S
 	exe = normalizeExeName(exe)
 
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		return detectorProvider(dc).detect(cmd[1:])
+		langMeta, ok := detectorProvider(dc).detect(cmd[1:])
+
+		// The detector could return a DD Service name (eg. Java, from the
+		// dd.service property), but still fail to generate a service name (ok =
+		// false) so check this first.
+		if langMeta.DDService != "" {
+			metadata.DDService = langMeta.DDService
+		}
+
+		if ok {
+			metadata.Name = langMeta.Name
+			metadata.SetAdditionalNames(langMeta.AdditionalNames...)
+			return
+		}
 	}
 
 	// trim trailing file extensions
@@ -206,7 +256,8 @@ func ExtractServiceMetadata(logger *zap.Logger, args []string, envs []string) (S
 		exe = exe[:i]
 	}
 
-	return NewServiceMetadata(exe), true
+	metadata.Name = exe
+	return
 }
 
 func removeFilePath(s string) string {
@@ -271,20 +322,19 @@ func normalizeExeName(exe string) string {
 
 // chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
-	for _, env := range envs {
-		if strings.HasPrefix(env, "DD_SERVICE=") {
-			return strings.TrimPrefix(env, "DD_SERVICE="), true
-		}
-		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
-			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
-			for _, p := range parts {
-				if strings.HasPrefix(p, "service:") {
-					return strings.TrimPrefix(p, "service:"), true
-				}
+func chooseServiceNameFromEnvs(envs map[string]string) (string, bool) {
+	if val, ok := envs["DD_SERVICE"]; ok {
+		return val, true
+	}
+	if val, ok := envs["DD_TAGS"]; ok && strings.Contains(val, "service:") {
+		parts := strings.Split(val, ",")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "service:") {
+				return strings.TrimPrefix(p, "service:"), true
 			}
 		}
 	}
+
 	return "", false
 }
 
@@ -337,4 +387,77 @@ func (RealFs) Open(name string) (fs.File, error) {
 // Sub calls os.DirFS.
 func (RealFs) Sub(dir string) (fs.FS, error) {
 	return os.DirFS(dir), nil
+}
+
+// SubDirFS is like the fs.FS implemented by os.DirFS, except that it allows
+// absolute paths to be passed in the Open/Stat/etc, and attaches them to the
+// root dir.  It also implements SubFS, unlink the one implemented by os.DirFS.
+type SubDirFS struct {
+	fs.FS
+	root string
+}
+
+// NewSubDirFS creates a new SubDirFS rooted at the specified path.
+func NewSubDirFS(root string) SubDirFS {
+	return SubDirFS{FS: os.DirFS(root), root: root}
+}
+
+// fixPath ensures that the specified path is stripped of the leading slash (if
+// any) and is cleaned so that it can be passed to normal fs.FS functions which
+// do not allow absolute paths or paths which do not pass fs.ValidPath (which
+// contain ./ or .. for example).
+func (s SubDirFS) fixPath(path string) string {
+	path = filepath.Clean(path)
+	if filepath.IsAbs(path) {
+		return path[1:]
+	}
+
+	return path
+}
+
+// Readlink reads the specified symlink.
+func (s SubDirFS) Readlink(name string) (string, error) {
+	name = s.fixPath(name)
+	return os.Readlink(filepath.Join(s.root, name))
+}
+
+// ReadlinkFS reads the symlink on the provided FS. There is no standard
+// SymlinkFS interface yet https://github.com/golang/go/issues/49580.
+func ReadlinkFS(fsfs fs.FS, name string) (string, error) {
+	if subDirFS, ok := fsfs.(SubDirFS); ok {
+		return subDirFS.Readlink(name)
+	}
+
+	return "", fs.ErrInvalid
+}
+
+// Sub provides a fs.FS for the specified subdirectory.
+func (s SubDirFS) Sub(dir string) (fs.FS, error) {
+	dir = filepath.Join(s.root, s.fixPath(dir))
+	return os.DirFS(dir), nil
+}
+
+// ReadDir reads the specified subdirectory
+func (s SubDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if readDirFS, ok := s.FS.(fs.ReadDirFS); ok {
+		name = s.fixPath(name)
+		return readDirFS.ReadDir(name)
+	}
+
+	return nil, fs.ErrInvalid
+}
+
+// Stat stats the specified file
+func (s SubDirFS) Stat(name string) (fs.FileInfo, error) {
+	if statFS, ok := s.FS.(fs.StatFS); ok {
+		name = s.fixPath(name)
+		return statFS.Stat(name)
+	}
+
+	return nil, fs.ErrInvalid
+}
+
+// Open opens the specified file
+func (s SubDirFS) Open(name string) (fs.File, error) {
+	return s.FS.Open(s.fixPath(name))
 }

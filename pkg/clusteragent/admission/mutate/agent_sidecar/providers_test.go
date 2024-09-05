@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -99,6 +101,11 @@ func TestApplyProviderOverrides(t *testing.T) {
 				},
 			},
 			expectedPodAfterOverride: &corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+					},
+				},
 				Spec: corev1.PodSpec{
 					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{
@@ -203,6 +210,11 @@ func TestApplyProviderOverrides(t *testing.T) {
 				},
 			},
 			expectedPodAfterOverride: &corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+					},
+				},
 				Spec: corev1.PodSpec{
 					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{

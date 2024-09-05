@@ -351,6 +351,8 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 
 // Init the probe
 func (p *EBPFLessProbe) Init() error {
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
@@ -571,6 +573,7 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 
 // ApplyRuleSet applies the new ruleset
 func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.processKiller.Reset()
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
@@ -634,6 +637,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFLessProbe, error) {
 	opts.normalize()
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	var grpcOpts []grpc.ServerOption
@@ -646,7 +654,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
-		processKiller:     NewProcessKiller(),
+		processKiller:     processKiller,
 		containerContexts: make(map[string]*ebpfless.ContainerContext),
 	}
 
@@ -654,7 +662,6 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		TagsResolver: opts.TagsResolver,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err

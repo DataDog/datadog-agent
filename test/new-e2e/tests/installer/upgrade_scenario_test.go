@@ -87,15 +87,16 @@ const (
 	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
 )
 
-func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
+func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
 	return &upgradeScenarioSuite{
-		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch),
+		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch, method),
 	}
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -110,6 +111,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -117,7 +119,7 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -138,6 +140,7 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -160,6 +163,7 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 func (s *upgradeScenarioSuite) TestExperimentFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -184,6 +188,7 @@ func (s *upgradeScenarioSuite) TestExperimentFailure() {
 func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -213,6 +218,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -231,6 +237,7 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -258,6 +265,7 @@ func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -282,6 +290,7 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -296,6 +305,7 @@ func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 func (s *upgradeScenarioSuite) TestInstallerBackendFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -322,6 +332,7 @@ func (s *upgradeScenarioSuite) TestInstallerBackendFailure() {
 func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -491,7 +502,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 }
 
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
-	socketPath := "/var/run/datadog-installer/installer.sock"
+	socketPath := "/opt/datadog-packages/run/installer.sock"
 
 	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
 	response := s.Env().RemoteHost.MustExecute(fmt.Sprintf(

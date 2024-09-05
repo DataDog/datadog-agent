@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -27,6 +28,9 @@ import (
 )
 
 func TestGetHostname(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestGetHostname is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	cfg := configmock.New(t)
 	ctx := context.Background()
 	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0)
@@ -84,6 +88,9 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestResolveHostname(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestResolveHostname is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	osHostname, err := os.Hostname()
 	require.NoError(t, err, "failed to get hostname from OS")
 

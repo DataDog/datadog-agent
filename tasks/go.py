@@ -100,9 +100,12 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
     """
+    repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
     for mod in DEFAULT_MODULES.values():
-        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+        ctx.run(
+            f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
+        )
 
 
 @task
@@ -312,13 +315,14 @@ def generate_protobuf(ctx):
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():

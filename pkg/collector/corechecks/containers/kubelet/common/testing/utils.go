@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
@@ -147,7 +148,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 	if response.filename != "" {
 		content, err = os.ReadFile(response.filename)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("unable to read test file at: %s, Err: %v", response.filename, err))
+			return nil, fmt.Errorf("unable to read test file at: %s, Err: %w", response.filename, err)
 		}
 	}
 	kubeletMock.MockReplies[endpoint] = &mock.HTTPReplyMock{
@@ -166,12 +167,12 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 
 	podList, err := os.ReadFile(filename)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %w", err)
 	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %w", err)
 	}
 
 	for _, pod := range pods.Items {
@@ -187,7 +188,7 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 
 			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 			if err != nil {
-				if errors.Is(err, containers.ErrImageIsSha256) {
+				if errors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256

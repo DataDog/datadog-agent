@@ -8,11 +8,7 @@
 package config
 
 import (
-	"strings"
-	"testing"
-
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -20,20 +16,4 @@ var (
 	SetFeatures = env.SetFeatures
 	// SetFeaturesNoCleanup is alias from env
 	SetFeaturesNoCleanup = env.SetFeaturesNoCleanup
-
-	// SetupConf generates and returns a new configuration
-	SetupConf = pkgconfigsetup.Conf
-
-	// SetupConfFromYAML generates a configuration from the given yaml config
-	SetupConfFromYAML = pkgconfigsetup.ConfFromYAML
 )
-
-// ResetSystemProbeConfig resets the configuration.
-func ResetSystemProbeConfig(t *testing.T) {
-	originalConfig := pkgconfigsetup.SystemProbe()
-	t.Cleanup(func() {
-		pkgconfigsetup.SetSystemProbe(originalConfig)
-	})
-	pkgconfigsetup.SetSystemProbe(NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
-	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
-}

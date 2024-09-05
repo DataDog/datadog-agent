@@ -151,8 +151,9 @@ func (c *DCAClient) startReconnectHandler(reconnectPeriod time.Duration) {
 		return
 	}
 
-	t := time.NewTicker(reconnectPeriod)
 	go func() {
+		t := time.NewTicker(reconnectPeriod)
+		defer t.Stop()
 		for {
 			<-t.C
 			err := c.initHTTPClient()

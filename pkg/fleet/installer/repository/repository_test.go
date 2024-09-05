@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,12 +37,27 @@ func createTestDownloadedPackage(t *testing.T, dir string, packageName string) s
 	return downloadPath
 }
 
+func assertLinkTarget(t *testing.T, repository *Repository, link string, target string) {
+	linkPath := path.Join(repository.rootPath, link)
+	assert.FileExists(t, linkPath)
+	linkTarget, err := linkRead(linkPath)
+	assert.NoError(t, err)
+	assert.Equal(t, target, filepath.Base(linkTarget))
+}
+
 func TestCreateFresh(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
+	state, err := repository.GetState()
 
 	assert.DirExists(t, repository.rootPath)
 	assert.DirExists(t, path.Join(repository.rootPath, "v1"))
+	assert.NoError(t, err)
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v1", state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v1")
 }
 
 func TestCreateOverwrite(t *testing.T) {
@@ -88,7 +104,16 @@ func TestSetExperiment(t *testing.T) {
 
 	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
+	state, err := repository.GetState()
+
+	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v1", state.Stable)
+	assert.True(t, state.HasExperiment())
+	assert.Equal(t, "v2", state.Experiment)
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
 func TestSetExperimentTwice(t *testing.T) {
@@ -124,8 +149,16 @@ func TestPromoteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = repository.PromoteExperiment()
 	assert.NoError(t, err)
+	state, err := repository.GetState()
+	assert.NoError(t, err)
+
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
+	assert.True(t, state.HasStable())
+	assert.Equal(t, "v2", state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertLinkTarget(t, repository, stableVersionLink, "v2")
+	assertLinkTarget(t, repository, experimentVersionLink, "v2")
 }
 
 func TestPromoteExperimentWithoutExperiment(t *testing.T) {
@@ -192,16 +225,15 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }
 
-func TestLoadRepositories(t *testing.T) {
-	rootDir := t.TempDir()
-	runDir := t.TempDir()
+func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
+	dir := t.TempDir()
+	repository := createTestRepository(t, dir, "v1")
 
-	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
-	os.Mkdir(path.Join(rootDir, "tmp-install-stable-datadog-agent"), 0755)
-
-	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	err := os.Remove(path.Join(repository.rootPath, experimentVersionLink))
 	assert.NoError(t, err)
-	assert.Len(t, repositories, 1)
-	assert.Contains(t, repositories, "datadog-agent")
-	assert.NotContains(t, repositories, "tmp-install-stable-datadog-agent")
+	assert.NoFileExists(t, path.Join(repository.rootPath, experimentVersionLink))
+	err = repository.Cleanup()
+	assert.NoError(t, err)
+	assertLinkTarget(t, repository, stableVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "v1")
 }

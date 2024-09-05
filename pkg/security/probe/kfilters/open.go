@@ -16,18 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var openCapabilities = Capabilities{
-	"open.file.path": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-		ValidateFnc:      validateBasenameFilter,
-		FilterWeight:     15,
+var openCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "open.flags",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"open.file.name": {
-		ValueTypeBitmask: eval.ScalarValueType,
-		FilterWeight:     10,
+	{
+		Field:        "open.file.path",
+		TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+		ValidateFnc:  validateBasenameFilter,
+		FilterWeight: 15,
 	},
-	"open.flags": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:        "open.file.name",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 10,
 	},
 }
 
@@ -41,7 +44,7 @@ func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "open.file.name", "open.file.path": // already handled by getBasenameKFilters
 		case "open.flags":
-			kfilter, err := getFlagsKFilters("open_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("open_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
