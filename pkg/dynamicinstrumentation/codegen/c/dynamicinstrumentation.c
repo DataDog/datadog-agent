@@ -49,10 +49,10 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
-    bpf_probe_read_kernel(&event->base.probe_id, sizeof(event->base.probe_id), zero_string);
-    bpf_probe_read_kernel(&event->base.program_counters, sizeof(event->base.program_counters), zero_string);
-    bpf_probe_read_kernel(&event->output, sizeof(event->output), zero_string);
-    bpf_probe_read_kernel(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
+    bpf_probe_read(&event->base.probe_id, sizeof(event->base.probe_id), zero_string);
+    bpf_probe_read(&event->base.program_counters, sizeof(event->base.program_counters), zero_string);
+    bpf_probe_read(&event->output, sizeof(event->output), zero_string);
+    bpf_probe_read(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
 
     // Get tid and tgid
     u64 pidtgid = bpf_get_current_pid_tgid();
@@ -65,10 +65,10 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
 
     // Collect stack trace
     __u64 currentPC = ctx->pc;
-    bpf_probe_read_user(&event->base.program_counters[0], sizeof(__u64), &currentPC);
+    bpf_probe_read(&event->base.program_counters[0], sizeof(__u64), &currentPC);
 
     __u64 bp = ctx->regs[29];
-    bpf_probe_read_user(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
+    bpf_probe_read(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
     __u64 ret_addr = ctx->regs[30]; // when bpf prog enters, the return address hasn't yet been written to the stack
 
     int i;
@@ -77,9 +77,9 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         if (bp == 0) {
             break;
         }
-        bpf_probe_read_user(&event->base.program_counters[i], sizeof(__u64), &ret_addr);
-        bpf_probe_read_user(&ret_addr, sizeof(__u64), (void*)(bp-8));
-        bpf_probe_read_user(&bp, sizeof(__u64), (void*)bp);
+        bpf_probe_read(&event->base.program_counters[i], sizeof(__u64), &ret_addr);
+        bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(bp-8));
+        bpf_probe_read(&bp, sizeof(__u64), (void*)bp);
     }
 
     // Collect parameters
