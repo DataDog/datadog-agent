@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -57,7 +56,7 @@ func (f *FakeTagger) SetTags(entityID string, source string, low, orch, high, st
 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
-	f.SetTags(common.GetGlobalEntityID().String(), "static", low, orch, high, std)
+	f.SetTags(types.GetGlobalEntityID().String(), "static", low, orch, high, std)
 }
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
@@ -112,7 +111,7 @@ func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]s
 
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(common.GetGlobalEntityID().String(), cardinality)
+	return f.Tag(types.GetGlobalEntityID().String(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation

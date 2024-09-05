@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
@@ -338,14 +337,14 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+		tags, err := t.captureTagger.Tag(types.GetGlobalEntityID().String(), cardinality)
 		if err == nil && len(tags) > 0 {
 			t.mux.RUnlock()
 			return tags, nil
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+	return t.defaultTagger.Tag(types.GetGlobalEntityID().String(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
@@ -353,7 +352,7 @@ func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, e
 func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+		err := t.captureTagger.AccumulateTagsFor(types.GetGlobalEntityID().String(), cardinality, tb)
 
 		if err == nil {
 			t.mux.RUnlock()
@@ -361,7 +360,7 @@ func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tag
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+	return t.defaultTagger.AccumulateTagsFor(types.GetGlobalEntityID().String(), cardinality, tb)
 }
 
 // List the content of the defaulTagger

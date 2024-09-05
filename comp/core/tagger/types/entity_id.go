@@ -129,3 +129,11 @@ const (
 	// Process is the prefix `process`
 	Process EntityIDPrefix = "process"
 )
+
+// globalEntityID is relocated from tagger/common
+var globalEntityID = NewEntityID("internal", "global-entity-id")
+
+// GetGlobalEntityID returns the entity ID that holds global tags
+func GetGlobalEntityID() EntityID {
+	return globalEntityID
+}

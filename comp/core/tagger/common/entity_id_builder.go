@@ -37,10 +37,3 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 		return types.NewEntityID(types.EntityIDPrefix(entityID.Kind), entityID.ID)
 	}
 }
-
-var globalEntityID = types.NewEntityID("internal", "global-entity-id")
-
-// GetGlobalEntityID returns the entity ID that holds global tags
-func GetGlobalEntityID() types.EntityID {
-	return globalEntityID
-}

@@ -6,7 +6,6 @@
 package infraattributesprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -29,5 +28,5 @@ func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]strin
 
 // GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
-	return t.tagMap[common.GetGlobalEntityID().String()], nil
+	return t.tagMap[types.GetGlobalEntityID().String()], nil
 }

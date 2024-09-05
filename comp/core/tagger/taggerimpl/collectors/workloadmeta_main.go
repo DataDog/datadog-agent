@@ -12,7 +12,6 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -120,7 +119,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
 			{
 				Source:               staticSource,
-				EntityID:             common.GetGlobalEntityID(),
+				EntityID:             types.GetGlobalEntityID(),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
