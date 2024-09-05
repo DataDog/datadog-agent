@@ -5,7 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=nvInfoAttr,nvInfoFormat,fatbinDataKind -linecomment
 
-package gpu
+package cuda
 
 import (
 	"bytes"
@@ -49,7 +49,8 @@ type CubinKernel struct {
 	ConstantMem uint64
 }
 
-func (fb *Fatbin) getKernel(name string, smVersion uint32) *CubinKernel {
+// GetKernel returns the kernel with the given name and SM version from the fatbin
+func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 	key := CubinKernelKey{Name: name, SmVersion: smVersion}
 	if _, ok := fb.Kernels[key]; !ok {
 		return nil

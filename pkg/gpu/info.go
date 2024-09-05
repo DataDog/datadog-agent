@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -21,7 +22,7 @@ type gpuSystemInfo struct {
 
 type fileData struct {
 	symbolTable map[uint64]string
-	fatbin      *Fatbin
+	fatbin      *cuda.Fatbin
 }
 
 func getGpuSystemInfo() (*gpuSystemInfo, error) {
@@ -37,7 +38,7 @@ func getGpuSystemInfo() (*gpuSystemInfo, error) {
 }
 
 func (info *gpuSystemInfo) queryDevices() error {
-	devices, err := GetGPUDevices()
+	devices, err := cuda.GetGPUDevices()
 	if err != nil {
 		return fmt.Errorf("error getting GPU devices: %w", err)
 	}
@@ -45,7 +46,7 @@ func (info *gpuSystemInfo) queryDevices() error {
 	info.deviceSmVersions = make(map[int]int)
 	for i, device := range devices {
 		major, minor, ret := device.GetCudaComputeCapability()
-		if err = WrapNvmlError(ret); err != nil {
+		if err = cuda.WrapNvmlError(ret); err != nil {
 			return fmt.Errorf("error getting SM version: %w", err)
 		}
 		info.deviceSmVersions[i] = major*10 + minor
@@ -74,7 +75,7 @@ func (info *gpuSystemInfo) getFileData(path string) (*fileData, error) {
 		return nil, fmt.Errorf("error opening ELF file %s: %w", path, err)
 	}
 
-	fatbin, err := ParseFatbinFromELFFile(elfFile)
+	fatbin, err := cuda.ParseFatbinFromELFFile(elfFile)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing fatbin on %s: %w", path, err)
 	}

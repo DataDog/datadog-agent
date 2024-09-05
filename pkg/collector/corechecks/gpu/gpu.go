@@ -22,7 +22,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/gpu"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,7 +120,7 @@ func (m *Check) Run() error {
 		return err
 	}
 
-	gpuDevices, err := gpu.GetGPUDevices()
+	gpuDevices, err := cuda.GetGPUDevices()
 	if err != nil {
 		return fmt.Errorf("get GPU devices: %s", err)
 	}
