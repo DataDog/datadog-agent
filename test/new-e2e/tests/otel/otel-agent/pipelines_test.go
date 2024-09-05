@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package localkubernetes contains the provisioner for the local Kubernetes based environments
-
-package otel
+// Package otelagent contains e2e otel agent tests
+package otelagent
 
 import (
 	"context"
@@ -23,11 +22,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+)
+
+const (
+	service              = "telemetrygen-job"
+	env                  = "e2e"
+	version              = "1.0"
+	customAttribute      = "custom.attribute"
+	customAttributeValue = "true"
 )
 
 type linuxTestSuite struct {
@@ -49,11 +57,10 @@ func (s *linuxTestSuite) TestOTelAgentInstalled() {
 func (s *linuxTestSuite) TestOTLPTraces() {
 	ctx := context.Background()
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	service := "telemetrygen-job"
 	numTraces := 10
 
 	s.T().Log("Starting telemetrygen")
-	s.createTelemetrygenJob(ctx, "traces", []string{"--service", service, "--traces", fmt.Sprint(numTraces)})
+	s.createTelemetrygenJob(ctx, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
 	var traces []*aggregator.TracePayload
 	var err error
@@ -63,56 +70,124 @@ func (s *linuxTestSuite) TestOTLPTraces() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
 	}, 2*time.Minute, 10*time.Second)
-
 	require.NotEmpty(s.T(), traces)
+	s.T().Log("Got traces", traces)
 	trace := traces[0]
-	assert.Equal(s.T(), "none", trace.Env)
 	require.NotEmpty(s.T(), trace.TracerPayloads)
+
+	// Verify tags on traces and spans
 	tp := trace.TracerPayloads[0]
+	ctags, ok := getContainerTags(s.T(), tp)
+	require.True(s.T(), ok)
+	assert.Equal(s.T(), env, tp.Env)
+	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
 		assert.Equal(s.T(), service, sp.Service)
+		assert.Equal(s.T(), env, sp.Meta["env"])
+		assert.Equal(s.T(), version, sp.Meta["version"])
+		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
 		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		s.T().Log("k8s.node.name", sp.Meta["k8s.node.name"])
+		s.T().Log("tp.Hostname", tp.Hostname)
+
+		// Verify container tags from infraattributes processor
+		assert.NotNil(s.T(), ctags["kube_container_name"])
+		assert.NotNil(s.T(), ctags["kube_namespace"])
+		assert.NotNil(s.T(), ctags["pod_name"])
+		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
+		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
+		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
 	}
+
+	s.T().Log("Waiting for APM stats")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err := s.Env().FakeIntake.Client().GetAPMStats()
+		assert.NoError(c, err)
+		assert.NotEmpty(c, stats)
+		s.T().Log("Got APM stats", stats)
+		hasStatsForService := false
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						if cgs.Service == service {
+							hasStatsForService = true
+							assert.EqualValues(c, cgs.Hits, numTraces)
+							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+						}
+					}
+				}
+			}
+		}
+		assert.True(c, hasStatsForService)
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *linuxTestSuite) TestOTLPMetrics() {
 	ctx := context.Background()
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	service := "telemetrygen-job"
-	serviceAttribute := fmt.Sprintf("service.name=\"%v\"", service)
 	numMetrics := 10
 
 	s.T().Log("Starting telemetrygen")
-	s.createTelemetrygenJob(ctx, "metrics", []string{"--metrics", fmt.Sprint(numMetrics), "--otlp-attributes", serviceAttribute})
+	s.createTelemetrygenJob(ctx, "metrics", []string{"--metrics", fmt.Sprint(numMetrics)})
 
+	var metrics []*aggregator.MetricSeries
+	var err error
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		serviceTag := "service:" + service
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{serviceTag}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service)}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
+		s.T().Log("Got metrics", metrics)
 	}, 2*time.Minute, 10*time.Second)
+
+	for _, metricSeries := range metrics {
+		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
+		assert.Equal(s.T(), service, tags["service"])
+		assert.Equal(s.T(), env, tags["env"])
+		assert.Equal(s.T(), version, tags["version"])
+		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
+
+		// Verify container tags from infraattributes processor
+		assert.NotNil(s.T(), tags["kube_container_name"])
+		assert.NotNil(s.T(), tags["kube_namespace"])
+		assert.NotNil(s.T(), tags["pod_name"])
+		assert.Equal(s.T(), tags["k8s.container.name"], tags["kube_container_name"])
+		assert.Equal(s.T(), tags["k8s.namespace.name"], tags["kube_namespace"])
+		assert.Equal(s.T(), tags["k8s.pod.name"], tags["pod_name"])
+
+		hasHostResource := false
+		for _, resource := range metricSeries.Resources {
+			if resource.Type == "host" {
+				assert.Equal(s.T(), tags["k8s.node.name"], resource.Name)
+				s.T().Log("k8s.node.name", tags["k8s.node.name"])
+				s.T().Log("resource.Name", resource.Name)
+				hasHostResource = true
+			}
+		}
+		assert.True(s.T(), hasHostResource)
+	}
 }
 
 func (s *linuxTestSuite) TestOTLPLogs() {
 	ctx := context.Background()
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	service := "telemetrygen-job"
-	serviceAttribute := fmt.Sprintf("service.name=\"%v\"", service)
 	numLogs := 10
 	logBody := "telemetrygen log"
 
 	s.T().Log("Starting telemetrygen")
-	s.createTelemetrygenJob(ctx, "logs", []string{"--logs", fmt.Sprint(numLogs), "--otlp-attributes", serviceAttribute, "--body", logBody})
+	ddtags := fmt.Sprintf("ddtags=\"k8s.namespace.name:$(OTEL_K8S_NAMESPACE),k8s.node.name:$(OTEL_K8S_NODE_NAME),k8s.pod.name:$(OTEL_K8S_POD_NAME),k8s.container.name:telemetrygen-job,%v:%v\"", customAttribute, customAttributeValue)
+	s.createTelemetrygenJob(ctx, "logs", []string{"--logs", fmt.Sprint(numLogs), "--body", logBody, "--telemetry-attributes", ddtags})
 
 	var logs []*aggregator.Log
 	var err error
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(service)
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -120,7 +195,29 @@ func (s *linuxTestSuite) TestOTLPLogs() {
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
 		assert.Contains(s.T(), log.Message, logBody)
+		s.T().Log("log.Tags", log.Tags)
+		tags := getTagMapFromSlice(s.T(), log.Tags)
+		s.T().Log("tags", tags)
+		assert.Equal(s.T(), service, tags["service"])
+		assert.Equal(s.T(), env, tags["env"])
+		assert.Equal(s.T(), version, tags["version"])
+		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
+		assert.Equal(s.T(), tags["k8s.node.name"], log.HostName)
+		s.T().Log("k8s.node.name", tags["k8s.node.name"])
+		s.T().Log("log.HostName", log.HostName)
+
+		// Verify container tags from infraattributes processor
+		assert.NotNil(s.T(), tags["kube_container_name"])
+		assert.NotNil(s.T(), tags["kube_namespace"])
+		assert.NotNil(s.T(), tags["pod_name"])
+		assert.Equal(s.T(), tags["k8s.container.name"], tags["kube_container_name"])
+		assert.Equal(s.T(), tags["k8s.namespace.name"], tags["kube_namespace"])
+		assert.Equal(s.T(), tags["k8s.pod.name"], tags["pod_name"])
+		s.T().Log("source", log.Source)
+		s.T().Log("status", log.Status)
 	}
+
+	time.Sleep(30 * time.Second)
 }
 
 func (s *linuxTestSuite) TestOTelFlare() {
@@ -184,9 +281,33 @@ func (s *linuxTestSuite) createTelemetrygenJob(ctx context.Context, telemetry st
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "telemetrygen-job",
-							Image:   "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest",
-							Command: append([]string{"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure"}, options...),
+							Env: []corev1.EnvVar{{
+								Name:  "OTEL_SERVICE_NAME",
+								Value: service,
+							}, {
+								Name:      "OTEL_K8S_NAMESPACE",
+								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
+							}, {
+								Name:      "OTEL_K8S_NODE_NAME",
+								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
+							}, {
+								Name:      "OTEL_K8S_POD_NAME",
+								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
+							}},
+							Name:  "telemetrygen-job",
+							Image: "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.107.0",
+							Command: append([]string{
+								"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure",
+								"--telemetry-attributes", fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
+								"--otlp-attributes", "service.name=\"$(OTEL_SERVICE_NAME)\"",
+								"--otlp-attributes", "host.name=\"$(OTEL_K8S_NODE_NAME)\"",
+								"--otlp-attributes", fmt.Sprintf("deployment.environment=\"%v\"", env),
+								"--otlp-attributes", fmt.Sprintf("service.version=\"%v\"", version),
+								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
+								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
+								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
+								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
+							}, options...),
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -198,4 +319,31 @@ func (s *linuxTestSuite) createTelemetrygenJob(ctx context.Context, telemetry st
 
 	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start job")
+}
+
+func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
+	ctags, ok := tp.Tags["_dd.tags.container"]
+	if !ok {
+		return nil, false
+	}
+	splits := strings.Split(ctags, ",")
+	m := make(map[string]string)
+	for _, s := range splits {
+		kv := strings.SplitN(s, ":", 2)
+		if !assert.Len(t, kv, 2, "malformed container tag: %v", s) {
+			continue
+		}
+		m[kv[0]] = kv[1]
+	}
+	return m, true
+}
+
+func getTagMapFromSlice(t *testing.T, tagSlice []string) map[string]string {
+	m := make(map[string]string)
+	for _, s := range tagSlice {
+		kv := strings.SplitN(s, ":", 2)
+		require.Len(t, kv, 2, "malformed tag: %v", s)
+		m[kv[0]] = kv[1]
+	}
+	return m
 }
