@@ -18,7 +18,7 @@ exec 4<"$tmpfile"
 # reference counter drops to zero.
 rm "$tmpfile"
 
-# Set a meaningful name to retrieve secrets from the file descriptor
-function pop_front() {
-    head -n 1 <&4
+# Set a meaningful name to retrieve the full secret from the file descriptor
+function pop_ssm() {
+    cat <&4
 }

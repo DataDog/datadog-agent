@@ -9,10 +9,10 @@
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE
-    - printf -- "$(pop_front)" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY || exit $?
+    - printf -- "$(pop_ssm)" | gpg --import --batch
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE || exit $?
+    - export RPM_SIGNING_PASSPHRASE=$(pop_ssm)
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
@@ -140,10 +140,10 @@ installer_suse_rpm-arm64:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE
-    - printf -- "$(pop_front)" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY || exit $?
+    - printf -- "$(pop_ssm)" | gpg --import --batch
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE || exit $?
+    - export RPM_SIGNING_PASSPHRASE=$(pop_ssm)
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
