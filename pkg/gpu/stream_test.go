@@ -16,7 +16,7 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	stream := newStreamHandler()
+	stream := newStreamHandler(nil, nil)
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -73,7 +73,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	stream := newStreamHandler()
+	stream := newStreamHandler(nil, nil)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -142,7 +142,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	stream := newStreamHandler()
+	stream := newStreamHandler(nil, nil)
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -175,7 +175,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	stream := newStreamHandler()
+	stream := newStreamHandler(nil, nil)
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -217,7 +217,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	stream := newStreamHandler()
+	stream := newStreamHandler(nil, nil)
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)

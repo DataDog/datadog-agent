@@ -29,6 +29,23 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
     dst->z = z;
 }
 
+typedef struct {
+    __u8 e_ident[16]; /* Magic number and other info */
+    __u16 e_type; /* Object file type */
+    __u16 e_machine; /* Architecture */
+    __u32 e_version; /* Object file version */
+    __u64 e_entry; /* Entry point virtual address */
+    __u64 e_phoff; /* Program header table file offset */
+    __u64 e_shoff; /* Section header table file offset */
+    __u32 e_flags; /* Processor-specific flags */
+    __u16 e_ehsize; /* ELF header size in bytes */
+    __u16 e_phentsize; /* Program header table entry size */
+    __u16 e_phnum; /* Program header table entry count */
+    __u16 e_shentsize; /* Section header table entry size */
+    __u16 e_shnum; /* Section header table entry count */
+    __u16 e_shstrndx; /* Section header string table index */
+} elf64_hdr_t;
+
 SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
     cuda_kernel_launch_t launch_data = { 0 };
@@ -59,6 +76,20 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
 
     log_debug("cudaLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
     log_debug("cudaLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
+
+    elf64_hdr_t elf_hdr;
+
+    if (bpf_probe_read_user(&elf_hdr, sizeof(elf_hdr), func)) {
+        log_debug("cudaLaunchKernel: failed to read ELF header");
+    } else {
+        log_debug("cudaLaunchKernel: ELF header: e_ident[0]=0x%x, e_ident[1]=0x%x, e_ident[2]=0x%x,", elf_hdr.e_ident[0], elf_hdr.e_ident[1], elf_hdr.e_ident[2]);
+        log_debug("cudaLaunchKernel: ELF header: e_ident[3]=0x%x, e_type=%u, e_machine=%u", elf_hdr.e_ident[3], elf_hdr.e_type, elf_hdr.e_machine);
+        if (elf_hdr.e_ident[0] == 0x7f && elf_hdr.e_ident[1] == 'E' && elf_hdr.e_ident[2] == 'L' && elf_hdr.e_ident[3] == 'F') {
+            log_debug("cudaLaunchKernel: ELF header found");
+        } else {
+            log_debug("cudaLaunchKernel: ELF header not found");
+        }
+    }
 
     bpf_ringbuf_output(&cuda_events, &launch_data, sizeof(launch_data), 0);
 
