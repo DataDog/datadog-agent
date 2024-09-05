@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -80,8 +81,8 @@ func (h *RemoteConfigHandler) Start() {
 	}
 
 	h.remoteClient.Start()
-	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
-	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	h.remoteClient.Subscribe(state.ProductAPMSampling, client.NewUpdateListener(h.onUpdate))
+	h.remoteClient.Subscribe(state.ProductAgentConfig, client.NewUpdateListener(h.onAgentConfigUpdate))
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
