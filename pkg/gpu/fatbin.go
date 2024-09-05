@@ -174,6 +174,9 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 						return nil, fmt.Errorf("failed to read fatbin compressed payload: %w", err)
 					}
 
+					// Keep only the actual payload, ignore the padding for the uncompression
+					compressedPayload = compressedPayload[:fatbinData.PayloadSize]
+
 					payload = make([]byte, fatbinData.UncompressedPayloadSize)
 					_, err = lz4.UncompressBlock(compressedPayload, payload)
 					if err != nil {
