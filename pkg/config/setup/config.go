@@ -107,7 +107,7 @@ const (
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
 	DefaultNetworkPathTimeout = 1000
 
-	// DefaultMaxTTL defines the default maximum TTL for traceroute tests
+	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
 	DefaultNetworkPathMaxTTL = 30
 )
 
