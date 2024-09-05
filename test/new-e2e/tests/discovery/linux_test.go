@@ -29,9 +29,6 @@ var agentConfigStr string
 //go:embed testdata/config/system_probe_config.yaml
 var systemProbeConfigStr string
 
-//go:embed testdata/config/check_config.yaml
-var checkConfigStr string
-
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -42,7 +39,6 @@ func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(agentConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-		agentparams.WithFile("/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml", checkConfigStr, true),
 	}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
