@@ -27,6 +27,9 @@ import (
 	"unsafe"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"go.uber.org/fx"
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -775,6 +778,13 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
 		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
+		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
+		"EnforcementDisarmerContainerMaxAllowed":     opts.enforcementDisarmerContainerMaxAllowed,
+		"EnforcementDisarmerContainerPeriod":         opts.enforcementDisarmerContainerPeriod,
+		"EnforcementDisarmerExecutableEnabled":       opts.enforcementDisarmerExecutableEnabled,
+		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
+		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
+		"EventServerRetention":                       opts.eventServerRetention,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -832,7 +842,7 @@ type fakeMsgSender struct {
 	msgs    map[eval.RuleID]*api.SecurityEventMessage
 }
 
-func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	fs.Lock()
 	defer fs.Unlock()
 
@@ -877,4 +887,11 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 	}
 
 	fnc(testMod, obj)
+}
+
+type testModuleFxDeps struct {
+	fx.In
+
+	Telemetry telemetry.Component
+	WMeta     workloadmeta.Component
 }
