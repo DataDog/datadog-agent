@@ -26,7 +26,7 @@ type telemetry struct {
 	runtimeSecurityClient *RuntimeSecurityClient
 }
 
-func newTelemetry(statsdClient statsd.ClientInterface, wmeta workloadmeta.Component, ignoreDDAgentContainers bool) (*telemetry, error) {
+func newTelemetry(statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -37,7 +37,6 @@ func newTelemetry(statsdClient statsd.ClientInterface, wmeta workloadmeta.Compon
 	if err != nil {
 		return nil, err
 	}
-	containersTelemetry.IgnoreDDAgent = ignoreDDAgentContainers
 
 	return &telemetry{
 		containers:            containersTelemetry,
