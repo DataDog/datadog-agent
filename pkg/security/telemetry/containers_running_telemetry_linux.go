@@ -3,48 +3,42 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agent holds agent related files
-package agent
+package telemetry
 
 import (
 	"context"
-	"errors"
 	"os"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	sectelemetry "github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-// telemetry reports environment information (e.g containers running) when the runtime security component is running
-type telemetry struct {
-	containers            *sectelemetry.ContainersTelemetry
-	runtimeSecurityClient *RuntimeSecurityClient
+// ContainersRunningTelemetry reports environment information (e.g containers running) when the runtime security component is running
+type ContainersRunningTelemetry struct {
+	cfg        *config.RuntimeSecurityConfig
+	containers *ContainersTelemetry
 }
 
-func newTelemetry(statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*telemetry, error) {
-	runtimeSecurityClient, err := NewRuntimeSecurityClient()
+// NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance
+func NewContainersRunningTelemetry(cfg *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*ContainersRunningTelemetry, error) {
+	telemetrySender := NewSimpleTelemetrySenderFromStatsd(statsdClient)
+	containersTelemetry, err := NewContainersTelemetry(telemetrySender, wmeta)
 	if err != nil {
 		return nil, err
 	}
 
-	telemetrySender := sectelemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
-	containersTelemetry, err := sectelemetry.NewContainersTelemetry(telemetrySender, wmeta)
-	if err != nil {
-		return nil, err
-	}
-
-	return &telemetry{
-		containers:            containersTelemetry,
-		runtimeSecurityClient: runtimeSecurityClient,
+	return &ContainersRunningTelemetry{
+		cfg:        cfg,
+		containers: containersTelemetry,
 	}, nil
 }
 
-func (t *telemetry) run(ctx context.Context) {
+// Run starts the telemetry collection
+func (t *ContainersRunningTelemetry) Run(ctx context.Context) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
@@ -63,33 +57,19 @@ func (t *telemetry) run(ctx context.Context) {
 	}
 }
 
-func (t *telemetry) fetchConfig() (*api.SecurityConfigMessage, error) {
-	cfg, err := t.runtimeSecurityClient.GetConfig()
-	if err != nil {
-		return cfg, errors.New("couldn't fetch config from runtime security module")
-	}
-	return cfg, nil
-}
-
-func (t *telemetry) reportContainers() error {
-	// retrieve the runtime security module config
-	cfg, err := t.fetchConfig()
-	if err != nil {
-		return err
-	}
-
+func (t *ContainersRunningTelemetry) reportContainers() error {
 	var fargate bool
 	if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" || os.Getenv("DD_EKS_FARGATE") == "true" {
 		fargate = true
 	}
 
 	var metricName string
-	if cfg.RuntimeEnabled {
+	if t.cfg.RuntimeEnabled {
 		metricName = metrics.MetricSecurityAgentRuntimeContainersRunning
 		if fargate {
 			metricName = metrics.MetricSecurityAgentFargateRuntimeContainersRunning
 		}
-	} else if cfg.FIMEnabled {
+	} else if t.cfg.FIMEnabled {
 		metricName = metrics.MetricSecurityAgentFIMContainersRunning
 		if fargate {
 			metricName = metrics.MetricSecurityAgentFargateFIMContainersRunning
