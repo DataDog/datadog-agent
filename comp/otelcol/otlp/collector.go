@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
@@ -163,25 +164,20 @@ type PipelineConfig struct {
 	Metrics map[string]interface{}
 }
 
-// valid values for debug verbosity.
-var debugVerbosityMap = map[string]struct{}{
-	"basic":    {},
-	"normal":   {},
-	"detailed": {},
-}
-
 // shouldSetLoggingSection returns whether debug logging is enabled.
-// If an invalid verbosity value is set (or the special value "none"), debug logging is disabled.
-// Otherwise it returns true and lets the Collector handle the rest.
+// Debug logging is enabled when verbosity is set to a valid value except for "none", or left unset.
 func (p *PipelineConfig) shouldSetLoggingSection() bool {
-	if v, ok := p.Debug["verbosity"]; ok {
-		if s, ok := v.(string); ok {
-			_, ok := debugVerbosityMap[s]
-			return ok
-		}
+	v, ok := p.Debug["verbosity"]
+	if !ok {
+		return true
+	}
+	s, ok := v.(string)
+	if !ok {
 		return false
 	}
-	return true
+	var level configtelemetry.Level
+	err := level.UnmarshalText([]byte(s))
+	return err == nil && s != "none"
 }
 
 // Pipeline is an OTLP pipeline.
