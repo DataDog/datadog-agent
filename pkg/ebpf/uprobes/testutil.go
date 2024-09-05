@@ -147,3 +147,9 @@ func getLibSSLPath(t *testing.T) string {
 	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
 	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 }
+
+// SetRegistry allows changing the file registry used by the attacher. This is useful for testing purposes, to
+// replace the registry with a mock object
+func (ua *UprobeAttacher) SetRegistry(registry FileRegistry) {
+	ua.fileRegistry = registry
+}
