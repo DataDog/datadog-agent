@@ -60,6 +60,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./comp/otelcol/otlp/components/metricsclient
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ./comp/otelcol/otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
@@ -554,9 +555,9 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.104.0
+	go.opentelemetry.io/collector/consumer v0.104.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.11.0
-	go.opentelemetry.io/collector/semconv v0.104.0
+	go.opentelemetry.io/collector/semconv v0.104.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.27.0 // indirect
 	go.opentelemetry.io/otel v1.28.0
@@ -564,7 +565,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.27.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.49.0 // indirect
-	go.opentelemetry.io/otel/metric v1.28.0
+	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.28.0
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0
@@ -625,7 +626,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.56.2
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata v0.56.2
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
@@ -643,6 +644,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.56.0-rc.3
@@ -768,7 +770,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
@@ -978,8 +980,6 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.104.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.104.0 // indirect
 	go.opentelemetry.io/collector/filter v0.104.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.104.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.104.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.104.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.104.0 // indirect
 	go.opentelemetry.io/contrib/config v0.7.0 // indirect
