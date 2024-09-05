@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The trace agent server can now accept request with http1.1 or h2 plaintext
+    protocol. This allows clients to avoid creating too much connections and
+    rely on http2 to multi plex many requests.
