@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -38,7 +36,7 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 var Process = module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side

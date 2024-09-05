@@ -121,6 +121,7 @@ message PackageState {
   string experiment_version = 3;
   string stable_config_version = 5;
   string experiment_config_version = 6;
+  string remote_config_version = 7;
   PackageStateTask task = 4;
 }
 

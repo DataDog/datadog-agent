@@ -9,4 +9,5 @@ logs_enabled: true
 
 dd_url: http://127.0.0.1:9092
 telemetry.enabled: true
+telemetry.checks: '*'
 process_collection.enabled: false

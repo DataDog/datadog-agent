@@ -59,10 +59,10 @@ type RemoteSysProbeUtil struct {
 	// Retrier used to setup system probe
 	initRetry retry.Retrier
 
-	path                  string
-	httpClient            http.Client
-	pprofClient           http.Client
-	extendedTimeoutClient http.Client
+	path             string
+	httpClient       http.Client
+	pprofClient      http.Client
+	tracerouteClient http.Client
 }
 
 // GetRemoteSystemProbeUtil returns a ready to use RemoteSysProbeUtil. It is backed by a shared singleton.
@@ -228,14 +228,17 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout uint) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second) // allow extra time for the system probe communication overhead
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Set("Accept", contentTypeJSON)
-	resp, err := r.extendedTimeoutClient.Do(req)
+	resp, err := r.tracerouteClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -332,17 +335,13 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				},
 			},
 		},
-		extendedTimeoutClient: http.Client{
-			Timeout: 60 * time.Second,
+		tracerouteClient: http.Client{
+			// no timeout set here, the expected usage of this client
+			// is that the caller will set a timeout on each request
 			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial(netType, path)
 				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 50 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
 	}
