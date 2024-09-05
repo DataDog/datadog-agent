@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +45,7 @@ func newRemoteConfigProvider(client *rcclient.Client, isLeaderNotif <-chan struc
 
 func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
 	log.Info("Starting remote-config patch provider")
-	rcp.client.Subscribe(state.ProductAPMTracing, rcp.process)
+	rcp.client.Subscribe(state.ProductAPMTracing, client.NewUpdateListener(rcp.process))
 	rcp.client.Start()
 	for {
 		select {
