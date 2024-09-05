@@ -64,6 +64,7 @@ func Test_telemetrySender(t *testing.T) {
 			GeneratedName:     "generated-name",
 			DDService:         "dd-service",
 			DDServiceInjected: true,
+			CPUCores:          1.5,
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -99,6 +100,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
+				CPUCores:             1.5,
 			},
 		},
 		{
@@ -121,6 +123,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
+				CPUCores:             1.5,
 			},
 		},
 		{
@@ -143,6 +146,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                  99,
 				CommandLine:          []string{"test-service", "--args"},
 				RSSMemory:            500 * 1024 * 1024,
+				CPUCores:             1.5,
 			},
 		},
 	}

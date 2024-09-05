@@ -76,6 +76,7 @@ var (
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		RSS:                100 * 1024 * 1024,
+		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
 		StartTimeSecs:      procLaunchedSeconds,
 	}
@@ -87,6 +88,7 @@ var (
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		RSS:                200 * 1024 * 1024,
+		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
 		StartTimeSecs:      procLaunchedSeconds,
 	}
@@ -229,6 +231,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -250,6 +253,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -271,6 +275,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -382,6 +387,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 				{
@@ -437,6 +443,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 			},
@@ -493,6 +500,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
+						CPUCores:             1.5,
 					},
 				},
 				{
