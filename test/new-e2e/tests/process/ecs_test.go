@@ -61,7 +61,7 @@ func ecsEC2CPUStressProvisioner(runInCoreAgent bool) e2e.PulumiEnvRunFunc[ecsCPU
 	}
 }
 
-func TestECSTestSuite(t *testing.T) {
+func TestECSEC2TestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSEC2Suite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
