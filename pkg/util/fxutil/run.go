@@ -21,7 +21,7 @@ func Run(opts ...fx.Option) error {
 		return fxAppTestOverride(func() {}, opts)
 	}
 
-	opts = append(opts, FxAgentBase())
+	opts = append(opts, FxAgentBase(true))
 	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
 	// start time requirements. Prepend to opts so individual calls can override the timeout.
 	opts = append(

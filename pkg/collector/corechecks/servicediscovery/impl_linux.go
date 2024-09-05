@@ -137,14 +137,13 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 
 	// for now, docker-proxy is going on the ignore list
 
-	serviceType := servicetype.Detect(service.Name, service.Ports)
+	serviceType := servicetype.Detect(service.Ports)
 
 	meta := ServiceMetadata{
 		Name:               service.Name,
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
-		NameSource:         service.NameSource,
 	}
 
 	return serviceInfo{

@@ -103,6 +103,9 @@ const (
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
 	DefaultMaxMessageSizeBytes = 256 * 1000
+
+	// DefaultNetworkPathTimeout defines the default timeout for a network path test
+	DefaultNetworkPathTimeout = 10000
 )
 
 // datadog is the global configuration object
@@ -433,6 +436,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", 30)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
@@ -905,7 +910,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
-	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")

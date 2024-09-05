@@ -331,6 +331,8 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	return nil
 }
 
@@ -1571,6 +1573,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	p.processKiller.Reset()
 
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
