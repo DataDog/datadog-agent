@@ -456,7 +456,9 @@ func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ *bytes.Reade
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
 	if match == nil {
-		return fmt.Errorf("invalid constant memory section name %s", sect.Name)
+		// Not a constant memory section. We might be missing the kernel name, for example, which happens
+		// on some binaries. In that case just ignore the section
+		return nil
 	}
 
 	kernelName = match[1]
