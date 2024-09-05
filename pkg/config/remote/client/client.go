@@ -166,9 +166,6 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 	return g.fetchConfigs(ctx, request)
 }
 
-// Handler is a function that is called when a config update is received.
-type Handler func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
-
 // NewClient creates a new client
 func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
 	return newClient(updater, opts...)

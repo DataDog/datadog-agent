@@ -104,13 +104,13 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 type testRemoteConfigClient struct {
 	sync.Mutex
 	t         *testing.T
-	listeners map[string][]client.Handler
+	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 }
 
 func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
 		t:         t,
-		listeners: make(map[string][]client.Handler),
+		listeners: make(map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))),
 	}
 }
 
@@ -120,10 +120,10 @@ func (c *testRemoteConfigClient) Start() {
 func (c *testRemoteConfigClient) Close() {
 }
 
-func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+func (c *testRemoteConfigClient) Subscribe(product string, fn client.Listener) {
 	c.Lock()
 	defer c.Unlock()
-	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
+	c.listeners[product] = append(c.listeners[product], fn.OnUpdate)
 }
 
 func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
