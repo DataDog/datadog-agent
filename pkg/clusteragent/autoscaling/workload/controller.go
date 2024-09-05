@@ -287,7 +287,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
 	if targetErr != nil {
 		podAutoscalerInternal.SetError(targetErr)
-		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
+		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, targetErr, podAutoscalerInternal, podAutoscaler)
 	}
 	target := NamespacedPodOwner{
 		Namespace: podAutoscalerInternal.Namespace(),
@@ -296,7 +296,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	}
 
 	// Now that everything is synced, we can perform the actual processing
-	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal, targetGVK, target)
+	result, scalingErr := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal, targetGVK, target)
 
 	// Update current replicas
 	pods := c.podWatcher.GetPodsForOwner(target)
@@ -304,17 +304,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
 
 	// Update status based on latest state
-	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
-	if statusErr != nil {
-		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
-	}
-
-	// We want to return the status error if none to count in the requeue retries.
-	if err == nil {
-		err = statusErr
-	}
-
-	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, err, podAutoscalerInternal, podAutoscaler)
+	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
