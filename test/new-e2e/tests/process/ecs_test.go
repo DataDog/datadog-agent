@@ -73,7 +73,7 @@ func TestECSEC2TestSuite(t *testing.T) {
 func (s *ECSEC2Suite) TestECSEC2ProcessCheck() {
 	t := s.T()
 	// PROCS-4219
-	//flake.Mark(t)
+	// flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -94,7 +94,7 @@ func (s *ECSEC2Suite) TestECSEC2ProcessCheckInCoreAgent() {
 	// PROCS-4219
 	// flake.Mark(t)
 
-	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsEC2CPUStressProvisioner(true), nil))
+	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsEC2CPUStress", ecsEC2CPUStressProvisioner(true), nil))
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
