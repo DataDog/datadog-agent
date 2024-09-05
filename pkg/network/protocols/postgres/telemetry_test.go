@@ -22,6 +22,7 @@ type telemetryResults struct {
 	queryLength               [bucketLength]int64
 	failedTableNameExtraction int64
 	failedOperationExtraction int64
+	counterState              counterStateEnum
 }
 
 func Test_getBucketIndex(t *testing.T) {
@@ -81,6 +82,7 @@ func TestTelemetry_Count(t *testing.T) {
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 				failedOperationExtraction: 10,
 				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
 			},
 		},
 		{
@@ -103,6 +105,7 @@ func TestTelemetry_Count(t *testing.T) {
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 				failedOperationExtraction: 10,
 				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
 			},
 		},
 		{
@@ -125,6 +128,7 @@ func TestTelemetry_Count(t *testing.T) {
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 				failedOperationExtraction: 10,
 				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
 			},
 		},
 		{
@@ -134,6 +138,7 @@ func TestTelemetry_Count(t *testing.T) {
 			expectedTelemetry: telemetryResults{
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              operationNotFound,
 			},
 		},
 		{
@@ -143,6 +148,7 @@ func TestTelemetry_Count(t *testing.T) {
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableNameNotFound,
 			},
 		},
 		{
@@ -153,6 +159,7 @@ func TestTelemetry_Count(t *testing.T) {
 				failedTableNameExtraction: 1,
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableAndOpNotFound,
 			},
 		},
 	}
@@ -188,28 +195,9 @@ func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
 
-	var expectFulfill counterEnum = fulfillTableAndOperation
-
-	countFailedTableName := tel.failedTableNameExtraction.Get()
-	if countFailedTableName > 0 {
-		// expects a tag of table name not found
-		expectFulfill = fulfillTableNameNotFound
-	}
-
-	countFailedOperation := tel.failedOperationExtraction.Get()
-	if countFailedOperation > 0 {
-		// expects a tag of operation not found
-		expectFulfill = fulfillOperationNotFound
-	}
-
-	if countFailedTableName > 0 && countFailedOperation > 0 {
-		// expects a tag of both, table name and operation not found
-		expectFulfill = fulfillTableAndOpNotFound
-	}
-
 	for i := 0; i < len(tel.queryLengthBuckets); i++ {
-		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].get(expectFulfill), "queryLength for bucket %d count is incorrect", i)
+		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].get(expected.counterState), "queryLength for bucket %d count is incorrect", i)
 	}
-	assert.Equal(t, expected.failedTableNameExtraction, countFailedTableName, "failedTableNameExtraction count is incorrect")
-	assert.Equal(t, expected.failedOperationExtraction, countFailedOperation, "failedOperationExtraction count is incorrect")
+	assert.Equal(t, expected.failedTableNameExtraction, tel.failedTableNameExtraction.Get(), "failedTableNameExtraction count is incorrect")
+	assert.Equal(t, expected.failedOperationExtraction, tel.failedOperationExtraction.Get(), "failedOperationExtraction count is incorrect")
 }
