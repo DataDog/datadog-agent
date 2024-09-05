@@ -1383,7 +1383,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "slurm":
 		return MetricSourceSlurm
 	case "tibco_ems":
-		return MetricSourceTibocoEMS
+		return MetricSourceTibcoEMS
 	default:
 		return MetricSourceUnknown
 	}
