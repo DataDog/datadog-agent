@@ -60,7 +60,6 @@ $err = $LASTEXITCODE
 
 # Ignore upload failures
 $ErrorActionPreference = "Continue"
-$tmpfile = [System.IO.Path]::GetTempFileName()
 
 # 1. Upload coverage reports to Codecov
 & "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" "$Env:CODECOV_TOKEN" > "$tmpfile"
