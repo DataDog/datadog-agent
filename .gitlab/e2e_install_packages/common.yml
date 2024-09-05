@@ -34,8 +34,8 @@
         END_MAJOR_VERSION: [6]
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY
-    - export DATADOG_AGENT_API_KEY=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY || exit $?
+    - export DATADOG_AGENT_API_KEY=$(pop_ssm)
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_script_upgrade7:
@@ -50,8 +50,8 @@
         END_MAJOR_VERSION: [7]
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY
-    - export DATADOG_AGENT_API_KEY=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY || exit $?
+    - export DATADOG_AGENT_API_KEY=$(pop_ssm)
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_rpm:
@@ -62,6 +62,6 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY
-    - export DATADOG_AGENT_API_KEY=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY || exit $?
+    - export DATADOG_AGENT_API_KEY=$(pop_ssm)
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}

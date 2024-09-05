@@ -12,8 +12,8 @@ fi
 source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
 "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$GITLAB_READ_API_TOKEN"
 "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2"
-DATADOG_API_KEY=$(pop_front)
-GITLAB_TOKEN=$(pop_front)
+DATADOG_API_KEY=$(pop_ssm)
+GITLAB_TOKEN=$(pop_ssm)
 export DATADOG_API_KEY
 export GITLAB_TOKEN
 error=0

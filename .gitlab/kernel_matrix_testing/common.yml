@@ -29,8 +29,8 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY
-  - pop_front > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY || exit $?
+  - pop_ssm > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -49,8 +49,8 @@
 .kmt_new_profile:
   - mkdir -p ~/.aws
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE
-  - pop_front >> ~/.aws/config
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE || exit $?
+  - pop_ssm >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
@@ -186,8 +186,8 @@
   tags: ["arch:amd64"]
   before_script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN
-    - export GITLAB_TOKEN=$(pop_front)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - export GITLAB_TOKEN=$(pop_ssm)
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
@@ -321,13 +321,13 @@ notify_ebpf_complexity_changes:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
       source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN
-      export GITHUB_KEY_B64=$(pop_front | base64)
-      export GITHUB_APP_ID=$(pop_front)
-      export GITHUB_INSTALLATION_ID=$(pop_front)
-      export GITLAB_TOKEN=$(pop_front)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY || exit $?
+      export GITHUB_KEY_B64=$(pop_ssm | base64)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID || exit $?
+      export GITHUB_APP_ID=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID || exit $?
+      export GITHUB_INSTALLATION_ID=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN || exit $?
+      export GITLAB_TOKEN=$(pop_ssm)
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr

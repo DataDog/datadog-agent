@@ -22,10 +22,10 @@
 .setup_deb_signing_key: &setup_deb_signing_key
   - set +x
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE
-  - printf -- "$(pop_front)" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$(pop_front)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY || exit $?
+  - printf -- "$(pop_ssm)" | gpg --import --batch
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE || exit $?
+  - export DEB_SIGNING_PASSPHRASE=$(pop_ssm)
 
 .setup_macos_github_app:
   # GitHub App rate-limits are per-app.
@@ -33,31 +33,31 @@
   - |
     source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
     if [[ "$(( RANDOM % 2 ))" == "1" ]]; then
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID
-      export GITHUB_KEY_B64=$(pop_front)
-      export GITHUB_APP_ID=$(pop_front)
-      export GITHUB_INSTALLATION_ID=$(pop_front)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY || exit $?
+      export GITHUB_KEY_B64=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID || exit $?
+      export GITHUB_APP_ID=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID || exit $?
+      export GITHUB_INSTALLATION_ID=$(pop_ssm)
       echo "Using GitHub App instance 1"
     else
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_2
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_2
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2
-      export GITHUB_KEY_B64=$(pop_front)
-      export GITHUB_APP_ID=$(pop_front)
-      export GITHUB_INSTALLATION_ID=$(pop_front)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_2 || exit $?
+      export GITHUB_KEY_B64=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_2 || exit $?
+      export GITHUB_APP_ID=$(pop_ssm)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2 || exit $?
+      export GITHUB_INSTALLATION_ID=$(pop_ssm)
       echo "Using GitHub App instance 2"
     fi
 
 .setup_agent_github_app:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_KEY
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID
-  - export GITHUB_KEY_B64=$(pop_front)
-  - export GITHUB_APP_ID=$(pop_front)
-  - export GITHUB_INSTALLATION_ID=$(pop_front)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_KEY || exit $?
+  - export GITHUB_KEY_B64=$(pop_ssm)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID || exit $?
+  - export GITHUB_APP_ID=$(pop_ssm)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID || exit $?
+  - export GITHUB_INSTALLATION_ID=$(pop_ssm)
   - echo "Using agent GitHub App"
 
 # Install `dd-pkg` and lint packages produced by Omnibus, supports only deb and rpm packages
@@ -67,15 +67,15 @@
 
 .export_gitlab_token_scheduler:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN
-  - export GITLAB_TOKEN=$(pop_front)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+  - export GITLAB_TOKEN=$(pop_ssm)
 
 .export_gitlab_token_full:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN
-  - export GITLAB_TOKEN=$(pop_front)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN || exit $?
+  - export GITLAB_TOKEN=$(pop_ssm)
 
 .export_dd_api_key_org2:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2
-  - export DD_API_KEY=$(pop_front)
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2 || exit $?
+  - export DD_API_KEY=$(pop_ssm)
