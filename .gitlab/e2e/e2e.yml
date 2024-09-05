@@ -11,11 +11,11 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE >> ~/.aws/config
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME > $E2E_PUBLIC_KEY_PATH
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -468,7 +468,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:
