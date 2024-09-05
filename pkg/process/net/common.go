@@ -44,7 +44,7 @@ type Conn interface {
 
 const (
 	contentTypeProtobuf = "application/protobuf"
-	contentTypeJson     = "application/json"
+	contentTypeJSON     = "application/json"
 )
 
 var (
@@ -167,14 +167,15 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+// GetNetworkID fetches the network_id (vpc_id) from system-probe
 func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
-	networkIdPath := "/network_id"
-	req, err := http.NewRequest("GET", "/network_id", nil)
+	networkIDPath := "/network_id"
+	req, err := http.NewRequest("GET", networkIDPath, nil)
 	if err != nil {
 		return "", err
 	}
 
-	req.Header.Set("Accept", contentTypeJson)
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return "", err
@@ -183,7 +184,7 @@ func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIdPath, resp.StatusCode)
+		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDPath, resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -201,7 +202,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 		return nil, err
 	}
 
-	req.Header.Set("Accept", contentTypeJson)
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -233,7 +234,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 		return nil, err
 	}
 
-	req.Header.Set("Accept", contentTypeJson)
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.extendedTimeoutClient.Do(req)
 	if err != nil {
 		return nil, err

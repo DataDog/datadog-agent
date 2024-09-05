@@ -112,10 +112,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
-	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		var id string
-		var err error
-		kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
+		id := ""
+		err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+			var err error
 			id, err = ec2.GetNetworkID(context.TODO())
 			return err
 		})
