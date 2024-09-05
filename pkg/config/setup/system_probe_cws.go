@@ -132,4 +132,11 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.exclude_binaries", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.rule_source_allowed", []string{"file", "remote-config"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.max_allowed", 5)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.container.period", "1m")
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
 }

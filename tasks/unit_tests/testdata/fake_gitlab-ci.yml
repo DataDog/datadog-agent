@@ -881,7 +881,6 @@ workflow:
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
         - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe_windows.yml
         - .gitlab/functional_test_sysprobe/system_probe.yml
         - .gitlab/kernel_version_testing/system_probe.yml
         - test/new-e2e/system-probe/**/*

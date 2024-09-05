@@ -16,9 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -112,7 +114,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
+		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
@@ -214,7 +216,7 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 	ids := []string{entity}
 
 	// Add Image names (long then short if different)
-	long, _, short, _, err := containers.SplitImageName(image)
+	long, _, short, _, err := pkgcontainersimage.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
 	}

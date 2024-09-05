@@ -9,6 +9,8 @@ package daemon
 
 import (
 	"context"
+	"syscall"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
@@ -16,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/judwhite/go-svc"
 	"go.uber.org/fx"
-	"syscall"
 )
 
 type windowsService struct {
@@ -26,7 +27,7 @@ type windowsService struct {
 func getFxOptions(global *command.GlobalParams) []fx.Option {
 	return []fx.Option{
 		getCommonFxOption(global),
-		fxutil.FxAgentBase(),
+		fxutil.FxAgentBase(true),
 		// Force the instantiation of some components
 		fx.Invoke(func(_ pid.Component) {}),
 		fx.Invoke(func(_ localapi.Component) {}),

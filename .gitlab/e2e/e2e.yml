@@ -376,6 +376,32 @@ new-e2e-ndm-snmp:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
 
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-kernel-integrations
+
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-kernel-integrations
+
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
