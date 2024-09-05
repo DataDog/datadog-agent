@@ -110,7 +110,7 @@ func NewUint32FlagsMapItem(i uint32) *Uint32FlagsMapItem {
 var Uint64FlagsZeroMapItem = make([]byte, 16)
 
 // Uint64FlagsMapItem describes an flags table key or value
-type Uint64FlagsMapItem uint32
+type Uint64FlagsMapItem uint64
 
 // MarshalBinary returns the binary representation of a Uint64FlagsMapItem
 func (i *Uint64FlagsMapItem) MarshalBinary() ([]byte, error) {
