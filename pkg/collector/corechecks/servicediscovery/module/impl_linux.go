@@ -266,7 +266,9 @@ func newNetIPSocket(file string, expectedState uint64, shouldIgnore func(uint16)
 // protocols for the provided namespace. Based on snapshotBoundSockets() in
 // pkg/security/security_profile/activity_tree/process_node_snapshot.go.
 func getNsInfo(pid int) (*namespaceInfo, error) {
-	tcp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid)), tcpListen, nil)
+	// Don't ignore ephemeral ports on TCP, unlike on UDP (see below).
+	var noIgnore func(uint16) bool
+	tcp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid)), tcpListen, noIgnore)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP sockets: %v", err)
 	}
@@ -281,7 +283,7 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 	if err != nil {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
-	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, nil)
+	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
