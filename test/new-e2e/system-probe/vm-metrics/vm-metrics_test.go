@@ -23,6 +23,8 @@ var memStats = map[libvirt.DomainMemoryStatTags]uint64{
 	libvirt.DomainMemoryStatAvailable:     40,
 	libvirt.DomainMemoryStatActualBalloon: 50,
 	libvirt.DomainMemoryStatRss:           60,
+	libvirt.DomainMemoryStatUnused:        70,
+	libvirt.DomainMemoryStatUsable:        80,
 }
 
 var nameToTag = map[string]libvirt.DomainMemoryStatTags{
@@ -32,6 +34,8 @@ var nameToTag = map[string]libvirt.DomainMemoryStatTags{
 	"memory_available_bytes":      libvirt.DomainMemoryStatAvailable,
 	"memory_actual_balloon_bytes": libvirt.DomainMemoryStatActualBalloon,
 	"memory_rss_bytes":            libvirt.DomainMemoryStatRss,
+	"memory_usable_bytes":         libvirt.DomainMemoryStatUsable,
+	"memory_unused_bytes":         libvirt.DomainMemoryStatUnused,
 }
 
 func TestParseOSInformation(t *testing.T) {

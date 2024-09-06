@@ -46,8 +46,8 @@ var memStatTagToName = map[libvirt.DomainMemoryStatTags]string{
 	libvirt.DomainMemoryStatAvailable:     "memory_available_bytes",      // The total amount of usable memory as seen by the domain. This value may be less than the amount of memory assigned to the domain if a balloon driver is in use or if the guest OS does not initialize all assigned pages. This value is expressed in kB.
 	libvirt.DomainMemoryStatActualBalloon: "memory_actual_balloon_bytes", // Current balloon value (in KB).
 	libvirt.DomainMemoryStatRss:           "memory_rss_bytes",            // Resident Set Size of the process running the domain. This value is in kB
-	libvirt.DomainMemoryUsable:            "memory_usable_bytes",         // How much the balloon can be inflated without pushing the guest system to swap, corresponds to 'Available' in /proc/meminfo
-	libvirt.DomainMemoryUnused:            "memory_unused_bytes",         // The amount of memory left completely unused by the system. Memory that is available but used for reclaimable caches should NOT be reported as free. This value is expressed in kB.
+	libvirt.DomainMemoryStatUsable:        "memory_usable_bytes",         // How much the balloon can be inflated without pushing the guest system to swap, corresponds to 'Available' in /proc/meminfo
+	libvirt.DomainMemoryStatUnused:        "memory_unused_bytes",         // The amount of memory left completely unused by the system. Memory that is available but used for reclaimable caches should NOT be reported as free. This value is expressed in kB.
 }
 
 type libvirtInterface interface {
