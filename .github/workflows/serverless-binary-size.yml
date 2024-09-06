@@ -138,6 +138,18 @@ jobs:
           name: dependency-graphs
           path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
 
+      - name: Write message
+        id: write
+        if: steps.should.outputs.should_run == 'true'
+        env:
+          VAR_COLD_START: ${{ steps.compare.outputs.coldstart }}
+          VAR_DIFF: ${{ steps.compare.outputs.diff }}
+          VAR_DEPS: ${{ steps.deps.outputs.deps }}
+          VAR_RUN_ID: ${{ github.run_id }}
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          ./test/integration/serverless_perf/write_message.sh
+
       - name: Post comment
         uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
         if: steps.should.outputs.should_run == 'true'
@@ -145,21 +157,4 @@ jobs:
           header: serverless-binary-size
           hide_and_recreate: true
           hide_classify: "RESOLVED"
-          message: |
-            :warning::rotating_light: Warning, this pull request increases the binary size of serverless extension by ${{ steps.compare.outputs.diff }} bytes. Each MB of binary size increase means about 10ms of additional cold start time, so this pull request would increase cold start time by ${{ steps.compare.outputs.coldstart }}ms.
-
-            If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
-
-            <details>
-            <summary>Debug info</summary>
-
-            These dependencies were added to the serverless extension by this pull request:
-
-            ```
-            ${{ steps.deps.outputs.deps }}
-            ```
-
-            View dependency graphs for each added dependency in the [artifacts section](https://github.com/DataDog/datadog-agent/actions/runs/${{ github.run_id }}#artifacts) of the github action.
-
-            We suggest you consider adding the `!serverless` build tag to remove any new dependencies not needed in the serverless extension.
-            </details>
+          path: ${{ steps.write.outputs.filename }}

@@ -20,9 +20,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newJMXLogger),
+		fx.Supply(params),
 	)
 }
 

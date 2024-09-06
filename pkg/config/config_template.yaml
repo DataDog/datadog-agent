@@ -2987,6 +2987,15 @@ api_key:
     #
     # trace_agent_socket: unix:///var/run/datadog/apm.socket
 
+    ## @param type_socket_volumes - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
+    ## When enabled, injected volumes are of type "Socket". This means that
+    ## injected pods will not start until the Agent creates the dogstatsd and
+    ## trace-agent sockets. This ensures no lost traces or dogstatsd metrics but
+    ## can cause the pod to wait if the agent has issues creating the sockets.
+    #
+    # type_socket_volumes: false
+
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
   #

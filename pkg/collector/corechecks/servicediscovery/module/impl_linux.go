@@ -43,12 +43,14 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name               string
-	nameFromDDService  bool
+	generatedName      string
+	ddServiceName      string
+	ddServiceInjected  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
 	startTimeSecs      uint64
+	cpuTime            uint64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -62,6 +64,10 @@ type discovery struct {
 
 	// scrubber is used to remove potentially sensitive data from the command line
 	scrubber *procutil.DataScrubber
+
+	// lastGlobalCPUTime stores the total cpu time of the system from the last time
+	// the endpoint was called.
+	lastGlobalCPUTime uint64
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -287,8 +293,9 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot      string
+	netNsInfo     map[uint32]*namespaceInfo
+	globalCPUTime uint64
 }
 
 // getServiceInfo gets the service information for a process using the
@@ -317,7 +324,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
+	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
@@ -325,10 +332,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
 
 	return &serviceInfo{
-		name:               name,
+		generatedName:      nameMeta.Name,
+		ddServiceName:      nameMeta.DDService,
 		language:           lang,
 		apmInstrumentation: apmInstrumentation,
-		nameFromDDService:  fromDDService,
+		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 		startTimeSecs:      uint64(createTime / 1000),
 	}, nil
@@ -447,21 +455,29 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
-	nameSource := "generated"
-	if info.nameFromDDService {
-		nameSource = "provided"
+	name := info.ddServiceName
+	if name == "" {
+		name = info.generatedName
+	}
+
+	cpu, err := updateCPUCoresStats(proc, info, s.lastGlobalCPUTime, context.globalCPUTime)
+	if err != nil {
+		return nil
 	}
 
 	return &model.Service{
 		PID:                int(pid),
-		Name:               info.name,
-		NameSource:         nameSource,
+		Name:               name,
+		GeneratedName:      info.generatedName,
+		DDService:          info.ddServiceName,
+		DDServiceInjected:  info.ddServiceInjected,
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
 		StartTimeSecs:      info.startTimeSecs,
+		CPUCores:           cpu,
 	}
 }
 
@@ -488,9 +504,15 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		return nil, err
 	}
 
+	globalCPUTime, err := getGlobalCPUTime()
+	if err != nil {
+		return nil, err
+	}
+
 	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
+		procRoot:      procRoot,
+		netNsInfo:     make(map[uint32]*namespaceInfo),
+		globalCPUTime: globalCPUTime,
 	}
 
 	var services []model.Service
@@ -508,6 +530,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
+	s.lastGlobalCPUTime = context.globalCPUTime
 
 	return &services, nil
 }
