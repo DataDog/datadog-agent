@@ -95,7 +95,7 @@ func NewHashHeap(maxSize int) *HashHeap {
 // Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
 func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 	// Already in heap, do not try to insert
-	if _, ok := h.Keys[key]; ok {
+	if h.Exists(key) {
 		return
 	}
 
@@ -133,7 +133,7 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 // Used as an ObserverFunc; accept sender and obj as parameter to match ObserverFunc signature
 func (h *HashHeap) DeleteFromHeap(key, _sender string, _obj any) {
 	// Key did not exist in heap, return early
-	if _, ok := h.Keys[key]; !ok {
+	if !h.Exists(key) {
 		return
 	}
 	idx, found := h.MaxHeap.FindIdx(key)
