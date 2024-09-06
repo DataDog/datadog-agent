@@ -7,12 +7,14 @@ package module
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -372,6 +374,10 @@ var ignoreComms = map[string]struct{}{
 	"docker-proxy":     {},
 }
 
+// maxNumberOfPorts is the maximum number of listening ports which we report per
+// service.
+const maxNumberOfPorts = 50
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	proc, err := customNewProcess(pid)
@@ -431,6 +437,16 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 
 	if len(ports) == 0 {
 		return nil
+	}
+
+	if len(ports) > maxNumberOfPorts {
+		// Sort the list so that non-ephemeral ports are given preference when
+		// we trim the list.
+		portCmp := func(a, b uint16) int {
+			return cmp.Compare(a, b)
+		}
+		slices.SortFunc(ports, portCmp)
+		ports = ports[:maxNumberOfPorts]
 	}
 
 	rss, err := getRSS(proc)

@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -110,8 +111,8 @@ func getServicesMap(t *testing.T, url string) map[int]model.Service {
 	return servicesMap
 }
 
-func startTCPServer(t *testing.T, proto string) (*os.File, *net.TCPAddr) {
-	listener, err := net.Listen(proto, "")
+func startTCPServer(t *testing.T, proto string, address string) (*os.File, *net.TCPAddr) {
+	listener, err := net.Listen(proto, address)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 	tcpAddr := listener.Addr().(*net.TCPAddr)
@@ -189,7 +190,7 @@ func TestBasic(t *testing.T) {
 	expectedPorts := make(map[int]int)
 
 	var startTCP = func(proto string) {
-		f, server := startTCPServer(t, proto)
+		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
 		expectedPorts[cmd.Process.Pid] = server.Port
@@ -241,7 +242,7 @@ func TestPorts(t *testing.T) {
 	var unexpectedPorts []uint16
 
 	var startTCP = func(proto string) {
-		serverf, server := startTCPServer(t, proto)
+		serverf, server := startTCPServer(t, proto, "")
 		t.Cleanup(func() { serverf.Close() })
 		clientf, client := startTCPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
@@ -273,6 +274,40 @@ func TestPorts(t *testing.T) {
 	}
 	for _, port := range unexpectedPorts {
 		assert.NotContains(t, serviceMap[pid].Ports, port)
+	}
+}
+
+func TestPortsLimits(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	var expectedPorts []int
+
+	var openPort = func(address string) {
+		serverf, server := startTCPServer(t, "tcp4", address)
+		t.Cleanup(func() { serverf.Close() })
+
+		expectedPorts = append(expectedPorts, server.Port)
+	}
+
+	openPort("127.0.0.1:8081")
+
+	for i := 0; i < maxNumberOfPorts; i++ {
+		openPort("")
+	}
+
+	openPort("127.0.0.1:8082")
+
+	slices.Sort(expectedPorts)
+
+	serviceMap := getServicesMap(t, url)
+	pid := os.Getpid()
+	require.Contains(t, serviceMap, pid)
+	ports := serviceMap[pid].Ports
+	assert.Contains(t, ports, uint16(8081))
+	assert.Contains(t, ports, uint16(8082))
+	assert.Len(t, ports, maxNumberOfPorts)
+	for i := 0; i < maxNumberOfPorts-2; i++ {
+		assert.Contains(t, ports, uint16(expectedPorts[i]))
 	}
 }
 
@@ -760,7 +795,7 @@ func TestCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
 
-	f, _ := startTCPServer(t, "tcp4")
+	f, _ := startTCPServer(t, "tcp4", "")
 	defer f.Close()
 
 	disableCloseOnExec(t, f)
