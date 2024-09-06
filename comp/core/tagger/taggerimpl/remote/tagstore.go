@@ -81,7 +81,7 @@ func (s *tagStore) getEntity(entityID types.EntityID) *types.Entity {
 func (s *tagStore) listEntities() []*types.Entity {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return s.store.ListObjects(nil)
+	return s.store.ListObjects(types.NewMatchAllFilter())
 }
 
 func (s *tagStore) collectTelemetry() {

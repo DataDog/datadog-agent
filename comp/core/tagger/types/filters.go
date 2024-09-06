@@ -9,6 +9,11 @@ import (
 	"maps"
 )
 
+// NewMatchAllFilter returns a filter that matches any prefix
+func NewMatchAllFilter() *Filter {
+	return nil
+}
+
 // Filter represents a subscription filter for the tagger
 type Filter struct {
 	prefixes    map[EntityIDPrefix]struct{}

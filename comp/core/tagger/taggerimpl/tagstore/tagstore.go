@@ -283,7 +283,7 @@ func (s *TagStore) List() types.TaggerListResponse {
 	s.RLock()
 	defer s.RUnlock()
 
-	for _, et := range s.store.ListObjects(nil) {
+	for _, et := range s.store.ListObjects(types.NewMatchAllFilter()) {
 		r.Entities[et.getEntityID().String()] = types.TaggerListEntity{
 			Tags: et.tagsBySource(),
 		}
