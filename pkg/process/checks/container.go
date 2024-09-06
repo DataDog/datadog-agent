@@ -63,13 +63,6 @@ func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) er
 		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
 		if err != nil {
 			log.Warnf("could not initiate connection with system probe: %s", err)
-		} else {
-			// Register process agent as a system probe's client
-			// This ensures we start recording data from now to the first call to `Run`
-			err = tu.Register(ProcessAgentClientID)
-			if err != nil {
-				log.Warnf("could not register process-agent to system-probe: %s", err)
-			}
 		}
 	}
 

@@ -25,7 +25,7 @@ func TestGetPublicIPv4(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
 		case http.MethodPut: // token request
-			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet: // metadata request
 			switch r.RequestURI {
 			case "/public-ipv4":
@@ -54,7 +54,7 @@ func TestGetNetworkID(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
 		case http.MethodPut: // token request
-			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet: // metadata request
 			switch r.RequestURI {
 			case "/network/interfaces/macs":
@@ -84,7 +84,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
 		case http.MethodPut: // token request
-			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet: // metadata request
 			io.WriteString(w, "")
 		}
@@ -111,7 +111,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
 		case http.MethodPut: // token request
-			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet: // metadata request
 			switch r.RequestURI {
 			case "/network/interfaces/macs":

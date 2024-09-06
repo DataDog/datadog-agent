@@ -310,7 +310,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 }
 
 // GetNetworkID is not implemented on this OS for Tracer
-func (t *Tracer) GetNetworkID() (string, error) {
+func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 	return "", ebpf.ErrNotImplemented
 }
 

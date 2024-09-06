@@ -174,7 +174,7 @@ func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Accept", contentTypeJSON)
+	req.Header.Set("Accept", "text/plain")
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to execute request: %w", err)

@@ -853,11 +853,11 @@ func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 }
 
 // GetNetworkID retrieves the vpc_id (network_id) from IMDS
-func (t *Tracer) GetNetworkID() (string, error) {
+func (t *Tracer) GetNetworkID(context context.Context) (string, error) {
 	id := ""
 	err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
 		var err error
-		id, err = ec2.GetNetworkID(context.TODO())
+		id, err = ec2.GetNetworkID(context)
 		return err
 	})
 	if err != nil {
