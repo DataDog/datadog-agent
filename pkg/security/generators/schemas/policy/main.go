@@ -35,8 +35,17 @@ func main() {
 			switch t {
 			case reflect.TypeOf(time.Duration(0)):
 				return &jsonschema.Schema{
-					Type:   "string",
-					Format: "duration",
+					OneOf: []*jsonschema.Schema{
+						{
+							Type:        "string",
+							Format:      "duration",
+							Description: "Duration in Go format (e.g. 1h30m, see https://pkg.go.dev/time#ParseDuration)",
+						},
+						{
+							Type:        "integer",
+							Description: "Duration in nanoseconds",
+						},
+					},
 				}
 			}
 			return nil

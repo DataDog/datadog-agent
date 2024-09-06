@@ -290,8 +290,17 @@
           "type": "array"
         },
         "every": {
-          "type": "string",
-          "format": "duration"
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "duration",
+              "description": "Duration in Go format (e.g. 1h30m, see https://pkg.go.dev/time#ParseDuration)"
+            },
+            {
+              "type": "integer",
+              "description": "Duration in nanoseconds"
+            }
+          ]
         },
         "silent": {
           "type": "boolean"
@@ -344,8 +353,17 @@
           "type": "integer"
         },
         "ttl": {
-          "type": "string",
-          "format": "duration"
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "duration",
+              "description": "Duration in Go format (e.g. 1h30m, see https://pkg.go.dev/time#ParseDuration)"
+            },
+            {
+              "type": "integer",
+              "description": "Duration in nanoseconds"
+            }
+          ]
         }
       },
       "additionalProperties": false,
