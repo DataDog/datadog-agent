@@ -167,7 +167,7 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
-def get_last_tag(ctx, repo, pattern):
+def get_last_release_tag(ctx, repo, pattern):
     import re
     from functools import cmp_to_key
 

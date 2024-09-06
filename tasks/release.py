@@ -29,7 +29,7 @@ from tasks.libs.common.git import (
     clone,
     get_current_branch,
     get_last_commit,
-    get_last_tag,
+    get_last_release_tag,
     try_git_command,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -1008,7 +1008,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     changes = 'false'
     for repo_name, repo in repo_data.items():
         head_commit = get_last_commit(ctx, repo_name, repo['branch'])
-        last_tag_commit, last_tag_name = get_last_tag(ctx, repo_name, next_version.tag_pattern())
+        last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
         if last_tag_commit != "" and last_tag_commit != head_commit:
             changes = 'true'
             print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)

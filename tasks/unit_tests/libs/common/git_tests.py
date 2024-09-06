@@ -8,7 +8,7 @@ from tasks.libs.common.git import (
     check_uncommitted_changes,
     get_commit_sha,
     get_current_branch,
-    get_last_tag,
+    get_last_release_tag,
     get_staged_files,
 )
 
@@ -121,7 +121,7 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        _, name = get_last_tag(c, "woof", "7.56.*")
+        _, name = get_last_release_tag(c, "woof", "7.56.*")
         self.assertEqual(name, "7.56.0-rc.3")
 
     def test_non_ordered(self):
@@ -132,7 +132,7 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        _, name = get_last_tag(c, "woof", "7.56.*")
+        _, name = get_last_release_tag(c, "woof", "7.56.*")
         self.assertEqual(name, "7.56.0-rc.11")
 
     def test_suffix_lower(self):
@@ -143,7 +143,7 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        _, name = get_last_tag(c, "woof", "7.56.*")
+        _, name = get_last_release_tag(c, "woof", "7.56.*")
         self.assertEqual(name, "7.56.0-rc.3")
 
     def test_suffix_equal(self):
@@ -154,7 +154,7 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        commit, _ = get_last_tag(c, "woof", "7.56.*")
+        commit, _ = get_last_release_tag(c, "woof", "7.56.*")
         self.assertEqual(commit, "7c6777bb7add533a789c69293b59e3261711d330")
 
     def test_suffix_greater(self):
@@ -165,7 +165,7 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        _, name = get_last_tag(c, "woof", "7.56.*")
+        _, name = get_last_release_tag(c, "woof", "7.56.*")
         self.assertEqual(name, "7.56.0-rc.4")
 
     def test_only_release_tags(self):
@@ -176,5 +176,5 @@ class TestGetLastTag(unittest.TestCase):
                 )
             }
         )
-        _, name = get_last_tag(c, "woof", "7.57.*")
+        _, name = get_last_release_tag(c, "woof", "7.57.*")
         self.assertEqual(name, "7.57.0-rc.7")
