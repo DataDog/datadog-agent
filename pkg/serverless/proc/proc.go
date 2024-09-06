@@ -24,6 +24,9 @@ const (
 	ProcStatPath           = "/proc/stat"
 	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
+	ProcPath               = "/proc"
+	PidLimitsPathFormat    = "/%d/limits"
+	PidFdPathFormat        = "/%d/fd"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
@@ -205,17 +208,16 @@ type FileDescriptorMaxData struct {
 
 // GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
 func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	return getFileDescriptorMaxData()
+	return getFileDescriptorMaxData(ProcPath)
 }
 
-func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	pids := getPidList("/proc")
+func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
+	pids := getPidList(path)
 	fdMax := math.Inf(1)
 
 	for _, pid := range pids {
-		path := fmt.Sprintf("/proc/%d/limits", pid)
-
-		file, err := os.Open(path)
+		limitsPath := fmt.Sprint(path + fmt.Sprintf(PidLimitsPathFormat, pid))
+		file, err := os.Open(limitsPath)
 		if err != nil {
 			return nil, err
 		}
@@ -226,15 +228,15 @@ func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 			line := scanner.Text()
 			if strings.HasPrefix(line, "Max open files") {
 				fields := strings.Fields(line)
-				if len(fields) < 4 {
-					log.Debugf("file descriptor max data not found in file '%s'", path)
+				if len(fields) < 6 {
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
 					break
 				}
 
 				fdMaxPidStr := fields[3]
 				fdMaxPid, err := strconv.Atoi(fdMaxPidStr)
 				if err != nil {
-					log.Debugf("file descriptor max data not found in file '%s'", path)
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
 					break
 				}
 
@@ -259,18 +261,18 @@ type FileDescriptorUseData struct {
 
 // GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
 func GetFileDescriptorUseData() (*FileDescriptorUseData, error) {
-	return getFileDescriptorUseData()
+	return getFileDescriptorUseData(ProcPath)
 }
 
-func getFileDescriptorUseData() (*FileDescriptorUseData, error) {
-	pids := getPidList("/proc")
+func getFileDescriptorUseData(path string) (*FileDescriptorUseData, error) {
+	pids := getPidList(path)
 	fdUse := 0
 
 	for _, pid := range pids {
-		path := fmt.Sprintf("/proc/%d/fd", pid)
-		files, err := os.ReadDir(path)
+		fdPath := fmt.Sprint(path + fmt.Sprintf(PidFdPathFormat, pid))
+		files, err := os.ReadDir(fdPath)
 		if err != nil {
-			return nil, fmt.Errorf("file descriptor use data not found in file '%s'", path)
+			return nil, fmt.Errorf("file descriptor use data not found in file '%s'", fdPath)
 		}
 		fdUse += len(files)
 	}
