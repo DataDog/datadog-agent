@@ -33,13 +33,13 @@ service:
 
 ### Cardinality
 The cardinality option sets the [TagCardinality](../../../../../../comp/core/tagger/README.md#tagcardinality) in the Datadog Agent tagger component. Possible values for this option include:
-* `cardinality: 0` - **LowCardinality**: in the host count order of magnitude
+* `cardinality: 0` - **LowCardinality**: in the host count order of magnitude *(default)*
 * `cardinality: 1` - **OrchestratorCardinality**: tags that change value for each pod or task
 * `cardinality: 2` - **HighCardinality**: typically tags that change value for each web request, user agent, container, etc.
 
 ## Expected Attributes
 
-The infra attributes processor looks up the following resource attributes in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:
+The infra attributes processor [looks up the following resource attributes](https://github.com/DataDog/datadog-agent/blob/7d51e9e0dc9fb52aab468b372a5724eece97538c/comp/otelcol/otlp/components/processor/infraattributesprocessor/metrics.go#L42-L77) in order to extract Kubernetes Tags. These resource attributes can be set in your SDK or in your otel-agent collector configuration:
 
 | *[Entity](../../../../../../comp/core/tagger/README.md#entity-ids)*  | *Resource Attributes*                       |
 |----------------------------------------------------------------------|---------------------------------------------|
@@ -91,126 +91,104 @@ env:
       deployment.environment=$(OTEL_K8S_NAMESPACE)
 ```
 
+If you are using OTel SDK auto-instrumentation, `container.id` and `process.pid` will be automatically set by your SDK.
+
 ### Collector Configuration
 
-The expected resource attributes can be set by configuring the [Kubernetes attributes processor and resource detection processor](https://docs.datadoghq.com/opentelemetry/collector_exporter/hostname_tagging/?tab=kubernetesdaemonset), [Docker stats receiver](https://docs.datadoghq.com/opentelemetry/integrations/docker_metrics/?tab=host), and [host metrics receiver](https://docs.datadoghq.com/opentelemetry/integrations/host_metrics/?tab=host):
+The expected resource attributes can be set by configuring the [Kubernetes attributes processor and resource detection processor](https://docs.datadoghq.com/opentelemetry/collector_exporter/hostname_tagging/?tab=kubernetesdaemonset). This is demonstrated in the [k8s-values.yaml](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/datadogexporter/examples/k8s-chart/k8s-values.yaml) example:
 ```
-receivers:
-  docker_stats:
-    endpoint: unix:///var/run/docker.sock # (default)
-    metrics:
-      container.network.io.usage.rx_packets:
-        enabled: true
-      container.network.io.usage.tx_packets:
-        enabled: true
-      container.cpu.usage.system:
-        enabled: true
-      container.memory.rss:
-        enabled: true
-      container.blockio.io_serviced_recursive:
-        enabled: true
-      container.uptime:
-        enabled: true
-      container.memory.hierarchical_memory_limit:
-        enabled: true
-  hostmetrics:
-    collection_interval: 10s
-    scrapers:
-      paging:
-        metrics:
-          system.paging.utilization:
-            enabled: true
-      cpu:
-        metrics:
-          system.cpu.utilization:
-            enabled: true
-      disk:
-      filesystem:
-        metrics:
-          system.filesystem.utilization:
-            enabled: true
-      load:
-      memory:
-      network:
-      processes:
-
-processors:
-  batch:
-    send_batch_max_size: 1000
-    send_batch_size: 100
-    timeout: 10s
-  k8sattributes:
-    passthrough: false
-    auth_type: "serviceAccount"
-    pod_association:
-      - sources:
-          - from: resource_attribute
-            name: k8s.pod.ip
-    extract:
-      metadata:
-        - k8s.pod.name
-        - k8s.pod.uid
-        - k8s.deployment.name
-        - k8s.node.name
-        - k8s.namespace.name
-        - k8s.pod.start_time
-        - k8s.replicaset.name
-        - k8s.replicaset.uid
-        - k8s.daemonset.name
-        - k8s.daemonset.uid
-        - k8s.job.name
-        - k8s.job.uid
-        - k8s.cronjob.name
-        - k8s.statefulset.name
-        - k8s.statefulset.uid
-        - container.image.name
-        - container.image.tag
-        - container.id
-        - k8s.container.name
-      labels:
-        - tag_name: kube_app_name
-          key: app.kubernetes.io/name
-          from: pod
-        - tag_name: kube_app_instance
-          key: app.kubernetes.io/instance
-          from: pod
-        - tag_name: kube_app_version
-          key: app.kubernetes.io/version
-          from: pod
-        - tag_name: kube_app_component
-          key: app.kubernetes.io/component
-          from: pod
-        - tag_name: kube_app_part_of
-          key: app.kubernetes.io/part-of
-          from: pod
-        - tag_name: kube_app_managed_by
-          key: app.kubernetes.io/managed-by
-          from: pod
-  resourcedetection:
-    detectors: [env, eks, ec2, system]
-    timeout: 2s
-    override: false
-
-exporters:
-  datadog:
-    api:
-      site: ${env:DD_SITE}
-      key: ${env:DD_API_KEY}
-
-service:
-  pipelines:
-    metrics:
-      receivers: [docker_stats, hostmetrics]
-      processors: [batch, resourcedetection, k8sattributes]
-      exporters: [datadog]
-    traces:
-      receivers: []
-      processors: [batch, resourcedetection, k8sattributes]
-      exporters: [datadog]
-    logs:
-      receivers: []
-      processors: [batch, resourcedetection, k8sattributes]
-      exporters: [datadog]
+mode: daemonset
+presets:
+  kubernetesAttributes:
+    enabled: true
+extraEnvs:
+  - name: POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: "k8s.pod.ip=$(POD_IP)"
+config:
+  processors:
+    k8sattributes:
+      passthrough: false
+      auth_type: "serviceAccount"
+      pod_association:
+        - sources:
+            - from: resource_attribute
+              name: k8s.pod.ip
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.pod.uid
+          - k8s.deployment.name
+          - k8s.node.name
+          - k8s.namespace.name
+          - k8s.pod.start_time
+          - k8s.replicaset.name
+          - k8s.replicaset.uid
+          - k8s.daemonset.name
+          - k8s.daemonset.uid
+          - k8s.job.name
+          - k8s.job.uid
+          - k8s.cronjob.name
+          - k8s.statefulset.name
+          - k8s.statefulset.uid
+          - container.image.name
+          - container.image.tag
+          - container.id
+          - k8s.container.name
+          - container.image.name
+          - container.image.tag
+          - container.id
+        labels:
+          - tag_name: kube_app_name
+            key: app.kubernetes.io/name
+            from: pod
+          - tag_name: kube_app_instance
+            key: app.kubernetes.io/instance
+            from: pod
+          - tag_name: kube_app_version
+            key: app.kubernetes.io/version
+            from: pod
+          - tag_name: kube_app_component
+            key: app.kubernetes.io/component
+            from: pod
+          - tag_name: kube_app_part_of
+            key: app.kubernetes.io/part-of
+            from: pod
+          - tag_name: kube_app_managed_by
+            key: app.kubernetes.io/managed-by
+            from: pod
+    resourcedetection:
+      detectors: [env, eks, ec2, system]
+      timeout: 2s
+      override: false
+    batch:
+      send_batch_max_size: 1000
+      send_batch_size: 100
+      timeout: 10s
+  exporters:
+    datadog:
+      api:
+        site: ${env:DD_SITE}
+        key: ${env:DD_API_KEY}
+      traces:
+        trace_buffer: 500
+  service:
+    pipelines:
+      metrics:
+        receivers: [otlp]
+        processors: [batch, resourcedetection, k8sattributes]
+        exporters: [datadog]
+      traces:
+        receivers: [otlp]
+        processors: [batch, resourcedetection, k8sattributes]
+        exporters: [datadog]
+      logs:
+        receivers: [otlp]
+        processors: [batch, resourcedetection, k8sattributes]
+        exporters: [datadog]
 ```
 
 ## List of Kubernetes Tags
