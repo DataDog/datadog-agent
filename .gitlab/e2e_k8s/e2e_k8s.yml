@@ -68,15 +68,3 @@ k8s-e2e-cspm-main:
   retry: 1
   variables:
     ARGO_WORKFLOW: cspm
-
-k8s-e2e-otlp-dev:
-  extends: .k8s_e2e_template_dev
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: otlp
-
-k8s-e2e-otlp-main:
-  extends: .k8s_e2e_template_main
-  rules: !reference [.on_main]
-  variables:
-    ARGO_WORKFLOW: otlp

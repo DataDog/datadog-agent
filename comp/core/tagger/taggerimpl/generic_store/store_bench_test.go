@@ -14,7 +14,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-const samples int = 1000000
+const samples int = 10000000
 
 var weightedPrefixes = map[string]int{
 	"container_image_metadata": 60,
@@ -24,7 +24,7 @@ var weightedPrefixes = map[string]int{
 	"deployment":               15,
 	"kubernetes_metadata":      30,
 	"kubernetes_pod_uid":       30,
-	"process":                  30,
+	"process":                  60,
 }
 
 // getWeightedPrefix selects a prefix based on the provided weights.
@@ -53,6 +53,19 @@ func initStore(store types.ObjectStore[int]) {
 		entityID := types.NewEntityID(getNextPrefix(), fmt.Sprintf("%d", i))
 		store.Set(entityID, i)
 	}
+}
+
+func initFilter() *types.Filter {
+	fb := types.NewFilterBuilder()
+
+	numberOfPrefixes := rand.Intn(len(weightedPrefixes))
+
+	for range numberOfPrefixes {
+		prefix := getNextPrefix()
+		fb.Include(prefix)
+	}
+
+	return fb.Build(types.HighCardinality)
 }
 
 // Mock ApplyFunc for testing purposes
@@ -166,7 +179,10 @@ func BenchmarkDefaultObjectStore_ForEach(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		store.ForEach(mockApplyFunc[int])
+		b.StopTimer()
+		filter := initFilter()
+		b.StartTimer()
+		store.ForEach(filter, mockApplyFunc[int])
 	}
 }
 
@@ -178,11 +194,14 @@ func BenchmarkCompositeObjectStore_ForEach(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		store.ForEach(mockApplyFunc[int])
+		b.StopTimer()
+		filter := initFilter()
+		b.StartTimer()
+		store.ForEach(filter, mockApplyFunc[int])
 	}
 }
 
-func BenchmarkDefaultObjectStore_ListAll(b *testing.B) {
+func BenchmarkDefaultObjectStore_ListObjects(b *testing.B) {
 	cfg := configmock.New(b)
 	cfg.SetWithoutSource("tagger.tagstore_use_composite_entity_id", false)
 	store := NewObjectStore[int](cfg)
@@ -191,11 +210,14 @@ func BenchmarkDefaultObjectStore_ListAll(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = store.ListObjects()
+		b.StopTimer()
+		filter := initFilter()
+		b.StartTimer()
+		_ = store.ListObjects(filter)
 	}
 }
 
-func BenchmarkCompositeObjectStore_ListAll(b *testing.B) {
+func BenchmarkCompositeObjectStore_ListObjects(b *testing.B) {
 	cfg := configmock.New(b)
 	cfg.SetWithoutSource("tagger.tagstore_use_composite_entity_id", true)
 	store := NewObjectStore[int](cfg)
@@ -204,6 +226,9 @@ func BenchmarkCompositeObjectStore_ListAll(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = store.ListObjects()
+		b.StopTimer()
+		filter := initFilter()
+		b.StartTimer()
+		_ = store.ListObjects(filter)
 	}
 }

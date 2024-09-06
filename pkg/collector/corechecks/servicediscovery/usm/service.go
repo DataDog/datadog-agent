@@ -17,6 +17,8 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
@@ -165,20 +167,21 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
-// List of binaries that usually have additional process context of what's running
-var binsWithContext = map[string]detectorCreatorFn{
-	"python":    newPythonDetector,
-	"python2.7": newPythonDetector,
-	"python3":   newPythonDetector,
-	"python3.7": newPythonDetector,
-	"ruby2.3":   newSimpleDetector,
-	"ruby":      newSimpleDetector,
-	"java":      newJavaDetector,
-	"sudo":      newSimpleDetector,
-	"node":      newNodeDetector,
-	"dotnet":    newDotnetDetector,
-	"php":       newPhpDetector,
-	"gunicorn":  newGunicornDetector,
+// Map languages to their context detectors
+var languageDetectors = map[language.Language]detectorCreatorFn{
+	language.Python: newPythonDetector,
+	language.Ruby:   newSimpleDetector,
+	language.Java:   newJavaDetector,
+	language.Node:   newNodeDetector,
+	language.DotNet: newDotnetDetector,
+	language.PHP:    newPhpDetector,
+}
+
+// Map executables that usually have additional process context of what's
+// running, to context detectors
+var executableDetectors = map[string]detectorCreatorFn{
+	"sudo":     newSimpleDetector,
+	"gunicorn": newGunicornDetector,
 }
 
 func serviceNameInjected(envs map[string]string) bool {
@@ -194,7 +197,7 @@ func serviceNameInjected(envs map[string]string) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
 	dc := DetectionContext{
 		args:       args,
 		envs:       envs,
@@ -234,7 +237,12 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 
 	exe = normalizeExeName(exe)
 
-	if detectorProvider, ok := binsWithContext[exe]; ok {
+	detectorProvider, ok := executableDetectors[exe]
+	if !ok {
+		detectorProvider, ok = languageDetectors[lang]
+	}
+
+	if ok {
 		langMeta, ok := detectorProvider(dc).detect(cmd[1:])
 
 		// The detector could return a DD Service name (eg. Java, from the

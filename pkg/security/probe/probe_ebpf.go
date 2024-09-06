@@ -331,6 +331,8 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	return nil
 }
 
@@ -464,6 +466,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 // SendStats sends statistics about the probe to Datadog
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
+
+	p.processKiller.SendStats(p.statsdClient)
 
 	if err := p.profileManagers.SendStats(); err != nil {
 		return err
@@ -1572,6 +1576,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
+	p.processKiller.Reset()
+
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
 		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
@@ -1622,6 +1628,11 @@ func (p *EBPFProbe) GetFieldHandlers() model.FieldHandlers {
 // DumpProcessCache dumps the process cache
 func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.ToDot(withArgs)
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
