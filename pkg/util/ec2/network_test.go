@@ -80,18 +80,25 @@ func TestGetNetworkID(t *testing.T) {
 
 func TestGetInstanceIDNoMac(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		io.WriteString(w, "")
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			io.WriteString(w, "")
+		}
 	}))
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	tokenURL = ts.URL
 	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "EC2: GetNetworkID failed to get mac addresses:")
+	assert.Contains(t, err.Error(), "EC2: GetNetworkID no mac addresses returned")
 }
 
 func TestGetInstanceIDMultipleVPC(t *testing.T) {
