@@ -39,12 +39,13 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall
     struct event_mask_filter_t *mask_filter = bpf_map_lookup_elem(&auid_approvers, &auid);
     if (mask_filter && mask_filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(syscall->type, AUID_APPROVER_TYPE);
-        return APPROVED;
+        return ACCEPTED;
     }
 
     struct u32_range_filter_t *range_filter = bpf_map_lookup_elem(&auid_range_approvers, &event_type);
     if (range_filter && auid >= range_filter->min && auid <= range_filter->max) {
-        return APPROVED;
+        monitor_event_approved(syscall->type, AUID_APPROVER_TYPE);
+        return ACCEPTED;
     }
 
     return DISCARDED;
