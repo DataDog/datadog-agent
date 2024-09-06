@@ -25,7 +25,7 @@ func main() {
 
 	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify
 	// conversion to string; see golang.org/issue/20753
-	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf|Cgroup|RemoteAddr|LocalAddr|Cgroup_name|Victim_comm|Trigger_comm|LocalAddress|RemoteAddress)(\s+)\[(\d+)\]u?int8`)
+	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf|Cgroup|RemoteAddr|LocalAddr|Cgroup_name|Victim_comm|Trigger_comm|LocalAddress|RemoteAddress|Probe_id)(\s+)\[(\d+)\]u?int8`)
 	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
 	b, err = format.Source(b)
