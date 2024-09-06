@@ -30,7 +30,7 @@ func (r scanRequest) Collector() string {
 
 // Type returns the scan request type
 func (r scanRequest) Type(types.ScanOptions) string {
-	return "filesystem"
+	return types.ScanFilesystemType
 }
 
 // ID returns the scan request ID
