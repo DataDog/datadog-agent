@@ -78,6 +78,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if service, ok := serviceMap[pid]; ok {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
 		}
@@ -112,6 +113,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -137,7 +139,7 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 
 	// for now, docker-proxy is going on the ignore list
 
-	serviceType := servicetype.Detect(service.Name, service.Ports)
+	serviceType := servicetype.Detect(service.Ports)
 
 	meta := ServiceMetadata{
 		Name:               service.Name,

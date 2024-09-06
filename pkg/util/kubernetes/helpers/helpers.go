@@ -21,23 +21,23 @@ const Digits = "1234567890"
 // ParseDeploymentForReplicaSet gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
 func ParseDeploymentForReplicaSet(name string) string {
-	lastDash := strings.LastIndexByte(name, '-')
-	if lastDash == -1 {
-		// No dash
-		return ""
-	}
-	suffix := name[lastDash+1:]
-	if len(suffix) < 3 {
-		// Suffix is variable length but we cutoff at 3+ characters
-		return ""
-	}
+	return removeKubernetesNameSuffix(name)
+}
 
-	if !stringInRuneset(suffix, Digits) && !stringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
-		// Invalid suffix
+// ParseDeploymentForPodName gets the deployment name from a pod name,
+// or returns an empty string if no parent deployment is found.
+func ParseDeploymentForPodName(name string) string {
+	replicaSet := removeKubernetesNameSuffix(name)
+	if replicaSet == "" {
 		return ""
 	}
+	return ParseDeploymentForReplicaSet(replicaSet)
+}
 
-	return name[:lastDash]
+// ParseReplicaSetForPodName gets the replica set name from a pod name,
+// or returns an empty string if no parent replica set is found.
+func ParseReplicaSetForPodName(name string) string {
+	return removeKubernetesNameSuffix(name)
 }
 
 // ParseCronJobForJob gets the cronjob name from a job,
@@ -79,4 +79,26 @@ func stringInRuneset(name, subset string) bool {
 		}
 	}
 	return true
+}
+
+// removeKubernetesNameSuffix removes the suffix from a kubernetes name
+// or returns an empty string if either the suffix or name are invalid.
+func removeKubernetesNameSuffix(name string) string {
+	lastDash := strings.LastIndexByte(name, '-')
+	if lastDash == -1 {
+		// No dash
+		return ""
+	}
+	suffix := name[lastDash+1:]
+	if len(suffix) < 3 {
+		// Suffix is variable length but we cutoff at 3+ characters
+		return ""
+	}
+
+	if !stringInRuneset(suffix, Digits) && !stringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+		// Invalid suffix
+		return ""
+	}
+
+	return name[:lastDash]
 }
