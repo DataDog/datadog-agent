@@ -525,7 +525,9 @@ func assertCPU(t *testing.T, url string, pid int) {
 	// Calling getServicesMap a second time us the CPU usage percentage since the last call, which should be close to gopsutil value.
 	portMap := getServicesMap(t, url)
 	assert.Contains(t, portMap, pid)
-	assert.InDelta(t, referenceValue, portMap[pid].CPUCores*100, 0.10)
+	// gopsutil reports a percentage, while we are reporting a float between 0 and $(nproc),
+	// so we convert our value to a percentage.
+	assert.InDelta(t, referenceValue, portMap[pid].CPUCores*100, 10)
 }
 
 func TestCommandLineSanitization(t *testing.T) {
