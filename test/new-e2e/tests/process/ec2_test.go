@@ -6,6 +6,7 @@
 package process
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	//"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
@@ -33,24 +34,26 @@ type ecsCPUStressEnv struct {
 	environments.ECS
 }
 
-func ecsCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
+func ecsCPUStressProvisioner(runInCoreAgent bool) e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
 	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
 
-		params := ecs.GetProvisionerParams(
+		provisionerOptions := []ecs.ProvisionerOption{
 			ecs.WithAwsEnv(&awsEnv),
 			ecs.WithECSLinuxECSOptimizedNodeGroup(),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", fmt.Sprintf("%t", runInCoreAgent)),
 			),
 			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				return cpustress.EcsAppDefinition(e, clusterArn)
 			}),
-		)
+		}
 
+		params := ecs.GetProvisionerParams(provisionerOptions...)
 		if err := ecs.Run(ctx, &env.ECS, params); err != nil {
 			return err
 		}
@@ -60,18 +63,20 @@ func ecsCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
 }
 
 func TestECSTestSuite(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 	s := ECSSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(), nil))}
+		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false), nil)),
+		e2e.WithDevMode(),
+	}
 
 	e2e.Run(t, &s, e2eParams...)
 }
 
-func (s *ECSSuite) TestECSProcessCheck() {
+func (s *ECSSuite) TestECSEC2ProcessCheck() {
 	t := s.T()
 	// PROCS-4219
-	flake.Mark(t)
+	// flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -84,5 +89,30 @@ func (s *ECSSuite) TestECSProcessCheck() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
+	assertContainersCollected(t, payloads, []string{"stress-ng"})
+}
+
+func (s *ECSSuite) TestECSEC2ProcessCheckInCoreAgent() {
+	t := s.T()
+	// PROCS-4219
+	// flake.Mark(t)
+
+	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(true), nil))
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
+	requireProcessNotCollected(t, payloads, "process-agent")
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
