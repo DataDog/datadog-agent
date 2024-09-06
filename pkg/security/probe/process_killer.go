@@ -36,6 +36,7 @@ type ProcessKiller struct {
 
 	cfg *config.Config
 
+	enabled          bool
 	pendingReports   []*KillActionReport
 	binariesExcluded []*eval.Glob
 	sourceAllowed    []string
@@ -48,6 +49,7 @@ type ProcessKiller struct {
 func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 	p := &ProcessKiller{
 		cfg:           cfg,
+		enabled:       true,
 		ruleDisarmers: make(map[rules.RuleID]*killDisarmer),
 		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
@@ -64,6 +66,14 @@ func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 	}
 
 	return p, nil
+}
+
+// SetState sets the state - enabled or disabled - for the process killer
+func (p *ProcessKiller) SetState(enabled bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.enabled = enabled
 }
 
 // AddPendingReports add a pending reports
@@ -110,6 +120,13 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 }
 
 func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
+	p.Lock()
+	if !p.enabled {
+		p.Unlock()
+		return false
+	}
+	p.Unlock()
+
 	for i, pid := range pids {
 		if pid <= 1 || pid == utils.Getpid() {
 			return false
