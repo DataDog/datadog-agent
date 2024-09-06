@@ -140,19 +140,19 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
 func (rc rcClient) start() {
-	rc.client.Subscribe(state.ProductAgentConfig, client.NewUpdateListener(rc.agentConfigUpdateCallback))
+	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
 	for _, l := range rc.listeners {
 		for product, callback := range l {
-			rc.client.Subscribe(string(product), client.NewUpdateListener(callback))
+			rc.client.Subscribe(string(product), callback)
 		}
 	}
 
 	rc.client.Start()
 
 	if rc.clientMRF != nil {
-		rc.clientMRF.Subscribe(state.ProductAgentFailover, client.NewUpdateListener(rc.mrfUpdateCallback))
+		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
 		rc.clientMRF.Start()
 	}
 }
@@ -247,11 +247,11 @@ func (rc rcClient) SubscribeAgentTask() {
 		pkglog.Errorf("No remote-config client")
 		return
 	}
-	rc.client.Subscribe(state.ProductAgentTask, client.NewUpdateListener(rc.agentTaskUpdateCallback))
+	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
 func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	rc.client.Subscribe(string(product), client.NewUpdateListener(fn))
+	rc.client.Subscribe(string(product), fn)
 }
 
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {

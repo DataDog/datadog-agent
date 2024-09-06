@@ -23,7 +23,7 @@ import (
 type remoteConfigClient interface {
 	Start()
 	Close()
-	Subscribe(product string, listener client.Listener)
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 	GetInstallerState() []*pbgo.PackageState
 	SetInstallerState(packages []*pbgo.PackageState)
 }
@@ -53,9 +53,9 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 	subscribeToTask := func() {
 		// only subscribe to tasks once the first catalog has been applied
 		// subscribe in a goroutine to avoid deadlocking the client
-		go rc.client.Subscribe(state.ProductUpdaterTask, client.NewUpdateListener(handleUpdaterTaskUpdate(handleRemoteAPIRequest)))
+		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	}
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, client.NewUpdateListener(handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask)))
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
 

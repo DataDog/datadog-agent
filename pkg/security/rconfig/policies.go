@@ -84,8 +84,8 @@ func (r *RCPolicyProvider) Start() {
 
 	r.debouncer.Start()
 
-	r.client.Subscribe(state.ProductCWSDD, client.NewListener(r.rcDefaultsUpdateCallback, r.rcStateChanged))
-	r.client.Subscribe(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
+	r.client.SubscribeAll(state.ProductCWSDD, client.NewListener(r.rcDefaultsUpdateCallback, r.rcStateChanged))
+	r.client.SubscribeAll(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
 
 	r.client.Start()
 }

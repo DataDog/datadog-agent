@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -450,7 +449,7 @@ type AgentConfig struct {
 type RemoteClient interface {
 	Close()
 	Start()
-	Subscribe(string, client.Listener)
+	Subscribe(string, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 

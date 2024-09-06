@@ -82,7 +82,7 @@ func (r *RCProfileProvider) Start(ctx context.Context) error {
 	log.Info("remote-config profile provider started")
 
 	r.client.Start()
-	r.client.Subscribe(state.ProductCWSProfiles, client.NewUpdateListener(r.rcProfilesUpdateCallback))
+	r.client.Subscribe(state.ProductCWSProfiles, r.rcProfilesUpdateCallback)
 
 	go func() {
 		<-ctx.Done()

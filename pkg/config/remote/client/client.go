@@ -327,8 +327,8 @@ func (c *Client) SetAgentName(agentName string) {
 	}
 }
 
-// Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, listener Listener) {
+// Subscribe subscribes to all events (config updates, state changed, ...)
+func (c *Client) SubscribeAll(product string, listener Listener) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -345,6 +345,11 @@ func (c *Client) Subscribe(product string, listener Listener) {
 	}
 
 	c.listeners[product] = append(c.listeners[product], listener)
+}
+
+// Subscribe subscribes to config updates of a product.
+func (c *Client) Subscribe(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.SubscribeAll(product, NewUpdateListener(cb))
 }
 
 // GetConfigs returns the current configs applied of a product.

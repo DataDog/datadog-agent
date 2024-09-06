@@ -13,7 +13,6 @@ import (
 
 	yamlv2 "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -69,7 +68,7 @@ func (rc rcClient) SubscribeApmTracing() {
 		pkglog.Errorf("No remote-config client")
 		return
 	}
-	rc.client.Subscribe(state.ProductAPMTracing, client.NewUpdateListener(rc.onAPMTracingUpdate))
+	rc.client.Subscribe(state.ProductAPMTracing, rc.onAPMTracingUpdate)
 }
 
 func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive

@@ -12,7 +12,6 @@ import (
 
 	"k8s.io/utils/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +23,7 @@ const (
 
 // Subinterface of rcclient.Component to allow mocking
 type rcClient interface {
-	Subscribe(product string, listener client.Listener)
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
 // configRetriever is responsible for retrieving remote objects (Autoscaling .Spec and values)
@@ -41,17 +40,17 @@ func newConfigRetriever(store *store, isLeader func() bool, rcClient rcClient) (
 		clock:    clock.RealClock{},
 	}
 
-	rcClient.Subscribe(data.ProductContainerAutoscalingSettings, client.NewUpdateListener(func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	rcClient.Subscribe(data.ProductContainerAutoscalingSettings, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		// For autoscaling settings, we need to be able to clean up the store to handle deleted configs.
 		// Remote config guarantees that we receive all configs at once, so we can safely clean up the store after processing all configs.
 		autoscalingSettingsProcessor := newAutoscalingSettingsProcessor(cr.store)
 		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingSettingsProcessor.process, autoscalingSettingsProcessor.postProcess)
-	}))
+	})
 
-	rcClient.Subscribe(data.ProductContainerAutoscalingValues, client.NewUpdateListener(func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	rcClient.Subscribe(data.ProductContainerAutoscalingValues, func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		autoscalingValuesProcessor := newAutoscalingValuesProcessor(cr.store)
 		cr.autoscalerUpdateCallback(cr.clock.Now(), update, applyStateCallback, autoscalingValuesProcessor.process, autoscalingValuesProcessor.postProcess)
-	}))
+	})
 
 	log.Debugf("Created new workload scaling config retriever")
 	return cr, nil

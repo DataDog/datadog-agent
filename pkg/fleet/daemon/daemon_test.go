@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -120,10 +119,10 @@ func (c *testRemoteConfigClient) Start() {
 func (c *testRemoteConfigClient) Close() {
 }
 
-func (c *testRemoteConfigClient) Subscribe(product string, fn client.Listener) {
+func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	c.Lock()
 	defer c.Unlock()
-	c.listeners[product] = append(c.listeners[product], fn.OnUpdate)
+	c.listeners[product] = append(c.listeners[product], fn)
 }
 
 func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
