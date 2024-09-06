@@ -4,10 +4,10 @@
 # Copyright 2022-present Datadog, Inc.
 
 name "libxcrypt"
-default_version "4.4.36"
+default_version "4.4.28"
 
-version "4.4.36" do
-    source sha256: "e5e1f4caee0a01de2aee26e3138807d6d3ca2b8e67287966d1fefd65e1fd8943"
+version "4.4.28" do
+    source sha256: "9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87"
 end
 
 ship_source_offer true
