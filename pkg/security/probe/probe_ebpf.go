@@ -1630,7 +1630,7 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 
 // EnableEnforcement sets the enforcement mode
 func (p *EBPFProbe) EnableEnforcement(state bool) {
-	p.processKiller.enabled = state
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe

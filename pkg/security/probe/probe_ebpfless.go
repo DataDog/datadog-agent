@@ -635,7 +635,7 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 
 // EnableEnforcement sets the enforcement mode
 func (p *EBPFLessProbe) EnableEnforcement(state bool) {
-	p.processKiller.enabled = state
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe

@@ -1388,7 +1388,7 @@ func (p *Probe) Origin() string {
 
 // EnableEnforcement sets the enforcement mode
 func (p *WindowsProbe) EnableEnforcement(state bool) {
-	p.processKiller.enabled = state
+	p.processKiller.SetState(state)
 }
 
 // NewProbe instantiates a new runtime security agent probe
