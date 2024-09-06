@@ -70,7 +70,7 @@ func TestECSEC2TestSuite(t *testing.T) {
 	e2e.Run(t, &s, e2eParams...)
 }
 
-func (s *ECSEC2Suite) TestECSEC2ProcessCheck() {
+func (s *ECSEC2Suite) TestProcessCheck() {
 	t := s.T()
 	// PROCS-4219
 	// flake.Mark(t)
@@ -89,7 +89,7 @@ func (s *ECSEC2Suite) TestECSEC2ProcessCheck() {
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
-func (s *ECSEC2Suite) TestECSEC2ProcessCheckInCoreAgent() {
+func (s *ECSEC2Suite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 	// PROCS-4219
 	// flake.Mark(t)
