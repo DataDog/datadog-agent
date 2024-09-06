@@ -30,7 +30,7 @@ import (
 
 const (
 	defaultKillActionFlushDelay = 2 * time.Second
-	dismarmerCacheFlushInterval = 5 * time.Second
+	disarmerCacheFlushInterval  = 5 * time.Second
 )
 
 // ProcessKiller defines a process killer structure
@@ -155,18 +155,18 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	rsConfig := p.cfg.RuntimeSecurity
 
 	if rsConfig.EnforcementDisarmerContainerEnabled || rsConfig.EnforcementDisarmerExecutableEnabled {
-		var dismarmer *killDisarmer
+		var disarmer *killDisarmer
 		p.ruleDisarmersLock.Lock()
-		if dismarmer = p.ruleDisarmers[rule.ID]; dismarmer == nil {
-			dismarmer = newKillDisarmer(rsConfig, rule.ID)
-			p.ruleDisarmers[rule.ID] = dismarmer
+		if disarmer = p.ruleDisarmers[rule.ID]; disarmer == nil {
+			disarmer = newKillDisarmer(rsConfig, rule.ID)
+			p.ruleDisarmers[rule.ID] = disarmer
 		}
 		p.ruleDisarmersLock.Unlock()
 
 		if rsConfig.EnforcementDisarmerContainerEnabled {
 			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
-				if !dismarmer.allow(dismarmer.containerCache, containerDisarmer, containerID, func() {
-					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, dismarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
+				if !disarmer.allow(disarmer.containerCache, containerDisarmer, containerID, func() {
+					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
 				}) {
 					seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
 					return
@@ -176,8 +176,8 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 		if rsConfig.EnforcementDisarmerExecutableEnabled {
 			executable := entry.Process.FileEvent.PathnameStr
-			if !dismarmer.allow(dismarmer.executableCache, executableDisarmer, executable, func() {
-				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, dismarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
+			if !disarmer.allow(disarmer.executableCache, executableDisarmer, executable, func() {
+				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
 			}) {
 				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
 				return
@@ -305,7 +305,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(dismarmerCacheFlushInterval)
+		ticker := time.NewTicker(disarmerCacheFlushInterval)
 		defer ticker.Stop()
 		for {
 			select {
