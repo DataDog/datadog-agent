@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	kubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -397,9 +397,9 @@ func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutos
 	var resourceName string
 	switch owner := podAutoscaler.Spec.TargetRef.Kind; owner {
 	case "Deployment":
-		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
+		resourceName = kubehelpers.ParseDeploymentForPodName(clusterAgentPodName)
 	case "ReplicaSet":
-		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
+		resourceName = kubehelpers.ParseReplicaSetForPodName(clusterAgentPodName)
 	}
 
 	clusterAgentNs := common.GetMyNamespace()
