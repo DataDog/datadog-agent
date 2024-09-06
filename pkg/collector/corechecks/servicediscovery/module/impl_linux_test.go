@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -135,8 +136,8 @@ func startTCPClient(t *testing.T, proto string, server *net.TCPAddr) (*os.File, 
 	return f, client.LocalAddr().(*net.TCPAddr)
 }
 
-func startUDPServer(t *testing.T, proto string) (*os.File, *net.UDPAddr) {
-	lnPacket, err := net.ListenPacket(proto, "")
+func startUDPServer(t *testing.T, proto string, address string) (*os.File, *net.UDPAddr) {
+	lnPacket, err := net.ListenPacket(proto, address)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = lnPacket.Close() })
 
@@ -200,7 +201,7 @@ func TestBasic(t *testing.T) {
 	}
 
 	var startUDP = func(proto string) {
-		f, server := startUDPServer(t, proto)
+		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
 		expectedPorts[cmd.Process.Pid] = server.Port
@@ -251,13 +252,17 @@ func TestPorts(t *testing.T) {
 	}
 
 	var startUDP = func(proto string) {
-		serverf, server := startUDPServer(t, proto)
+		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
 		expectedPorts = append(expectedPorts, uint16(server.Port))
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+
+		ephemeralf, ephemeral := startUDPServer(t, proto, "")
+		t.Cleanup(func() { _ = ephemeralf.Close() })
+		unexpectedPorts = append(unexpectedPorts, uint16(ephemeral.Port))
 	}
 
 	startTCP("tcp4")
@@ -916,12 +921,17 @@ func BenchmarkOldGetSockets(b *testing.B) {
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
+func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
+	family network.ConnectionFamily, ctype network.ConnectionType, state uint64) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue
 		}
-		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
+		port := uint16(sock.LocalPort)
+		if state == udpListen && network.IsPortInEphemeralRange(family, ctype, port) == network.EphemeralTrue {
+			continue
+		}
+		sockMap[sock.Inode] = socketInfo{port: port}
 	}
 }
 
@@ -939,10 +949,10 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 
 	listeningSockets := make(map[uint64]socketInfo)
 
-	addSockets(listeningSockets, TCP, tcpListen)
-	addSockets(listeningSockets, TCP6, tcpListen)
-	addSockets(listeningSockets, UDP, udpListen)
-	addSockets(listeningSockets, UDP6, udpListen)
+	addSockets(listeningSockets, TCP, network.AFINET, network.TCP, tcpListen)
+	addSockets(listeningSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
+	addSockets(listeningSockets, UDP, network.AFINET, network.UDP, udpListen)
+	addSockets(listeningSockets, UDP6, network.AFINET6, network.UDP, udpListen)
 
 	return &namespaceInfo{
 		listeningSockets: listeningSockets,
