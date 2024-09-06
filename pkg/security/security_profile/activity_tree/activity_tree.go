@@ -954,41 +954,60 @@ func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.
 
 // ToSECL return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	type Paths struct {
+		execPath string
+		fimPaths []string
+	}
 	var (
-		execPath    []string
 		ruleDefs    []*rules.RuleDefinition
 		execRuleExp []string
-		fimPath     []string
 	)
+	pathsPerProcess := make(map[uint32]Paths)
 
 	at.visit(func(processNode *ProcessNode) {
-		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
-		execPath = append(execPath, processNode.Process.FileEvent.PathnameStr)
-
+		var fimPaths []string
 		for _, file := range processNode.Files {
 			at.visitFileNode(file, func(fileNode *FileNode) {
-				fimPath = append(fimPath, fileNode.File.PathnameStr)
+				path := fileNode.File.PathnameStr
+				if len(path) > 0 {
+					if strings.Contains(path, "*") {
+						fimPaths = append(fimPaths, `~"`+path+`"`)
+					} else {
+						fimPaths = append(fimPaths, `"`+path+`"`)
+					}
+				}
 			})
 		}
+		paths := Paths{
+			execPath: processNode.Process.FileEvent.PathnameStr,
+			fimPaths: fimPaths,
+		}
+		pathsPerProcess[processNode.Process.Pid] = paths
+		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
+
 	})
 
-	if opts.FIM {
-		if len(fimPath) > 0 {
-			var els []string
-			for _, path := range fimPath {
-				if strings.Contains(path, "*") {
-					els = append(els, `~"`+path+`"`)
-				} else {
-					els = append(els, `"`+path+`"`)
-				}
-			}
-
-			ruleDef := &rules.RuleDefinition{
-				Expression: fmt.Sprintf(`open.file.path not in [%s]`, strings.Join(els, ", ")),
-			}
-			applyContext(ruleDef, opts)
-			ruleDefs = append(ruleDefs, ruleDef)
+	for _, paths := range pathsPerProcess {
+		ruleDef := &rules.RuleDefinition{
+			Expression: "",
 		}
+		var expression string
+		if opts.AllowList {
+			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, paths.execPath)
+		}
+		if opts.AllowList && opts.FIM {
+			expression = fmt.Sprintf(`%s &&`, expression)
+		}
+		if opts.FIM {
+			expression = fmt.Sprintf(`%s open.file.path not in [%s]`, expression, strings.Join(paths.fimPaths, ", "))
+		}
+		ruleDef.Expression = expression
+		applyContext(ruleDef, opts)
+		if opts.EnableKill {
+			applyKillAction(ruleDef)
+		}
+		ruleDefs = append(ruleDefs, ruleDef)
+
 	}
 
 	if opts.Lineage {
@@ -1000,17 +1019,6 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 			applyKillAction(execRuleDef)
 		}
 		ruleDefs = append(ruleDefs, execRuleDef)
-	}
-
-	if opts.AllowList {
-		denyDef := &rules.RuleDefinition{
-			Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(execPath, `","`)),
-		}
-		applyContext(denyDef, opts)
-		if opts.EnableKill {
-			applyKillAction(denyDef)
-		}
-		ruleDefs = append(ruleDefs, denyDef)
 	}
 
 	return ruleDefs, nil

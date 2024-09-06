@@ -747,7 +747,7 @@ func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 			mergedRules = append(mergedRules, rules...)
 
 		}
-		mergedRules = factorise(mergedRules, args)
+		// mergedRules = factorise(mergedRules, args)
 
 	}
 
