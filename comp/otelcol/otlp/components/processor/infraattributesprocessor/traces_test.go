@@ -128,7 +128,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[common.GetGlobalEntityID().String()] = []string{"global:tag"}
-			gc := newTestGenerateIdClient().generateId
+			gc := newTestGenerateIDClient().generateID
 			factory := NewFactory(tc, gc)
 			fmp, err := factory.CreateTracesProcessor(
 				context.Background(),

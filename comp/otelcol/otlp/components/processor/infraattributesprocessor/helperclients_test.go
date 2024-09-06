@@ -34,12 +34,12 @@ func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) 
 	return t.tagMap[common.GetGlobalEntityID().String()], nil
 }
 
-type testGenerateIdClient struct{}
+type testGenerateIDClient struct{}
 
-func newTestGenerateIdClient() *testGenerateIdClient {
-	return &testGenerateIdClient{}
+func newTestGenerateIDClient() *testGenerateIDClient {
+	return &testGenerateIDClient{}
 }
 
-func (t *testGenerateIdClient) generateId(group, resource, namespace, name string) string {
+func (t *testGenerateIDClient) generateID(group, resource, namespace, name string) string {
 	return fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name)
 }
