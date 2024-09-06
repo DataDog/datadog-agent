@@ -109,4 +109,4 @@ func (p *Probe) RefreshUserCache(_ string) error {
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
-func (p *Probe) EnableEnforcement(state bool) {}
+func (p *Probe) EnableEnforcement(_ bool) {}

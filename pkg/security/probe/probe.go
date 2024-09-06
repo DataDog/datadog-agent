@@ -398,3 +398,8 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(state bool) {
+	p.PlatformProbe.EnableEnforcement(state)
+}

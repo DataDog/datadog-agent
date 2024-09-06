@@ -384,7 +384,7 @@ func (e *RuleEngine) rcStateCallback(state bool) {
 	} else {
 		seclog.Infof("Connection to remote config lost")
 	}
-	e.probe.PlatformProbe.EnableEnforcement(state)
+	e.probe.EnableEnforcement(state)
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
