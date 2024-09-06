@@ -14,8 +14,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.27.0 h1:AGZj41frjnjMufQHQbJH2fzmi
 github.com/DataDog/datadog-api-client-go/v2 v2.27.0/go.mod h1:QKOu6vscsh87fMY1lHfLEmNSunyXImj8BUaUWJXOehc=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20240904143845-c9ee795ec752 h1:J+KnqV0jYvXvcN1LzRiRxYJo/nHGYsnBQ22VXIdAJD8=
-github.com/DataDog/test-infra-definitions v0.0.0-20240904143845-c9ee795ec752/go.mod h1:QEQPOdzBcxZly/1KtAPFgF1R7Tp98FajB06gZ75E+/U=
+github.com/DataDog/test-infra-definitions v0.0.0-20240906121933-3360270732a4 h1:sDwkVcXNiKr00qwf5EoBtWt6WDVYMSGcrYMrKK9ICAM=
+github.com/DataDog/test-infra-definitions v0.0.0-20240906121933-3360270732a4/go.mod h1:dH8DPZMvFo/Xk4/6vBFULnj4o6nIEF1FRjQqnGPBMcQ=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
 github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -407,8 +407,8 @@ github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 h1:MFOd6X9FPlixzriy
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0/go.mod h1:453Ff5wNscroYfq+zxME7Nbt7HdZv+dh0zLZwLyGBws=
 github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.59.0 h1:ijcCyi+SPlJn3aIEb4p23FTk6fxjPLtVMhfkRaKp85A=
 github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.59.0/go.mod h1:yQXpYXNeGVBcygd5Be/fzf+1Jcg4kDLAMZY6UDtIZvQ=
-github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.58.0 h1:joRRPeYxXSaCGF7we0NNAMsOy7HJFd7O4cWAjmKveRI=
-github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.58.0/go.mod h1:XFiuqPmtOASRrKU1q29sgzAuq9OcZ0bDzdBw9TSUyyo=
+github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.59.0 h1:mqs2dlpcyYn2LsA20bC8xN30YaVs7x8M6tC7BtDiY64=
+github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.59.0/go.mod h1:OTv2GUMWUktcvdjXFRaAdJDW1f/SuRSCKHdVCcQrN7U=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.59.0 h1:1S0sh1N+9MV2eUOidjS1LA01eZ6x6j+I7G8CE0RBb8E=
 github.com/pulumi/pulumi-azure-native-sdk/v2 v2.59.0/go.mod h1:yVyaGAI0YLEcqfP/8Bmk9VgtRxE5JsBayO9i5QNneWg=
 github.com/pulumi/pulumi-command/sdk v1.0.1 h1:ZuBSFT57nxg/fs8yBymUhKLkjJ6qmyN3gNvlY/idiN0=
