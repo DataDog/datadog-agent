@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
+// These collectors gather telemetry data for cross-org analysis
+// They are not expected to appear in the originiating org's metrics
 var (
 	// TlmOracleActivityLatency is the time for the activity gathering to complete
 	TlmOracleActivityLatency = telemetry.NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
