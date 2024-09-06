@@ -1712,14 +1712,14 @@ api_key:
 {{ end -}}
 
 {{- if .SBOM }}
-## @param sbom
-## Enter specific configuration for the Cloud Security Management feature
+## @param sbom - custom object - optional
+## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
 # sbom:
   ## @param enabled - boolean - optional - default: false
-  ## set to true to enable Cloud Security Management
+  ## set to true to enable Cloud Security Management Vulnerability Management
   # enabled: false
 
-  ## uncomment the sections below to enable where the SBOM check is run
+  ## uncomment the sections below to enable where the vulnerability scanning is done
 
   ## @param host
   ## enable the host-level check
