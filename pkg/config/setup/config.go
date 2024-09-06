@@ -1211,7 +1211,7 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnvAndSetDefault("telemetry.python_memory", true)
-	config.BindEnv("telemetry.checks")
+	config.BindEnvAndSetDefault("telemetry.checks", "*")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
 	// The histogram buckets use to track the time in nanoseconds DogStatsD listeners are not reading/waiting new data
