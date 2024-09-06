@@ -102,6 +102,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 	for _, sample := range j.samples {
 		if isMatch(sample.tokens, context.tokens, sample.matchThreshold) {
 			context.label = sample.label
+			context.labelAssignedBy = "user_sample"
 			return false
 		}
 	}

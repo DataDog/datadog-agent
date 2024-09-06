@@ -19,7 +19,6 @@ type ServiceMetadata struct {
 	Language           string
 	Type               string
 	APMInstrumentation string
-	NameSource         string
 }
 
 func fixAdditionalNames(additionalNames []string) []string {
@@ -44,8 +43,9 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) (string, bool) {
+func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) usm.ServiceMetadata {
 	fs := usm.NewSubDirFS(root)
 	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
-	return makeFinalName(meta), meta.FromDDService
+	meta.Name = makeFinalName(meta)
+	return meta
 }
