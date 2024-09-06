@@ -156,7 +156,6 @@
     - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
-    # run vm-metrics collector
   after_script:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - export AWS_PROFILE=agent-qa-ci
@@ -170,6 +169,12 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
+    # build vm-metrics collector
+    - cd test/new-e2e && go build system-probe/vm-metrics/vm-metrics.go
+    # upload vm-metrics collector to metal instance
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $CI_PROJECT_DIR/test/new-e2e/vm-metrics "ubuntu@$INSTANCE_IP:/home/ubuntu/vm-metrics"
+    # run vm-metrics collector
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "/home/ubuntu/vm-metrics -statsd-host=127.0.0.1 -statsd-port=8125 -libvirt-uri=/var/run/libvirt/libvirt-sock-ro --tag \"arch:${ARCH}\" --tag \"ci-pipeline-id:${CI_PIPELINE_ID}\" --daemon -log-file /home/ubuntu/daemon.log"
     - !reference [.tag_kmt_ci_job]
   artifacts:
     when: always
@@ -254,7 +259,6 @@
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
-    - ssh metal_instance "pgrep vm-metrics || /home/ubuntu/vm-metrics -statsd-host=127.0.0.1 -statsd-port=8125 -libvirt-uri=/var/run/libvirt/libvirt-sock-ro --tag \"arch:${ARCH}\" --tag \"ci-pipeline-id:${CI_PIPELINE_ID}\" --daemon -log-file /home/ubuntu/daemon.log"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} CI_PIPELINE_ID=${CI_PIPELINE_ID} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
