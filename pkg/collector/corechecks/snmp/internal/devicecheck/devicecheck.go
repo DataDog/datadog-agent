@@ -65,6 +65,7 @@ type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
 	sender                  *report.MetricSender
 	session                 session.Session
+	sessionFactory          session.Factory
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
@@ -80,12 +81,8 @@ const cacheKeyPrefix = "snmp-tags"
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess, err := sessionFactory(newConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to configure session: %s", err)
-	}
-
 	var devicePinger pinger.Pinger
+	var err error
 	if newConfig.PingEnabled {
 		devicePinger, err = createPinger(newConfig.PingConfig)
 		if err != nil {
@@ -98,7 +95,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 
 	d := DeviceCheck{
 		config:                  newConfig,
-		session:                 sess,
+		sessionFactory:          sessionFactory,
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
 		nextAutodetectMetrics:   timeNow(),
@@ -160,6 +157,12 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
+	var err error
+	d.session, err = d.sessionFactory(d.config)
+	if err != nil {
+		return err
+	}
+
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
@@ -181,10 +184,11 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
-	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
+	metricTags := append(tags, "dd.internal.resource:ndm_device_user_tags:"+d.GetDeviceID())
+	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
+	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
-		d.sender.ReportMetrics(d.config.Metrics, values, tags, d.config.DeviceID)
+		d.sender.ReportMetrics(d.config.Metrics, values, metricTags, d.config.DeviceID)
 	}
 
 	// Get a system appropriate ping check
@@ -196,8 +200,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
 			pingStatus = metadata.DeviceStatusUnreachable
 			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
-			d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(false), tags)
-			d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(true), tags)
+			d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(false), metricTags)
+			d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(true), metricTags)
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
@@ -206,7 +210,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			} else {
 				pingStatus = metadata.DeviceStatusUnreachable
 			}
-			d.submitPingMetrics(pingResult, tags)
+			d.submitPingMetrics(pingResult, metricTags)
 		}
 	} else {
 		log.Tracef("%s: SNMP ping disabled for host", d.config.IPAddress)
@@ -236,7 +240,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
-	d.submitTelemetryMetrics(startTime, tags)
+	d.submitTelemetryMetrics(startTime, metricTags)
 	d.setDeviceHostExternalTags()
 	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
 

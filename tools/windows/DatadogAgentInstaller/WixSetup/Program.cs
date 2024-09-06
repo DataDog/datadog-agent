@@ -1,9 +1,9 @@
+using Datadog.CustomActions;
 using System;
 using System.IO;
-using Datadog.CustomActions;
-using WixSharp;
 using WixSetup.Datadog_Agent;
 using WixSetup.Datadog_Installer;
+using WixSharp;
 using Action = System.Action;
 
 namespace WixSetup

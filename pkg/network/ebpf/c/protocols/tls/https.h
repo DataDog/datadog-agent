@@ -3,10 +3,6 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS	20
-#define MINORMASK	((1U << MINORBITS) - 1)
-#define MAJOR(dev)	((unsigned int) ((dev) >> MINORBITS))
-#define MINOR(dev)	((unsigned int) ((dev) & MINORMASK))
 #else
 #include <linux/dcache.h>
 #include <linux/fs.h>
@@ -287,41 +283,19 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
 }
 
-/**
- * get_offsets_data retrieves the result of binary analysis for the
- * current task binary's inode number.
- */
+
+// Retrieves the result of binary analysis for the current task binary's inode number.
+// For the current PID, we retrieve the inode number of the binary and then we look up the binary's analysis result.
 static __always_inline tls_offsets_data_t* get_offsets_data() {
-    struct task_struct *t = (struct task_struct *) bpf_get_current_task();
-    struct inode *inode;
-    go_tls_offsets_data_key_t key;
-    dev_t dev_id;
-
-    inode = BPF_CORE_READ(t, mm, exe_file, f_inode);
-    if (!inode) {
-        log_debug("get_offsets_data: could not read f_inode field");
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+    go_tls_offsets_data_key_t *key = bpf_map_lookup_elem(&pid_to_device_inode, &pid);
+    if (key == NULL) {
+        log_debug("get_offsets_data: could not find key for pid %u", pid);
         return NULL;
     }
-
-    int err;
-    err = BPF_CORE_READ_INTO(&key.ino, inode, i_ino);
-    if (err) {
-        log_debug("get_offsets_data: could not read i_ino field");
-        return NULL;
-    }
-
-    err = BPF_CORE_READ_INTO(&dev_id, inode, i_sb, s_dev);
-    if (err) {
-        log_debug("get_offsets_data: could not read s_dev field");
-        return NULL;
-    }
-
-    key.device_id_major = MAJOR(dev_id);
-    key.device_id_minor = MINOR(dev_id);
-
-    log_debug("get_offsets_data: task binary inode number: %llu; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
-
-    return bpf_map_lookup_elem(&offsets_data, &key);
+    go_tls_offsets_data_key_t key_copy = *key;
+    return bpf_map_lookup_elem(&offsets_data, &key_copy);
 }
 
 #endif

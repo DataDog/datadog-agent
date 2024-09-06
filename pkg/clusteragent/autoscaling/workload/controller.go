@@ -26,7 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 const (
@@ -281,31 +284,16 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
-	isAdded := c.hashHeap.Exists(key)
-
-	result := autoscaling.NoRequeue
-	var err error
-	if !isAdded {
-		// Number of DatadogPodAutoscaler objects exceeds the limit
-		podAutoscalerInternal.SetError(fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects))
-	} else {
-		// Now that everything is synced, we can perform the actual processing
-		result, err = c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
+	// Validate autoscaler requirements
+	validationErr := c.validateAutoscaler(podAutoscaler)
+	if validationErr != nil {
+		podAutoscalerInternal.SetError(validationErr)
+		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
 	}
 
-	// Update status based on latest state
-	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
-	if statusErr != nil {
-		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
-
-		// We want to return the status error if none to count in the requeue retries.
-		if err == nil {
-			err = statusErr
-		}
-	}
-
-	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
-	return result, err
+	// Now that everything is synced, we can perform the actual processing
+	result, scalingErr := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
+	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
@@ -406,4 +394,44 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %v", ns, name, err)
 	}
 	return nil
+}
+
+func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+
+	// Check that targetRef is not set to the cluster agent
+	clusterAgentPodName, err := common.GetSelfPodName()
+	if err != nil {
+		return fmt.Errorf("Unable to get the cluster agent pod name: %w", err)
+	}
+
+	var resourceName string
+	switch owner := podAutoscaler.Spec.TargetRef.Kind; owner {
+	case "Deployment":
+		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
+	case "ReplicaSet":
+		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
+	}
+
+	clusterAgentNs := common.GetMyNamespace()
+
+	if podAutoscaler.Namespace == clusterAgentNs && podAutoscaler.Spec.TargetRef.Name == resourceName {
+		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
+	}
+	return nil
+}
+
+func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+	// Update status based on latest state
+	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
+	if statusErr != nil {
+		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+
+		// We want to return the status error if none to count in the requeue retries.
+		if err == nil {
+			err = statusErr
+		}
+	}
+
+	c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+	return err
 }

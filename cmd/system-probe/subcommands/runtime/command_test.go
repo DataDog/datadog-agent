@@ -9,7 +9,6 @@ package runtime
 
 import (
 	"bytes"
-	"math"
 	"testing"
 
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -58,13 +57,11 @@ func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 				{
 					EventType: "exec",
 					Mode:      1,
-					Flags:     math.MaxUint8,
 					Approvers: nil,
 				},
 				{
 					EventType: "open",
 					Mode:      2,
-					Flags:     math.MaxUint8,
 					Approvers: &api.Approvers{
 						ApproverDetails: []*api.ApproverDetails{
 							{
@@ -114,20 +111,10 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 	"Policies": {
 		"exec": {
 			"Mode": "accept",
-			"Flags": [
-				"basename",
-				"flags",
-				"mode"
-			],
 			"Approvers": null
 		},
 		"open": {
 			"Mode": "deny",
-			"Flags": [
-				"basename",
-				"flags",
-				"mode"
-			],
 			"Approvers": {
 				"open.file.path": [
 					{

@@ -87,10 +87,6 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         return 0;
     }
 
-    if (is_discarded_by_process(syscall->policy.mode, syscall->type)) {
-        return mark_as_discarded(syscall);
-    }
-
     if (dentry != NULL) {
         syscall->resolver.key = key;
         syscall->resolver.dentry = dentry;

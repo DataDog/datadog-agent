@@ -298,7 +298,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 
 	// update current policies related module attributes
-	e.policiesVersions = getPoliciesVersions(rs)
+	e.policiesVersions = getPoliciesVersions(rs, e.config.PolicyMonitorReportInternalPolicies)
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -360,7 +360,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -376,6 +376,15 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	}
 
 	return policyProviders
+}
+
+func (e *RuleEngine) rcStateCallback(state bool) {
+	if state {
+		seclog.Infof("Connection to remote config established")
+	} else {
+		seclog.Infof("Connection to remote config lost")
+	}
+	e.probe.EnableEnforcement(state)
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
@@ -541,11 +550,14 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 }
 
-func getPoliciesVersions(rs *rules.RuleSet) []string {
+func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []string {
 	var versions []string
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
+		if rule.Policy.IsInternal && !includeInternalPolicies {
+			continue
+		}
 		version := rule.Policy.Def.Version
 		if _, exists := cache[version]; !exists {
 			cache[version] = true

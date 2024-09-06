@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"fmt"
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -87,7 +86,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
-	if s.Env().Environment.PipelineID() == "" {
+	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
 
@@ -113,7 +112,7 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
 	s.Require().NoError(err, "should get output dir")
 	s.T().Logf("Output dir: %s", outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), fmt.Sprintf("%s/install.log", outputDir))
+	s.installer = NewDatadogInstaller(s.Env(), outputDir)
 }
 
 // Require instantiates a suiteAssertions for the current suite.

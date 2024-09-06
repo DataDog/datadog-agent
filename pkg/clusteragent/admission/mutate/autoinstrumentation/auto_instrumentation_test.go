@@ -38,26 +38,26 @@ import (
 const commonRegistry = "gcr.io/datadoghq"
 
 func TestInjectAutoInstruConfigV2(t *testing.T) {
-	c := configmock.New(t)
-
 	tests := []struct {
-		name                  string
-		pod                   *corev1.Pod
-		libInfo               extractedPodLibInfo
-		expectedInjectorImage string
-		expectedLangsDetected string
-		expectedInstallType   string
-		wantErr               bool
-		config                func()
+		name                    string
+		pod                     *corev1.Pod
+		libInfo                 extractedPodLibInfo
+		expectedInjectorImage   string
+		expectedLangsDetected   string
+		expectedInstallType     string
+		expectedSecurityContext *corev1.SecurityContext
+		wantErr                 bool
+		config                  func(c model.Config)
 	}{
 		{
 			name: "no libs, no injection",
 			pod:  common.FakePod("java-pod"),
 		},
 		{
-			name:                  "nominal case: java",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			name:                    "nominal case: java",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -65,9 +65,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "nominal case: java & python",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			name:                    "nominal case: java & python",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -82,7 +83,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.version": "v0",
 				},
 			}.Create(),
-			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -96,7 +98,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
 				},
 			}.Create(),
-			expectedInjectorImage: "docker.io/library/apm-inject-package:v27",
+			expectedInjectorImage:   "docker.io/library/apm-inject-package:v27",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -104,24 +107,26 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "config injector-image-override",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			name:                    "config injector-image-override",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
 				},
 			},
-			config: func() {
+			config: func(c model.Config) {
 				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
 			},
 		},
 		{
-			name:                  "config language detected env vars",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
-			expectedLangsDetected: "python",
-			expectedInstallType:   "k8s_lib_injection",
+			name:                    "config language detected env vars",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedLangsDetected:   "python",
+			expectedInstallType:     "k8s_lib_injection",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -133,15 +138,16 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 				source: libInfoSourceLibInjection,
 			},
-			config: func() {
+			config: func(c model.Config) {
 				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
 			},
 		},
 		{
-			name:                  "language detected for a different container",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected: "",
+			name:                    "language detected for a different container",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -154,10 +160,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "language detected but no languages found",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected: "",
+			name:                    "language detected but no languages found",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{},
 				libs: []libInfo{
@@ -166,9 +173,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "with specified install type",
+			name:                  "with specified install type and container security context",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedSecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.Ptr(false),
+			},
 			expectedLangsDetected: "python",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
@@ -181,7 +191,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 				source: libInfoSourceSingleStepLangaugeDetection,
 			},
-			config: func() {
+			config: func(c model.Config) {
 				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
 			},
 		},
@@ -191,15 +201,18 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			wmeta := common.FakeStoreWithDeployment(t, nil)
 
-			c = configmock.New(t)
+			c := configmock.New(t)
+
 			c.SetWithoutSource("apm_config.instrumentation.version", "v2")
 			if tt.config != nil {
-				tt.config()
+				tt.config(c)
 			}
 
 			webhook := mustWebhook(t, wmeta)
 			require.Equal(t, instrumentationV2, webhook.version)
 			require.True(t, webhook.version.usesInjector())
+
+			webhook.initSecurityContext = tt.expectedSecurityContext
 
 			if tt.libInfo.source == libInfoSourceNone {
 				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
@@ -249,10 +262,17 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, etcVolume.Name, tt.pod.Spec.Volumes[1].Name,
 				"expected datadog-etc volume to be injected")
 
+			volumesMarkedAsSafeToEvict := strings.Split(tt.pod.Annotations[common.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
+			require.Contains(t, volumesMarkedAsSafeToEvict, volumeName, "expected volume %s to be marked as safe to evict", volumeName)
+			require.Contains(t, volumesMarkedAsSafeToEvict, etcVolume.Name, "expected volume %s to be marked as safe to evict", etcVolume.Name)
+
 			require.Equal(t, len(tt.libInfo.libs)+1, len(tt.pod.Spec.InitContainers),
 				"expected there to be one more than the number of libs to inject for init containers")
 
 			for i, c := range tt.pod.Spec.InitContainers {
+
+				require.Equal(t, tt.expectedSecurityContext, c.SecurityContext,
+					"expected %s.SecurityContext to be set", c.Name)
 
 				var injectorMountPath string
 
@@ -532,9 +552,13 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
@@ -960,8 +984,7 @@ func TestExtractLibInfo(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				fx.Replace(configComp.MockParams{Overrides: overrides}),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
@@ -1183,9 +1206,13 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
 			conf := configmock.New(t)
 			if tt.cpu != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
@@ -2984,7 +3011,7 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 		{
-			name: "instrumentation on with disabled namespace, no label",
+			name: "instrumentation on with disabled namespace, no label ns",
 			pod:  common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -2993,7 +3020,7 @@ func TestShouldInject(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "instrumentation on with disabled namespace, no label",
+			name: "instrumentation on with disabled namespace, no label ns2",
 			pod:  common.FakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
@@ -3136,9 +3163,13 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 

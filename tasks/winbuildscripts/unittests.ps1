@@ -57,22 +57,40 @@ if($err -ne 0){
 & inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib $TEST_WASHER_FLAG
 
 $err = $LASTEXITCODE
-Write-Host Test result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "Tests failed $err"
-    [Environment]::Exit($err)
-}
 
-# Upload coverage reports to Codecov
-$Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME)
+# Ignore upload failures
+$ErrorActionPreference = "Continue"
+$tmpfile = [System.IO.Path]::GetTempFileName()
+
+# 1. Upload coverage reports to Codecov
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:CODECOV_TOKEN_SSM_NAME" "$tmpfile"
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:CODECOV_TOKEN=$(cat "$tmpfile")
 & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
 
-$ErrorActionPreference = "Continue" # Ignore upload errors now, until we change the logic to ignore empty files in the upload script
+# 2. Upload junit files
 # Copy test files to c:\mnt for further gitlab upload
 Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination C:\mnt
 }
-$Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
-$Env:GITLAB_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME)
-& inv -e junit-upload --tgz-path $Env:JUNIT_TAR
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:API_KEY_ORG2_SSM_NAME" "$tmpfile"
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:DATADOG_API_KEY=$(cat "$tmpfile")
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:GITLAB_TOKEN_SSM_NAME" "$tmpfile"
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:GITLAB_TOKEN=$(cat "$tmpfile")
+Remove-Item "$tmpfile"
 
+& inv -e junit-upload --tgz-path $Env:JUNIT_TAR
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "test failed $err"
+    [Environment]::Exit($err)
+}
+
+Write-Host Test passed
