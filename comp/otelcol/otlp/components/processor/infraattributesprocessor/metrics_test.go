@@ -131,7 +131,9 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
 			tc.tagMap[common.GetGlobalEntityID().String()] = []string{"global:tag"}
-			factory := NewFactory(tc)
+			gc := newTestGenerateIdClient().generateId
+
+			factory := NewFactory(tc, gc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
 				processortest.NewNopSettings(),
@@ -262,10 +264,10 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"process://process_pid_goes_here"},
 		},
 	}
-
+	gc := newTestGenerateIdClient().generateId
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			entityIDs := entityIDsFromAttributes(testInstance.attrs)
+			entityIDs := entityIDsFromAttributes(testInstance.attrs, gc)
 			entityIDsAsStrings := make([]string, len(entityIDs))
 			for idx, entityID := range entityIDs {
 				entityIDsAsStrings[idx] = entityID.String()

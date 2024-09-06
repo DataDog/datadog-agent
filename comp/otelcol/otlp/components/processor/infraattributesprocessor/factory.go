@@ -19,13 +19,15 @@ import (
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
 type factory struct {
-	tagger taggerClient
+	tagger     taggerClient
+	generateId GenerateKubeMetadataEntityID
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
-func NewFactory(tagger taggerClient) processor.Factory {
+func NewFactory(tagger taggerClient, generateId GenerateKubeMetadataEntityID) processor.Factory {
 	f := &factory{
-		tagger: tagger,
+		tagger:     tagger,
+		generateId: generateId,
 	}
 
 	return processor.NewFactory(
@@ -49,7 +51,7 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger, f.generateId)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +70,7 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger, f.generateId)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +89,7 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger, f.generateId)
 	if err != nil {
 		return nil, err
 	}

@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -24,22 +23,26 @@ type infraAttributesMetricProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
+	generateId  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateId GenerateKubeMetadataEntityID) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		generateId:  generateId,
 	}
 	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
 }
 
+type GenerateKubeMetadataEntityID func(group, resource, namespace, name string) string
+
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
-func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
+func entityIDsFromAttributes(attrs pcommon.Map, generateId GenerateKubeMetadataEntityID) []types.EntityID {
 	entityIDs := make([]types.EntityID, 0, 8)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
@@ -61,11 +64,11 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, generateId("", "namespaces", "", namespace.AsString())))
 	}
 
 	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, generateId("", "nodes", "", nodeName.AsString())))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))
@@ -88,7 +91,7 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		entityIDs := entityIDsFromAttributes(resourceAttributes, iamp.generateId)
 		tagMap := make(map[string]string)
 
 		// Get all unique tags from resource attributes and global tags

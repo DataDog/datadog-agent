@@ -19,13 +19,15 @@ type infraAttributesLogProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
+	generateId  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesLogProcessor, error) {
+func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateId GenerateKubeMetadataEntityID) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		generateId:  generateId,
 	}
 
 	set.Logger.Info("Logs Infra Attributes Processor configured")
@@ -36,7 +38,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		entityIDs := entityIDsFromAttributes(resourceAttributes, ialp.generateId)
 		tagMap := make(map[string]string)
 
 		// Get all unique tags from resource attributes and global tags

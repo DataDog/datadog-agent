@@ -35,7 +35,8 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
 			tc := newTestTaggerClient()
-			f := NewFactory(tc)
+			gc := newTestGenerateIdClient().generateId
+			f := NewFactory(tc, gc)
 			cfg := f.CreateDefaultConfig()
 
 			sub, err := cm.Sub(tt.id.String())
