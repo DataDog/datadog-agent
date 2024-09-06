@@ -113,7 +113,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
-			lang:               language.Python,
+			lang:                  language.Python,
 			expectedGeneratedName: "flask",
 			envs:                  map[string]string{"PWD": "testdata/python"},
 			fs:                    &subUsmTestData,
@@ -123,7 +123,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "testdata/python/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
-			lang:               language.Python,
+			lang:                  language.Python,
 			expectedGeneratedName: "flask",
 			fs:                    &subUsmTestData,
 		},
@@ -132,7 +132,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			lang:               language.Python,
+			lang:                  language.Python,
 			envs:                  map[string]string{"PWD": "testdata/python"},
 			expectedGeneratedName: "flask",
 			fs:                    &subUsmTestData,
@@ -142,7 +142,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"python3", "-m", "hello",
 			},
-			lang:               language.Python,
+			lang:                  language.Python,
 			expectedGeneratedName: "hello",
 		},
 		{
@@ -150,7 +150,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
-			lang:               language.Ruby,
+			lang:                  language.Ruby,
 			expectedGeneratedName: "td-agent",
 		},
 		{
@@ -158,7 +158,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "myservice",
 		},
 		{
@@ -166,7 +166,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "HelloWorld",
 		},
 		{
@@ -174,7 +174,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "Kafka",
 		},
 		{
@@ -185,7 +185,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
 				"org.apache.cassandra.service.CassandraDaemon",
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "cassandra",
 		},
 		{
@@ -193,9 +193,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "cat",
-		}, {
+		},
+		{
 			name: "node js with package.json not present",
 			cmdline: []string{
 				"/usr/bin/node",
@@ -205,7 +206,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			lang:               language.Node,
+			lang:                  language.Node,
 			expectedGeneratedName: "node",
 		},
 		{
@@ -214,7 +215,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/node",
 				"./testdata/inner/index.js",
 			},
-			lang:               language.Node,
+			lang:                  language.Node,
 			expectedGeneratedName: "node",
 		},
 		{
@@ -227,7 +228,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"./testdata/index.js",
 			},
-			lang:               language.Node,
+			lang:                  language.Node,
 			expectedGeneratedName: "my-awesome-package",
 			fs:                    &subUsmTestData,
 		},
@@ -241,7 +242,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/bins/broken",
 				"./testdata/bins/json-server",
 			},
-			lang:               language.Node,
+			lang:                  language.Node,
 			expectedGeneratedName: "json-server-package",
 			skipOnWindows:         true,
 			fs:                    &subUsmTestData,
@@ -256,7 +257,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"index.js",
 			},
-			lang:               language.Node,
+			lang:                  language.Node,
 			envs:                  map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
 			fs:                    &subUsmTestData,
 			expectedGeneratedName: "my-awesome-package",
@@ -268,7 +269,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-jar",
 				springBootAppFullPath,
 			},
-			lang:               language.Java,
+			lang:                  language.Java,
 			expectedGeneratedName: "default-app",
 		},
 		{
@@ -295,7 +296,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"" + jbossTestAppRoot + "/modules",
 				"org.jboss.as.standalone",
 				"-Djboss.home.dir=" + jbossTestAppRoot,
-				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone"},
+				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone",
+			},
 			lang:                       language.Java,
 			expectedGeneratedName:      "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
@@ -329,7 +331,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"" + jbossTestAppRoot + "/jboss-modules.jar",
 				"-mp",
 				"" + jbossTestAppRoot + "/modules",
-				"org.jboss.as.server"},
+				"org.jboss.as.server",
+			},
 			lang:                       language.Java,
 			expectedGeneratedName:      "jboss-modules",
 			expectedAdditionalServices: []string{"web3", "web4"},
@@ -364,7 +367,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
-			lang:                       language.Java,
+			lang:                  language.Java,
 			expectedDDService:     "custom",
 			expectedGeneratedName: "app",
 		},
@@ -375,7 +378,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
 			},
-			lang:                       language.Java,
+			lang:                  language.Java,
 			envs:                  map[string]string{"DD_SERVICE": "dd-service-from-env"},
 			expectedDDService:     "dd-service-from-property",
 			expectedGeneratedName: "app",
@@ -412,7 +415,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
-			lang:               language.DotNet,
+			lang:                  language.DotNet,
 			expectedGeneratedName: "myservice",
 		},
 		{
@@ -420,7 +423,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
 			},
-			lang:               language.DotNet,
+			lang:                  language.DotNet,
 			expectedGeneratedName: "myservice",
 		},
 		{
@@ -428,7 +431,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
-			lang:               language.DotNet,
+			lang:                  language.DotNet,
 			expectedGeneratedName: "dotnet",
 		},
 		{
@@ -438,7 +441,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"serve",
 			},
-			lang:               language.PHP,
+			lang:                  language.PHP,
 			expectedGeneratedName: "laravel",
 		},
 		{
@@ -448,7 +451,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-ddatadog.service=foo",
 				"swoole-server.php",
 			},
-			lang:               language.PHP,
+			lang:                  language.PHP,
 			expectedGeneratedName: "foo",
 		},
 		{
@@ -458,7 +461,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
-			lang:               language.PHP,
+			lang:                  language.PHP,
 			expectedGeneratedName: "laravel",
 		},
 		{
@@ -468,7 +471,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"artisan",
 				"migrate:fresh",
 			},
-			lang:               language.PHP,
+			lang:                  language.PHP,
 			expectedGeneratedName: "laravel",
 		},
 		{
@@ -490,6 +493,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name:                  "DD_SERVICE_set_manually",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
+			lang:                  language.Java,
 			envs:                  map[string]string{"DD_SERVICE": "howdy"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
@@ -497,6 +501,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name:                  "DD_SERVICE_set_manually_tags",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
+			lang:                  language.Java,
 			envs:                  map[string]string{"DD_TAGS": "service:howdy"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
@@ -504,6 +509,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name:                  "DD_SERVICE_set_manually_injection",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
+			lang:                  language.Java,
 			envs:                  map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
@@ -516,6 +522,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--workers=2",
 				"test:app",
 			},
+			lang:                  language.Python,
 			expectedGeneratedName: "test",
 		},
 		{

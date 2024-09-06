@@ -237,9 +237,9 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 
 	exe = normalizeExeName(exe)
 
-	detectorProvider, ok := languageDetectors[lang]
+	detectorProvider, ok := executableDetectors[exe]
 	if !ok {
-		detectorProvider, ok = executableDetectors[exe]
+		detectorProvider, ok = languageDetectors[lang]
 	}
 
 	if ok {
