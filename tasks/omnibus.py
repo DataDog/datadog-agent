@@ -90,6 +90,7 @@ def get_omnibus_env(
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
+    custom_config_dir=None,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -132,6 +133,9 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
+
+    if custom_config_dir:
+        env['OUTPUT_CONFIG_DIR'] = custom_config_dir
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -177,6 +181,7 @@ def build(
     pip_config_file="pip.conf",
     host_distribution=None,
     install_directory=None,
+    config_directory=None,
     target_project=None,
 ):
     """
@@ -208,6 +213,7 @@ def build(
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
+        custom_config_dir=config_directory,
     )
 
     if not target_project:

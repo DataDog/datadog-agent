@@ -19,6 +19,7 @@ always_build true
 build do
     license :project_license
 
+    output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
@@ -92,37 +93,37 @@ build do
 
         if linux_target?
             # Move configuration files
-            mkdir "/etc/datadog-agent"
+            mkdir "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+            move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
-              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
 
               # Move SELinux policy
               if debian_target? || redhat_target?
-                move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+                move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
               end
             end
 
             if ot_target?
-              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
-            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
-            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
-            delete "/etc/datadog-agent/conf.d/winproc.d"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
