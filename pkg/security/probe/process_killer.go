@@ -16,7 +16,10 @@ import (
 
 	"github.com/jellydator/ttlcache/v3"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -42,6 +45,14 @@ type ProcessKiller struct {
 
 	ruleDisarmersLock sync.Mutex
 	ruleDisarmers     map[rules.RuleID]*killDisarmer
+
+	perRuleStatsLock sync.Mutex
+	perRuleStats     map[rules.RuleID]*processKillerStats
+}
+
+type processKillerStats struct {
+	actionPerformed int64
+	processesKilled int64
 }
 
 // NewProcessKiller returns a new ProcessKiller
@@ -50,6 +61,7 @@ func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 		cfg:           cfg,
 		ruleDisarmers: make(map[rules.RuleID]*killDisarmer),
 		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
+		perRuleStats:  make(map[rules.RuleID]*processKillerStats),
 	}
 
 	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
@@ -153,7 +165,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 		if rsConfig.EnforcementDisarmerContainerEnabled {
 			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
-				if !dismarmer.allow(dismarmer.containerCache, containerID, func() {
+				if !dismarmer.allow(dismarmer.containerCache, containerDisarmer, containerID, func() {
 					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, dismarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
 				}) {
 					seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
@@ -164,7 +176,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 		if rsConfig.EnforcementDisarmerExecutableEnabled {
 			executable := entry.Process.FileEvent.PathnameStr
-			if !dismarmer.allow(dismarmer.executableCache, executable, func() {
+			if !dismarmer.allow(dismarmer.executableCache, executableDisarmer, executable, func() {
 				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, dismarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
 			}) {
 				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
@@ -193,14 +205,27 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 	sig := model.SignalConstants[signal]
 
+	var processesKilled int64
 	killedAt := time.Now()
 	for _, pid := range pids {
 		log.Debugf("requesting signal %s to be sent to %d", signal, pid)
 
 		if err := killFnc(uint32(pid), uint32(sig)); err != nil {
 			seclog.Debugf("failed to kill process %d: %s", pid, err)
+		} else {
+			processesKilled++
 		}
 	}
+
+	p.perRuleStatsLock.Lock()
+	var stats *processKillerStats
+	if stats = p.perRuleStats[rule.ID]; stats == nil {
+		stats = &processKillerStats{}
+		p.perRuleStats[rule.ID] = stats
+	}
+	stats.actionPerformed++
+	stats.processesKilled += processesKilled
+	p.perRuleStatsLock.Unlock()
 
 	p.Lock()
 	defer p.Unlock()
@@ -220,8 +245,54 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 
 // Reset resets the disarmer state
 func (p *ProcessKiller) Reset() {
+	p.perRuleStatsLock.Lock()
+	clear(p.perRuleStats)
+	p.perRuleStatsLock.Unlock()
 	p.ruleDisarmersLock.Lock()
 	clear(p.ruleDisarmers)
+	p.ruleDisarmersLock.Unlock()
+}
+
+// SendStats sends runtime security enforcement statistics to Datadog
+func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
+	p.perRuleStatsLock.Lock()
+	for ruleID, stats := range p.perRuleStats {
+		ruleIDTag := []string{
+			"rule_id:" + string(ruleID),
+		}
+
+		if stats.actionPerformed > 0 {
+			_ = statsd.Count(metrics.MetricEnforcementKillActionPerformed, stats.actionPerformed, ruleIDTag, 1)
+			stats.actionPerformed = 0
+		}
+
+		if stats.processesKilled > 0 {
+			_ = statsd.Count(metrics.MetricEnforcementProcessKilled, stats.processesKilled, ruleIDTag, 1)
+			stats.processesKilled = 0
+		}
+	}
+	p.perRuleStatsLock.Unlock()
+
+	p.ruleDisarmersLock.Lock()
+	for ruleID, disarmer := range p.ruleDisarmers {
+		ruleIDTag := []string{
+			"rule_id:" + string(ruleID),
+		}
+
+		disarmer.Lock()
+		for disarmerType, count := range disarmer.disarmedCount {
+			if count > 0 {
+				tags := append([]string{"disarmer_type:" + string(disarmerType)}, ruleIDTag...)
+				_ = statsd.Count(metrics.MetricEnforcementRuleDisarmed, count, tags, 1)
+				disarmer.disarmedCount[disarmerType] = 0
+			}
+		}
+		if disarmer.rearmedCount > 0 {
+			_ = statsd.Count(metrics.MetricEnforcementRuleRearmed, disarmer.rearmedCount, ruleIDTag, 1)
+			disarmer.rearmedCount = 0
+		}
+		disarmer.Unlock()
+	}
 	p.ruleDisarmersLock.Unlock()
 }
 
@@ -251,6 +322,7 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 					}
 					if disarmer.disarmed && cLength == 0 && eLength == 0 {
 						disarmer.disarmed = false
+						disarmer.rearmedCount++
 						seclog.Infof("kill action of rule `%s` has been re-armed", disarmer.ruleID)
 					}
 					disarmer.Unlock()
@@ -263,12 +335,22 @@ func (p *ProcessKiller) Start(ctx context.Context, wg *sync.WaitGroup) {
 	}()
 }
 
+type disarmerType string
+
+const (
+	containerDisarmer  = disarmerType("container")
+	executableDisarmer = disarmerType("executable")
+)
+
 type killDisarmer struct {
 	sync.Mutex
 	disarmed        bool
 	ruleID          rules.RuleID
 	containerCache  *disarmerCache[string, bool]
 	executableCache *disarmerCache[string, bool]
+	// stats
+	disarmedCount map[disarmerType]int64
+	rearmedCount  int64
 }
 
 type disarmerCache[K comparable, V any] struct {
@@ -298,8 +380,9 @@ func (c *disarmerCache[K, V]) flush() int {
 
 func newKillDisarmer(cfg *config.RuntimeSecurityConfig, ruleID rules.RuleID) *killDisarmer {
 	kd := &killDisarmer{
-		disarmed: false,
-		ruleID:   ruleID,
+		disarmed:      false,
+		ruleID:        ruleID,
+		disarmedCount: make(map[disarmerType]int64),
 	}
 
 	if cfg.EnforcementDisarmerContainerEnabled {
@@ -313,7 +396,7 @@ func newKillDisarmer(cfg *config.RuntimeSecurityConfig, ruleID rules.RuleID) *ki
 	return kd
 }
 
-func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], key string, onDisarm func()) bool {
+func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], typ disarmerType, key string, onDisarm func()) bool {
 	kd.Lock()
 	defer kd.Unlock()
 
@@ -333,6 +416,7 @@ func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], key string, on
 		cache.Set(key, true, ttlcache.DefaultTTL)
 		if alreadyAtCapacity && !kd.disarmed {
 			kd.disarmed = true
+			kd.disarmedCount[typ]++
 			onDisarm()
 		}
 	}

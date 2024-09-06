@@ -558,6 +558,7 @@ func (p *EBPFLessProbe) NewModel() *model.Model {
 
 // SendStats send the stats
 func (p *EBPFLessProbe) SendStats() error {
+	p.processKiller.SendStats(p.statsdClient)
 	return nil
 }
 

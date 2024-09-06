@@ -467,6 +467,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
 
+	p.processKiller.SendStats(p.statsdClient)
+
 	if err := p.profileManagers.SendStats(); err != nil {
 		return err
 	}
