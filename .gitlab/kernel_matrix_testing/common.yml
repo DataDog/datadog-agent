@@ -175,7 +175,7 @@
       if [ "${ARCH}" == "x86_64" ]; then
         GO_ARCH=amd64
       fi
-    - cd test/new-e2e && go GOOS=linux GOARCH="${GO_ARCH}" build system-probe/vm-metrics/vm-metrics.go
+    - cd test/new-e2e && GOOS=linux GOARCH="${GO_ARCH}" go build system-probe/vm-metrics/vm-metrics.go
     # upload vm-metrics collector to metal instance
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $CI_PROJECT_DIR/test/new-e2e/vm-metrics "ubuntu@$INSTANCE_IP:/home/ubuntu/vm-metrics"
     # run vm-metrics collector
