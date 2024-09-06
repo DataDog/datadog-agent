@@ -98,7 +98,7 @@ func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap
 		spew.Fdump(w, info)
 		iter := currentMap.Iterate()
 		var key ddebpf.SkpConn
-		var value uint64
+		var value ddebpf.PidTs
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key.Tup, value)
 		}

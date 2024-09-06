@@ -28,7 +28,7 @@ import (
 var (
 	telemetryModuleName     = "network_tracer__tcp_failure"
 	connClosedFlushMapTTL   = 10 * time.Millisecond.Nanoseconds()
-	tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
+	tcpOngoingConnectMapTTL = 10 * time.Second.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -160,7 +160,8 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	connFlushedCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
+	connFlushedCleaner.Clean(time.Second*1, nil, nil, func(now int64, key ebpf.ConnTuple, val int64) bool {
+		log.Errorf("adamk checking flushed connection: %v", key)
 		return val > 0 && now-val > connClosedFlushMapTTL
 	})
 
@@ -175,10 +176,15 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-
-	tcpOngoingConnectPidCleaner.Clean(time.Minute*30, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
+	log.Debugf("adamk tcpOngoingConnectPidCleaner: %v", tcpOngoingConnectPidCleaner)
+	tcpOngoingConnectPidCleaner.Clean(time.Second*5, nil, nil, func(now int64, key ebpf.SkpConn, val ebpf.PidTs) bool {
+		log.Errorf("adamk checking ongoing connection: %v", key)
 		ts := int64(val.Timestamp)
-		return ts > 0 && now-ts > tcpOngoingConnectMapTTL
+		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
+		if expired {
+			log.Errorf("adamk removing expired ongoing connection: %v", key)
+		}
+		return expired
 	})
 
 	fc.connCloseFlushedCleaner = connFlushedCleaner
