@@ -17,7 +17,7 @@ const (
 )
 
 // ObserverFunc represents observer functions of the store
-type ObserverFunc func(string, string)
+type ObserverFunc func(string, string, any)
 
 // Observer allows to define functions to watch changes in Store
 type Observer struct {
@@ -102,20 +102,20 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 // Updator func is expected to return the new object and a boolean indicating if the object has changed.
 // The object is updated only if boolean is true, observers are notified only for updated objects after all objects have been updated.
 func (s *Store[T]) Update(updator func(T) (T, bool), sender string) {
-	var changedIDs []string
+	changedObjects := make(map[string]T)
 	s.lock.Lock()
 	for id, object := range s.store {
 		newObject, changed := updator(object)
 		if changed {
 			s.store[id] = newObject
-			changedIDs = append(changedIDs, id)
+			changedObjects[id] = newObject
 		}
 	}
 	s.lock.Unlock()
 
 	// Notifying must be done after releasing the lock
-	for _, id := range changedIDs {
-		s.notify(setOperation, id, sender)
+	for id, newObject := range changedObjects {
+		s.notify(setOperation, id, sender, newObject)
 	}
 }
 
@@ -133,7 +133,7 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender)
+	s.notify(setOperation, id, sender, obj)
 }
 
 // Delete object corresponding to id if present
@@ -144,7 +144,7 @@ func (s *Store[T]) Delete(id, sender string) {
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender)
+		s.notify(deleteOperation, id, sender, nil)
 	}
 }
 
@@ -174,7 +174,7 @@ func (s *Store[T]) UnlockSet(id string, obj T, sender string) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender)
+	s.notify(setOperation, id, sender, obj)
 }
 
 // UnlockDelete deletes an object and releases the lock (previously acquired by `LockRead`)
@@ -185,16 +185,17 @@ func (s *Store[T]) UnlockDelete(id, sender string) {
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender)
+		s.notify(deleteOperation, id, sender, nil)
 	}
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (s *Store[T]) notify(operationType storeOperation, key, sender string) {
+// TODO: if we want to subscribe on set, should we pass the object as well?
+func (s *Store[T]) notify(operationType storeOperation, key, sender string, obj any) {
 	s.observersLock.RLock()
 	defer s.observersLock.RUnlock()
 
 	for _, observer := range s.observers[operationType] {
-		observer(key, sender)
+		observer(key, sender, obj)
 	}
 }

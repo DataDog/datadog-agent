@@ -10,6 +10,8 @@ package autoscaling
 import (
 	"container/heap"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
 // TimestampKey is a struct that holds a timestamp and key for a `DatadogPodAutoscaler` object
@@ -25,7 +27,14 @@ type MaxTimestampKeyHeap []TimestampKey
 func (h MaxTimestampKeyHeap) Len() int { return len(h) }
 
 // Less returns true if the timestamp at index i is after the timestamp at index j
-func (h MaxTimestampKeyHeap) Less(i, j int) bool { return h[i].Timestamp.After(h[j].Timestamp) }
+func (h MaxTimestampKeyHeap) Less(i, j int) bool {
+	return LessThan(h[i], h[j])
+}
+
+// LessThan returns true if the timestamp of k1 is after the timestamp of k2
+func LessThan(k1, k2 TimestampKey) bool {
+	return k1.Timestamp.After(k2.Timestamp) || (k1.Timestamp.Equal(k2.Timestamp) && k1.Key < k2.Key)
+}
 
 // Swap swaps the elements at indices i and j
 func (h MaxTimestampKeyHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
@@ -83,34 +92,46 @@ func NewHashHeap(maxSize int) *HashHeap {
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-func (h *HashHeap) InsertIntoHeap(k TimestampKey) bool {
+// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
+func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 	// Already in heap, do not try to insert
-	if _, ok := h.Keys[k.Key]; ok {
-		return true
+	if _, ok := h.Keys[key]; ok {
+		return
 	}
 
-	if k.Timestamp.IsZero() {
-		return false
+	// Cast object into PodAutoscalerInternal
+	pai, ok := obj.(model.PodAutoscalerInternal)
+	if !ok {
+		return
+	}
+
+	if pai.CreationTimestamp().IsZero() {
+		return
+	}
+
+	newTimestampKey := TimestampKey{
+		Timestamp: pai.CreationTimestamp(),
+		Key:       key,
 	}
 
 	if h.MaxHeap.Len() >= h.maxSize {
 		top := h.MaxHeap.Peek()
 		// If the new key is newer than or equal to the top key, do not insert
-		if top.Timestamp.Before(k.Timestamp) || top.Timestamp.Equal(k.Timestamp) {
-			return false
+		if LessThan(newTimestampKey, top) {
+			return
 		}
 		delete(h.Keys, top.Key)
 		heap.Pop(&h.MaxHeap)
 	}
 
-	heap.Push(&h.MaxHeap, k)
-	h.Keys[k.Key] = true
-	return true
+	heap.Push(&h.MaxHeap, newTimestampKey)
+	h.Keys[key] = true
+	return
 }
 
 // DeleteFromHeap removes the given key from the max heap
-// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) DeleteFromHeap(key, _ string) {
+// Used as an ObserverFunc; accept sender and obj as parameter to match ObserverFunc signature
+func (h *HashHeap) DeleteFromHeap(key, _sender string, _obj any) {
 	// Key did not exist in heap, return early
 	if _, ok := h.Keys[key]; !ok {
 		return
@@ -121,4 +142,10 @@ func (h *HashHeap) DeleteFromHeap(key, _ string) {
 	}
 	heap.Remove(&h.MaxHeap, idx)
 	delete(h.Keys, key)
+}
+
+// Exists returns true if the given key exists in the heap
+func (h *HashHeap) Exists(key string) bool {
+	_, ok := h.Keys[key]
+	return ok
 }

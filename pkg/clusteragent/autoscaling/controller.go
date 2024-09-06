@@ -120,7 +120,7 @@ func (c *Controller) enqueue(obj interface{}) {
 	c.Workqueue.AddRateLimited(key)
 }
 
-func (c *Controller) enqueueID(id, sender string) {
+func (c *Controller) enqueueID(id, sender string, _ any) {
 	// Do not enqueue our own updates (avoid infinite loops)
 	if sender != c.ID {
 		log.Tracef("Enqueueing from observer update id: %s from sender: %s", id, sender)

@@ -102,6 +102,7 @@ func newController(
 	c.Controller = baseController
 	c.hashHeap = hashHeap
 	store.RegisterObserver(autoscaling.Observer{
+		SetFunc:    c.hashHeap.InsertIntoHeap,
 		DeleteFunc: c.hashHeap.DeleteFromHeap,
 	})
 	c.store = store
@@ -183,10 +184,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
 			podAutoscalerInternal := model.NewPodAutoscalerInternal(podAutoscaler)
 			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
-			c.hashHeap.InsertIntoHeap(autoscaling.TimestampKey{
-				Timestamp: podAutoscalerInternal.CreationTimestamp(),
-				Key:       key,
-			})
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
 			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
@@ -284,10 +281,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
-	isAdded := c.hashHeap.InsertIntoHeap(autoscaling.TimestampKey{
-		Timestamp: podAutoscalerInternal.CreationTimestamp(),
-		Key:       key,
-	})
+	isAdded := c.hashHeap.Exists(key)
 
 	result := autoscaling.NoRequeue
 	var err error
