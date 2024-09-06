@@ -11,12 +11,12 @@
 #define MAX_SLICE_LENGTH 20
 
 struct {
-	__uint(type, BPF_MAP_TYPE_RINGBUF);
-	__uint(max_entries, 1 << 24);
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 1 << 24);
 } events SEC(".maps");
 
 struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(type, BPF_MAP_TYPE_ARRAY);
     __uint(key_size, sizeof(__u32));
     __uint(value_size, sizeof(char[PARAM_BUFFER_SIZE]));
     __uint(max_entries, 1);

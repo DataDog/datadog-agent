@@ -28,10 +28,12 @@ var DynamicInstrumentation = module.Factory{
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-
 		m, err := dimod.NewModule(config)
-		if errors.Is(err, ebpf.ErrNotImplemented) {
-			return nil, module.ErrNotEnabled
+		if err != nil {
+			if errors.Is(err, ebpf.ErrNotImplemented) {
+				return nil, module.ErrNotEnabled
+			}
+			return nil, err
 		}
 
 		return m, nil

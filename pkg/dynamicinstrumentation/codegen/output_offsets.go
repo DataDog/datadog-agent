@@ -22,7 +22,7 @@ type paramDepthCounter struct {
 }
 
 func applyCaptureDepth(params []ditypes.Parameter, maxDepth int) []ditypes.Parameter {
-	log.Info("Applying capture depth: ", maxDepth)
+	log.Tracef("Applying capture depth: %d", maxDepth)
 	queue := []paramDepthCounter{}
 
 	for i := range params {
