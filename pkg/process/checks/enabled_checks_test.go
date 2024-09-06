@@ -131,9 +131,8 @@ type ProcessCheckDeps struct {
 
 func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 	return fxutil.Test[ProcessCheckDeps](t,
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 	)
 }

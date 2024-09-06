@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -162,6 +163,9 @@ func (h *MultiLineHandler) sendBuffer() {
 		}
 		msg := message.NewRawMessage(content, h.status, h.linesLen, h.timestamp)
 		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
+		if h.isBufferTruncated && coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+		}
 		h.outputFn(msg)
 	}
 }

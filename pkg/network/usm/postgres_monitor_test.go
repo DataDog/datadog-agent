@@ -137,7 +137,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(config.New()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testDecoding(t, tt.isTLS)
@@ -525,13 +525,42 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 				tx, err := pg.Begin()
 				require.NoError(t, err)
-				require.NoError(t, pg.RunQuery(selectAllQuery))
+				require.NoError(t, pg.RunQueryTX(tx, selectAllQuery))
 				require.NoError(t, pg.Commit(tx))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"UNKNOWN": {
 						postgres.UnknownOP: adjustCount(2),
+					},
+					"dummy": {
+						postgres.SelectOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		{
+			name: "batched queries",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				require.NoError(t, pg.SendBatch(createInsertQuery("value-1"), selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.InsertOP: adjustCount(1),
 					},
 				}, isTLS)
 			},

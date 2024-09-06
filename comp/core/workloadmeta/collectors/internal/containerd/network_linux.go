@@ -13,6 +13,7 @@ import (
 	"github.com/containerd/containerd"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -29,7 +30,7 @@ import (
 //     them. That means that if a container is attached to multiple networks this
 //     might not work as expected.
 func extractIP(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
-	if !config.IsHostProcAvailable() {
+	if !env.IsHostProcAvailable() {
 		return "", nil
 	}
 

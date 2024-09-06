@@ -152,6 +152,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+
+			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams.UseNoopEventPlatformForwarder = true
+
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
@@ -164,32 +168,25 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(defaults.DefaultParams),
-				workloadmetafx.Module(),
+				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(),
-				fx.Provide(func() eventplatformimpl.Params {
-					params := eventplatformimpl.NewDefaultParams()
-					params.UseNoopEventPlatformForwarder = true
-					return params
-				}),
+				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -220,8 +217,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() pidmap.Component { return nil }),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(),
-				fx.Supply(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 			)
 		},
 	}

@@ -42,6 +42,7 @@ import (
 
 const (
 	offsetsDataMap            = "offsets_data"
+	pidToDeviceInodeMap       = "pid_to_device_inode"
 	goTLSReadArgsMap          = "go_tls_read_args"
 	goTLSWriteArgsMap         = "go_tls_write_args"
 	connectionTupleByGoTLSMap = "conn_tup_by_go_tls_conn"
@@ -115,6 +116,11 @@ type goTLSProgram struct {
 	// inodes.
 	offsetsDataMap *ebpf.Map
 
+	// eBPF map holding the mapping of PIDs to device/inode numbers.
+	// On some filesystems (like btrfs), the device-id in the task-struct can be different from the device-id extracted
+	// in the user-mode. This map is used to ensure the eBPF probes are getting the correct device/inode numbers.
+	pidToDeviceInodeMap *ebpf.Map
+
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
@@ -131,6 +137,7 @@ var _ utils.Attacher = &goTLSProgram{}
 var goTLSSpec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
 		{Name: offsetsDataMap},
+		{Name: pidToDeviceInodeMap},
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
 		{Name: connectionTupleByGoTLSMap},
@@ -216,6 +223,10 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
+	p.pidToDeviceInodeMap, _, err = m.GetMap(pidToDeviceInodeMap)
+	if err != nil {
+		return fmt.Errorf("could not get %s map: %s", pidToDeviceInodeMap, err)
+	}
 
 	procMonitor := monitor.GetProcessMonitor()
 	cleanupExec := procMonitor.SubscribeExec(p.handleProcessStart)
@@ -242,7 +253,7 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 				processSet := p.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					_ = p.registry.Unregister(deletedPid)
+					_ = p.DetachPID(deletedPid)
 				}
 			}
 		}
@@ -278,6 +289,7 @@ var (
 
 // DetachPID detaches the provided PID from the eBPF program.
 func (p *goTLSProgram) DetachPID(pid uint32) error {
+	_ = p.pidToDeviceInodeMap.Delete(unsafe.Pointer(&pid))
 	return p.registry.Unregister(pid)
 }
 
@@ -338,10 +350,13 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid,
+		registerCBCreator(p.manager, p.offsetsDataMap, p.pidToDeviceInodeMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric),
+		unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap, p.pidToDeviceInodeMap),
+		alreadyCBCreator(p.pidToDeviceInodeMap))
 }
 
-func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {
+func registerCBCreator(mgr *manager.Manager, offsetsDataMap, pidToDeviceInodeMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
 		start := time.Now()
 
@@ -364,13 +379,13 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
 		}
 
-		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {
+		if err := addInspectionResultToMap(offsetsDataMap, pidToDeviceInodeMap, filePath, inspectionResult); err != nil {
 			return fmt.Errorf("failed adding inspection rules: %w", err)
 		}
 
 		pIDs, err := attachHooks(mgr, inspectionResult, filePath.HostPath, filePath.ID)
 		if err != nil {
-			removeInspectionResultFromMap(offsetsDataMap, filePath.ID)
+			removeInspectionResultFromMap(offsetsDataMap, pidToDeviceInodeMap, filePath)
 			return fmt.Errorf("error while attaching hooks to %s: %w", filePath.HostPath, err)
 		}
 		*probeIDs = pIDs
@@ -380,6 +395,21 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 		binAnalysisMetric.Add(elapsed.Milliseconds())
 		log.Debugf("attached hooks on %s (%v) in %s", filePath.HostPath, filePath.ID, elapsed)
 		return nil
+	}
+}
+
+// alreadyCBCreator handles the case where a binary is already registered. In such a case the registry callback won't
+// be called, so we need to add a mapping from the PID to the device/inode of the binary.
+func alreadyCBCreator(pidToDeviceInodeMap *ebpf.Map) func(utils.FilePath) error {
+	return func(filePath utils.FilePath) error {
+		if filePath.PID == 0 {
+			return nil
+		}
+		return pidToDeviceInodeMap.Put(unsafe.Pointer(&filePath.PID), unsafe.Pointer(&gotls.TlsBinaryId{
+			Id_major: unix.Major(filePath.ID.Dev),
+			Id_minor: unix.Minor(filePath.ID.Dev),
+			Ino:      filePath.ID.Inode,
+		}))
 	}
 }
 
@@ -393,32 +423,39 @@ func (p *goTLSProgram) handleProcessStart(pid pid) {
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func addInspectionResultToMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier, result *bininspect.Result) error {
+func addInspectionResultToMap(offsetsDataMap, pidToDeviceInodeMap *ebpf.Map, filePath utils.FilePath, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
 	}
 
 	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
+		Id_major: unix.Major(filePath.ID.Dev),
+		Id_minor: unix.Minor(filePath.ID.Dev),
+		Ino:      filePath.ID.Inode,
 	}
 	if err := offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData)); err != nil {
-		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
+		return fmt.Errorf("could not write binary inspection result to map for binID %v (pid %v): %w", filePath.ID, filePath.PID, err)
 	}
 
+	if err := pidToDeviceInodeMap.Put(unsafe.Pointer(&filePath.PID), unsafe.Pointer(key)); err != nil {
+		return fmt.Errorf("could not write pid to device/inode (%s) map for pid %v: %w", filePath.ID.String(), filePath.PID, err)
+	}
 	return nil
 }
 
-func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier) {
+func removeInspectionResultFromMap(offsetsDataMap, pidToDeviceInodeMap *ebpf.Map, filePath utils.FilePath) {
 	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
+		Id_major: unix.Major(filePath.ID.Dev),
+		Id_minor: unix.Minor(filePath.ID.Dev),
+		Ino:      filePath.ID.Inode,
+	}
+	if filePath.PID != 0 {
+		_ = pidToDeviceInodeMap.Delete(unsafe.Pointer(&filePath.PID))
 	}
 	if err := offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
-		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
+		log.Errorf("could not remove inspection result from map for ino %v: %s", filePath.ID, err)
+		return
 	}
 }
 
@@ -473,12 +510,12 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 	return probeIDs, nil
 }
 
-func unregisterCBCreator(mgr *manager.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
+func unregisterCBCreator(mgr *manager.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap, pidToDeviceInodeMap *ebpf.Map) func(path utils.FilePath) error {
 	return func(path utils.FilePath) error {
 		if len(*probeIDs) == 0 {
 			return nil
 		}
-		removeInspectionResultFromMap(offsetsDataMap, path.ID)
+		removeInspectionResultFromMap(offsetsDataMap, pidToDeviceInodeMap, path)
 		for _, probeID := range *probeIDs {
 			err := mgr.DetachHook(probeID)
 			if err != nil {

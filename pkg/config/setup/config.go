@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -102,35 +103,35 @@ const (
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
 	DefaultMaxMessageSizeBytes = 256 * 1000
+
+	// DefaultNetworkPathTimeout defines the default timeout for a network path test
+	DefaultNetworkPathTimeout = 10000
 )
 
 // datadog is the global configuration object
 var (
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
-)
 
-// Datadog returns the current agent configuration
-func Datadog() pkgconfigmodel.Config {
-	return datadog
-}
+	datadogMutex     = sync.RWMutex{}
+	systemProbeMutex = sync.RWMutex{}
+)
 
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadogMutex.Lock()
+	defer datadogMutex.Unlock()
 	datadog = cfg
-}
-
-// SystemProbe returns the current SystemProbe configuration
-func SystemProbe() pkgconfigmodel.Config {
-	return systemProbe
 }
 
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
 func SetSystemProbe(cfg pkgconfigmodel.Config) {
+	systemProbeMutex.Lock()
+	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
 }
 
@@ -192,21 +193,6 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	_, found := l.EnabledProviders[provider]
 
 	return found
-}
-
-// MappingProfile represent a group of mappings
-type MappingProfile struct {
-	Name     string          `mapstructure:"name" json:"name" yaml:"name"`
-	Prefix   string          `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
-}
-
-// MetricMapping represent one mapping rule
-type MetricMapping struct {
-	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
-	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
-	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
@@ -365,7 +351,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
 	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
 	// it maps group resources to labels as tags maps
 	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
@@ -374,7 +360,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
@@ -450,6 +436,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", 30)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
@@ -728,6 +716,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.type_socket_volumes", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.pod_owners_cache_validity", 10) // in minutes
@@ -811,6 +800,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
+	// Tagger Component
+	// This is a temporary/transient flag used to slowly migrate to a new internal implementation of the tagger.
+	// If set to true, the tagger will store all entities in a 2-layered map, the first map is indexed by prefix, and the second one is indexed by id.
+	// If set to false, the tagger will use the default implementation by storing entities in a one-layer map from plain strings to Tag Entities.
+	// TODO: remove this config option when the migration is finalised.
+	config.BindEnvAndSetDefault("tagger.tagstore_use_composite_entity_id", false)
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")
@@ -873,10 +869,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
-	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
+	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
-	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", false)
+	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -915,7 +911,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
-	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
@@ -972,6 +967,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnv("fleet_policies_dir")
@@ -1229,6 +1225,9 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// Agent Telemetry. It is experimental feature and is subject to change.
 	// It should not be enabled unless prompted by Datadog Support
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	config.SetKnown("agent_telemetry.additional_endpoints.*")
+	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1385,8 +1384,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
 	config.BindEnv("dogstatsd_mapper_profiles")
-	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
-		var mappings []MappingProfile
+	config.ParseEnvAsSlice("dogstatsd_mapper_profiles", func(in string) []interface{} {
+		var mappings []interface{}
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
 			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
 		}
@@ -1489,8 +1488,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// maximum time that the windows tailer will hold a log file open, while waiting for
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
-	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
+
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
@@ -1498,8 +1496,18 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
+	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
+	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.tag_auto_multi_line_logs", false)
+	// Add a tag to logs that are truncated by the agent
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
@@ -1540,9 +1548,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
-
-	// Add a tag to file logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -1907,9 +1912,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
+			return warnings, log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
 		return warnings, err
 	}
@@ -2400,22 +2403,6 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 		// update config with the actual effective number of workers
 		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
-}
-
-// GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
-func GetDogstatsdMappingProfiles(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
-	return getDogstatsdMappingProfilesConfig(config)
-}
-
-func getDogstatsdMappingProfilesConfig(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
-	var mappings []MappingProfile
-	if config.IsSet("dogstatsd_mapper_profiles") {
-		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
-		if err != nil {
-			return []MappingProfile{}, log.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
-		}
-	}
-	return mappings, nil
 }
 
 // IsCLCRunner returns whether the Agent is in cluster check runner mode

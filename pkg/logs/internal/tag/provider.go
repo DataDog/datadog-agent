@@ -11,7 +11,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -23,27 +22,34 @@ type Provider interface {
 	GetTags() []string
 }
 
+// EntityTagAdder returns the associated tag for an entity and their cardinality
+type EntityTagAdder interface {
+	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+}
+
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
 	entityID             string
 	taggerWarmupDuration time.Duration
 	localTagProvider     Provider
 	clock                clock.Clock
+	tagAdder             EntityTagAdder
 	sync.Once
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityID string) Provider {
-	return newProviderWithClock(entityID, clock.New())
+func NewProvider(entityID string, tagAdder EntityTagAdder) Provider {
+	return newProviderWithClock(entityID, clock.New(), tagAdder)
 }
 
 // newProviderWithClock returns a new provider using the given clock.
-func newProviderWithClock(entityID string, clock clock.Clock) Provider {
+func newProviderWithClock(entityID string, clock clock.Clock, tagAdder EntityTagAdder) Provider {
 	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog()),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
+		tagAdder:             tagAdder,
 	}
 
 	return p
@@ -58,7 +64,7 @@ func (p *provider) GetTags() []string {
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 
-	tags, err := tagger.Tag(p.entityID, types.HighCardinality)
+	tags, err := p.tagAdder.Tag(p.entityID, types.HighCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}

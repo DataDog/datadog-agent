@@ -192,7 +192,15 @@ func (h *Host) AgentStableVersion() string {
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
-		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+		_, err := h.remote.Execute("sudo datadog-installer is-installed " + pkg)
+		require.NoErrorf(
+			h.t,
+			err,
+			"package %s not installed by the installer. install logs: \n%s\n%s",
+			pkg,
+			h.remote.MustExecute("cat /tmp/datadog-installer-stdout.log"),
+			h.remote.MustExecute("cat /tmp/datadog-installer-stderr.log"),
+		)
 	}
 }
 
@@ -596,6 +604,15 @@ func (s *State) AssertPathDoesNotExist(path string) {
 	path = evalSymlinkPath(path, s.FS)
 	_, ok := s.FS[path]
 	assert.False(s.t, ok, "something exists at path", path)
+}
+
+// AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.
+func (s *State) AssertFileExistsAnyUser(path string, perms fs.FileMode) {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "file %v does not exist", path)
+	assert.False(s.t, fileInfo.IsDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
 }
 
 // AssertFileExists asserts that a file exists on the host with the given perms, user, and group.

@@ -212,14 +212,20 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
+    failed_tests: set[str] = set()
     for test_job in test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = test_job.get_test_results()
-            failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
+            results = test_job.get_test_results()
+            for test, result in results.items():
+                if result is False:
+                    package, test = test.split(":")
+                    failed_tests.add(test)
+                    failed_packages.add(package)
+
             vm_name = f"{vm_arch}-{test_job.distro}-distro"
             info(f"[+] Adding {vm_name} from failed job {test_job.name}")
             vms.add(vm_name)
@@ -234,7 +240,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
+    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -810,6 +816,7 @@ def build_target_packages(filter_packages):
     if filter_packages == []:
         return all_packages
 
+    filter_packages = [os.path.relpath(p) for p in go_package_dirs(filter_packages, [NPM_TAG, BPF_TAG])]
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
@@ -872,7 +879,7 @@ def kmt_sysprobe_prepare(
 
     filter_pkgs = []
     if packages:
-        filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
+        filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
@@ -1092,7 +1099,7 @@ def test(
 
     pkgs = []
     if packages is not None:
-        pkgs = packages.split(",")
+        pkgs = [os.path.relpath(p) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
 
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
@@ -2107,7 +2114,7 @@ def install_ddagent(
     for d in domains:
         d.run_cmd(
             ctx,
-            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            f"curl -L https://install.datadoghq.com/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
             verbose=verbose,
         )
         d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)

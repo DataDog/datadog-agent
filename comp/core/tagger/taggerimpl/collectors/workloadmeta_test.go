@@ -8,10 +8,10 @@ package collectors
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,12 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -54,9 +56,9 @@ func TestHandleKubePod(t *testing.T) {
 		ID:   "foobar",
 	}
 
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
-	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
-	noEnvContainerTaggerEntityID := fmt.Sprintf("container_id://%s", noEnvContainerID)
+	podTaggerEntityID := types.NewEntityID(types.KubernetesPodUID, podEntityID.ID)
+	fullyFleshedContainerTaggerEntityID := types.NewEntityID(types.ContainerID, fullyFleshedContainerID)
+	noEnvContainerTaggerEntityID := types.NewEntityID(types.ContainerID, noEnvContainerID)
 
 	image := workloadmeta.ContainerImage{
 		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
@@ -69,9 +71,8 @@ func TestHandleKubePod(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -223,8 +224,8 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: podSource,
-					Entity: podTaggerEntityID,
+					Source:   podSource,
+					EntityID: podTaggerEntityID,
 					HighCardTags: []string{
 						"gitcommit:foobar",
 					},
@@ -289,7 +290,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -302,8 +303,8 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: noEnvContainerTaggerEntityID,
+					Source:   podSource,
+					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
@@ -344,7 +345,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -355,8 +356,8 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: fullyFleshedContainerTaggerEntityID,
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
@@ -395,7 +396,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -406,8 +407,8 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: fmt.Sprintf("container_id://%s", otelEnvContainerID),
+					Source:   podSource,
+					EntityID: types.NewEntityID(types.ContainerID, otelEnvContainerID),
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", otelEnvContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
@@ -450,7 +451,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -461,8 +462,8 @@ func TestHandleKubePod(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: noEnvContainerTaggerEntityID,
+					Source:   podSource,
+					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
@@ -495,7 +496,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -525,7 +526,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -557,7 +558,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -590,7 +591,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -626,7 +627,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -660,7 +661,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -697,7 +698,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -731,7 +732,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -769,7 +770,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -800,7 +801,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -830,7 +831,7 @@ func TestHandleKubePod(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -846,7 +847,8 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 			collector.initK8sResourcesMetaAsTags(tt.k8sResourcesLabelsAsTags, tt.k8sResourcesAnnotationsAsTags)
 
@@ -874,7 +876,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 		ID:   "foobar",
 	}
 
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
+	podTaggerEntityID := types.NewEntityID(types.KubernetesPodUID, podEntityID.ID)
 
 	image := workloadmeta.ContainerImage{
 		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
@@ -887,9 +889,8 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"kubernetes_persistent_volume_claims_as_tags": false,
 	}}))
@@ -939,7 +940,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -951,8 +952,8 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: fmt.Sprintf("container_id://%s", noEnvContainerID),
+					Source:   podSource,
+					EntityID: types.NewEntityID(types.ContainerID, noEnvContainerID),
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", noEnvContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
@@ -977,7 +978,9 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("kubernetes_persistent_volume_claims_as_tags", false)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
 			actual := collector.handleKubePod(workloadmeta.Event{
@@ -1014,8 +1017,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 		ID:   "foobar",
 	}
 
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
-	fullyFleshedContainerTaggerEntityID := fmt.Sprintf("container_id://%s", fullyFleshedContainerID)
+	podTaggerEntityID := types.NewEntityID(types.KubernetesPodUID, podEntityID.ID)
+	fullyFleshedContainerTaggerEntityID := types.NewEntityID(types.ContainerID, fullyFleshedContainerID)
 
 	image := workloadmeta.ContainerImage{
 		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
@@ -1028,9 +1031,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1087,7 +1089,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       podSource,
-					Entity:       podTaggerEntityID,
+					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						fmt.Sprintf("pod_name:%s", podName),
@@ -1098,8 +1100,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 					StandardTags: []string{},
 				},
 				{
-					Source: podSource,
-					Entity: fullyFleshedContainerTaggerEntityID,
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
@@ -1123,7 +1125,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 
 			actual := collector.handleKubePod(workloadmeta.Event{
@@ -1147,9 +1150,8 @@ func TestHandleKubeMetadata(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1207,7 +1209,8 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -1231,14 +1234,13 @@ func TestHandleKubeDeployment(t *testing.T) {
 		ID:   kubeMetadataID,
 	}
 
-	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
+	taggerEntityID := types.NewEntityID(types.KubernetesMetadata, kubeMetadataEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1331,7 +1333,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:               kubeMetadataSource,
-					Entity:               taggerEntityID,
+					EntityID:             taggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -1348,7 +1350,8 @@ func TestHandleKubeDeployment(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -1373,13 +1376,12 @@ func TestHandleECSTask(t *testing.T) {
 		ID:   "foobar",
 	}
 
-	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
+	taggerEntityID := types.NewEntityID(types.ContainerID, containerID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"ecs_collect_resource_tags_ec2": true,
 	}}))
@@ -1424,11 +1426,12 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				ServiceName: "datadog-agent-service",
 			},
 			expected: []*types.TagInfo{
 				{
 					Source:       taskSource,
-					Entity:       taggerEntityID,
+					EntityID:     taggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
@@ -1442,6 +1445,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"ecs_service:datadog-agent-service",
 					},
 					StandardTags: []string{},
 				},
@@ -1470,7 +1474,7 @@ func TestHandleECSTask(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:       taskSource,
-					Entity:       taggerEntityID,
+					EntityID:     taggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
@@ -1490,7 +1494,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				{
 					Source:       taskSource,
-					Entity:       GlobalEntityID,
+					EntityID:     common.GetGlobalEntityID(),
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
 						"task_arn:foobar",
@@ -1513,7 +1517,9 @@ func TestHandleECSTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("ecs_collect_resource_tags_ec2", true)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1547,7 +1553,7 @@ func TestHandleContainer(t *testing.T) {
 		ID:   "foobar",
 	}
 
-	taggerEntityID := fmt.Sprintf("container_id://%s", entityID.ID)
+	taggerEntityID := types.NewEntityID(types.ContainerID, entityID.ID)
 
 	tests := []struct {
 		name         string
@@ -1580,8 +1586,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1625,8 +1631,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1663,8 +1669,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1699,8 +1705,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1734,8 +1740,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1769,8 +1775,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1806,8 +1812,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1840,8 +1846,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1873,8 +1879,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1907,8 +1913,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1951,8 +1957,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -1986,8 +1992,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -2015,8 +2021,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -2043,8 +2049,8 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source: containerSource,
-					Entity: taggerEntityID,
+					Source:   containerSource,
+					EntityID: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -2061,7 +2067,8 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 			collector.staticTags = tt.staticTags
 
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
@@ -2082,7 +2089,7 @@ func TestHandleContainerImage(t *testing.T) {
 		ID:   "sha256:651c55002cd5deb06bde7258f6ec6e0ff7f4f17a648ce6e2ec01917da9ae5104",
 	}
 
-	taggerEntityID := fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+	taggerEntityID := types.NewEntityID(types.ContainerImageMetadata, entityID.ID)
 
 	tests := []struct {
 		name     string
@@ -2120,7 +2127,7 @@ func TestHandleContainerImage(t *testing.T) {
 			expected: []*types.TagInfo{
 				{
 					Source:               containerImageSource,
-					Entity:               taggerEntityID,
+					EntityID:             taggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2147,7 +2154,8 @@ func TestHandleContainerImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -2185,14 +2193,13 @@ func TestHandleDelete(t *testing.T) {
 		},
 	}
 
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
-	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
+	podTaggerEntityID := types.NewEntityID(types.KubernetesPodUID, podEntityID.ID)
+	containerTaggerEntityID := types.NewEntityID(types.ContainerID, containerID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -2205,7 +2212,8 @@ func TestHandleDelete(t *testing.T) {
 		},
 	})
 
-	collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -2215,12 +2223,12 @@ func TestHandleDelete(t *testing.T) {
 	expected := []*types.TagInfo{
 		{
 			Source:       podSource,
-			Entity:       podTaggerEntityID,
+			EntityID:     podTaggerEntityID,
 			DeleteEntity: true,
 		},
 		{
 			Source:       podSource,
-			Entity:       containerTaggerEntityID,
+			EntityID:     containerTaggerEntityID,
 			DeleteEntity: true,
 		},
 	}
@@ -2247,7 +2255,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	// exists even if it belonged to a pod that still exists.
 
 	containerToBeDeletedID := "delete"
-	containerToBeDeletedTaggerEntityID := fmt.Sprintf("container_id://%s", containerToBeDeletedID)
+	containerToBeDeletedTaggerEntityID := types.NewEntityID(types.ContainerID, containerToBeDeletedID)
 
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
@@ -2260,18 +2268,17 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{},
 	}
-	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", pod.ID)
+	podTaggerEntityID := types.NewEntityID(types.KubernetesPodUID, pod.ID)
 
 	collectorCh := make(chan []*types.TagInfo, 10)
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
-	collector.children = map[string]map[string]struct{}{
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
+	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
 		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
@@ -2291,7 +2298,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	expected := &types.TagInfo{
 		Source:       podSource,
-		Entity:       containerToBeDeletedTaggerEntityID,
+		EntityID:     containerToBeDeletedTaggerEntityID,
 		DeleteEntity: true,
 	}
 
@@ -2301,7 +2308,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	found := false
 	for evBundle := range collectorCh {
 		for _, event := range evBundle {
-			if cmp.Equal(event, expected) {
+			if reflect.DeepEqual(event, expected) {
 				found = true
 				break
 			}

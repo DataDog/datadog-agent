@@ -268,7 +268,8 @@ Package agent contains logs agent component.
 
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
-Package integrations adds a go interface for integrations to send logs.
+Package integrations adds a go interface for integrations to register and
+send logs.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
@@ -382,9 +383,9 @@ Package configstore defines the otel agent configstore component.
 
 Package converter defines the otel agent converter component.
 
-### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+### [comp/otelcol/ddflareextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension)
 
-Package extension defines the OpenTelemetry Extension component.
+Package ddflareextension defines the OpenTelemetry Extension component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
