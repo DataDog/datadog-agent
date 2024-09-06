@@ -66,35 +66,20 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	return NewExtension(c, cfg, telemetry, info)
 }
 
-func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(t)
-	assert.NoError(t, err)
-	assert.NotNil(t, ext)
-
-	_, ok := ext.(*ddExtension)
-	assert.True(t, ok)
-}
-
-func TestExtensionHTTPHandler(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
-
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
+func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	token := apiutil.GetAuthToken()
+	if tokenOverride != "" {
+		token = tokenOverride
+	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiutil.GetAuthToken())
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	// Create a ResponseRecorder
 	rr := httptest.NewRecorder()
@@ -122,6 +107,33 @@ func TestExtensionHTTPHandler(t *testing.T) {
 
 	// Call the handler's ServeHTTP method
 	handler.ServeHTTP(rr, req)
+
+	return rr
+}
+
+func TestNewExtension(t *testing.T) {
+	ext, err := getTestExtension(t)
+	assert.NoError(t, err)
+	assert.NotNil(t, ext)
+
+	_, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+}
+
+func TestExtensionHTTPHandler(t *testing.T) {
+	oldConfig := pkgconfigsetup.Datadog()
+	defer func() {
+		pkgconfigsetup.SetDatadog(oldConfig)
+	}()
+
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetDatadog(conf)
+	err := apiutil.CreateAndSetAuthToken(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := getResponseToHandlerRequest(t, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -162,36 +174,7 @@ func TestExtensionHTTPHandlerBadToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create a request
-	req, err := http.NewRequest("GET", "/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer badtoken")
-
-	// Create a ResponseRecorder
-	rr := httptest.NewRecorder()
-
-	// Create an instance of your handler
-	ext, err := getTestExtension(t)
-	require.NoError(t, err)
-
-	ddExt := ext.(*ddExtension)
-	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())
-
-	host := newHostWithExtensions(
-		map[component.ID]component.Component{
-			component.MustNewIDWithName("pprof", "custom"): nil,
-		},
-	)
-
-	ddExt.Start(context.TODO(), host)
-
-	handler := ddExt.server.srv.Handler
-
-	// Call the handler's ServeHTTP method
-	handler.ServeHTTP(rr, req)
+	rr := getResponseToHandlerRequest(t, "badtoken")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusForbidden, rr.Code,
