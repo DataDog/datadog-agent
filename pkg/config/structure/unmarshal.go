@@ -248,9 +248,9 @@ func (n *leafNodeImpl) GetString() (string, error) {
 // convert a string to a bool using standard yaml constants
 func convertToBool(text string) (bool, error) {
 	lower := strings.ToLower(text)
-	if lower == "y" || lower == "yes" || lower == "on" || lower == "true" {
+	if lower == "y" || lower == "yes" || lower == "on" || lower == "true" || lower == "1" {
 		return true, nil
-	} else if lower == "n" || lower == "no" || lower == "off" || lower == "false" {
+	} else if lower == "n" || lower == "no" || lower == "off" || lower == "false" || lower == "0" {
 		return false, nil
 	}
 	return false, newConversionError(reflect.ValueOf(text), "bool")
