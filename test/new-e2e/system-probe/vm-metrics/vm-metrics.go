@@ -46,6 +46,7 @@ var memStatTagToName = map[libvirt.DomainMemoryStatTags]string{
 	libvirt.DomainMemoryStatAvailable:     "memory_available_bytes",
 	libvirt.DomainMemoryStatActualBalloon: "memory_actual_balloon_bytes",
 	libvirt.DomainMemoryStatRss:           "memory_rss_bytes",
+	libvirt.DomainMemoryUsable:            "memory_usable_bytes",
 }
 
 type libvirtInterface interface {
