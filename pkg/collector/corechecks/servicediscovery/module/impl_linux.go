@@ -342,11 +342,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
 	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
+	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, lang, contextMap)
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
 
 	return &serviceInfo{
