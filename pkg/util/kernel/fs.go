@@ -9,9 +9,11 @@ package kernel
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/moby/sys/mountinfo"
 
@@ -63,7 +65,32 @@ var SysFSRoot = funcs.MemoizeNoError(func() string {
 // HostProc returns the location of a host's procfs. This can and will be
 // overridden when running inside a container.
 func HostProc(combineWith ...string) string {
-	return filepath.Join(ProcFSRoot(), filepath.Join(combineWith...))
+	const sepLen = len(string(filepath.Separator))
+
+	root := ProcFSRoot()
+
+	size := len(root)
+	for _, c := range combineWith {
+		if len(c) > math.MaxInt-sepLen {
+			panic("int overflow in HostProcV2")
+		}
+		toadd := sepLen + len(c)
+
+		if size > math.MaxInt-toadd {
+			panic("int overflow in HostProcV2")
+		}
+		size += toadd
+	}
+
+	var builder strings.Builder
+	builder.Grow(size)
+
+	builder.WriteString(ProcFSRoot())
+	for _, c := range combineWith {
+		builder.WriteRune(filepath.Separator)
+		builder.WriteString(c)
+	}
+	return filepath.Clean(builder.String())
 }
 
 // RootNSPID returns the current PID from the root namespace
