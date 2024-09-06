@@ -325,7 +325,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 				Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
 			}
 
-			dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-dca", 1, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+			dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-dca", 1, testTime, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
 			f.InformerObjects = append(f.InformerObjects, dpa)
 
 			expectedDPAError := &datadoghq.DatadogPodAutoscaler{
@@ -334,10 +334,11 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 					APIVersion: "datadoghq.com/v1alpha1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "dpa-dca",
-					Namespace:  currentNs,
-					Generation: 1,
-					UID:        dpa.GetUID(),
+					Name:              "dpa-dca",
+					Namespace:         currentNs,
+					Generation:        1,
+					UID:               dpa.GetUID(),
+					CreationTimestamp: metav1.NewTime(testTime),
 				},
 				Spec: datadoghq.DatadogPodAutoscalerSpec{
 					TargetRef: autoscalingv2.CrossVersionObjectReference{
