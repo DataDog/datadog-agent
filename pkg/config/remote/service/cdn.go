@@ -131,7 +131,7 @@ func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey string, opts
 	}, nil
 }
 
-func (s *HTTPClient) Update() error {
+func (s *HTTPClient) update() error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -155,7 +155,8 @@ func (s *HTTPClient) shouldUpdate() bool {
 
 // GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
 // in a short amount of time, a cached response is returned. If RC has been disabled,
-// an error is returned.
+// an error is returned. If there is no update (the targets version is up-to-date) nil
+// is returned for both the update and error.
 func (s *HTTPClient) GetCDNConfigUpdate(
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
@@ -169,7 +170,7 @@ func (s *HTTPClient) GetCDNConfigUpdate(
 	}
 
 	if s.shouldUpdate() {
-		err := s.Update()
+		err := s.update()
 		if err != nil {
 			_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 		}

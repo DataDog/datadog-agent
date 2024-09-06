@@ -7,15 +7,18 @@ package service
 
 import (
 	"encoding/base32"
+	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/go-tuf/data"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func setupCDNClient(t *testing.T, uptaneClient *uptane.CdnClient, api *mockAPI) *HTTPClient {
@@ -80,6 +83,61 @@ func TestHTTPClient_Update(t *testing.T) {
 
 	uptaneClient := setupHTTPUptaneClient(t)
 	client := setupCDNClient(t, uptaneClient, api)
-	err := client.Update()
+	err := client.update()
 	require.NoError(t, err)
+}
+
+func TestHTTPClient_GetUpdates(t *testing.T) {
+	response := &pbgo.OrgStatusResponse{
+		Enabled:    true,
+		Authorized: true,
+	}
+	api := &mockAPI{}
+	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+
+	uptaneClient := setupHTTPUptaneClient(t)
+	client := setupCDNClient(t, uptaneClient, api)
+	u, err := client.GetCDNConfigUpdate([]string{"DEBUG"}, 0, 0, []*pbgo.TargetFileMeta{})
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.Equal(t, 1, len(u.TargetFiles))
+	require.Equal(t, 1, len(u.ClientConfigs))
+	require.Equal(t, 22, len(u.TUFRoots))
+
+	var signedTargets data.Signed
+	err = json.Unmarshal(u.TUFTargets, &signedTargets)
+	require.NoError(t, err)
+	var targets data.Targets
+	err = json.Unmarshal(signedTargets.Signed, &targets)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(targets.Targets))
+
+	targetsFileVersion := targets.Version
+	var cachedTargetFiles []*pbgo.TargetFileMeta
+	for p, target := range targets.Targets {
+		var hashes []*pbgo.TargetFileHash
+		for algo, hash := range target.Hashes {
+			hashes = append(hashes, &pbgo.TargetFileHash{
+				Algorithm: algo,
+				Hash:      string(hash),
+			})
+			targetFile := &pbgo.TargetFileMeta{
+				Path:   p,
+				Hashes: hashes,
+			}
+			cachedTargetFiles = append(cachedTargetFiles, targetFile)
+		}
+	}
+	require.Equal(t, 1, len(cachedTargetFiles))
+
+	u, err = client.GetCDNConfigUpdate([]string{"DEBUG"}, 0, 0, []*pbgo.TargetFileMeta{})
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.Equal(t, 1, len(u.TargetFiles))
+	require.Equal(t, 1, len(u.ClientConfigs))
+	require.Equal(t, 22, len(u.TUFRoots))
+
+	u, err = client.GetCDNConfigUpdate([]string{"DEBUG"}, uint64(targetsFileVersion), 22, cachedTargetFiles)
+	require.NoError(t, err)
+	require.Nil(t, u)
 }
