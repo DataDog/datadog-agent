@@ -126,7 +126,6 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 
 	heap.Push(&h.MaxHeap, newTimestampKey)
 	h.Keys[key] = true
-	return
 }
 
 // DeleteFromHeap removes the given key from the max heap

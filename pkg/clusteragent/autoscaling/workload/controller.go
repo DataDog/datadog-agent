@@ -399,7 +399,7 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 func (c *Controller) validateAutoscaler(key string, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
 	if !c.hashHeap.Exists(key) {
-		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d).", maxDatadogPodAutoscalerObjects)
+		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
 	}
 
 	// Check that targetRef is not set to the cluster agent
