@@ -212,7 +212,7 @@ DEFAULT_MODULES = {
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True, used_by_otel=True),
-    "pkg/api": GoModule("pkg/api", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True, used_by_otel=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
     "pkg/config/mock": GoModule("pkg/config/mock", independent=True, used_by_otel=True),
