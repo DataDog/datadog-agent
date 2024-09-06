@@ -23,11 +23,16 @@ func TestGetPublicIPv4(t *testing.T) {
 	ip := "10.0.0.2"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/public-ipv4":
-			io.WriteString(w, ip)
-		default:
-			w.WriteHeader(http.StatusNotFound)
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			switch r.RequestURI {
+			case "/public-ipv4":
+				io.WriteString(w, ip)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
 		}
 	}))
 
@@ -47,18 +52,24 @@ func TestGetNetworkID(t *testing.T) {
 	vpc := "vpc-12345"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/network/interfaces/macs":
-			io.WriteString(w, mac+"/")
-		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
-			io.WriteString(w, vpc)
-		default:
-			w.WriteHeader(http.StatusNotFound)
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			switch r.RequestURI {
+			case "/network/interfaces/macs":
+				io.WriteString(w, mac+"/")
+			case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+				io.WriteString(w, vpc)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
 		}
 	}))
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	tokenURL = ts.URL
 	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
@@ -80,7 +91,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 
 	_, err := GetNetworkID(ctx)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no mac addresses returned")
+	assert.Contains(t, err.Error(), "EC2: GetNetworkID failed to get mac addresses:")
 }
 
 func TestGetInstanceIDMultipleVPC(t *testing.T) {
@@ -91,21 +102,27 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	vpc2 := "vpc-6789"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/network/interfaces/macs":
-			io.WriteString(w, mac+"/\n")
-			io.WriteString(w, mac2+"/\n")
-		case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
-			io.WriteString(w, vpc)
-		case "/network/interfaces/macs/00:00:00:00:01/vpc-id":
-			io.WriteString(w, vpc2)
-		default:
-			w.WriteHeader(http.StatusNotFound)
+		switch r.Method {
+		case http.MethodPut: // token request
+			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+		case http.MethodGet: // metadata request
+			switch r.RequestURI {
+			case "/network/interfaces/macs":
+				io.WriteString(w, mac+"/\n")
+				io.WriteString(w, mac2+"/\n")
+			case "/network/interfaces/macs/00:00:00:00:00/vpc-id":
+				io.WriteString(w, vpc)
+			case "/network/interfaces/macs/00:00:00:00:01/vpc-id":
+				io.WriteString(w, vpc2)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
 		}
 	}))
 
 	defer ts.Close()
 	metadataURL = ts.URL
+	tokenURL = ts.URL
 	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
