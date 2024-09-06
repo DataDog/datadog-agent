@@ -50,6 +50,7 @@ type context struct {
 	SNMP                             bool
 	SecurityModule                   bool
 	SecurityAgent                    bool
+	SBOM							 bool // enables CSM
 	NetworkModule                    bool // Sub-module of System Probe
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
 	DataStreamsModule                bool // Sub-module of System Probe
@@ -87,6 +88,7 @@ func mkContext(buildType string) context {
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
+		SBOM:			   true,
 		SNMP:              true,
 		PrometheusScrape:  true,
 		OTLP:              true,
