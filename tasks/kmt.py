@@ -535,7 +535,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         rule="gobin",
         pool="gobuild",
         outputs=[os.path.join(kmt_paths.dependencies, "vm-metrics")],
-        implicit=test_runner_files,
+        implicit=vm_metrics_files,
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/vm-metrics",
