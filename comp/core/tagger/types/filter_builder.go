@@ -64,7 +64,7 @@ func (fb *FilterBuilder) Build(card TagCardinality) *Filter {
 		return newFilter(AllPrefixesSet(), card)
 	}
 
-	prefixSet := make(map[EntityIDPrefix]struct{})
+	var prefixSet map[EntityIDPrefix]struct{}
 
 	// initialise prefixSet with what should be included
 	if len(fb.prefixesToInclude) == 0 {
