@@ -37,6 +37,7 @@ func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagg
 	return iamp, nil
 }
 
+// GenerateKubeMetadataEntityID is a function that generates an entity ID for a Kubernetes resource.
 type GenerateKubeMetadataEntityID func(group, resource, namespace, name string) string
 
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
