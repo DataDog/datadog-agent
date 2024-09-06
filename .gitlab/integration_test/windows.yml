@@ -11,6 +11,7 @@
     - (& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:VCPKG_BLOB_SAS_URL_SSM_NAME" "$tmpfile")
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - $vcpkgBlobSaSUrl=$(cat "$tmpfile")
+    - Remove-Item "$tmpfile"
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -32,7 +33,6 @@
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\integrationtests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - Remove-Item "$tmpfile"
 
 integration_tests_windows-x64:
   extends: .integration_tests_windows_base
