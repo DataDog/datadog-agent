@@ -421,6 +421,9 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
 	assert.Nil(t, err)
 
+	deviceCk.session, err = sessionFactory(config)
+	assert.Nil(t, err)
+
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
 	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
 	sess.On("GetNext", []string{"1.0"}).Return(session.CreateGetNextPacket("9999", gosnmp.EndOfMibView, nil), nil)
@@ -910,6 +913,9 @@ community_string: public
 	assert.Nil(t, err)
 
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	deviceCk.session, err = sessionFactory(config)
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator

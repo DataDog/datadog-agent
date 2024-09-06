@@ -260,11 +260,37 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
+		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace))).String()
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
 		}
+	}
+
+	var entityID string
+
+	switch involvedObject.Kind {
+	case podKind:
+		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID)).String()
+	case deploymentKind:
+		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name)).String()
+	default:
+		var apiGroup string
+		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
+		if len(apiVersionParts) == 2 {
+			apiGroup = apiVersionParts[0]
+		} else {
+			apiGroup = ""
+		}
+		resourceType := strings.ToLower(involvedObject.Kind) + "s"
+		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
+	}
+
+	entity, err := taggerInstance.GetEntity(entityID)
+	if err == nil {
+		tagList = append(tagList, entity.GetTags(types.HighCardinality)...)
+	} else {
+		log.Debugf("error getting entity for entity ID '%s': tags may be missing", entityID)
 	}
 
 	kindTag := getKindTag(involvedObject.Kind, involvedObject.Name)
@@ -276,8 +302,9 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 }
 
 const (
-	podKind  = "Pod"
-	nodeKind = "Node"
+	podKind        = "Pod"
+	nodeKind       = "Node"
+	deploymentKind = "Deployment"
 )
 
 func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {

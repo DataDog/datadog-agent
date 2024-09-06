@@ -176,6 +176,9 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
+	//
+	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
+	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {

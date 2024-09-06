@@ -54,7 +54,7 @@ func (c *Check) Run() error {
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
-		TimeoutMs:    c.config.TimeoutMs,
+		Timeout:      c.config.Timeout,
 		Protocol:     c.config.Protocol,
 	}
 

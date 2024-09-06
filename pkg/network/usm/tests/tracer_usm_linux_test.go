@@ -118,7 +118,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+	if !gotlstestutil.GoTLSSupported(config.New()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -183,7 +183,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
+	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(cfg)
 	cfg.BypassEnabled = true
 	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
