@@ -1,3 +1,51 @@
 instances:
   - config_option_a: some-value
     config_option_b: some-other-value
+  - config_option_a: value1
+    config_option_b: othervalue1
+  - config_option_a: value2
+    config_option_b: othervalue2
+  - config_option_a: value3
+    config_option_b: othervalue3
+  - config_option_a: value4
+    config_option_b: othervalue4
+  - config_option_a: value5
+    config_option_b: othervalue5
+  - config_option_a: value6
+    config_option_b: othervalue6
+  - config_option_a: value7
+    config_option_b: othervalue7
+  - config_option_a: value8
+    config_option_b: othervalue8
+  - config_option_a: value9
+    config_option_b: othervalue9
+  - config_option_a: value10
+    config_option_b: othervalue10
+  - config_option_a: value11
+    config_option_b: othervalue11
+  - config_option_a: value12
+    config_option_b: othervalue12
+  - config_option_a: value13
+    config_option_b: othervalue13
+  - config_option_a: value14
+    config_option_b: othervalue14
+  - config_option_a: value15
+    config_option_b: othervalue15
+  - config_option_a: value16
+    config_option_b: othervalue16
+  - config_option_a: value17
+    config_option_b: othervalue17
+  - config_option_a: value18
+    config_option_b: othervalue18
+  - config_option_a: value19
+    config_option_b: othervalue19
+  - config_option_a: value20
+    config_option_b: othervalue20
+  - config_option_a: value21
+    config_option_b: othervalue21
+  - config_option_a: value22
+    config_option_b: othervalue22
+  - config_option_a: value23
+    config_option_b: othervalue23
+  - config_option_a: value24
+    config_option_b: othervalue24
