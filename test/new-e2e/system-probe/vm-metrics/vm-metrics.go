@@ -187,14 +187,13 @@ func (t *tagsList) Set(value string) error {
 //     and release it from the original controlling terminal.
 //   - Reset umask, so that files are created with the requested
 //     permissions
-//   - Close all inherited files.
 func runAsDaemon(daemonize bool, daemonLogFile string) error {
 	if daemonLogFile == "" {
 		daemonLogFile = "/tmp/vm-metrics.log"
 	}
 
 	if _, isDaemon := os.LookupEnv("DAEMON_COLLECTOR"); !isDaemon {
-		f, err := os.OpenFile(daemonLogFile, os.O_RDWR|os.O_CREATE, 0644)
+		f, err := os.OpenFile(daemonLogFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open daemon log file: %w", err)
 		}
@@ -222,19 +221,6 @@ func runAsDaemon(daemonize bool, daemonLogFile string) error {
 	if _, err := os.Open("/dev/null"); err != nil {
 		return fmt.Errorf("failed to open '/dev/null' as stdin: %w", err)
 	}
-
-	//	var rlim unix.Rlimit
-	//	openMax := int64(maxClose)
-	//	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err == nil {
-	//		openMax = int64(rlim.Cur)
-	//	}
-	//
-	//	// close all files
-	//	var i int64
-	//	for i = 3; i < openMax; i++ {
-	//		newFile := os.NewFile(uintptr(i), "")
-	//		newFile.Close()
-	//	}
 
 	// clear umask
 	syscall.Umask(0)
