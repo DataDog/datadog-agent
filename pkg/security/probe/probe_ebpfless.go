@@ -351,6 +351,8 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 
 // Init the probe
 func (p *EBPFLessProbe) Init() error {
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
@@ -556,6 +558,7 @@ func (p *EBPFLessProbe) NewModel() *model.Model {
 
 // SendStats send the stats
 func (p *EBPFLessProbe) SendStats() error {
+	p.processKiller.SendStats(p.statsdClient)
 	return nil
 }
 
@@ -571,6 +574,7 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 
 // ApplyRuleSet applies the new ruleset
 func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.processKiller.Reset()
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
@@ -628,6 +632,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFLessProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe

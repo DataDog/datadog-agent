@@ -77,7 +77,8 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	for pid, svc := range li.potentialServices {
 		if service, ok := serviceMap[pid]; ok {
 			svc.LastHeartbeat = now
-			svc.process.Stat.RSS = service.RSS
+			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
 		}
@@ -93,7 +94,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if _, ok := li.aliveServices[pid]; !ok {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
-			svc := li.getServiceInfo(pid, service)
+			svc := li.getServiceInfo(service)
 			if li.ignoreCfg[svc.meta.Name] {
 				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.meta.Name)
 				li.ignoreProcs[pid] = true
@@ -111,7 +112,8 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			events.stop = append(events.stop, *svc)
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
-			svc.process.Stat.RSS = service.RSS
+			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -131,34 +133,24 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}, nil
 }
 
-func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo {
+func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
 	// have to see how far this can go but not for the initial release
 
 	// for now, docker-proxy is going on the ignore list
 
-	pInfo := processInfo{
-		PID: pid,
-		Stat: procStat{
-			StartTime: service.StartTimeSecs,
-		},
-		Ports:   service.Ports,
-		CmdLine: service.CommandLine,
-	}
-
-	serviceType := servicetype.Detect(service.Name, service.Ports)
+	serviceType := servicetype.Detect(service.Ports)
 
 	meta := ServiceMetadata{
 		Name:               service.Name,
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
-		NameSource:         service.NameSource,
 	}
 
 	return serviceInfo{
-		process:       pInfo,
 		meta:          meta,
+		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
 }

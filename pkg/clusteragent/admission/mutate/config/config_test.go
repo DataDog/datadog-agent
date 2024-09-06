@@ -10,6 +10,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -307,6 +308,7 @@ func TestInjectSocket(t *testing.T) {
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
+
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
@@ -315,6 +317,68 @@ func TestInjectSocket(t *testing.T) {
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
 	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
+	assert.Equal(t, "datadog", pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation])
+}
+
+func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
+	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
+	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+	wmeta := fxutil.Test[workloadmeta.Component](
+		t,
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"admission_controller.inject_config.type_socket_volumes": true},
+		}),
+	)
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	injected, err := webhook.inject(pod, "", nil)
+	assert.Nil(t, err)
+	assert.True(t, injected)
+
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
+
+	expectedVolumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "datadog-dogstatsd",
+			MountPath: "/var/run/datadog/dsd.socket",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "datadog-trace-agent",
+			MountPath: "/var/run/datadog/apm.socket",
+			ReadOnly:  true,
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, expectedVolumeMounts)
+
+	expectedVolumes := []corev1.Volume{
+		{
+			Name: "datadog-dogstatsd",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/dsd.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+		{
+			Name: "datadog-trace-agent",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/apm.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Volumes, expectedVolumes)
+
+	safeToEvictVolumes := strings.Split(pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
+	assert.Len(t, safeToEvictVolumes, 2)
+	assert.Contains(t, safeToEvictVolumes, "datadog-dogstatsd")
+	assert.Contains(t, safeToEvictVolumes, "datadog-trace-agent")
 }
 
 func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
@@ -338,7 +402,11 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "foo",
-							MountPath: "/var/run/datadog",
+							MountPath: "/var/run/datadog/dsd.socket",
+						},
+						{
+							Name:      "bar",
+							MountPath: "/var/run/datadog/apm.socket",
 						},
 					},
 				},

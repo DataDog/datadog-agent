@@ -10,10 +10,6 @@ package agent
 
 import "context"
 
-type telemetry struct{}
-
-func (t *telemetry) run(_ context.Context) {}
-
 type profContainersTelemetry struct{}
 
 func (t *profContainersTelemetry) registerProfiledContainer(_, _ string) {}

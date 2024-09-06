@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -135,8 +136,8 @@ func startTCPClient(t *testing.T, proto string, server *net.TCPAddr) (*os.File, 
 	return f, client.LocalAddr().(*net.TCPAddr)
 }
 
-func startUDPServer(t *testing.T, proto string) (*os.File, *net.UDPAddr) {
-	lnPacket, err := net.ListenPacket(proto, "")
+func startUDPServer(t *testing.T, proto string, address string) (*os.File, *net.UDPAddr) {
+	lnPacket, err := net.ListenPacket(proto, address)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = lnPacket.Close() })
 
@@ -200,7 +201,7 @@ func TestBasic(t *testing.T) {
 	}
 
 	var startUDP = func(proto string) {
-		f, server := startUDPServer(t, proto)
+		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
 		expectedPorts[cmd.Process.Pid] = server.Port
@@ -251,13 +252,17 @@ func TestPorts(t *testing.T) {
 	}
 
 	var startUDP = func(proto string) {
-		serverf, server := startUDPServer(t, proto)
+		serverf, server := startUDPServer(t, proto, ":8083")
 		t.Cleanup(func() { _ = serverf.Close() })
 		clientf, client := startUDPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
 		expectedPorts = append(expectedPorts, uint16(server.Port))
 		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+
+		ephemeralf, ephemeral := startUDPServer(t, proto, "")
+		t.Cleanup(func() { _ = ephemeralf.Close() })
+		unexpectedPorts = append(unexpectedPorts, uint16(ephemeral.Port))
 	}
 
 	startTCP("tcp4")
@@ -306,8 +311,10 @@ func TestServiceName(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
-		assert.Equal(t, "foobar", portMap[pid].Name)
-		assert.Equal(t, "provided", portMap[pid].NameSource)
+		assert.Equal(t, "foobar", portMap[pid].DDService)
+		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
+		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
+		assert.False(t, portMap[pid].DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -328,8 +335,13 @@ func TestInjectedServiceName(t *testing.T) {
 	pid := os.Getpid()
 	portMap := getServicesMap(t, url)
 	require.Contains(t, portMap, pid)
-	require.Equal(t, "injected-service-name", portMap[pid].Name)
-	require.Equal(t, "generated", portMap[pid].NameSource)
+	require.Equal(t, "injected-service-name", portMap[pid].DDService)
+	require.Equal(t, portMap[pid].DDService, portMap[pid].Name)
+	// The GeneratedName can vary depending on how the tests are run, so don't
+	// assert for a specific value.
+	require.NotEmpty(t, portMap[pid].GeneratedName)
+	require.NotEqual(t, portMap[pid].DDService, portMap[pid].GeneratedName)
+	assert.True(t, portMap[pid].DDServiceInjected)
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
@@ -477,6 +489,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 				assertStat(t, portMap[pid])
+				assertCPU(t, url, pid)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -503,6 +516,23 @@ func assertStat(t assert.TestingT, svc model.Service) {
 	}
 
 	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+}
+
+func assertCPU(t *testing.T, url string, pid int) {
+	proc, err := process.NewProcess(int32(pid))
+	require.NoError(t, err, "could not create gopsutil process handle")
+
+	// Compare CPU usage measurement over an interval.
+	_ = getServicesMap(t, url)
+	referenceValue, err := proc.Percent(1 * time.Second)
+	require.NoError(t, err, "could not get gopsutil cpu usage value")
+
+	// Calling getServicesMap a second time us the CPU usage percentage since the last call, which should be close to gopsutil value.
+	portMap := getServicesMap(t, url)
+	assert.Contains(t, portMap, pid)
+	// gopsutil reports a percentage, while we are reporting a float between 0 and $(nproc),
+	// so we convert our value to a percentage.
+	assert.InDelta(t, referenceValue, portMap[pid].CPUCores*100, 10)
 }
 
 func TestCommandLineSanitization(t *testing.T) {
@@ -579,9 +609,11 @@ func TestNodeDocker(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
-		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
+		assert.Equal(collect, "nodejs-https-server", svcMap[pid].GeneratedName)
+		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
+		assertCPU(t, url, pid)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -723,7 +755,10 @@ func TestCache(t *testing.T) {
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
-	module, err := NewDiscoveryModule(nil, wmeta, nil)
+	deps := module.FactoryDependencies{
+		WMeta: wmeta,
+	}
+	module, err := NewDiscoveryModule(nil, deps)
 	require.NoError(t, err)
 	discovery := module.(*discovery)
 
@@ -763,8 +798,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
-		require.True(t, discovery.cache[pid].nameFromDDService)
+		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
+		require.False(t, discovery.cache[pid].ddServiceInjected)
 	}
 
 	cancel()
@@ -886,12 +921,17 @@ func BenchmarkOldGetSockets(b *testing.B) {
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
+func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P,
+	family network.ConnectionFamily, ctype network.ConnectionType, state uint64) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue
 		}
-		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
+		port := uint16(sock.LocalPort)
+		if state == udpListen && network.IsPortInEphemeralRange(family, ctype, port) == network.EphemeralTrue {
+			continue
+		}
+		sockMap[sock.Inode] = socketInfo{port: port}
 	}
 }
 
@@ -909,10 +949,10 @@ func getNsInfoOld(pid int) (*namespaceInfo, error) {
 
 	listeningSockets := make(map[uint64]socketInfo)
 
-	addSockets(listeningSockets, TCP, tcpListen)
-	addSockets(listeningSockets, TCP6, tcpListen)
-	addSockets(listeningSockets, UDP, udpListen)
-	addSockets(listeningSockets, UDP6, udpListen)
+	addSockets(listeningSockets, TCP, network.AFINET, network.TCP, tcpListen)
+	addSockets(listeningSockets, TCP6, network.AFINET6, network.TCP, tcpListen)
+	addSockets(listeningSockets, UDP, network.AFINET, network.UDP, udpListen)
+	addSockets(listeningSockets, UDP6, network.AFINET6, network.UDP, udpListen)
 
 	return &namespaceInfo{
 		listeningSockets: listeningSockets,

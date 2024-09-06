@@ -259,6 +259,7 @@ variables:
   RESTORE_CACHE_ATTEMPTS: 2
   # Feature flags
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
+  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
 
 #
 # Condition mixins for simplification of rules
@@ -698,6 +699,7 @@ workflow:
   - .gitlab/functional_test/security_agent.yml
   - .gitlab/kernel_matrix_testing/security_agent.yml
   - .gitlab/kernel_matrix_testing/common.yml
+  - .gitlab/source_test/ebpf.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/pkg/runner/**/*
@@ -741,6 +743,7 @@ workflow:
   - pkg/util/kernel/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
+  - .gitlab/source_test/ebpf.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/pkg/runner/**/*

@@ -167,7 +167,12 @@ def get_last_commit(ctx, repo, branch):
     )
 
 
-def get_last_tag(ctx, repo, pattern):
+def get_last_release_tag(ctx, repo, pattern):
+    import re
+    from functools import cmp_to_key
+
+    import semver
+
     tags = ctx.run(
         rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
         hide=True,
@@ -180,9 +185,24 @@ def get_last_tag(ctx, repo, pattern):
             ),
             code=1,
         )
-    last_tag = tags.splitlines()[-1]
+
+    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    tags_without_suffix = [
+        line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
+    ]
+    last_tag = max(tags_without_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1]))
     last_tag_commit, last_tag_name = last_tag.split()
-    if last_tag_name.endswith("^{}"):
-        last_tag_name = last_tag_name.removesuffix("^{}")
+    tags_with_suffix = [line for line in tags.splitlines() if line.endswith("^{}") and release_pattern.match(line)]
+    if tags_with_suffix:
+        last_tag_with_suffix = max(
+            tags_with_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1].removesuffix("^{}"))
+        )
+        last_tag_commit_with_suffix, last_tag_name_with_suffix = last_tag_with_suffix.split()
+        if (
+            semver.compare(last_tag_name_with_suffix.split('/')[-1].removesuffix("^{}"), last_tag_name.split("/")[-1])
+            >= 0
+        ):
+            last_tag_commit = last_tag_commit_with_suffix
+            last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
