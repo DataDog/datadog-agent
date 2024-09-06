@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -68,7 +69,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return ""
 	}
 

@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 
@@ -196,6 +195,8 @@ type etwCallback func(n interface{}, pid uint32)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
+
+	p.processKiller.Start(p.ctx, &p.wg)
 
 	if !p.opts.disableProcmon {
 		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
@@ -1110,6 +1111,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1161,6 +1165,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -1189,7 +1198,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		volumeMap: make(map[string]string),
 
-		processKiller: NewProcessKiller(),
+		processKiller: processKiller,
 
 		blockonchannelsend: bocs,
 
@@ -1250,6 +1259,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 			p.isChangePermissionEnabled = true
 		}
 	}
+
+	p.processKiller.Reset()
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
@@ -1378,8 +1389,13 @@ func (p *Probe) Origin() string {
 	return ""
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)

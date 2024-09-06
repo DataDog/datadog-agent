@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // PreStartCallback is a callback to register clients to the event monitor before starting it
@@ -42,7 +43,11 @@ func StartEventMonitor(t *testing.T, callback PreStartCallback) {
 
 	opts := eventmonitor.Opts{}
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
 	require.NoError(t, err)
 	require.NoError(t, evm.Init())
 	callback(t, evm)

@@ -100,9 +100,12 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
     """
+    repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
     for mod in DEFAULT_MODULES.values():
-        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+        ctx.run(
+            f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
+        )
 
 
 @task

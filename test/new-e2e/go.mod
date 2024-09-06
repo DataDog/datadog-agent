@@ -32,7 +32,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240823123857-8aaa61cc1c42
+	github.com/DataDog/test-infra-definitions v0.0.0-20240906113819-e0fb9ce404ac
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -46,13 +46,12 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.13.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.47.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
-	github.com/pulumi/pulumi/sdk/v3 v3.129.0
+	github.com/pulumi/pulumi/sdk/v3 v3.130.0
 	github.com/samber/lo v1.47.0
-	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 	golang.org/x/crypto v0.26.0
@@ -74,7 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
-	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -93,7 +92,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.32.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.42.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.45.2
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.14 // indirect
@@ -268,7 +267,7 @@ require github.com/hairyhenderson/go-codeowners v0.5.0
 require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.57.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.51.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.57.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.59.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.58.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.59.0 // indirect
 )

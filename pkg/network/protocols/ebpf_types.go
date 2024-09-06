@@ -55,6 +55,10 @@ const (
 	ProgramKafkaResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
 	// ProgramKafkaResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
 	ProgramKafkaResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
+	// ProgramKafkaProduceResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramKafkaProduceResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0
+	// ProgramKafkaProduceResponsePartitionParserV9 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramKafkaProduceResponsePartitionParserV9 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9
 	// ProgramKafkaTermination is tail call to process Kafka termination.
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum

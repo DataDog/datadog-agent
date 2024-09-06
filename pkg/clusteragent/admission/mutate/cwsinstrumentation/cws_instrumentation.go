@@ -714,6 +714,8 @@ func injectCWSVolume(pod *corev1.Pod) {
 		Name:         cwsVolumeName,
 		VolumeSource: volumeSource,
 	})
+
+	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, cwsVolumeName)
 }
 
 func injectCWSVolumeMount(container *corev1.Container) {

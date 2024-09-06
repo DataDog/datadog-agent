@@ -55,7 +55,6 @@ datadog-agent-oci-x64-a7:
     PACKAGE_ARCH: amd64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-amd64.tar.xz"
   before_script:
-    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 datadog-agent-oci-arm64-a7:
@@ -79,7 +78,6 @@ datadog-agent-oci-arm64-a7:
     PACKAGE_ARCH: arm64
     DESTINATION_OCI: "datadog-agent-7-remote-updater-arm64.tar.xz"
   before_script:
-    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
@@ -87,7 +85,6 @@ datadog-agent-oci-arm64-a7:
 #
 .installer_build_common:
   script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"
@@ -146,7 +143,6 @@ installer-amd64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
-    - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
@@ -155,7 +151,6 @@ installer-arm64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
-    - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
