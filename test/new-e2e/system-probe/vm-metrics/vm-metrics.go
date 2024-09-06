@@ -40,13 +40,13 @@ var distrosMatch = map[string]*regexp.Regexp{
 }
 
 var memStatTagToName = map[libvirt.DomainMemoryStatTags]string{
-	libvirt.DomainMemoryStatSwapIn:        "swap_in_bytes",
-	libvirt.DomainMemoryStatSwapOut:       "swap_out_bytes",
-	libvirt.DomainMemoryStatMajorFault:    "major_pagefault",
-	libvirt.DomainMemoryStatAvailable:     "memory_available_bytes",
-	libvirt.DomainMemoryStatActualBalloon: "memory_actual_balloon_bytes",
-	libvirt.DomainMemoryStatRss:           "memory_rss_bytes",
-	libvirt.DomainMemoryUsable:            "memory_usable_bytes",
+	libvirt.DomainMemoryStatSwapIn:        "swap_in_bytes",               // The total amount of data read from swap space (in kB).
+	libvirt.DomainMemoryStatSwapOut:       "swap_out_bytes",              // The total amount of memory written out to swap space (in kB).
+	libvirt.DomainMemoryStatMajorFault:    "major_pagefault",             // Page faults occur when a process makes a valid access to virtual memory that is not available. When servicing the page fault, if disk IO is required, it is considered a major fault.
+	libvirt.DomainMemoryStatAvailable:     "memory_available_bytes",      // The total amount of usable memory as seen by the domain. This value may be less than the amount of memory assigned to the domain if a balloon driver is in use or if the guest OS does not initialize all assigned pages. This value is expressed in kB.
+	libvirt.DomainMemoryStatActualBalloon: "memory_actual_balloon_bytes", // Current balloon value (in KB).
+	libvirt.DomainMemoryStatRss:           "memory_rss_bytes",            // Resident Set Size of the process running the domain. This value is in kB
+	libvirt.DomainMemoryUsable:            "memory_usable_bytes",         // How much the balloon can be inflated without pushing the guest system to swap, corresponds to 'Available' in /proc/meminfo
 }
 
 type libvirtInterface interface {
