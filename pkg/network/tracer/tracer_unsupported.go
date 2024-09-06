@@ -35,7 +35,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 }
 
 // GetNetworkID is not implemented on this OS for Tracer
-func (t *Tracer) GetNetworkID(_ string) (string, error) {
+func (t *Tracer) GetNetworkID() (string, error) {
 	return "", ebpf.ErrNotImplemented
 }
 
