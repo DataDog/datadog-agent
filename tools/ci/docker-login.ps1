@@ -17,8 +17,8 @@ If ($lastExitCode -ne "0") {
     throw "Previous command returned $lastExitCode"
 }
 $DOCKER_REGISTRY_PWD = $(cat "$tmpfile")
+Remove-Item "$tmpfile"
 docker login --username "${DOCKER_REGISTRY_LOGIN}" --password "${DOCKER_REGISTRY_PWD}" "docker.io"
 If ($lastExitCode -ne "0") {
     throw "Previous command returned $lastExitCode"
 }
-Remove-Item "$tmpfile"
