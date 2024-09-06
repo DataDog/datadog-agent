@@ -327,7 +327,7 @@ func (c *Client) SetAgentName(agentName string) {
 	}
 }
 
-// Subscribe subscribes to all events (config updates, state changed, ...)
+// SubscribeAll subscribes to all events (config updates, state changed, ...)
 func (c *Client) SubscribeAll(product string, listener Listener) {
 	c.m.Lock()
 	defer c.m.Unlock()
