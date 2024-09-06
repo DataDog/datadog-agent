@@ -170,7 +170,7 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
     # build vm-metrics collector
-    -
+    - |
       GO_ARCH=$ARCH
       if [ "${ARCH}" == "x86_64" ]; then
         GO_ARCH=amd64
