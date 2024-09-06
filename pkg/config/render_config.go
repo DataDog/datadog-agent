@@ -50,7 +50,7 @@ type context struct {
 	SNMP                             bool
 	SecurityModule                   bool
 	SecurityAgent                    bool
-	SBOM							 bool // enables CSM
+	SBOM							 bool // enables CSM Vulnerability Management
 	NetworkModule                    bool // Sub-module of System Probe
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
 	DataStreamsModule                bool // Sub-module of System Probe
