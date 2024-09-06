@@ -164,33 +164,33 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 }
 
 func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.ProcessInfo) {
-	log.Info("Waiting for configs for", procInfo.ServiceName)
+	log.Tracef("Waiting for configs for service: %s", procInfo.ServiceName)
 	for {
 		record, err := r.Read()
 		if err != nil {
-			log.Infof("error reading raw configuration from bpf: %s", err)
+			log.Errorf("error reading raw configuration from bpf: %v", err)
 			continue
 		}
 
 		configEventParams, err := eventparser.ParseParams(record.RawSample)
 		if err != nil {
-			log.Infof("error parsing configuration for PID %d: %s", procInfo.PID, err)
+			log.Errorf("error parsing configuration for PID %d: %v", procInfo.PID, err)
 			continue
 		}
 		if len(configEventParams) != 3 {
-			log.Infof("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
+			log.Errorf("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
 			continue
 		}
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Infof("Runtime ID \"%s\" is not a UUID: %s)\n", runtimeID, err)
+			log.Errorf("Runtime ID \"%s\" is not a UUID: %v)", runtimeID, err)
 			continue
 		}
 
 		configPath, err := ditypes.ParseConfigPath(string(configEventParams[1].ValueStr))
 		if err != nil {
-			log.Infof("couldn't parse config path: %v", err)
+			log.Errorf("couldn't parse config path: %v", err)
 			continue
 		}
 
@@ -204,7 +204,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		err = json.Unmarshal([]byte(configEventParams[2].ValueStr), &conf)
 		if err != nil {
 			diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, configPath.ProbeUUID.String(), "ATTACH_ERROR", err.Error())
-			log.Infof("could not unmarshal configuration, cannot apply: %s (Probe-ID: %s)\n", err, configPath.ProbeUUID)
+			log.Errorf("could not unmarshal configuration, cannot apply: %v (Probe-ID: %s)\n", err, configPath.ProbeUUID)
 			continue
 		}
 
