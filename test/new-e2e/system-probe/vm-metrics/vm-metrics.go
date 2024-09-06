@@ -12,7 +12,9 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -20,7 +22,10 @@ import (
 	"github.com/digitalocean/go-libvirt/socket/dialers"
 )
 
-const kmtMicroVmsPrefix = "kmt.microvm."
+const (
+	kmtMicroVmsPrefix = "kmt.microvm."
+	maxClose          = 8192
+)
 
 var distrosMatch = map[string]*regexp.Regexp{
 	"ubuntu":   regexp.MustCompile(`-(ubuntu_[\.,\d]{1,5}).*-`),
@@ -174,6 +179,69 @@ func (t *tagsList) Set(value string) error {
 	return nil
 }
 
+// runAsDaemon function runs the vm-metrics collector as a daemon
+// To daemonize a process this function:
+//   - forksExec the vm-metrics binary, allowing the parent to exit.
+//     this makes the new process the child of the init process.
+//   - setsid() on child process. Make the child the session leader
+//     and release it from the original controlling terminal.
+//   - Reset umask, so that files are created with the requested
+//     permissions
+//   - Close all inherited files.
+func runAsDaemon(daemonize bool, daemonLogFile string) error {
+	if daemonLogFile == "" {
+		daemonLogFile = "/tmp/vm-metrics.log"
+	}
+
+	if _, isDaemon := os.LookupEnv("DAEMON_COLLECTOR"); !isDaemon {
+		f, err := os.OpenFile(daemonLogFile, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			return fmt.Errorf("failed to open daemon log file: %w", err)
+		}
+
+		if _, err := syscall.ForkExec(os.Args[0], os.Args, &syscall.ProcAttr{
+			Dir: "/",
+			Env: append(os.Environ(), "DAEMON_COLLECTOR=1"),
+			Sys: &syscall.SysProcAttr{
+				Setsid: true,
+			},
+			Files: []uintptr{0, f.Fd(), f.Fd()}, // print message to the same pty
+		}); err != nil {
+			return fmt.Errorf("failed to fork/exec parent process: %w", err)
+		}
+
+		os.Exit(0)
+		//return errors.New("unreachable return")
+	}
+
+	// close stdin
+	stdin := os.NewFile(0, "stdin")
+	stdin.Close()
+
+	// open /dev/null as stdin
+	if _, err := os.Open("/dev/null"); err != nil {
+		return fmt.Errorf("failed to open '/dev/null' as stdin: %w", err)
+	}
+
+	//	var rlim unix.Rlimit
+	//	openMax := int64(maxClose)
+	//	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &rlim); err == nil {
+	//		openMax = int64(rlim.Cur)
+	//	}
+	//
+	//	// close all files
+	//	var i int64
+	//	for i = 3; i < openMax; i++ {
+	//		newFile := os.NewFile(uintptr(i), "")
+	//		newFile.Close()
+	//	}
+
+	// clear umask
+	syscall.Umask(0)
+
+	return nil
+}
+
 func main() {
 	var globalTags tagsList
 
@@ -181,8 +249,19 @@ func main() {
 	statsdHost := flag.String("statsd-host", "127.0.0.1", "Statsd host")
 	collectionInterval := flag.Duration("interval", time.Second*20, "interval for collecting vm stats")
 	libvirtDaemonURI := flag.String("libvirt-uri", "", "libvirt daemon URI")
+	daemonize := flag.Bool("daemon", false, "run collector as a daemon")
+	daemonLogFile := flag.String("log-file", "", "log file daemon")
 	flag.Var(&globalTags, "tag", "global tags to set")
 	flag.Parse()
+
+	if *daemonize {
+		if err := runAsDaemon(*daemonize, *daemonLogFile); err != nil {
+			log.Printf("failed to run collector as daemon: %v", err)
+			return
+		}
+	}
+
+	log.Printf("VM metrics collector started")
 
 	dialer := dialers.NewLocal(dialers.WithSocket(*libvirtDaemonURI), dialers.WithLocalTimeout((5 * time.Second)))
 	l := libvirt.NewWithDialer(dialer)
@@ -195,7 +274,7 @@ func main() {
 		}
 	}()
 
-	fmt.Println(globalTags)
+	log.Printf("launching statsd with global tags: %v", globalTags)
 	dogstatsd_client, err := statsd.New(fmt.Sprintf("%s:%s", *statsdHost, *statsdPort), statsd.WithTags(globalTags))
 	if err != nil {
 		log.Fatal(err)
@@ -209,6 +288,10 @@ func main() {
 			log.Fatal(err)
 		}
 
+		log.Println("Submitting metrics to statsd:")
+		for _, m := range metrics {
+			log.Printf("	%v", *m)
+		}
 		if err := lexporter.submit(metrics); err != nil {
 			log.Fatal(err)
 		}
