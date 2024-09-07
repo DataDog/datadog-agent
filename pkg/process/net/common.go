@@ -227,7 +227,9 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 
 // GetTraceroute returns the results of a traceroute to a host
 func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second) // allow extra time for the system probe communication overhead
+	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
+	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
