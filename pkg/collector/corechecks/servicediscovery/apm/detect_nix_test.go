@@ -176,18 +176,29 @@ func Test_pythonDetector(t *testing.T) {
 func TestGoDetector(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
 	require.NoError(t, err)
 
-	cmd := exec.Command(serverBin)
-	require.NoError(t, cmd.Start())
+	cmdWithSymbols := exec.Command(serverBinWithSymbols)
+	require.NoError(t, cmdWithSymbols.Start())
 	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
+		_ = cmdWithSymbols.Process.Kill()
+	})
+
+	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
+	require.NoError(t, cmdWithoutSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithoutSymbols.Process.Kill()
 	})
 
 	result := goDetector(os.Getpid(), nil, nil, nil)
 	require.Equal(t, result, None)
 
-	result = goDetector(cmd.Process.Pid, nil, nil, nil)
+	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
+	require.Equal(t, result, Provided)
+
+	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
 	require.Equal(t, result, Provided)
 }
