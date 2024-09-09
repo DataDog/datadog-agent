@@ -93,8 +93,8 @@ lint_macos:
 .tests_macos_gitlab:
   stage: source_test
   allow_failure: true
-  rules:
-    !reference [.manual]
+  # rules:
+  #   !reference [.manual]
   extends: .macos_gitlab
   needs: ["setup_agent_version"]
   variables:
