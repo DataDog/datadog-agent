@@ -334,6 +334,7 @@
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/network-device-monitoring
 /comp/serializer/compression @DataDog/agent-metrics-logs
+/comp/snmpscan @DataDog/network-device-monitoring
 # END COMPONENTS
 
 # pkg
