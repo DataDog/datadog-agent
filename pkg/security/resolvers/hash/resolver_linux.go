@@ -18,7 +18,6 @@ import (
 	"io/fs"
 	"os"
 	"slices"
-	"syscall"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
@@ -215,18 +214,17 @@ type fileUniqKey struct {
 }
 
 func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
-	fileInfo, err := os.Stat(path)
+	stat, err := utils.UnixStat(path)
 	if err != nil {
 		return 0, 0, fileUniqKey{}, err
 	}
 
-	stat := fileInfo.Sys().(*syscall.Stat_t)
 	fkey := fileUniqKey{
 		dev:   stat.Dev,
 		inode: stat.Ino,
 	}
 
-	return fileInfo.Mode(), fileInfo.Size(), fkey, nil
+	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, fkey, nil
 }
 
 // hash hashes the provided file event
