@@ -27,7 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/tagger => ../../../../../../pkg/util/tagger
-	github.com/DataDog/datadog-agent/pkg/util/testutils => ../../../../../../pkg/util/testutils
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil
 )
 
