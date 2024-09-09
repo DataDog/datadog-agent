@@ -42,7 +42,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.0 // indirect

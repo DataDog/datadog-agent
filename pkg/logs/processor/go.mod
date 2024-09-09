@@ -58,7 +58,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
