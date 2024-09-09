@@ -60,10 +60,15 @@ var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return "/sys"
 })
 
+// hostProcInternal is the testable/benchmarkable version of HostProc
+func hostProcInternal(procFsRoot string, combineWith ...string) string {
+	return filepath.Join(procFsRoot, filepath.Join(combineWith...))
+}
+
 // HostProc returns the location of a host's procfs. This can and will be
 // overridden when running inside a container.
 func HostProc(combineWith ...string) string {
-	return filepath.Join(ProcFSRoot(), filepath.Join(combineWith...))
+	return hostProcInternal(ProcFSRoot(), combineWith...)
 }
 
 // RootNSPID returns the current PID from the root namespace
