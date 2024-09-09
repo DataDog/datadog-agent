@@ -100,6 +100,7 @@ lint_macos:
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - echo $PATH
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
