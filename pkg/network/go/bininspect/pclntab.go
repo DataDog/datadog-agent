@@ -228,8 +228,7 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 
 		// based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L321
 		data.baseOffset = int64(p.uint(p.funcTableBuffer)) + p.funcData.baseOffset
-		nameOffset := field(p.ptrSize, p.cachedVersion, p.byteOrderParser, data, p.ptrBufferSizeHelper)
-		funcName := p.funcName(nameOffset)
+		funcName := p.funcName(data)
 
 		if funcName == "" {
 			continue
@@ -248,7 +247,8 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 }
 
 // funcName returns the name of the function found at off.
-func (p *pclntanSymbolParser) funcName(off uint32) string {
+func (p *pclntanSymbolParser) funcName(data sectionAccess) string {
+	off := funcNameOffset(p.ptrSize, p.cachedVersion, p.byteOrderParser, data, p.ptrBufferSizeHelper)
 	n, err := p.funcNameTable.ReadAt(p.funcNameHelper, int64(off))
 	if err != nil {
 		return ""
@@ -268,17 +268,32 @@ func (p *pclntanSymbolParser) uint(b []byte) uint64 {
 	return p.byteOrderParser.Uint64(b)
 }
 
-// field returns the uint32 field at off.
+// funcNameOffset returns the offset of the function name.
 // based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L472-L485
 // We can only for the usage of this function for getting the name of the function (https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L463)
 // So we explicitly set `n = 1` in the original implementation.
-func field(ptrSize uint32, version version, binary binary.ByteOrder, data sectionAccess, helper []byte) uint32 {
+func funcNameOffset(ptrSize uint32, version version, binary binary.ByteOrder, data sectionAccess, helper []byte) uint32 {
+	// In Go 1.18, the struct _func has changed. The original (prior to 1.18) was:
+	// type _func struct {
+	//    entry   uintptr
+	//    nameoff int32
+	//    ...
+	// }
+	// In Go 1.18, the struct is:
+	// type _func struct {
+	//    entryoff uint32
+	//    nameoff  int32
+	//    ...
+	// }
+	// Thus, to read the nameoff, for Go 1.18 and later, we need to skip the entryoff field (4 bytes).
+	// for Go 1.17 and earlier, We need to skip the sizeof(uintptr) which is ptrSize.
 	off := ptrSize
 	if version >= ver118 {
 		off = 4
 	}
-	if n, err := data.ReadAt(helper, int64(off)); err != nil || n != int(ptrSize) {
+	// We read only 4 bytes, as the nameoff is an int32.
+	if n, err := data.ReadAt(helper[:4], int64(off)); err != nil || n != 4 {
 		return 0
 	}
-	return binary.Uint32(helper)
+	return binary.Uint32(helper[:4])
 }
