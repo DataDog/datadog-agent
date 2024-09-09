@@ -3,13 +3,13 @@
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
 .setup_rpm_signing_key: &setup_rpm_signing_key
-  - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
+  - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY)
   - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-  - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+  - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE)
 
 .setup_apt_signing_key: &setup_apt_signing_key
-  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
+  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY)
+  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE)
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
@@ -40,7 +40,6 @@
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_deb_testing-a6_x64:
@@ -85,7 +84,6 @@ deploy_deb_testing-a6_arm64:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_deb_testing-a7_x64:
@@ -139,7 +137,6 @@ deploy_deb_testing-a7_arm64:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_rpm_testing-a6_x64:
@@ -177,7 +174,6 @@ deploy_rpm_testing-a6_arm64:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_rpm_testing-a7_x64:
@@ -226,7 +222,6 @@ deploy_suse_rpm_testing_x64-a6:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_rpm_signing_key
@@ -252,7 +247,6 @@ deploy_suse_rpm_testing_x64-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_rpm_signing_key
@@ -271,7 +265,6 @@ deploy_suse_rpm_testing_arm64-a7:
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_rpm_signing_key
@@ -288,7 +281,6 @@ deploy_windows_testing-a6:
   tags: ["arch:amd64"]
   needs: ["lint_windows-x64", "windows_msi_x64-a6"]
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
@@ -304,7 +296,6 @@ deploy_windows_testing-a7:
   needs:
     ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
-    - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - $S3_CP_CMD

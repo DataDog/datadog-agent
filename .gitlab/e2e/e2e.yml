@@ -1,7 +1,6 @@
 ---
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
-
 .new_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
@@ -12,11 +11,11 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE >> ~/.aws/config
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME > $E2E_PUBLIC_KEY_PATH
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
@@ -157,6 +156,20 @@ new-e2e-windows-service-test:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-agent
     EXTRA_PARAMS: --run TestServiceBehavior
+
+# Temporary job for hunting a crash
+new-e2e-windows-service-test-nofim:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestNoFIMServiceBehavior
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -368,6 +381,32 @@ new-e2e-ndm-snmp:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
 
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-kernel-integrations
+
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-kernel-integrations
+
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
@@ -429,7 +468,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

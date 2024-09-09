@@ -65,6 +65,7 @@ type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
 	sender                  *report.MetricSender
 	session                 session.Session
+	sessionFactory          session.Factory
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
@@ -80,12 +81,8 @@ const cacheKeyPrefix = "snmp-tags"
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
-	sess, err := sessionFactory(newConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to configure session: %s", err)
-	}
-
 	var devicePinger pinger.Pinger
+	var err error
 	if newConfig.PingEnabled {
 		devicePinger, err = createPinger(newConfig.PingConfig)
 		if err != nil {
@@ -98,7 +95,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 
 	d := DeviceCheck{
 		config:                  newConfig,
-		session:                 sess,
+		sessionFactory:          sessionFactory,
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
 		nextAutodetectMetrics:   timeNow(),
@@ -159,6 +156,12 @@ func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
+
+	var err error
+	d.session, err = d.sessionFactory(d.config)
+	if err != nil {
+		return err
+	}
 
 	// Fetch and report metrics
 	var checkErr error

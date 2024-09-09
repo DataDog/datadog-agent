@@ -174,15 +174,15 @@ variables:
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
+  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
+  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
   RPM_GPG_KEY_ID: fd4bf915
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}
+  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}
+  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}
   # docker.io authentication
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
+  DOCKER_REGISTRY_LOGIN: docker_hub_login
+  DOCKER_REGISTRY_PWD: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
@@ -881,7 +881,6 @@ workflow:
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
         - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe_windows.yml
         - .gitlab/functional_test_sysprobe/system_probe.yml
         - .gitlab/kernel_version_testing/system_probe.yml
         - test/new-e2e/system-probe/**/*

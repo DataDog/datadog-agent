@@ -73,8 +73,6 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	// HACK(baptiste): Create a dedicated one-shot RC service just for the configuration
 	// We should use the CDN instead
 	config := pkgconfigsetup.Datadog()
-	config.Set("run_path", "/opt/datadog-packages/datadog-installer/stable/run", model.SourceAgentRuntime)
-
 	detectenv.DetectFeatures(config)
 	hostname, err := pkghostname.Get(ctx)
 	if err != nil {
@@ -84,6 +82,7 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		remoteconfig.WithAPIKey(c.env.APIKey),
 		remoteconfig.WithConfigRootOverride(c.env.Site, ""),
 		remoteconfig.WithDirectorRootOverride(c.env.Site, ""),
+		remoteconfig.WithDatabaseFileName("remote-config-cdn-tmp"),
 	}
 	service, err := remoteconfig.NewService(
 		config,

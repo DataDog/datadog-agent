@@ -6,8 +6,18 @@ If ($lastExitCode -ne "0") {
     throw "Previous command returned $lastExitCode"
 }
 # DockerHub login
-$DOCKER_REGISTRY_LOGIN = $(& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_LOGIN_SSM_KEY")
-$DOCKER_REGISTRY_PWD = $(& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_PWD_SSM_KEY")
+$tmpfile = [System.IO.Path]::GetTempFileName()
+& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_LOGIN" "$tmpfile"
+If ($lastExitCode -ne "0") {
+    throw "Previous command returned $lastExitCode"
+}
+$DOCKER_REGISTRY_LOGIN = $(cat "$tmpfile")
+& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_PWD" "$tmpfile"
+If ($lastExitCode -ne "0") {
+    throw "Previous command returned $lastExitCode"
+}
+$DOCKER_REGISTRY_PWD = $(cat "$tmpfile")
+Remove-Item "$tmpfile"
 docker login --username "${DOCKER_REGISTRY_LOGIN}" --password "${DOCKER_REGISTRY_PWD}" "docker.io"
 If ($lastExitCode -ne "0") {
     throw "Previous command returned $lastExitCode"

@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggernoop "github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -69,7 +71,10 @@ const (
 
 func main() {
 	// run the agent
-	err := fxutil.OneShot(runAgent)
+	err := fxutil.OneShot(
+		runAgent,
+		taggernoop.Module(),
+	)
 
 	if err != nil {
 		log.Error(err)
@@ -77,7 +82,7 @@ func main() {
 	}
 }
 
-func runAgent() {
+func runAgent(tagger tagger.Component) {
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
@@ -113,7 +118,7 @@ func runAgent() {
 
 	go startTraceAgent(&wg, lambdaSpanChan, coldStartSpanId, serverlessDaemon)
 	go startOtlpAgent(&wg, metricAgent, serverlessDaemon)
-	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon)
+	go startTelemetryCollection(&wg, serverlessID, logChannel, serverlessDaemon, tagger)
 
 	// start appsec
 	appsecProxyProcessor := startAppSec(serverlessDaemon)
@@ -284,7 +289,7 @@ func startAppSec(serverlessDaemon *daemon.Daemon) *httpsec.ProxyLifecycleProcess
 	return appsecProxyProcessor
 }
 
-func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon) {
+func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, logChannel chan *logConfig.ChannelMessage, serverlessDaemon *daemon.Daemon, tagger tagger.Component) {
 	defer wg.Done()
 	if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 		log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
@@ -308,7 +313,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}

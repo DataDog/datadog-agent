@@ -87,23 +87,36 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 			continue
 		}
 
-		uri, crawl, err := extractor(exconf)
+		uri, err := extractor(exconf)
 
 		var uris []string
-		if extension.Type().String() == "pprof" {
-			uris = []string{uri + "/debug/pprof/heap", uri + "/debug/pprof/allocs", uri + "/debug/pprof/profile"}
-		} else {
+		switch extension.Type().String() {
+		case "pprof":
+			uris = []string{
+				uri + "/debug/pprof/heap",
+				uri + "/debug/pprof/allocs",
+				uri + "/debug/pprof/profile",
+			}
+		case "zpages":
+			uris = []string{
+				uri + "/debug/servicez",
+				uri + "/debug/pipelinez",
+				uri + "/debug/extensionz",
+				uri + "/debug/featurez",
+				uri + "/debug/tracez",
+			}
+		default:
 			uris = []string{uri}
 		}
 
 		if err != nil {
 			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
-		} else {
-			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-			ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
-				URLs:  uris,
-				Crawl: crawl,
-			}
+			continue
+		}
+
+		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
+		ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
+			URLs: uris,
 		}
 	}
 
@@ -141,6 +154,12 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
+	envconfig := ""
+	envvars := getEnvironmentAsMap()
+	if envbytes, err := json.Marshal(envvars); err == nil {
+		envconfig = string(envbytes)
+	}
+
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
 			AgentVersion:     ext.info.Version,
@@ -149,11 +168,13 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			ExtensionVersion: ext.info.Version,
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
-			CustomerConfig: customer,
-			RuntimeConfig:  enhanced,
+			CustomerConfig:        customer,
+			RuntimeConfig:         enhanced,
+			RuntimeOverrideConfig: "", // TODO: support RemoteConfig
+			EnvConfig:             envconfig,
 		},
 		DebugSourceResponse: ext.debug,
-		Environment:         getEnvironmentAsMap(),
+		Environment:         envvars,
 	}
 
 	j, err := json.MarshalIndent(resp, "", "  ")

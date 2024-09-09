@@ -40,6 +40,7 @@ import (
 // EntityTags holds the tag information for a given entity.
 type EntityTags interface {
 	toEntity() types.Entity
+	getEntityID() types.EntityID
 	getStandard() []string
 	getHashedTags(cardinality types.TagCardinality) tagset.HashedTags
 	tagsForSource(source string) *sourceTags
@@ -56,7 +57,7 @@ type EntityTags interface {
 // not be shared outside of the store. Usage inside the store is safe since it
 // relies on a global lock.
 type EntityTagsWithMultipleSources struct {
-	entityID           string
+	entityID           types.EntityID
 	sourceTags         map[string]sourceTags
 	cacheValid         bool
 	cachedAll          tagset.HashedTags // Low + orchestrator + high
@@ -64,7 +65,7 @@ type EntityTagsWithMultipleSources struct {
 	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
 }
 
-func newEntityTags(entityID string, source string) EntityTags {
+func newEntityTags(entityID types.EntityID, source string) EntityTags {
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		return newEntityTagsWithSingleSource(entityID, source)
 	}
@@ -76,6 +77,9 @@ func newEntityTags(entityID string, source string) EntityTags {
 	}
 }
 
+func (e *EntityTagsWithMultipleSources) getEntityID() types.EntityID {
+	return e.entityID
+}
 func (e *EntityTagsWithMultipleSources) toEntity() types.Entity {
 	e.computeCache()
 
@@ -251,7 +255,7 @@ func (e *EntityTagsWithMultipleSources) setSourceExpiration(source string, expir
 // not be shared outside of the store. Usage inside the store is safe since it
 // relies on a global lock.
 type EntityTagsWithSingleSource struct {
-	entityID           string
+	entityID           types.EntityID
 	source             string
 	expiryDate         time.Time
 	standardTags       []string
@@ -261,11 +265,15 @@ type EntityTagsWithSingleSource struct {
 	isExpired          bool
 }
 
-func newEntityTagsWithSingleSource(entityID string, source string) *EntityTagsWithSingleSource {
+func newEntityTagsWithSingleSource(entityID types.EntityID, source string) *EntityTagsWithSingleSource {
 	return &EntityTagsWithSingleSource{
 		entityID: entityID,
 		source:   source,
 	}
+}
+
+func (e *EntityTagsWithSingleSource) getEntityID() types.EntityID {
+	return e.entityID
 }
 
 func (e *EntityTagsWithSingleSource) toEntity() types.Entity {
