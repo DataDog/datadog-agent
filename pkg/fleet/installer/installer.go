@@ -88,9 +88,13 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+	cdn, err := cdn.New(env)
+	if err != nil {
+		return nil, fmt.Errorf("could not create CDN client: %w", err)
+	}
 	return &installerImpl{
 		env:        env,
-		cdn:        cdn.New(env),
+		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),

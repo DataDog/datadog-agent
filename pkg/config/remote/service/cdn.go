@@ -71,7 +71,7 @@ type httpClientOptions struct {
 }
 
 var defaultHTTPClientOptions = httpClientOptions{
-	rcType:               "",
+	rcType:               "CDN Client",
 	agentVersion:         "",
 	apiKey:               "",
 	rcKey:                "",
@@ -163,17 +163,19 @@ func (s *HTTPClient) GetCDNConfigUpdate(
 	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 
+	if !s.shouldUpdate() {
+		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	}
+
 	// check org status in the backend. If RC is disabled, return current state.
 	response, err := s.api.FetchOrgStatus(context.Background())
 	if err != nil || !response.Enabled || !response.Authorized {
 		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
 	}
 
-	if s.shouldUpdate() {
-		err := s.update()
-		if err != nil {
-			_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
-		}
+	err = s.update()
+	if err != nil {
+		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
 	return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
