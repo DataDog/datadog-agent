@@ -104,7 +104,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "decoding failed due to the following error(s):\n\n'protocols' has invalid keys: htttp",
+			err:  "'protocols' has invalid keys: htttp",
 		},
 	}
 
