@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -26,20 +26,20 @@ const (
 )
 
 func buildStoreKey(key ...string) string {
-	parts := []string{config.Datadog().GetString("autoconf_template_dir")}
+	parts := []string{pkgconfigsetup.Datadog().GetString("autoconf_template_dir")}
 	parts = append(parts, key...)
 	return path.Join(parts...)
 }
 
 // GetPollInterval computes the poll interval from the config
-func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
+func GetPollInterval(cp pkgconfigsetup.ConfigurationProviders) time.Duration {
 	if cp.PollInterval != "" {
 		customInterval, err := time.ParseDuration(cp.PollInterval)
 		if err == nil {
 			return customInterval
 		}
 	}
-	return config.Datadog().GetDuration("ad_config_poll_interval") * time.Second
+	return pkgconfigsetup.Datadog().GetDuration("ad_config_poll_interval") * time.Second
 }
 
 // providerCache supports monitoring a service for changes either to the number
