@@ -21,6 +21,10 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -40,9 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type collectorImpl struct {
@@ -110,7 +111,7 @@ func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProvi
 		},
 	}
 }
-func generateId(group, resource, namespace, name string) string {
+func generateID(group, resource, namespace, name string) string {
 
 	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
 }
@@ -120,7 +121,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateId)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 }
