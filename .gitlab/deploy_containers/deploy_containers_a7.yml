@@ -97,12 +97,8 @@ deploy_containers-ot:
   dependencies: []
   before_script:
     - export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx"
 
 
 #
