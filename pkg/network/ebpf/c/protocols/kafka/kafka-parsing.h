@@ -1114,9 +1114,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
@@ -1124,9 +1124,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             switch (api_key) {
             case KAFKA_FETCH:
                 if (api_version >= 12) {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
                 } else {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
                 }
                 break;
             case KAFKA_PRODUCE:
@@ -1147,9 +1147,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
@@ -1157,9 +1157,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             switch (api_key) {
             case KAFKA_FETCH:
                 if (api_version >= 12) {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
                 } else {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
                 }
                 break;
             case KAFKA_PRODUCE:
