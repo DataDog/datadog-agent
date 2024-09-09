@@ -2673,8 +2673,8 @@ go.opentelemetry.io/collector/config/configtls v0.104.0 h1:bMmLz2+r+REpO7cDOR+sr
 go.opentelemetry.io/collector/config/configtls v0.104.0/go.mod h1:e33o7TWcKfe4ToLFyGISEPGMgp6ezf3yHRGY4gs9nKk=
 go.opentelemetry.io/collector/config/internal v0.104.0 h1:h3OkxTfXWWrHRyPEGMpJb4fH+54puSBuzm6GQbuEZ2o=
 go.opentelemetry.io/collector/config/internal v0.104.0/go.mod h1:KjH43jsAUFyZPeTOz7GrPORMQCK13wRMCyQpWk99gMo=
-go.opentelemetry.io/collector/confmap v1.14.1 h1:GPMa+q5ThiBFQaYKJ7xeomiw9tIokkTA1AiF1zwKJck=
-go.opentelemetry.io/collector/confmap v1.14.1/go.mod h1:GrIZ12P/9DPOuTpe2PIS51a0P/ZM6iKtByVee1Uf3+k=
+go.opentelemetry.io/collector/confmap v0.104.0 h1:d3yuwX+CHpoyCh0iMv3rqb/vwAekjSm4ZDL6UK1nZSA=
+go.opentelemetry.io/collector/confmap v0.104.0/go.mod h1:F8Lue+tPPn2oldXcfqI75PPMJoyzgUsKVtM/uHZLA4w=
 go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0 h1:7BhJk71V8xhm8wUpuHG4CVRAPu8JajKj8VmGZ6zS7SA=
 go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0/go.mod h1:o2xTZJpc65SyYPOAGOjyvWwQEqYSWT4Q4/gMfOYpAzc=
 go.opentelemetry.io/collector/confmap/provider/envprovider v0.104.0 h1:/3iSlUHH1Q3xeZc55oVekd4dibXzqgphXZI7EaYJ+ak=
@@ -2717,8 +2717,8 @@ go.opentelemetry.io/collector/otelcol v0.104.0 h1:RnMx7RaSFmX4dq/l3wbXWwcUnFK7RU
 go.opentelemetry.io/collector/otelcol v0.104.0/go.mod h1:hWFRiHIKT3zbUx6SRevusPRa6mfm+70bPG5CK0glqSU=
 go.opentelemetry.io/collector/otelcol/otelcoltest v0.104.0 h1:duPbOTahDcDP+XupC/KkHvebb8+NVKh7LzIpiEuKwLU=
 go.opentelemetry.io/collector/otelcol/otelcoltest v0.104.0/go.mod h1:cNosA2o77fGp2N4Ofs5h6HBdHhlPQAbKBjBIc1l+8O4=
-go.opentelemetry.io/collector/pdata v1.14.1 h1:wXZjtQA7Vy5HFqco+yA95ENyMQU5heBB1IxMHQf6mUk=
-go.opentelemetry.io/collector/pdata v1.14.1/go.mod h1:z1dTjwwtcoXxZx2/nkHysjxMeaxe9pEmYTEr4SMNIx8=
+go.opentelemetry.io/collector/pdata v1.11.0 h1:rzYyV1zfTQQz1DI9hCiaKyyaczqawN75XO9mdXmR/hE=
+go.opentelemetry.io/collector/pdata v1.11.0/go.mod h1:IHxHsp+Jq/xfjORQMDJjSH6jvedOSTOyu3nbxqhWSYE=
 go.opentelemetry.io/collector/pdata/pprofile v0.104.0 h1:MYOIHvPlKEJbWLiBKFQWGD0xd2u22xGVLt4jPbdxP4Y=
 go.opentelemetry.io/collector/pdata/pprofile v0.104.0/go.mod h1:7WpyHk2wJZRx70CGkBio8klrYTTXASbyIhf+rH4FKnA=
 go.opentelemetry.io/collector/pdata/testdata v0.104.0 h1:BKTZ7hIyAX5DMPecrXkVB2e86HwWtJyOlXn/5vSVXNw=
