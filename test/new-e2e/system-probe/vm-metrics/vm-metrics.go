@@ -22,10 +22,7 @@ import (
 	"github.com/digitalocean/go-libvirt/socket/dialers"
 )
 
-const (
-	kmtMicroVmsPrefix = "kmt.microvm."
-	maxClose          = 8192
-)
+const kmtMicroVmsPrefix = "kmt.microvm."
 
 var distrosMatch = map[string]*regexp.Regexp{
 	"ubuntu":   regexp.MustCompile(`-(ubuntu_[\.,\d]{1,5}).*-`),
@@ -212,7 +209,6 @@ func runAsDaemon(daemonize bool, daemonLogFile string) error {
 		}
 
 		os.Exit(0)
-		//return errors.New("unreachable return")
 	}
 
 	// close stdin
