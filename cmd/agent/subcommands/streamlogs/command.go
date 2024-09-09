@@ -101,8 +101,7 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 	var bufWriter *bufio.Writer
 
 	if cliParams.FilePath != "" {
-		err = checkDirExists(cliParams.FilePath)
-		if err != nil {
+		if err = stream.EnsureDirExists(cliParams.FilePath); err != nil {
 			return fmt.Errorf("error creating directory for file %s: %v", cliParams.FilePath, err)
 		}
 

@@ -93,3 +93,72 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 		}
 	}
 }
+
+// ExportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
+func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error {
+	var f *os.File
+	var bufWriter *bufio.Writer
+
+	if err := EnsureDirExists(streamLogParams.FilePath); err != nil {
+		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
+	}
+
+	f, bufWriter, err := OpenFileForWriting(streamLogParams.FilePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
+	}
+	defer func() {
+		err := bufWriter.Flush()
+		if err != nil {
+			log.Errorf("Error flushing buffer for log stream: %v", err)
+		}
+		f.Close()
+	}()
+
+	messageReceiver := la.GetMessageReceiver()
+
+	if !messageReceiver.SetEnabled(true) {
+		return fmt.Errorf("unable to enable message receiver, another client is already streaming logs")
+	}
+	defer messageReceiver.SetEnabled(false)
+
+	var filters diagnostic.Filters
+	done := make(chan struct{})
+	defer close(done)
+
+	logChan := messageReceiver.Filter(&filters, done)
+
+	timer := time.NewTimer(streamLogParams.Duration)
+	defer timer.Stop()
+
+	for {
+		select {
+		case log := <-logChan:
+			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+				return fmt.Errorf("failed to write to file: %v", err)
+			}
+		case <-timer.C:
+			return nil
+		}
+	}
+}
+
+// OpenFileForWriting opens a file for writing
+func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
+	log.Infof("opening file %s for writing", filePath)
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	bufWriter := bufio.NewWriter(f)
+	return f, bufWriter, nil
+}
+
+// EnsureDirExists checks if the directory for the given path exists, if not then create it.
+func EnsureDirExists(path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
+		return err
+	}
+	return nil
+}
