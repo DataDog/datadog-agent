@@ -684,8 +684,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(statsdClient, hostname, secagent.RSAOptions{
-		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
-		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+		LogProfiledWorkloads: config.GetBool("runtime_security_config.log_profiled_workloads"),
 	}, wmeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)

@@ -46,13 +46,13 @@ func mmapKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "mmap.file.name", "mmap.file.path": // already handled by getBasenameKFilters
 		case "mmap.flags":
-			kfilter, err := getFlagsKFilters("mmap_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mmap_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			mmapKFilters = append(mmapKFilters, kfilter)
 		case "mmap.protection":
-			kfilter, err := getFlagsKFilters("mmap_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mmap_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}

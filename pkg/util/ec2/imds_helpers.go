@@ -77,7 +77,7 @@ func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, e
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
 			if forceIMDSv2 {
-				return "", fmt.Errorf("Could not fetch token from IMDSv2")
+				return "", fmt.Errorf("could not fetch token from IMDSv2")
 			}
 			log.Warnf("ec2_prefer_imdsv2 is set to true in the configuration but the agent was unable to proceed: %s", err)
 		} else {

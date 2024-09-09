@@ -1,0 +1,10 @@
+log_level: warn
+
+otelcollector:
+  enabled: true
+  extension_url: "https://localhost:7777"
+
+agent_ipc:
+  port: 5009
+  config_refresh_interval: 60
+

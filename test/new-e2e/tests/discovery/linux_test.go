@@ -29,9 +29,6 @@ var agentConfigStr string
 //go:embed testdata/config/system_probe_config.yaml
 var systemProbeConfigStr string
 
-//go:embed testdata/config/check_config.yaml
-var checkConfigStr string
-
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -42,7 +39,6 @@ func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(agentConfigStr),
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-		agentparams.WithFile("/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml", checkConfigStr, true),
 	}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
@@ -92,28 +88,40 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		found := foundMap["json-server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "json-server", found.Payload.ServiceName)
+			assert.Equal(c, "json-server", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["node-instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "node-instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "node-instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
-		found = foundMap["python.server"]
+		found = foundMap["python-svc-dd"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "python-svc-dd", found.Payload.ServiceName)
+			assert.Equal(c, "python.server", found.Payload.GeneratedServiceName)
+			assert.Equal(c, "python-svc-dd", found.Payload.DDService)
+			assert.Equal(c, "provided", found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 

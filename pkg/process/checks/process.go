@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
@@ -137,7 +135,17 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	var tu *net.RemoteSysProbeUtil
+	var err error
+	if syscfg.NetworkTracerModuleEnabled {
+		// Calling the remote tracer will cause it to initialize and check connectivity
+		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
+		if err != nil {
+			log.Warnf("could not initiate connection with system probe: %s", err)
+		}
+	}
+
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
