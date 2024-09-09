@@ -97,7 +97,7 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
+enum SYSCALL_STATE __attribute__((always_inline)) approve_mmap_by_protection_flags(struct syscall_cache_t *syscall) {
     u32 flags = 0;
 
     int exists = lookup_u32_flags(&mmap_protection_approvers, &flags);
@@ -120,7 +120,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) mmap_approvers(struct syscall_
     }
 
     if (state == DISCARDED) {
-        state = approve_mmap_by_protection(syscall);
+        state = approve_mmap_by_protection_flags(syscall);
     }
     if (state == DISCARDED) {
         state = approve_mmap_by_flags(syscall);

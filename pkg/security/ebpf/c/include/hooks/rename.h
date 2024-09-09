@@ -90,7 +90,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     }
 
     // always return after any invalidate_inode call
-    if (approve_syscall(syscall, rename_approvers)) {
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         return 0;
     }

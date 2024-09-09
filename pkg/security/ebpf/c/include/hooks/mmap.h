@@ -51,7 +51,7 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return 0;
     }
 
-    if (approve_syscall(syscall, mmap_approvers)) {
+    if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
         return 0;
     }
 

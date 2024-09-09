@@ -69,7 +69,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
     set_file_inode(dentry, &syscall->unlink.file, 1);
     fill_file(dentry, &syscall->unlink.file);
 
-    if (approve_syscall(syscall, unlink_approvers)) {
+    if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         return 0;
     }

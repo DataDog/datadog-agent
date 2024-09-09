@@ -834,6 +834,28 @@ func TestRuleSetApprovers24(t *testing.T) {
 	}
 }
 
+func TestRuleSetApprovers25(t *testing.T) {
+	exprs := []string{
+		`open.flags&(O_CREAT|O_WRONLY) == (O_CREAT|O_WRONLY)`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
 func TestRuleSetAUDApprovers(t *testing.T) {
 	caps := FieldCapabilities{
 		{

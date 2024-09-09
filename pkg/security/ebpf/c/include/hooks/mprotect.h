@@ -46,7 +46,7 @@ int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (approve_syscall(syscall, mprotect_approvers)) {
+    if (approve_syscall(syscall, mprotect_approvers) == DISCARDED) {
         return 0;
     }
 
