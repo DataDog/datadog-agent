@@ -45,6 +45,25 @@ include:
           - "-servercore"
           - "-linux"
 
+.deploy_containers-a7-base-ot:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  variables:
+    AGENT_REPOSITORY: agent
+    IMG_REGISTRIES: public
+  dependencies: []
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"; fi
+    - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
+
+.deploy_containers-a7-ot_external:
+  extends: .deploy_containers-a7-base-ot
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
 
 deploy_containers-a7:
   extends: .deploy_containers-a7_external
@@ -86,22 +105,10 @@ deploy_containers-a7_internal-rc:
 
 
 deploy_containers-ot:
-  extends: .docker_publish_job_definition
-  stage: deploy_containers
+  extends: .deploy_containers-a7-ot_external
   rules:
     - when: manual
       allow_failure: true
-  variables:
-    AGENT_REPOSITORY: agent
-    IMG_REGISTRIES: public
-    VERSION: 7
-  dependencies: []
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta
-      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
-        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx
 
 
 #
@@ -129,7 +136,6 @@ deploy_containers_latest-a7:
         IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
 
-
 deploy_containers_latest-a7_internal:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -142,7 +148,6 @@ deploy_containers_latest-a7_internal:
         IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
         IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
 
-
 deploy_containers_latest-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -152,3 +157,22 @@ deploy_containers_latest-dogstatsd:
   variables:
     IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest
+
+deploy_containers_latest-ot:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    AGENT_REPOSITORY: agent
+    IMG_REGISTRIES: public
+    VERSION: 7
+  dependencies: []
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta
+      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx
+
