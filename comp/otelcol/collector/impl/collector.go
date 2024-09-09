@@ -111,10 +111,11 @@ func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProvi
 		},
 	}
 }
-func generateID(group, resource, namespace, name string) string {
 
+func generateID(group, resource, namespace, name string) string {
 	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
 }
+
 func addFactories(reqs Requires, factories otelcol.Factories) {
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
