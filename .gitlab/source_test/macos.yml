@@ -101,6 +101,8 @@ lint_macos:
     TEST_OUTPUT_FILE: test_output.json
   script:
     - echo $PATH
+    - ls -la /opt/datadog-ci/bin
+    - ls -la /opt/codecov/bin
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
