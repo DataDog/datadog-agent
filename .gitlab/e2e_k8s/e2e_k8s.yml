@@ -11,23 +11,23 @@
   variables:
     LANG: C.UTF-8
   before_script:
-    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN || exit $?
-    - export DOCKER_REGISTRY_LOGIN=$(pop_ssm)
+    - export DOCKER_REGISTRY_LOGIN=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD || exit $?
-    - export DOCKER_REGISTRY_PWD=$(pop_ssm)
+    - export DOCKER_REGISTRY_PWD=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_DDDEV || exit $?
-    - export DD_API_KEY=$(pop_ssm)
+    - export DD_API_KEY=$(pop_secret)
 
 .k8s-e2e-cws-cspm-init:
   - set +x
   - export DATADOG_AGENT_SITE=datadoghq.com
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_API_KEY || exit $?
-  - export DATADOG_AGENT_API_KEY=$(pop_ssm)
+  - export DATADOG_AGENT_API_KEY=$(pop_secret)
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_APP_KEY || exit $?
-  - export DATADOG_AGENT_APP_KEY=$(pop_ssm)
+  - export DATADOG_AGENT_APP_KEY=$(pop_secret)
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_RC_KEY || exit $?
-  - export DATADOG_AGENT_RC_KEY=$(pop_ssm)
+  - export DATADOG_AGENT_RC_KEY=$(pop_secret)
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template

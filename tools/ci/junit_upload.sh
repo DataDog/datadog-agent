@@ -11,8 +11,8 @@ fi
 source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
 "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$GITLAB_READ_API_TOKEN"
 "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2"
-DATADOG_API_KEY=$(pop_ssm)
-GITLAB_TOKEN=$(pop_ssm)
+DATADOG_API_KEY=$(pop_secret)
+GITLAB_TOKEN=$(pop_secret)
 export DATADOG_API_KEY
 export GITLAB_TOKEN
 error=0

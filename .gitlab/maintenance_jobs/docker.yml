@@ -60,11 +60,11 @@ delete_docker_tag:
     TAG: "" # tag name, for example "6.9.0"
     ORGANIZATION: "datadog"
   before_script:
-    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN || exit $?
-    - DOCKER_REGISTRY_LOGIN=$(pop_ssm)
+    - DOCKER_REGISTRY_LOGIN=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD || exit $?
-    - PASS=$(pop_ssm)
+    - PASS=$(pop_secret)
     - python3 -m pip install -r requirements.txt
     - |
       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`

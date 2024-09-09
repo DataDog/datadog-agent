@@ -42,18 +42,18 @@ single-machine-performance-regression_detector:
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT_ID || exit $?
-    - SMP_ACCOUNT_ID=$(pop_ssm)
+    - SMP_ACCOUNT_ID=$(pop_secret)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_AGENT_TEAM_ID || exit $?
-    - SMP_AGENT_TEAM_ID=$(pop_ssm)
+    - SMP_AGENT_TEAM_ID=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_API || exit $?
-    - SMP_API=$(pop_ssm)
+    - SMP_API=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY_ID || exit $?
-    - aws configure set aws_access_key_id $(pop_ssm) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_access_key_id $(pop_secret) --profile ${AWS_NAMED_PROFILE}
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY || exit $?
-    - aws configure set aws_secret_access_key $(pop_ssm) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key $(pop_secret) --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp

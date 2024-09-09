@@ -8,26 +8,26 @@ set -euo pipefail
 
 # Open file description for secrets
 # shellcheck source=/dev/null
-source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
+source "$CI_PROJECT_DIR"/tools/ci/open_local_secret_store.sh
 # These should not be printed out
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
   "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_CLIENT_ID"
-  AZURE_CLIENT_ID=$(pop_ssm)
+  AZURE_CLIENT_ID=$(pop_secret)
   export AZURE_CLIENT_ID
 fi
 if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
   "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_CLIENT_SECRET"
-  AZURE_CLIENT_SECRET=$(pop_ssm)
+  AZURE_CLIENT_SECRET=$(pop_secret)
   export AZURE_CLIENT_SECRET
 fi
 if [ -z ${AZURE_TENANT_ID+x} ]; then
   "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_TENANT_ID"
-  AZURE_TENANT_ID=$(pop_ssm)
+  AZURE_TENANT_ID=$(pop_secret)
   export AZURE_TENANT_ID
 fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
   "$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_SUBSCRIPTION_ID"
-  AZURE_SUBSCRIPTION_ID=$(pop_ssm)
+  AZURE_SUBSCRIPTION_ID=$(pop_secret)
   export AZURE_SUBSCRIPTION_ID
 fi
 if [ -z ${DD_PIPELINE_ID+x} ]; then

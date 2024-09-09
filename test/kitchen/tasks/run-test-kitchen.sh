@@ -24,7 +24,7 @@ popd
 
 # Open file descriptor for secrets
 # shellcheck source=/dev/null
-source "$PARENT_DIR"/tools/ci/open_file_descriptor.sh
+source "$PARENT_DIR"/tools/ci/open_local_secret_store.sh
 
 # in docker we cannot interact to do this so we must disable it
 mkdir -p ~/.ssh
@@ -59,28 +59,28 @@ if [ "$KITCHEN_PROVIDER" == "azure" ]; then
   set +x
   if [ -z ${AZURE_CLIENT_ID+x} ]; then
     "$PARENT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_CLIENT_ID"
-    AZURE_CLIENT_ID=$(pop_ssm)
+    AZURE_CLIENT_ID=$(pop_secret)
     # make sure whitespace is removed
     AZURE_CLIENT_ID="$(echo -e "${AZURE_CLIENT_ID}" | tr -d '[:space:]')"
     export AZURE_CLIENT_ID
   fi
   if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
     "$PARENT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_CLIENT_SECRET"
-    AZURE_CLIENT_SECRET=$(pop_ssm)
+    AZURE_CLIENT_SECRET=$(pop_secret)
     # make sure whitespace is removed
     AZURE_CLIENT_SECRET="$(echo -e "${AZURE_CLIENT_SECRET}" | tr -d '[:space:]')"
     export AZURE_CLIENT_SECRET
   fi
   if [ -z ${AZURE_TENANT_ID+x} ]; then
     "$PARENT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_TENANT_ID"
-    AZURE_TENANT_ID=$(pop_ssm)
+    AZURE_TENANT_ID=$(pop_secret)
     # make sure whitespace is removed
     AZURE_TENANT_ID="$(echo -e "${AZURE_TENANT_ID}" | tr -d '[:space:]')"
     export AZURE_TENANT_ID
   fi
   if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
     "$PARENT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_AZURE_SUBSCRIPTION_ID"
-    AZURE_SUBSCRIPTION_ID=$(pop_ssm)
+    AZURE_SUBSCRIPTION_ID=$(pop_secret)
     # make sure whitespace is removed
     AZURE_SUBSCRIPTION_ID="$(echo -e "${AZURE_SUBSCRIPTION_ID}" | tr -d '[:space:]')"
     export AZURE_SUBSCRIPTION_ID
@@ -110,7 +110,7 @@ elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
     export KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
     touch "$KITCHEN_EC2_SSH_KEY_PATH" && chmod 600 "$KITCHEN_EC2_SSH_KEY_PATH"
     "$PARENT_DIR"/tools/ci/fetch_secret.sh "$KITCHEN_EC2_SSH_KEY"
-    pop_ssm > "$KITCHEN_EC2_SSH_KEY_PATH"
+    pop_secret > "$KITCHEN_EC2_SSH_KEY_PATH"
   fi
 fi
 
