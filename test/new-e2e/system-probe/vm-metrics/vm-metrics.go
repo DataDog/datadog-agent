@@ -186,7 +186,7 @@ func (t *tagsList) Set(value string) error {
 //     and release it from the original controlling terminal.
 //   - Reset umask, so that files are created with the requested
 //     permissions
-func runAsDaemon(daemonize bool, daemonLogFile string) error {
+func runAsDaemon(daemonLogFile string) error {
 	if daemonLogFile == "" {
 		daemonLogFile = "/tmp/vm-metrics.log"
 	}
@@ -239,7 +239,7 @@ func main() {
 	flag.Parse()
 
 	if *daemonize {
-		if err := runAsDaemon(*daemonize, *daemonLogFile); err != nil {
+		if err := runAsDaemon(*daemonLogFile); err != nil {
 			log.Printf("failed to run collector as daemon: %v", err)
 			return
 		}
@@ -250,7 +250,7 @@ func main() {
 	dialer := dialers.NewLocal(dialers.WithSocket(*libvirtDaemonURI), dialers.WithLocalTimeout((5 * time.Second)))
 	l := libvirt.NewWithDialer(dialer)
 	if err := l.ConnectToURI(libvirt.QEMUSystem); err != nil {
-		log.Fatal(fmt.Sprintf("failed to connect to libvirt: %v", err))
+		log.Fatalf("failed to connect to libvirt: %v", err)
 	}
 	defer func() {
 		if err := l.Disconnect(); err != nil {
@@ -259,12 +259,12 @@ func main() {
 	}()
 
 	log.Printf("launching statsd with global tags: %v", globalTags)
-	dogstatsd_client, err := statsd.New(fmt.Sprintf("%s:%s", *statsdHost, *statsdPort), statsd.WithTags(globalTags))
+	dogstatsdClient, err := statsd.New(fmt.Sprintf("%s:%s", *statsdHost, *statsdPort), statsd.WithTags(globalTags))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	lexporter := newLibvirtExporter(l, dogstatsd_client)
+	lexporter := newLibvirtExporter(l, dogstatsdClient)
 
 	for range time.Tick(*collectionInterval) {
 		metrics, err := lexporter.collect()
