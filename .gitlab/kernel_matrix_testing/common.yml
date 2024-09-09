@@ -277,7 +277,7 @@
       - $DD_AGENT_TESTING_DIR/verifier-complexity-$ARCH-$TAG-${TEST_COMPONENT}.tar.gz
       - $CI_PROJECT_DIR/logs
       - $CI_PROJECT_DIR/pcaps
-      - $CI_PROJECT_DIR/daemon-${ARCH}.log
+      - $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
