@@ -30,7 +30,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
-	configConverter := config.NewConfigConverter()
+	configConverter := legacy.NewConfigConverter()
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 

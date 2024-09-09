@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfiglegacy "github.com/DataDog/datadog-agent/pkg/config/legacy"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -215,3 +216,7 @@ func LoadWithoutSecret() (*model.Warnings, error) {
 func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog())
 }
+
+// LegacyConfigConverter is an alias for the struct to convert A5 to A6
+// in legacy package
+type LegacyConfigConverter = pkgconfiglegacy.LegacyConfigConverter
