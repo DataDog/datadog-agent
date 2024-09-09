@@ -112,19 +112,18 @@ func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 	var f *os.File
 	var bufWriter *bufio.Writer
 
-	err := CheckDirExists(streamLogParams.FilePath)
-	if err != nil {
+	if err := EnsureDirExists(streamLogParams.FilePath); err != nil {
 		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
 	}
 
-	f, bufWriter, err = OpenFileForWriting(streamLogParams.FilePath)
+	f, bufWriter, err := OpenFileForWriting(streamLogParams.FilePath)
 	if err != nil {
 		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
 	}
 	defer func() {
 		err := bufWriter.Flush()
 		if err != nil {
-			fmt.Printf("Error flushing buffer for log stream: %v", err)
+			log.Errorf("Error flushing buffer for log stream: %v", err)
 		}
 		f.Close()
 	}()
@@ -164,18 +163,14 @@ func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
-	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
+	bufWriter := bufio.NewWriter(f)
 	return f, bufWriter, nil
 }
 
-// CheckDirExists checks if the directory for the given path exists, if not then create it.
-func CheckDirExists(path string) error {
+// EnsureDirExists checks if the directory for the given path exists, if not then create it.
+func EnsureDirExists(path string) error {
 	dir := filepath.Dir(path)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
-	} else if err != nil {
+	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
 		return err
 	}
 	return nil

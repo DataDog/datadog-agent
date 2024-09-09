@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -84,10 +83,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component
 }
 
 func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	streamlogsLogFile := sl.config.GetString("streamlogs_log_file")
-	if streamlogsLogFile == "" {
-		streamlogsLogFile = commonpath.DefaultStreamlogsLogFile
-	}
+	streamlogsLogFile := sl.config.GetString("logs_config.streaming.streamlogs_log_file")
 
 	la, ok := sl.logAgent.Get()
 	if !ok {
@@ -98,17 +94,20 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
+	// shouldIncludeFunc ensures that only correct extension/suffix log files are collected from the streamlogs_info folder
+	// This include log roll over files eg: streamlogs.log.1 and to exclude non log files that might be present in the folder.
 	shouldIncludeFunc := func(path string) bool {
 		return filepath.Ext(path) == ".log" || getFirstSuffix(path) == ".log"
 	}
 
-	if err := fb.CopyDirToWithoutScrubbing(filepath.Dir(streamlogsLogFile), "logs/streamlogs_info", shouldIncludeFunc); err != nil {
+	if err := fb.CopyDirTo(filepath.Dir(streamlogsLogFile), "logs/streamlogs_info", shouldIncludeFunc); err != nil {
 		return fmt.Errorf("failed to copy logs to flare: %w", err)
 	}
 
 	return nil
 }
 
+// getFirstSuffix returns the first suffix of a file name (e.g., for "stream.error.log", it returns ".error")
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }

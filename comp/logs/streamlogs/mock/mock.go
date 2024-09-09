@@ -14,6 +14,5 @@ import (
 
 // Mock returns a mock for streamlogs component.
 func Mock() streamlogs.Component {
-	// TODO: Implement the streamlogs mock
 	return nil
 }
