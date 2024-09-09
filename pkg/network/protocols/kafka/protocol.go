@@ -40,12 +40,12 @@ const (
 	eventStreamName = "kafka"
 	filterTailCall  = "socket__kafka_filter"
 
-	responsePartitionParserV0TailCall        = "socket__kafka_response_partition_parser_v0"
-	responsePartitionParserV12TailCall       = "socket__kafka_response_partition_parser_v12"
-	responseRecordBatchParserV0TailCall      = "socket__kafka_response_record_batch_parser_v0"
-	responseRecordBatchParserV12TailCall     = "socket__kafka_response_record_batch_parser_v12"
-	ProduceResponsePartitionParserV0TailCall = "socket__kafka_produce_response_partition_parser_v0"
-	ProduceResponsePartitionParserV9TailCall = "socket__kafka_produce_response_partition_parser_v9"
+	fetchResponsePartitionParserV0TailCall    = "socket__kafka_fetch_response_partition_parser_v0"
+	fetchResponsePartitionParserV12TailCall   = "socket__kafka_fetch_response_partition_parser_v12"
+	fetchResponseRecordBatchParserV0TailCall  = "socket__kafka_fetch_response_record_batch_parser_v0"
+	fetchResponseRecordBatchParserV12TailCall = "socket__kafka_fetch_response_record_batch_parser_v12"
+	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
+	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
 
 	dispatcherTailCall = "socket__protocol_dispatcher_kafka"
 	kafkaHeapMap       = "kafka_heap"
@@ -55,12 +55,12 @@ const (
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
-	tlsResponsePartitionParserV0TailCall        = "uprobe__kafka_tls_response_partition_parser_v0"
-	tlsResponsePartitionParserV12TailCall       = "uprobe__kafka_tls_response_partition_parser_v12"
-	tlsResponseRecordBatchParserV0TailCall      = "uprobe__kafka_tls_response_record_batch_parser_v0"
-	tlsResponseRecordBatchParserV12TailCall     = "uprobe__kafka_tls_response_record_batch_parser_v12"
-	tlsProduceResponsePartitionParserV0TailCall = "uprobe__kafka_tls_produce_response_partition_parser_v0"
-	tlsProduceResponsePartitionParserV9TailCall = "uprobe__kafka_tls_produce_response_partition_parser_v9"
+	tlsFetchResponsePartitionParserV0TailCall    = "uprobe__kafka_tls_fetch_response_partition_parser_v0"
+	tlsFetchResponsePartitionParserV12TailCall   = "uprobe__kafka_tls_fetch_response_partition_parser_v12"
+	tlsFetchResponseRecordBatchParserV0TailCall  = "uprobe__kafka_tls_fetch_response_record_batch_parser_v0"
+	tlsFetchResponseRecordBatchParserV12TailCall = "uprobe__kafka_tls_fetch_response_record_batch_parser_v12"
+	tlsProduceResponsePartitionParserV0TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v0"
+	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
 
 	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
@@ -112,42 +112,42 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: responsePartitionParserV0TailCall,
+				EBPFFuncName: fetchResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: responsePartitionParserV12TailCall,
+				EBPFFuncName: fetchResponsePartitionParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: responseRecordBatchParserV0TailCall,
+				EBPFFuncName: fetchResponseRecordBatchParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: responseRecordBatchParserV12TailCall,
+				EBPFFuncName: fetchResponseRecordBatchParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ProduceResponsePartitionParserV0TailCall,
+				EBPFFuncName: produceResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaProduceResponsePartitionParserV9),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ProduceResponsePartitionParserV9TailCall,
+				EBPFFuncName: produceResponsePartitionParserV9TailCall,
 			},
 		},
 		{
@@ -168,28 +168,28 @@ var Spec = &protocols.ProtocolSpec{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsResponsePartitionParserV0TailCall,
+				EBPFFuncName: tlsFetchResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsResponsePartitionParserV12TailCall,
+				EBPFFuncName: tlsFetchResponsePartitionParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsResponseRecordBatchParserV0TailCall,
+				EBPFFuncName: tlsFetchResponseRecordBatchParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsResponseRecordBatchParserV12TailCall,
+				EBPFFuncName: tlsFetchResponseRecordBatchParserV12TailCall,
 			},
 		},
 		{
