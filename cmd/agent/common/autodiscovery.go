@@ -55,7 +55,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 
 	var extraEnvProviders []pkgconfigsetup.ConfigurationProviders
 	var extraEnvListeners []pkgconfigsetup.Listeners
-	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfigsetup.IsCLCRunner() {
+	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 
