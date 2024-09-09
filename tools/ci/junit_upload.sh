@@ -23,6 +23,7 @@ for file in $junit_files; do
     fi
     inv -e junit-upload --tgz-path "$file" || error=1
 done
+unset DATADOG_API_KEY GITLAB_TOKEN
 # Never fail on Junit upload failure since it would prevent the other after scripts to run.
 if [ $error -eq 1 ]; then
     echo "Error: Junit upload failed"

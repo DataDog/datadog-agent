@@ -22,9 +22,6 @@ docker_trigger_internal:
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
-    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -32,7 +29,9 @@ docker_trigger_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG
@@ -69,9 +68,6 @@ docker_trigger_internal-ot:
     TMPL_SRC_REPO: ci/datadog-agent/agent
     RELEASE_STAGING: "true"
   script:
-    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -79,7 +75,9 @@ docker_trigger_internal-ot:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG
@@ -117,9 +115,6 @@ docker_trigger_cluster_agent_internal:
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"
   script:
-    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -127,7 +122,9 @@ docker_trigger_cluster_agent_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG
@@ -165,9 +162,6 @@ docker_trigger_cws_instrumentation_internal:
     RELEASE_STAGING: "true"
     RELEASE_PROD: "true"
   script:
-    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - if [ "$BUCKET_BRANCH" = "beta" ] || [ "$BUCKET_BRANCH" = "stable" ]; then TMPL_SRC_REPO="${TMPL_SRC_REPO}-release"; fi
     - |
       if [ "$BUCKET_BRANCH" = "nightly" ]; then
@@ -175,7 +169,9 @@ docker_trigger_cws_instrumentation_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG

@@ -23,7 +23,7 @@ rm "$tmpfile"
 function pop_secret() {
     cat <&4
 }
-# Method to retrieve the first stored secret. Usefull when we store several secrets before use.
+# Method to retrieve the first stored secret. Useful when we store several secrets before use.
 function pop_front_secret() {
     head -n 1 <&4
 }

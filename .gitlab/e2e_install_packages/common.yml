@@ -35,8 +35,7 @@
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY || exit $?
-    - export DATADOG_AGENT_API_KEY=$(pop_secret)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
+    - DATADOG_AGENT_API_KEY=$(pop_secret) inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_script_upgrade7:
   stage: e2e_install_packages
@@ -51,8 +50,7 @@
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY || exit $?
-    - export DATADOG_AGENT_API_KEY=$(pop_secret)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
+    - DATADOG_AGENT_API_KEY=$(pop_secret) inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_rpm:
   stage: e2e_install_packages
@@ -63,5 +61,4 @@
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY || exit $?
-    - export DATADOG_AGENT_API_KEY=$(pop_secret)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}
+    - DATADOG_AGENT_API_KEY=$(pop_secret) inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}

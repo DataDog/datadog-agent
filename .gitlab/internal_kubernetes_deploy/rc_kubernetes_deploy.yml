@@ -24,8 +24,7 @@ rc_kubernetes_deploy:
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS
       --variable OPTION_PRE_SCRIPT

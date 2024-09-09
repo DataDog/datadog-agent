@@ -16,5 +16,4 @@ cancel-prev-pipelines:
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
-    - inv pipeline.auto-cancel-previous-pipelines
+    - GITLAB_TOKEN=$(pop_secret) inv pipeline.auto-cancel-previous-pipelines
