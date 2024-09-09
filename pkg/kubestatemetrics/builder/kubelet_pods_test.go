@@ -83,9 +83,13 @@ func (m *MockStore) Resync() error {
 	return nil
 }
 
-func TestUpdateStore_AddPodToStore(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
+func TestUpdateStores_AddPods(t *testing.T) {
+	stores := []*MockStore{
+		new(MockStore),
+		new(MockStore),
+	}
+
+	watcher := new(MockPodWatcher)
 
 	kubeletPod := &kubelet.Pod{
 		Metadata: kubelet.PodMetadata{
@@ -97,19 +101,50 @@ func TestUpdateStore_AddPodToStore(t *testing.T) {
 
 	kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
 
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
-	podWatcher.On("Expire").Return([]string{}, nil)
-	store.On("Add", kubernetesPod).Return(nil)
+	watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
+	watcher.On("Expire").Return([]string{}, nil)
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
+	for _, store := range stores {
+		store.On("Add", kubernetesPod).Return(nil)
+	}
+
+	reflector := kubeletReflector{
+		namespaces: []string{"default"},
+		podWatcher: watcher,
+	}
+	for _, store := range stores {
+		err := reflector.addStore(store)
+		assert.NoError(t, err)
+	}
+
+	err := reflector.updateStores(context.TODO())
 	assert.NoError(t, err)
 
-	store.AssertCalled(t, "Add", kubernetesPod)
+	for _, store := range stores {
+		store.AssertCalled(t, "Add", kubernetesPod)
+	}
 }
 
-func TestUpdateStore_FilterPodsByNamespace(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
+func TestUpdateStores_FilterPodsByNamespace(t *testing.T) {
+	stores := []*MockStore{
+		new(MockStore),
+		new(MockStore),
+	}
+
+	for _, store := range stores {
+		store.On("Add", mock.Anything).Return(nil)
+	}
+
+	watcher := new(MockPodWatcher)
+
+	reflector := kubeletReflector{
+		namespaces: []string{"default"},
+		podWatcher: watcher,
+	}
+	for _, store := range stores {
+		err := reflector.addStore(store)
+		assert.NoError(t, err)
+	}
 
 	kubeletPod := &kubelet.Pod{
 		Metadata: kubelet.PodMetadata{
@@ -119,20 +154,68 @@ func TestUpdateStore_FilterPodsByNamespace(t *testing.T) {
 		},
 	}
 
-	store.On("Add", mock.Anything).Return(nil)
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
-	podWatcher.On("Expire").Return([]string{}, nil)
+	watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
+	watcher.On("Expire").Return([]string{}, nil)
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
+	err := reflector.updateStores(context.TODO())
 	assert.NoError(t, err)
 
 	// Add() shouldn't be called because the pod is in a different namespace
-	store.AssertNotCalled(t, "Add", mock.Anything)
+	for _, store := range stores {
+		store.AssertNotCalled(t, "Add", mock.Anything)
+	}
 }
 
-func TestUpdateStore_HandleExpiredPods(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
+func TestUpdateStores_WatchAllNamespaces(t *testing.T) {
+	stores := []*MockStore{
+		new(MockStore),
+		new(MockStore),
+	}
+
+	for _, store := range stores {
+		store.On("Add", mock.Anything).Return(nil)
+	}
+
+	watcher := new(MockPodWatcher)
+
+	reflector := kubeletReflector{
+		watchAllNamespaces: true,
+		podWatcher:         watcher,
+	}
+	for _, store := range stores {
+		err := reflector.addStore(store)
+		assert.NoError(t, err)
+	}
+
+	kubeletPod := &kubelet.Pod{
+		Metadata: kubelet.PodMetadata{
+			Name:      "test-pod",
+			Namespace: "default",
+			UID:       "12345",
+		},
+	}
+
+	kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
+
+	watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
+	watcher.On("Expire").Return([]string{}, nil)
+
+	err := reflector.updateStores(context.TODO())
+	assert.NoError(t, err)
+
+	for _, store := range stores {
+		store.AssertCalled(t, "Add", kubernetesPod)
+	}
+}
+
+func TestUpdateStores_HandleExpiredPods(t *testing.T) {
+	stores := []*MockStore{
+		new(MockStore),
+		new(MockStore),
+	}
+
+	watcher := new(MockPodWatcher)
+
 	podUID := "kubernetes_pod://pod-12345"
 	kubernetesPod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -140,26 +223,55 @@ func TestUpdateStore_HandleExpiredPods(t *testing.T) {
 		},
 	}
 
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
-	podWatcher.On("Expire").Return([]string{podUID}, nil)
-	store.On("Delete", &kubernetesPod).Return(nil)
+	watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
+	watcher.On("Expire").Return([]string{podUID}, nil)
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
+	for _, store := range stores {
+		store.On("Delete", &kubernetesPod).Return(nil)
+	}
+
+	reflector := kubeletReflector{
+		namespaces: []string{"default"},
+		podWatcher: watcher,
+	}
+	for _, store := range stores {
+		err := reflector.addStore(store)
+		assert.NoError(t, err)
+	}
+
+	err := reflector.updateStores(context.TODO())
 	assert.NoError(t, err)
 
-	store.AssertCalled(t, "Delete", &kubernetesPod)
+	for _, store := range stores {
+		store.AssertCalled(t, "Delete", &kubernetesPod)
+	}
 }
 
-func TestUpdateStore_HandleExpiredContainers(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
+func TestUpdateStores_HandleExpiredContainers(t *testing.T) {
+	stores := []*MockStore{
+		new(MockStore),
+		new(MockStore),
+	}
 
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
-	podWatcher.On("Expire").Return([]string{"container-12345"}, nil)
+	watcher := new(MockPodWatcher)
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
+	watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
+	watcher.On("Expire").Return([]string{"container-12345"}, nil)
+
+	reflector := kubeletReflector{
+		namespaces: []string{"default"},
+		podWatcher: watcher,
+	}
+	for _, store := range stores {
+		err := reflector.addStore(store)
+		assert.NoError(t, err)
+	}
+
+	err := reflector.updateStores(context.TODO())
 	assert.NoError(t, err)
 
 	// Delete() shouldn't be called because the expired entity is not a pod
-	store.AssertNotCalled(t, "Delete", mock.Anything)
+	for _, store := range stores {
+		store.AssertNotCalled(t, "Delete", mock.Anything)
+	}
 }
