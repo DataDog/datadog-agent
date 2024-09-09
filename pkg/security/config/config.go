@@ -519,6 +519,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
 	}
 
+	c.sanitizePlatform()
+
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
 
@@ -549,12 +551,6 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 
 	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
-	}
-
-	// Force the disable of feature unavailable on EBPFLess
-	if c.EBPFLessEnabled {
-		c.ActivityDumpEnabled = false
-		c.SecurityProfileEnabled = false
 	}
 
 	return nil
