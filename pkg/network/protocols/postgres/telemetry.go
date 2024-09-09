@@ -80,7 +80,7 @@ func (c *extractionFailureCounter) inc(state counterStateEnum) {
 	case tableAndOpNotFound:
 		c.countTableAndOpNotFound.Add(1)
 	default:
-		log.Errorf("postgres query length counter increment function received undefined state: %v", state)
+		log.Errorf("\"unable to increment extractionFailureCounter due to undefined state: %v\", state", state)
 	}
 }
 
