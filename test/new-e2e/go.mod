@@ -19,12 +19,12 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/version v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/test/fakeintake v0.58.0-rc.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -70,8 +70,8 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.58.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.58.0-rc.1
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect

@@ -66,9 +66,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.58.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.58.0-rc.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.104.0
