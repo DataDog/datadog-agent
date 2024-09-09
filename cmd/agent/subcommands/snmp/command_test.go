@@ -12,16 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestCommand(t *testing.T) {
+func TestWalkCommand(t *testing.T) {
 	// this command has _lots_ of options, so the test just exercises a few
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "-v", "3", "-r", "10"},
-		snmpwalk,
-		func(cliParams *connectionParams, args argsType) {
+		snmpWalk,
+		func(cliParams *snmpscan.SnmpConnectionParams, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.Equal(t, "3", cliParams.Version)
 			require.Equal(t, 10, cliParams.Retries)
@@ -31,9 +32,32 @@ func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "--use-unconnected-udp-socket"},
-		snmpwalk,
-		func(cliParams *connectionParams, args argsType) {
+		snmpWalk,
+		func(cliParams *snmpscan.SnmpConnectionParams, args argsType) {
 			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
+			require.True(t, cliParams.UseUnconnectedUDPSocket)
+		})
+}
+
+func TestScanCommand(t *testing.T) {
+	// this command has _lots_ of options, so the test just exercises a few
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"snmp", "scan", "1.2.3.4", "-v", "3", "-r", "10"},
+		scanDevice,
+		func(cliParams *snmpscan.SnmpConnectionParams, args argsType) {
+			require.Equal(t, argsType{"1.2.3.4"}, args)
+			require.Equal(t, "3", cliParams.Version)
+			require.Equal(t, 10, cliParams.Retries)
+			require.False(t, cliParams.UseUnconnectedUDPSocket)
+		})
+
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"snmp", "scan", "1.2.3.4", "--use-unconnected-udp-socket"},
+		scanDevice,
+		func(cliParams *snmpscan.SnmpConnectionParams, args argsType) {
+			require.Equal(t, argsType{"1.2.3.4"}, args)
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})
 }

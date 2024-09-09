@@ -1,0 +1,51 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package snmpscanimpl implements the snmpscan component interface
+package snmpscanimpl
+
+import (
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+)
+
+// Requires defines the dependencies for the snmpscan component
+type Requires struct {
+	// Remove this field if the component has no lifecycle hooks
+	Lifecycle     compdef.Lifecycle
+	Logger        log.Component
+	Demultiplexer demultiplexer.Component
+}
+
+// Provides defines the output of the snmpscan component
+type Provides struct {
+	Comp       snmpscan.Component
+	RCListener rcclienttypes.TaskListenerProvider
+}
+
+// NewComponent creates a new snmpscan component
+func NewComponent(reqs Requires) (Provides, error) {
+	scanner := snmpScannerImpl{
+		log:   reqs.Logger,
+		demux: reqs.Demultiplexer,
+	}
+	provides := Provides{
+		Comp: scanner,
+		// RCListener: rcclienttypes.NewTaskListener(scanner.onAgentTaskEvent),
+	}
+	return provides, nil
+}
+
+type snmpScannerImpl struct {
+	log   log.Component
+	demux demultiplexer.Component
+}
+
+// func (s snmpScannerImpl) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+// 	return false, nil
+// }

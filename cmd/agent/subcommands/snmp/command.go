@@ -7,20 +7,14 @@
 package snmp
 
 import (
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/gosnmp/gosnmp"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
@@ -32,16 +26,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 const (
@@ -51,15 +48,6 @@ const (
 	defaultRetries                 = 3
 	defaultUseUnconnectedUDPSocket = false
 )
-
-// // connectionParams are the data needed to connect to an SNMP instance.
-type connectionParams struct {
-	// embed a SNMPConfig because it's all the same fields anyway
-	parse.SNMPConfig
-	// fields that aren't part of parse.SNMPConfig
-	SecurityLevel           string
-	UseUnconnectedUDPSocket bool
-}
 
 var authOpts = NewOptions(OptPairs[gosnmp.SnmpV3AuthProtocol]{
 	{"", gosnmp.NoAuth},
@@ -121,7 +109,7 @@ func confErrf(msg string, args ...any) configErr {
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	connParams := &connectionParams{}
+	connParams := &snmpscan.SnmpConnectionParams{}
 	snmpCmd := &cobra.Command{
 		Use:   "snmp",
 		Short: "Snmp tools",
@@ -135,14 +123,25 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			err := fxutil.OneShot(snmpwalk,
-				fx.Supply(connParams, globalParams, cmd),
+			err := fxutil.OneShot(snmpWalk,
+				fx.Supply(connParams),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				snmpscanfx.Module(),
+				demultiplexerimpl.Module(),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
+				orchestratorimpl.Module(),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
+				compressionimpl.Module(),
+				eventplatformreceiverimpl.Module(),
+				fx.Provide(
+					orchestratorimpl.NewDefaultParams,
+					demultiplexerimpl.NewDefaultParams,
+				),
 			)
 			if err != nil {
 				var ue configErr
@@ -175,6 +174,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
+	// This command does nothing until the backend supports it, so it isn't visible yet.
 	snmpScanCmd := &cobra.Command{
 		Hidden: true,
 		Use:    "scan <ipaddress>[:port]",
@@ -193,10 +193,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
-				forwarder.Bundle(defaultforwarder.NewParams()),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
+				compressionimpl.Module(),
+				snmpscanfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -263,7 +265,7 @@ func getParamsFromAgent(deviceIP string, conf config.Component) (*parse.SNMPConf
 	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
 }
 
-func setDefaultsFromAgent(connParams *connectionParams, conf config.Component) error {
+func setDefaultsFromAgent(connParams *snmpscan.SnmpConnectionParams, conf config.Component) error {
 	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
@@ -305,7 +307,7 @@ func setDefaultsFromAgent(connParams *connectionParams, conf config.Component) e
 }
 
 // newSNMP validates connection parameters and builds a GoSNMP from them.
-func newSNMP(connParams *connectionParams, logger log.Component) (*gosnmp.GoSNMP, error) {
+func newSNMP(connParams *snmpscan.SnmpConnectionParams, logger log.Component) (*gosnmp.GoSNMP, error) {
 	// Communication options check
 	if connParams.Timeout == 0 {
 		return nil, fmt.Errorf("timeout cannot be 0")
@@ -386,7 +388,7 @@ func newSNMP(connParams *connectionParams, logger log.Component) (*gosnmp.GoSNMP
 	}, nil
 }
 
-func scanDevice(connParams *connectionParams, args argsType, conf config.Component, logger log.Component, demux demultiplexer.Component) error {
+func scanDevice(connParams *snmpscan.SnmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, demux demultiplexer.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -412,61 +414,18 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 	if err := snmp.Connect(); err != nil {
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	defer snmp.Conn.Close()
-	pdus, err := gatherPDUs(snmp)
-	if err != nil {
-		return err
-	}
 
 	namespace := conf.GetString("network_devices.namespace")
-	deviceID := namespace + ":" + deviceAddr
-	var deviceOids []*metadata.DeviceOID
-	for _, pdu := range pdus {
-		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
-		if err != nil {
-			logger.Warnf("PDU parsing error: %v", err)
-			continue
-		}
-		deviceOids = append(deviceOids, record)
-	}
-	forwarder, err := demux.GetEventPlatformForwarder()
-	if err != nil {
-		return fmt.Errorf("unable to get sender: %w", err)
-	}
-	metadataPayloads := metadata.BatchDeviceScan(namespace, time.Now(), metadata.PayloadMetadataBatchSize, deviceOids)
-	for _, payload := range metadataPayloads {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			logger.Errorf("Error marshalling device metadata: %v", err)
-			continue
-		}
-		m := message.NewMessage(payloadBytes, nil, "", 0)
-		logger.Debugf("Device OID metadata payload is %d bytes", len(payloadBytes))
-		logger.Tracef("Device OID metadata payload: %s", string(payloadBytes))
-		if err := forwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
-			return err
-		}
-	}
 
+	err = snmpScanner.RunDeviceScan(snmp, namespace)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to perform device scan: %v\n", err)
+	}
 	return nil
 }
 
-// gatherPDUs returns PDUs from the given SNMP device that should cover ever
-// scalar value and at least one row of every table.
-func gatherPDUs(snmp *gosnmp.GoSNMP) ([]*gosnmp.SnmpPDU, error) {
-	var pdus []*gosnmp.SnmpPDU
-	err := gosnmplib.ConditionalWalk(snmp, "", false, func(dataUnit gosnmp.SnmpPDU) (string, error) {
-		pdus = append(pdus, &dataUnit)
-		return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return pdus, nil
-}
-
-// snmpwalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpwalk(connParams *connectionParams, args argsType, conf config.Component, logger log.Component) error {
+// snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
+func snmpWalk(connParams *snmpscan.SnmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -498,46 +457,10 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 	}
 	defer snmp.Conn.Close()
 
-	// Perform a snmpwalk using Walk for all versions
-	if err := snmp.Walk(oid, printValue); err != nil {
-		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmp.Target, snmp.Port, err)
-	}
+	err = snmpScanner.RunSnmpWalk(snmp, oid)
 
-	return nil
-}
-
-// printValue prints a PDU in a similar style to snmpwalk -Ont
-func printValue(pdu gosnmp.SnmpPDU) error {
-	fmt.Printf("%s = ", pdu.Name)
-
-	switch pdu.Type {
-	case gosnmp.OctetString:
-		b := pdu.Value.([]byte)
-		if !gosnmplib.IsStringPrintable(b) {
-			var strBytes []string
-			for _, bt := range b {
-				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
-			}
-			fmt.Print("Hex-STRING: " + strings.Join(strBytes, " ") + "\n")
-		} else {
-			fmt.Printf("STRING: %s\n", string(b))
-		}
-	case gosnmp.ObjectIdentifier:
-		fmt.Printf("OID: %s\n", pdu.Value)
-	case gosnmp.TimeTicks:
-		fmt.Print(pdu.Value, "\n")
-	case gosnmp.Counter32:
-		fmt.Printf("Counter32: %d\n", pdu.Value.(uint))
-	case gosnmp.Counter64:
-		fmt.Printf("Counter64: %d\n", pdu.Value.(uint64))
-	case gosnmp.Integer:
-		fmt.Printf("INTEGER: %d\n", pdu.Value.(int))
-	case gosnmp.Gauge32:
-		fmt.Printf("Gauge32: %d\n", pdu.Value.(uint))
-	case gosnmp.IPAddress:
-		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
-	default:
-		fmt.Printf("TYPE %d: %d\n", pdu.Type, gosnmp.ToBigInt(pdu.Value))
+	if err != nil {
+		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", connParams.IPAddress, connParams.Port, err)
 	}
 
 	return nil
