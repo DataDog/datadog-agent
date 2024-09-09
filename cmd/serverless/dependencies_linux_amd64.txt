@@ -83,7 +83,6 @@ github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
-github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util
 github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
@@ -438,6 +437,7 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
