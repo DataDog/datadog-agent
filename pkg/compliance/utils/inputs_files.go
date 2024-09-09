@@ -22,8 +22,11 @@ func GetFileUser(fi os.FileInfo) string {
 		if user, err := user.LookupId(u); err == nil {
 			return user.Username
 		}
+		if statt.Uid == 0 {
+			return "root"
+		}
 	}
-	return ""
+	return "unknown"
 }
 
 // GetFileGroup returns the file group.
@@ -33,6 +36,9 @@ func GetFileGroup(fi os.FileInfo) string {
 		if group, err := user.LookupGroupId(g); err == nil {
 			return group.Name
 		}
+		if statt.Gid == 0 {
+			return "root"
+		}
 	}
-	return ""
+	return "unknown"
 }
