@@ -8,7 +8,7 @@
   tags: ["runner:windows-docker", "windowsversion:1809"]
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
-    - (& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:VCPKG_BLOB_SAS_URL_SSM_NAME" "$tmpfile")
+    - (& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:VCPKG_BLOB_SAS_URL" "$tmpfile")
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - $vcpkgBlobSaSUrl=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"
