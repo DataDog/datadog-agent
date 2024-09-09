@@ -4,8 +4,3 @@
 // Copyright 2016-present Datadog, Inc.
 
 package config
-
-const (
-	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "orchestratorClusterID"
-)
