@@ -175,13 +175,13 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("adamk error creating map cleaner: %s", err)
 		return
 	}
-	log.Debugf("adamk tcpOngoingConnectPidCleaner: %+v", tcpOngoingConnectPidCleaner)
-	tcpOngoingConnectPidCleaner.Clean(time.Second*30, nil, nil, func(now int64, key ebpf.SkpConn, val ebpf.PidTs) bool {
-		log.Errorf("adamk checking ongoing connection: %v", key)
+	log.Debugf("tcpOngoingConnectPidCleaner: %+v", tcpOngoingConnectPidCleaner)
+	tcpOngoingConnectPidCleaner.Clean(time.Second*25, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
+		log.Error("adamk checking ongoing connection")
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
 		if expired {
-			log.Errorf("adamk removing expired ongoing connection: %v", key)
+			log.Errorf("adamk removing expired ongoing connection")
 		}
 		return expired
 	})
