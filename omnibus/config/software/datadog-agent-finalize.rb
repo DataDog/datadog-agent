@@ -19,7 +19,7 @@ always_build true
 build do
     license :project_license
 
-    output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
+    output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
