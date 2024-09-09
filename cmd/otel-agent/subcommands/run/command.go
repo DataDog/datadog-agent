@@ -56,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	_ "github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
 )
