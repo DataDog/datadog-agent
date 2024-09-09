@@ -38,7 +38,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle(),
-				compressionimpl.Module(),
 			)
 		},
 	}

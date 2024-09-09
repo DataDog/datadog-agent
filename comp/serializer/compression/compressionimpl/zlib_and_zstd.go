@@ -19,7 +19,7 @@ import (
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called when both zlib and zstd build tags are included
-func GetCompressor(kind string, level int, option string, valid []string) compression.Component {
+func (_ *CompressorFactory) NewCompressor(kind string, level int, option string, valid []string) compression.Component {
 	if !slices.Contains(valid, kind) {
 		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
 		return strategy.NewNoopStrategy()

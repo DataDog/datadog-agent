@@ -12,19 +12,25 @@ import (
 // Module defines the fx options for the component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewCompressor),
+		fx.Provide(NewCompressorFactory),
 	)
 }
 
-func NewCompressor(cfg config.Component) compression.Component {
-	return GetCompressor(
+type CompressorFactory struct{}
+
+func NewCompressorFactory() compression.Factory {
+	return &CompressorFactory{}
+}
+
+func FromConfig(cfg config.Component) compression.Component {
+	return NewCompressorFactory().NewCompressor(
 		cfg.GetString("serializer_compressor_kind"),
 		cfg.GetInt("serializer_zstd_compressor_level"),
 		"serializer_compressor_kind",
-		[]string { "zstd", "zlib" },
+		[]string{"zstd", "zlib"},
 	)
 }
 
-func NewNoopCompressor() compression.Component {
+func (_ *CompressorFactory) NewNoopCompressor() compression.Component {
 	return strategy.NewNoopStrategy()
 }

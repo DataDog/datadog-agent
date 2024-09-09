@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -41,18 +42,29 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake
-func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
-	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+func NewCWSReporter(hostname string, stopper startstop.Stopper, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compressionFactory compression.Factory) (seccommon.RawReporter, error) {
+	return newReporter(hostname, stopper, "runtime-security-agent", "runtime-security", endpoints, context, compressionFactory)
 }
 
-func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (seccommon.RawReporter, error) {
+func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext, compressionFactory compression.Factory) (seccommon.RawReporter, error) {
 	// setup the auditor
 	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), pkgconfig.Datadog())
+	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines,
+		auditor,
+		&diagnostic.NoopMessageReceiver{},
+		nil,
+		endpoints,
+		context,
+		agentimpl.NewStatusProvider(),
+		hostnameimpl.NewHostnameService(),
+		pkgconfig.Datadog(),
+		compressionFactory,
+	)
+
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 

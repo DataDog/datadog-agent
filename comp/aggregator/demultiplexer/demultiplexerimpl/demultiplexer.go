@@ -13,6 +13,7 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -38,7 +39,8 @@ type dependencies struct {
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
-	Compressor             compression.Component
+	CompressorFactory      compression.Factory
+	Config                 config.Component
 
 	Params Params
 }
@@ -75,13 +77,20 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}
 	}
 
+	compressor := deps.CompressorFactory.NewCompressor(
+		deps.Config.GetString("serializer_compressor_kind"),
+		deps.Config.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string{"zstd", "zlib"},
+	)
+
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
 		deps.Params.AgentDemultiplexerOptions,
 		deps.EventPlatformForwarder,
-		deps.Compressor,
+		compressor,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,

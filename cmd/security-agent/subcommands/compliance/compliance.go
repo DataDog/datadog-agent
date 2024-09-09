@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -28,7 +29,16 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, wmeta workloadmeta.Component) (*compliance.Agent, error) {
+func StartCompliance(log log.Component,
+	config config.Component,
+	sysprobeconfig sysprobeconfig.Component,
+	hostname string,
+	stopper startstop.Stopper,
+	statsdClient ddgostatsd.ClientInterface,
+	wmeta workloadmeta.Component,
+	compressionFactory compression.Factory,
+) (*compliance.Agent, error) {
+
 	enabled := config.GetBool("compliance_config.enabled")
 	configDir := config.GetString("compliance_config.dir")
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
@@ -67,7 +77,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
 	}
 
-	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context)
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compressionFactory)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
 	agent := compliance.NewAgent(telemetrySender, wmeta, compliance.AgentOptions{

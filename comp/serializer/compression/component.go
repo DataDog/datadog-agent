@@ -22,6 +22,11 @@ const ZstdEncoding = "zstd"
 // GzipEncoding is the content-encoding value for Gzip
 const GzipEncoding = "gzip"
 
+type Factory interface {
+	NewNoopCompressor() Component
+	NewCompressor(kind string, level int, option string, valid []string) Component
+}
+
 // Component is the component type.
 type Component interface {
 	Compress(src []byte) ([]byte, error)

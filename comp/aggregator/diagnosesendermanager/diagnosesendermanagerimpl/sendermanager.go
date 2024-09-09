@@ -33,10 +33,10 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log        log.Component
-	Config     config.Component
-	Hostname   hostname.Component
-	Compressor compression.Component
+	Log                log.Component
+	Config             config.Component
+	Hostname           hostname.Component
+	CompressionFactory compression.Factory
 }
 
 type diagnoseSenderManager struct {
@@ -69,14 +69,22 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
 	orchestratorForwarder := optional.NewOptionPtr[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(sender.deps.Hostname, sender.deps.CompressionFactory))
+
+	compressor := sender.deps.CompressionFactory.NewCompressor(
+		config.GetString("serializer_compressor_kind"),
+		config.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string{"zstd", "zlib"},
+	)
+
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
-		sender.deps.Compressor,
+		compressor,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)

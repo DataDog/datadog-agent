@@ -88,7 +88,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle(),
-				compressionimpl.Module(),
 			)
 		},
 	}
