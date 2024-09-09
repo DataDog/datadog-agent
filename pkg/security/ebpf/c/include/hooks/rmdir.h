@@ -80,9 +80,8 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         key = syscall->unlink.file.path_key;
 
         syscall->unlink.dentry = dentry;
-        syscall->policy = fetch_policy(EVENT_UNLINK);
 
-        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
+        if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
             return 0;
         }
@@ -116,7 +115,7 @@ int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
     }
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_RMDIR);
+        monitor_discarded(syscall->type);
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         syscall->state = DISCARDED;
     }
