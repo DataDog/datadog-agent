@@ -20,8 +20,8 @@ replace (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
@@ -71,7 +71,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.56.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -262,12 +262,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.56.2
-	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
-	github.com/hairyhenderson/go-codeowners v0.5.0
-)
+require github.com/hairyhenderson/go-codeowners v0.5.0
 
 require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.57.0 // indirect
