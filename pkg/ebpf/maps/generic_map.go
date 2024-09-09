@@ -220,8 +220,10 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 	if batchSize > int(g.m.MaxEntries()) {
 		batchSize = int(g.m.MaxEntries())
 	}
+	log.Errorf("adamk iterating with batch size: %v", batchSize)
 
 	if BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
+		log.Errorf("adamk batch api supported: %v", batchSize)
 		it := &genericMapBatchIterator[K, V]{
 			m:                            g.m,
 			batchSize:                    batchSize,
@@ -233,6 +235,7 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 		return it
 	}
 
+	log.Errorf("adamk batch api not supported: %v", batchSize)
 	return &genericMapItemIterator[K, V]{
 		it:                           g.m.Iterate(),
 		valueTypeCanUseUnsafePointer: g.valueTypeCanUseUnsafePointer(),
