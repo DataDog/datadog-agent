@@ -8,10 +8,12 @@
 package bininspect
 
 import (
+	"bytes"
 	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
 const (
@@ -251,11 +253,16 @@ func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
 func (p *pclntanSymbolParser) funcName(data sectionAccess) string {
 	off := funcNameOffset(p.ptrSize, p.cachedVersion, p.byteOrderParser, data, p.ptrBufferSizeHelper)
 	n, err := p.funcNameTable.ReadAt(p.funcNameHelper, int64(off))
-	if err != nil {
+	if n == 0 || (err != nil && !errors.Is(err, io.EOF)) {
 		return ""
 	}
-	if p.symbolFilter.want(string(p.funcNameHelper[:n])) {
-		return string(p.funcNameHelper[:n])
+	idxToNull := bytes.IndexByte(p.funcNameHelper, 0)
+	if idxToNull == -1 || idxToNull == 0 || idxToNull >= n {
+		return ""
+	}
+
+	if p.symbolFilter.want(string(p.funcNameHelper[:idxToNull])) {
+		return string(p.funcNameHelper[:idxToNull])
 	}
 	return ""
 }
