@@ -3,6 +3,9 @@ oracle:
   tags: ["runner:docker"]
   stage: functional_test
   needs: ["go_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"

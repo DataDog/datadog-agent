@@ -14,7 +14,6 @@
       "generate_minimized_btfs_x64",
     ]
   script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"

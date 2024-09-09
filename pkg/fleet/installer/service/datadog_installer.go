@@ -232,3 +232,8 @@ func StartInstallerExperiment(ctx context.Context) error {
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
 }
+
+// PromoteInstallerExperiment promotes the installer experiment
+func PromoteInstallerExperiment(ctx context.Context) error {
+	return StopInstallerExperiment(ctx)
+}

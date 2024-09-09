@@ -9,7 +9,6 @@ package config
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -17,7 +16,4 @@ var (
 	SetFeatures = env.SetFeatures
 	// SetFeaturesNoCleanup is alias from env
 	SetFeaturesNoCleanup = env.SetFeaturesNoCleanup
-
-	// SetupConfFromYAML generates a configuration from the given yaml config
-	SetupConfFromYAML = pkgconfigsetup.ConfFromYAML
 )

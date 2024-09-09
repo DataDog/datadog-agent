@@ -21,6 +21,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/zstd"
+
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -222,11 +224,7 @@ func startHTTPServer(port string) {
 	})
 
 	http.HandleFunc("/api/v2/logs", func(_ http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			return
-		}
-		decompressedBody, err := decompress(body)
+		decompressedBody, err := decodeHTTPBody(r)
 		if err != nil {
 			return
 		}
@@ -265,11 +263,7 @@ func startHTTPServer(port string) {
 	for _, version := range []string{"v0.2", "v0.4"} {
 		http.HandleFunc(fmt.Sprintf("/api/%s/traces", version), func(_ http.ResponseWriter, r *http.Request) {
 			nbHitTraces++
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				return
-			}
-			decompressedBody, err := decompress(body)
+			decompressedBody, err := decodeHTTPBody(r)
 			if err != nil {
 				return
 			}
@@ -311,16 +305,31 @@ func startHTTPServer(port string) {
 	}
 }
 
-func decompress(payload []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
+// decodeHTTPBody decodes an HTTP request body based on the Content-Encoding header.
+// It defaults to gzip if the header is not present.
+func decodeHTTPBody(r *http.Request) ([]byte, error) {
+	var reader io.ReadCloser
+	var err error
+
+	encoding := strings.ToLower(r.Header.Get("Content-Encoding"))
+	switch encoding {
+	case "zstd":
+		reader = zstd.NewReader(r.Body)
+		defer reader.Close()
+	case "gzip", "":
+		reader, err = gzip.NewReader(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer reader.Close()
+	default:
+		return nil, fmt.Errorf("unsupported encoding: %s", encoding)
 	}
 
 	var buffer bytes.Buffer
 	_, err = buffer.ReadFrom(reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return buffer.Bytes(), nil

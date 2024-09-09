@@ -10,15 +10,18 @@ package apm
 
 import (
 	"bufio"
+	"debug/elf"
 	"io"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +38,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string) Instrumentation
+type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -43,19 +46,21 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
+		language.Go:     goDetector,
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
 		language.Java:   {},
 		language.Node:   {},
 		language.Python: {},
+		language.Go:     {},
 	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language) Instrumentation {
+func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -67,7 +72,7 @@ func Detect(pid int, args []string, envs map[string]string, lang language.Langua
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(pid, args, envs)
+		return detect(pid, args, envs, contextMap)
 	}
 
 	return None
@@ -83,6 +88,42 @@ func isInjected(envs map[string]string) bool {
 		}
 	}
 	return false
+}
+
+const (
+	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
+	// are looking for are for example
+	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
+	// without the version number instead of a specific symbol name in an
+	// attempt to make it future-proof.
+	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
+	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
+	// we look for. The max length is an optimization in bininspect to avoid
+	// reading unnecesssary symbols.  As of writing, most non-internal symbols
+	// in dd-trace-go are under 100 chars. The tracer.init example above at 51
+	// chars is one of the shortest.
+	ddTraceGoMaxLength = 100
+)
+
+// goDetector detects APM instrumentation for Go binaries by checking for
+// the presence of the dd-trace-go symbols in the ELF. This only works for
+// unstripped binaries.
+func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
+	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
+
+	elfFile, err := elf.Open(exePath)
+	if err != nil {
+		log.Debugf("Unable to open exe %s: %v", exePath, err)
+		return None
+	}
+	defer elfFile.Close()
+
+	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
+	if err != nil {
+		return None
+	}
+
+	return Provided
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
@@ -109,7 +150,7 @@ func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
-func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
+func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
@@ -123,16 +164,13 @@ func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
 // isNodeInstrumented parses the provided `os.File` trying to find an
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
-func isNodeInstrumented(f *os.File) bool {
-	// Don't try to read a non-regular file.
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+func isNodeInstrumented(f fs.File) bool {
+	reader, err := usm.SizeVerifiedReader(f)
+	if err != nil {
 		return false
 	}
 
-	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
-
-	limitReader := io.LimitReader(f, readLimit)
-	bufferedReader := bufio.NewReader(limitReader)
+	bufferedReader := bufio.NewReader(reader)
 
 	return nodeAPMCheckRegex.MatchReader(bufferedReader)
 }
@@ -142,36 +180,34 @@ func isNodeInstrumented(f *os.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
-	processWorkingDirectory := ""
-	if val, ok := envs["PWD"]; ok {
-		processWorkingDirectory = filepath.Clean(val)
-	} else {
-		log.Debug("unable to determine working directory, assuming uninstrumented")
+func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
+	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
+	if !ok {
+		log.Debugf("could not get package.json path from context map")
 		return None
 	}
 
-	for curDir := processWorkingDirectory; len(curDir) > 1; curDir = filepath.Dir(curDir) {
-		pkgJSONPath := filepath.Join(curDir, "package.json")
-		pkgJSONFile, err := os.Open(pkgJSONPath)
-		if err != nil {
-			log.Debugf("could not open package.json: %s", err)
-			continue
-		}
-		log.Debugf("found package.json: %s", pkgJSONPath)
+	fs, ok := contextMap[usm.ServiceSubFS]
+	if !ok {
+		log.Debugf("could not get SubFS for package.json")
+		return None
+	}
 
-		isInstrumented := isNodeInstrumented(pkgJSONFile)
-		_ = pkgJSONFile.Close()
+	pkgJSONFile, err := fs.(usm.SubDirFS).Open(pkgJSONPath.(string))
+	if err != nil {
+		log.Debugf("could not open package.json: %s", err)
+		return None
+	}
+	defer pkgJSONFile.Close()
 
-		if isInstrumented {
-			return Provided
-		}
+	if isNodeInstrumented(pkgJSONFile) {
+		return Provided
 	}
 
 	return None
 }
 
-func javaDetector(_ int, args []string, envs map[string]string) Instrumentation {
+func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -220,7 +256,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(_ int, args []string, envs map[string]string) Instrumentation {
+func dotNetDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None

@@ -233,8 +233,26 @@ type RuntimeSecurityConfig struct {
 	EBPFLessSocket string
 
 	// Enforcement capabilities
-	EnforcementEnabled           bool
+	// EnforcementEnabled defines if the enforcement capability should be enabled
+	EnforcementEnabled bool
+	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
 	EnforcementRawSyscallEnabled bool
+	EnforcementBinaryExcluded    []string
+	EnforcementRuleSourceAllowed []string
+	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
+	EnforcementDisarmerContainerEnabled bool
+	// EnforcementDisarmerContainerMaxAllowed defines the maximum number of different containers that can trigger an enforcement rule
+	// within a period before the enforcement is disarmed for this rule
+	EnforcementDisarmerContainerMaxAllowed int
+	// EnforcementDisarmerContainerPeriod defines the period during which EnforcementDisarmerContainerMaxAllowed is checked
+	EnforcementDisarmerContainerPeriod time.Duration
+	// EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
+	EnforcementDisarmerExecutableEnabled bool
+	// EnforcementDisarmerExecutableMaxAllowed defines the maximum number of different executables that can trigger an enforcement rule
+	// within a period before the enforcement is disarmed for this rule
+	EnforcementDisarmerExecutableMaxAllowed int
+	// EnforcementDisarmerExecutablePeriod defines the period during which EnforcementDisarmerExecutableMaxAllowed is checked
+	EnforcementDisarmerExecutablePeriod time.Duration
 
 	//WindowsFilenameCacheSize is the max number of filenames to cache
 	WindowsFilenameCacheSize int
@@ -414,8 +432,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionEnabled:                      coreconfig.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// enforcement
-		EnforcementEnabled:           coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
-		EnforcementRawSyscallEnabled: coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementEnabled:                      coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
+		EnforcementBinaryExcluded:               coreconfig.SystemProbe().GetStringSlice("runtime_security_config.enforcement.exclude_binaries"),
+		EnforcementRawSyscallEnabled:            coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementRuleSourceAllowed:            coreconfig.SystemProbe().GetStringSlice("runtime_security_config.enforcement.rule_source_allowed"),
+		EnforcementDisarmerContainerEnabled:     coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.container.enabled"),
+		EnforcementDisarmerContainerMaxAllowed:  coreconfig.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.container.max_allowed"),
+		EnforcementDisarmerContainerPeriod:      coreconfig.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.container.period"),
+		EnforcementDisarmerExecutableEnabled:    coreconfig.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.executable.enabled"),
+		EnforcementDisarmerExecutableMaxAllowed: coreconfig.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.executable.max_allowed"),
+		EnforcementDisarmerExecutablePeriod:     coreconfig.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
@@ -483,6 +509,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.IMDSIPv4 == 0 {
 		return fmt.Errorf("invalid IPv4 address: got %v", coreconfig.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
+	}
+
+	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.container.max_allowed: %d", c.EnforcementDisarmerContainerMaxAllowed)
+	}
+
+	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
 	}
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
