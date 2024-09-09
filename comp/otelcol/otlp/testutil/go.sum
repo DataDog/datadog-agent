@@ -1,5 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.0 h1:E8jCgQJzfo5SduDSElOuRXhXO/pg9jNkiZijjE7/NA4=
+github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.0/go.mod h1:fG3usj3LHZSI2/fMLKeubjqfvG6LBESJwyC6y7/4kzE=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.17.0 h1:weAPKDi/dTlBbWU4oDZ55ubomqUob6OWPoUcdBjWM2M=
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.17.0/go.mod h1:VrcmO2+HTWXaGYin1pAAXWNEtaza/DCJDH/+t5IY5rs=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.17.0 h1:1FGr7e8wAebpvpoabdQcRt5WtPCJ2W2kDPzLfOb07/c=

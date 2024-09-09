@@ -149,9 +149,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.57.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.0
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v1.8.0-rc.1
 	github.com/DataDog/ebpf-manager v0.7.1
@@ -610,7 +610,7 @@ require (
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.130
-	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.57.0
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
@@ -684,7 +684,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
@@ -700,7 +700,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/tagger v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.0
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
 	github.com/DataDog/go-libddwaf/v3 v3.3.0
 	github.com/DataDog/go-sqllexer v0.0.14

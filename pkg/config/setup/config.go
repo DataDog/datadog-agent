@@ -1556,7 +1556,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Control streamlogs log collection for remote config
 	config.BindEnvAndSetDefault("logs_config.streaming.enable_streamlogs", true)
 	// Control how the stream-logs log file is managed
-	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", commonpath.DefaultStreamlogsLogFile)
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
 }
 
 func vector(config pkgconfigmodel.Setup) {
