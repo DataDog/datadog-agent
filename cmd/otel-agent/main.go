@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	_ "github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func main() {
