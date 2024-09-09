@@ -21,3 +21,33 @@ func BenchmarkHostProc(b *testing.B) {
 		runtime.KeepAlive(res)
 	}
 }
+
+func TestHostProc(t *testing.T) {
+	type testCase struct {
+		name       string
+		procFsRoot string
+		args       []string
+		expected   string
+	}
+
+	entries := []testCase{
+		{"empty", "/proc", nil, "/proc"},
+		{"single", "/proc", []string{"a"}, "/proc/a"},
+		{"multiple", "/host/proc", []string{"a", "b", "c", "d"}, "/host/proc/a/b/c/d"},
+
+		{"slash", "/proc", []string{"/a/b"}, "/proc/a/b"},
+		{"slash-empty", "/host/proc", []string{"/"}, "/host/proc"},
+
+		{"empty-host-proc", "", []string{"a", "b"}, "a/b"},
+		{"everything-empty", "", nil, ""},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			got := hostProcInternal(entry.procFsRoot, entry.args...)
+			if entry.expected != got {
+				t.Errorf("expected: `%v`, got: `%v`", entry.expected, got)
+			}
+		})
+	}
+}
