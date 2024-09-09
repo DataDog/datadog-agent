@@ -83,6 +83,7 @@ github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
+github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util
 github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
