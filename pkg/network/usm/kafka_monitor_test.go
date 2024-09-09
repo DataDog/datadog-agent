@@ -529,19 +529,17 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	cfg := getDefaultTestConfiguration(tls)
-	monitor := newKafkaMonitor(t, cfg)
-	if tls && cfg.EnableGoTLSSupport {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
-	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(func() {
 				for _, client := range tt.context.clients {
 					client.Client.Close()
 				}
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
-
+			monitor := newKafkaMonitor(t, cfg)
+			if tls && cfg.EnableGoTLSSupport {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+			}
 			tt.testBody(t, &tt.context, monitor)
 		})
 	}
