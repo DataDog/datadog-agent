@@ -3,16 +3,22 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/i
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../../api/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/tagger/common => ../../../../../core/tagger/common
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../../core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../../core/tagger/utils
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../../../pkg/util/optional
@@ -21,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/tagger => ../../../../../../pkg/util/tagger
+	github.com/DataDog/datadog-agent/pkg/util/testutils => ../../../../../../pkg/util/testutils
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil
 )
 
