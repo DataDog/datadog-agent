@@ -194,11 +194,11 @@ func TestGoDetector(t *testing.T) {
 	})
 
 	result := goDetector(os.Getpid(), nil, nil, nil)
-	require.Equal(t, result, None)
+	require.Equal(t, None, result)
 
 	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
-	require.Equal(t, result, Provided)
+	require.Equal(t, Provided, result)
 
 	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
-	require.Equal(t, result, Provided)
+	require.Equal(t, Provided, result)
 }
