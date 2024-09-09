@@ -551,14 +551,10 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
 	}
 
-	if !c.ActivityDumpEnabled && c.ActivityDumpAutoSuppressionEnabled {
-		// Enable activity dump related auto-suppression only if activity dump is enabled
-		c.ActivityDumpAutoSuppressionEnabled = false
-	}
-
-	if !c.SecurityProfileEnabled && c.SecurityProfileAutoSuppressionEnabled {
-		// Enable security profile related auto-suppression only if security profile is enabled
-		c.SecurityProfileAutoSuppressionEnabled = false
+	// Force the disable of feature unavailable on EBPFLess
+	if c.EBPFLessEnabled {
+		c.ActivityDumpEnabled = false
+		c.SecurityProfileEnabled = false
 	}
 
 	return nil
