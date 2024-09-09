@@ -598,6 +598,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     current = current_version(ctx, max(list_major_versions))
     next = current.next_version(bump_minor=True)
     current.rc = False
+    current.devel = False
     next.devel = False
 
     # Strings with proper branch/tag names
