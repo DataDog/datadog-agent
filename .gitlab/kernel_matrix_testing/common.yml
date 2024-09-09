@@ -176,10 +176,12 @@
         GO_ARCH=amd64
       fi
     - cd test/new-e2e && GOOS=linux GOARCH="${GO_ARCH}" go build system-probe/vm-metrics/vm-metrics.go
+    # The vm-metrics collector is uploaded and executed in the same job because we need to execute it after the datadog-agent
+    # is launched in the metal instance, and before the tests are executed. This place naturally satisfies these constraints.
     # upload vm-metrics collector to metal instance
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $CI_PROJECT_DIR/test/new-e2e/vm-metrics "ubuntu@$INSTANCE_IP:/home/ubuntu/vm-metrics"
     # run vm-metrics collector
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "/home/ubuntu/vm-metrics -statsd-host=127.0.0.1 -statsd-port=8125 -libvirt-uri=/var/run/libvirt/libvirt-sock-ro --tag \"arch:${ARCH}\" --tag \"ci-pipeline-id:${CI_PIPELINE_ID}\" --daemon -log-file /home/ubuntu/daemon.log"
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "/home/ubuntu/vm-metrics -statsd-host=127.0.0.1 -statsd-port=8125 -libvirt-uri=/var/run/libvirt/libvirt-sock-ro --tag \"arch:${ARCH}\" --tag \"test-component:${TEST_COMPONENT}\" --tag \"ci-pipeline-id:${CI_PIPELINE_ID}\" --daemon -log-file /home/ubuntu/daemon.log"
     - !reference [.tag_kmt_ci_job]
   artifacts:
     when: always
