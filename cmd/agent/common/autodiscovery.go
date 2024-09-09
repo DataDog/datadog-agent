@@ -20,8 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,34 +46,34 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 
 	ac.AddConfigProvider(
 		providers.NewFileConfigProvider(acTelemetryStore),
-		config.Datadog().GetBool("autoconf_config_files_poll"),
-		time.Duration(config.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
+		pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll"),
+		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 
-	var extraEnvProviders []config.ConfigurationProviders
-	var extraEnvListeners []config.Listeners
-	if config.IsAutoconfigEnabled() && !config.IsCLCRunner() {
+	var extraEnvProviders []pkgconfigsetup.ConfigurationProviders
+	var extraEnvListeners []pkgconfigsetup.Listeners
+	if pkgconfigenv.IsAutoconfigEnabled(pkgconfigsetup.Datadog()) && !pkgconfigsetup.IsCLCRunner() {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv()
 	}
 
 	// Register additional configuration providers
-	var configProviders []config.ConfigurationProviders
-	var uniqueConfigProviders map[string]config.ConfigurationProviders
-	err := config.Datadog().UnmarshalKey("config_providers", &configProviders)
+	var configProviders []pkgconfigsetup.ConfigurationProviders
+	var uniqueConfigProviders map[string]pkgconfigsetup.ConfigurationProviders
+	err := pkgconfigsetup.Datadog().UnmarshalKey("config_providers", &configProviders)
 
 	if err == nil {
-		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
+		uniqueConfigProviders = make(map[string]pkgconfigsetup.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
 		for _, provider := range configProviders {
 			uniqueConfigProviders[provider.Name] = provider
 		}
 
 		// Add extra config providers
-		for _, name := range config.Datadog().GetStringSlice("extra_config_providers") {
+		for _, name := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
 			if _, found := uniqueConfigProviders[name]; !found {
-				uniqueConfigProviders[name] = config.ConfigurationProviders{Name: name, Polling: true}
+				uniqueConfigProviders[name] = pkgconfigsetup.ConfigurationProviders{Name: name, Polling: true}
 			} else {
 				log.Infof("Duplicate AD provider from extra_config_providers discarded as already present in config_providers: %s", name)
 			}
@@ -87,7 +88,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		}
 
 		if enableContainerProvider {
-			uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			uniqueConfigProviders[names.KubeContainer] = pkgconfigsetup.ConfigurationProviders{Name: names.KubeContainer}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -123,12 +124,12 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		}
 	}
 
-	var listeners []config.Listeners
-	err = config.Datadog().UnmarshalKey("listeners", &listeners)
+	var listeners []pkgconfigsetup.Listeners
+	err = pkgconfigsetup.Datadog().UnmarshalKey("listeners", &listeners)
 	if err == nil {
 		// Add extra listeners
-		for _, name := range config.Datadog().GetStringSlice("extra_listeners") {
-			listeners = append(listeners, config.Listeners{Name: name})
+		for _, name := range pkgconfigsetup.Datadog().GetStringSlice("extra_listeners") {
+			listeners = append(listeners, pkgconfigsetup.Listeners{Name: name})
 		}
 
 		// The "docker" and "ecs" listeners were replaced with the
