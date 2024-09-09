@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestGetHostAliases(t *testing.T) {
-	holdValue := config.Datadog().Get("cloud_provider_metadata")
-	defer config.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
-	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "ocid1.instance.oc1.iad.anuwcljte6cuweqcz7sarpn43hst2kaaaxbbbccbaaa6vpd66tvcyhgiifsq"
@@ -45,9 +45,9 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	holdValue := config.Datadog().Get("cloud_provider_metadata")
-	defer config.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
-	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	holdValue := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.254"}

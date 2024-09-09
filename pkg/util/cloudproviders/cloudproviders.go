@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -99,8 +99,12 @@ type cloudProviderAliasesDetector struct {
 	callback func(context.Context) ([]string, error)
 }
 
+func GetValidHostAliases(ctx context.Context) ([]string, error) {
+	return pkgconfigsetup.GetValidHostAliases(ctx, pkgconfigsetup.Datadog())
+}
+
 var hostAliasesDetectors = []cloudProviderAliasesDetector{
-	{name: "config", callback: config.GetValidHostAliases},
+	{name: "config", callback: GetValidHostAliases},
 	{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
 	{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
 	{name: azure.CloudProviderName, callback: azure.GetHostAliases},
