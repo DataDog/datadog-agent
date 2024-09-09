@@ -85,7 +85,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	// Restart agent and make sure it's ready before adding logs
 	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
 	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	s.EventuallyWithT(func(_ *assert.CollectT) {
 		agentReady := s.Env().Agent.Client.IsReady()
 		assert.True(t, agentReady)
 	}, 1*time.Minute, 5*time.Second, "Agent was not ready")
