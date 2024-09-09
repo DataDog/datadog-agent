@@ -31,6 +31,21 @@ const (
 	tableAndOpNotFound
 )
 
+func (e counterStateEnum) String() string {
+	switch e {
+	case tableAndOperation:
+		return "tableAndOperation"
+	case operationNotFound:
+		return "operationNotFound"
+	case tableNameNotFound:
+		return "tableNameNotFound"
+	case tableAndOpNotFound:
+		return "tableAndOpNotFound"
+	default:
+		return fmt.Sprintf("%d", int(e))
+	}
+}
+
 // extractionFailureCounter stores counter when goal was achieved and counter when target not found.
 type extractionFailureCounter struct {
 	// countTableAndOperationFound counts the number of successfully retrieved table name and operation.
@@ -54,18 +69,18 @@ func newExtractionFailureCounter(metricGroup *libtelemetry.MetricGroup, metricNa
 }
 
 // inc increments the counter of completed results or counter incomplete results.
-func (c *extractionFailureCounter) inc(value int64, state counterStateEnum) {
+func (c *extractionFailureCounter) inc(state counterStateEnum) {
 	switch state {
 	case tableAndOperation:
-		c.countTableAndOperationFound.Add(value)
+		c.countTableAndOperationFound.Add(1)
 	case operationNotFound:
-		c.countOperationNotFound.Add(value)
+		c.countOperationNotFound.Add(1)
 	case tableNameNotFound:
-		c.countTableNameNotFound.Add(value)
+		c.countTableNameNotFound.Add(1)
 	case tableAndOpNotFound:
-		c.countTableAndOpNotFound.Add(value)
+		c.countTableAndOpNotFound.Add(1)
 	default:
-		log.Errorf("Add bucket counter, undefined enum: %v", state)
+		log.Errorf("postgres query length counter increment function received undefined state: %v", state)
 	}
 }
 
@@ -166,7 +181,7 @@ func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 	}
 	bucketIndex := t.getBucketIndex(querySize)
 	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
-		t.queryLengthBuckets[bucketIndex].inc(1, state)
+		t.queryLengthBuckets[bucketIndex].inc(state)
 	}
 }
 
