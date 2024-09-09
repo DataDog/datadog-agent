@@ -58,8 +58,8 @@
     - ls -la $OMNIBUS_PACKAGE_DIR
     - ls -la $INSTALL_DIR
     - ls -la /custom/etc
-    - ls -la /opt/datadog-agent || echo "/opt/datadog-agent has correctly not been generated"
-    - ls -la /etc/datadog-agent || echo "/etc/datadog-agent has correctly not been generated"
+    - (ls -la /opt/datadog-agent 2>/dev/null && exit 1) || echo "/opt/datadog-agent has correctly not been generated"
+    - (ls -la /etc/datadog-agent 2>/dev/null && exit 1) || echo "/etc/datadog-agent has correctly not been generated"
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"

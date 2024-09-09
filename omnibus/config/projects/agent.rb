@@ -4,7 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
-output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
+output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
