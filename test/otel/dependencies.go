@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package otel contains files for otel integration tests
-package main
+package otel
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
