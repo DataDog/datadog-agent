@@ -462,6 +462,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		addResourceTags(taskTags, task.Tags)
 	}
 
+	if task.ServiceName != "" {
+		taskTags.AddLow(tags.EcsServiceName, strings.ToLower(task.ServiceName))
+	}
+
 	tagInfos := make([]*types.TagInfo, 0, len(task.Containers))
 	for _, taskContainer := range task.Containers {
 		container, err := c.store.GetContainer(taskContainer.ID)

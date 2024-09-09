@@ -1,7 +1,6 @@
 ---
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
-
 .new_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
@@ -157,6 +156,20 @@ new-e2e-windows-service-test:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-agent
     EXTRA_PARAMS: --run TestServiceBehavior
+
+# Temporary job for hunting a crash
+new-e2e-windows-service-test-nofim:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestNoFIMServiceBehavior
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -367,6 +380,32 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
+
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-kernel-integrations
+
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-kernel-integrations
 
 new-e2e-otel:
   extends: .new_e2e_template

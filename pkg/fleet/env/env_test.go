@@ -41,6 +41,7 @@ func TestFromEnv(t *testing.T) {
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
 				envRemoteUpdates:                              "true",
+				envRemotePolicies:                             "true",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
 				envRegistryURL + "_IMAGE":                     "another.registry.example.com",
@@ -58,6 +59,7 @@ func TestFromEnv(t *testing.T) {
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
+				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -166,6 +168,7 @@ func TestToEnv(t *testing.T) {
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
+				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -194,6 +197,7 @@ func TestToEnv(t *testing.T) {
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
+				"DD_REMOTE_POLICIES=true",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
 				"DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:latest,java,ruby:1.2",

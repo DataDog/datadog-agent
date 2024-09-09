@@ -85,7 +85,9 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 
 		// remove everything
 		for _, f := range *files {
-			_ = os.Remove(f)
+			if err := os.Remove(path.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f)); err != nil {
+				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", f, err)
+			}
 		}
 
 		adls.deletedCount.Add(1)
@@ -118,8 +120,18 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 				// ignore this file
 				continue
 			}
+			// fetch MTime
+			dumpInfo, err := f.Info()
+			if err != nil {
+				seclog.Warnf("Failed to retrieve dump %s file informations: %v", f.Name(), err)
+				// ignore this file
+				continue
+			}
 			// retrieve the basename of the dump
 			dumpName := strings.TrimSuffix(filepath.Base(f.Name()), ext)
+			if ext == ".gz" {
+				dumpName = strings.TrimSuffix(dumpName, filepath.Ext(dumpName))
+			}
 			// insert the file in the list of dumps
 			ad, ok := localDumps[dumpName]
 			if !ok {
@@ -130,11 +142,6 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 				localDumps[dumpName] = ad
 			}
 			ad.Files = append(ad.Files, f.Name())
-			dumpInfo, err := f.Info()
-			if err != nil {
-				// ignore this file
-				continue
-			}
 			if !ad.MTime.IsZero() && ad.MTime.Before(dumpInfo.ModTime()) {
 				ad.MTime = dumpInfo.ModTime()
 			}
@@ -144,8 +151,7 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 		sort.Sort(dumps)
 		// insert the dumps in cache (will trigger clean up if necessary)
 		for _, ad := range dumps {
-			newFiles := ad.Files
-			adls.localDumps.Add(ad.Name, &newFiles)
+			adls.localDumps.Add(ad.Name, &ad.Files)
 		}
 	}
 
