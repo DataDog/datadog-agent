@@ -12,10 +12,25 @@ import (
 	"testing"
 
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
+	"github.com/gosnmp/gosnmp"
 )
 
-// Mock returns a mock for snmpscan component.
-func Mock(t *testing.T) snmpscan.Component {
-	// TODO: Implement the snmpscan mock
+type mock struct{}
+
+type Provides struct {
+	comp snmpscan.Component
+}
+
+// New returns a mock compressor
+func New(*testing.T) Provides {
+	return Provides{
+		comp: mock{},
+	}
+}
+
+func (m mock) RunDeviceScan(snmpConection *gosnmp.GoSNMP, deviceNamespace string) error {
+	return nil
+}
+func (m mock) RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error {
 	return nil
 }
