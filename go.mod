@@ -287,7 +287,7 @@ require (
 	go.opentelemetry.io/collector/component v0.104.0
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/exporter v0.104.0
-	go.opentelemetry.io/collector/exporter/loggingexporter v0.104.0
+	go.opentelemetry.io/collector/exporter/debugexporter v0.104.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.104.0
 	go.opentelemetry.io/collector/pdata v1.11.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.104.0
@@ -605,6 +605,7 @@ require (
 	github.com/jellydator/ttlcache/v3 v3.3.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
+	go.opentelemetry.io/collector/config/configtelemetry v0.104.0
 )
 
 require (
@@ -966,11 +967,9 @@ require (
 	go.opentelemetry.io/collector/config/confignet v0.104.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.11.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.11.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.104.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v0.104.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.104.0 // indirect
 	go.opentelemetry.io/collector/connector v0.104.0 // indirect
-	go.opentelemetry.io/collector/exporter/debugexporter v0.104.0 // indirect
 	go.opentelemetry.io/collector/exporter/nopexporter v0.104.0 // indirect
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.104.0 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.104.0 // indirect
