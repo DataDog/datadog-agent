@@ -207,11 +207,6 @@ var (
 	GetIPCPort = pkgconfigsetup.GetIPCPort
 )
 
-// LoadWithoutSecret Alias using Datadog config
-func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe().GetEnvVars())
-}
-
 // GetProcessAPIAddressPort Alias using Datadog config
 func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog())

@@ -18,10 +18,8 @@ import (
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // TransformationFunc type represents transformation applicable to byte slices
@@ -55,8 +53,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 
 	// setup the configuration system
 	pkgconfigsetup.Datadog().AddConfigPath(newConfigDir)
-	// LoadWithoutSecret Alias using Datadog config
-	_, err = pkgconfigsetup.LoadDatadogCustom(pkgconfigsetup.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
+	_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

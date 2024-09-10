@@ -55,10 +55,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -284,7 +284,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
-	pkgconfig.Datadog().Set("expvar_port", port, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("expvar_port", port, model.SourceAgentRuntime)
 	if config.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
