@@ -161,7 +161,8 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
+// calls Set under the hood with a nil value
 func (c *safeConfig) UnsetForSource(key string, source Source) {
 	c.Set(key, nil, source)
 }
