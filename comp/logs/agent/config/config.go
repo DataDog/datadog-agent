@@ -15,6 +15,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -70,7 +71,7 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &rules)
 	} else {
-		err = coreConfig.UnmarshalKey("logs_config.processing_rules", &rules)
+		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules)
 	}
 	if err != nil {
 		return nil, err

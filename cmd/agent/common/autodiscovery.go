@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +62,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	// Register additional configuration providers
 	var configProviders []config.ConfigurationProviders
 	var uniqueConfigProviders map[string]config.ConfigurationProviders
-	err := config.Datadog().UnmarshalKey("config_providers", &configProviders)
+	err := structure.UnmarshalKey(config.Datadog(), "config_providers", &configProviders)
 
 	if err == nil {
 		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
@@ -124,7 +125,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	}
 
 	var listeners []config.Listeners
-	err = config.Datadog().UnmarshalKey("listeners", &listeners)
+	err = structure.UnmarshalKey(config.Datadog(), "listeners", &listeners)
 	if err == nil {
 		// Add extra listeners
 		for _, name := range config.Datadog().GetStringSlice("extra_listeners") {

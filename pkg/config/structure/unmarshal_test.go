@@ -83,6 +83,11 @@ network_devices:
 	assert.Equal(t, trapsCfg.Namespace, "abc")
 }
 
+type ServiceDescription struct {
+	Host     string
+	Endpoint Endpoint `mapstructure:",squash"`
+}
+
 type Endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
@@ -112,6 +117,31 @@ endpoints:
 	assert.Equal(t, endpoints[1].APIKey, "abc2")
 	assert.Equal(t, endpoints[2].Name, "health")
 	assert.Equal(t, endpoints[2].APIKey, "abc3")
+}
+
+func TestUnmarshalKeyWithSquash(t *testing.T) {
+	confYaml := `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("service")
+
+	var svc = ServiceDescription{}
+	// fails without EnableSquash being given
+	err := UnmarshalKey(mockConfig, "service", &svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "EnableSquash")
+
+	// succeeds
+	err = UnmarshalKey(mockConfig, "service", &svc, EnableSquash)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc.Host, "datad0g.com")
+	assert.Equal(t, svc.Endpoint.Name, "intake")
+	assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 }
 
 type FeatureConfig struct {

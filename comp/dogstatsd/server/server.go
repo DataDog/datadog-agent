@@ -30,6 +30,7 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -835,7 +836,7 @@ func getBuckets(cfg model.Reader, logger log.Component, option string) []float64
 func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
 	var mappings []mapper.MappingProfileConfig
 	if cfg.IsSet("dogstatsd_mapper_profiles") {
-		err := cfg.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &mappings)
 		if err != nil {
 			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
 		}
