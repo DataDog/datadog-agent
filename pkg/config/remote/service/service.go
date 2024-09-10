@@ -17,6 +17,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"net/url"
 	"path"
 	"strconv"
@@ -65,6 +66,12 @@ const (
 	initialFetchErrorLog uint64 = 5
 )
 
+const (
+	// the minimum amount of time that must pass before a new cache
+	// bypass request is allowed for the CDN client
+	maxCDNUpdateFrequency = 50 * time.Second
+)
+
 var (
 	exportedMapStatus = expvar.NewMap("remoteConfigStatus")
 	// Status expvar exported
@@ -83,6 +90,11 @@ type Service struct {
 	// via logs.
 	rcType string
 
+	uptane uptaneClient
+}
+
+type CoreAgentService struct {
+	Service
 	firstUpdate bool
 
 	defaultRefreshInterval         time.Duration
@@ -97,13 +109,13 @@ type Service struct {
 	stopOrgPoller    chan struct{}
 	stopConfigPoller chan struct{}
 
-	clock         clock.Clock
-	hostname      string
-	tagsGetter    func() []string
-	traceAgentEnv string
-	db            *bbolt.DB
-	uptane        uptaneClient
-	api           api.API
+	clock           clock.Clock
+	hostname        string
+	tagsGetter      func() []string
+	traceAgentEnv   string
+	db              *bbolt.DB
+	coreAgentUptane coreAgentUptaneClient
+	api             api.API
 
 	products           map[rdata.Product]struct{}
 	newProducts        map[rdata.Product]struct{}
@@ -127,7 +139,6 @@ type Service struct {
 
 // uptaneClient is used to mock the uptane component for testing
 type uptaneClient interface {
-	Update(response *pbgo.LatestConfigsResponse) error
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
 	StoredOrgUUID() (string, error)
@@ -136,6 +147,16 @@ type uptaneClient interface {
 	TargetsMeta() ([]byte, error)
 	TargetsCustom() ([]byte, error)
 	TUFVersionState() (uptane.TUFVersions, error)
+}
+
+type coreAgentUptaneClient interface {
+	uptaneClient
+	Update(response *pbgo.LatestConfigsResponse) error
+}
+
+type cdnUptaneClient interface {
+	uptaneClient
+	Update() error
 }
 
 // RcTelemetryReporter should be implemented by the agent to publish metrics on exceptional cache bypass request events
@@ -286,7 +307,7 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -349,8 +370,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 
 	clock := clock.New()
 
-	return &Service{
-		rcType:                         rcType,
+	return &CoreAgentService{
+		Service: Service{
+			rcType: rcType,
+			uptane: uptaneClient,
+		},
 		firstUpdate:                    true,
 		defaultRefreshInterval:         options.refresh,
 		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
@@ -364,7 +388,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		traceAgentEnv:                  options.traceAgentEnv,
 		db:                             db,
 		api:                            http,
-		uptane:                         uptaneClient,
+		coreAgentUptane:                uptaneClient,
 		clients:                        newClients(clock, options.clientTTL),
 		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
@@ -393,7 +417,7 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 }
 
 // Start the remote configuration management service
-func (s *Service) Start() {
+func (s *CoreAgentService) Start() {
 	go func() {
 		s.pollOrgStatus()
 		for {
@@ -452,7 +476,7 @@ func (s *Service) Start() {
 }
 
 // Stop stops the refresh loop and closes the on-disk DB cache
-func (s *Service) Stop() error {
+func (s *CoreAgentService) Stop() error {
 	if s.stopConfigPoller != nil {
 		close(s.stopConfigPoller)
 	}
@@ -460,7 +484,7 @@ func (s *Service) Stop() error {
 	return s.db.Close()
 }
 
-func (s *Service) pollOrgStatus() {
+func (s *CoreAgentService) pollOrgStatus() {
 	response, err := s.api.FetchOrgStatus(context.Background())
 	if err != nil {
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
@@ -498,13 +522,13 @@ func (s *Service) pollOrgStatus() {
 	exportedStatusKeyAuthorized.Set(strconv.FormatBool(response.Authorized))
 }
 
-func (s *Service) calculateRefreshInterval() time.Duration {
+func (s *CoreAgentService) calculateRefreshInterval() time.Duration {
 	backoffTime := s.backoffPolicy.GetBackoffDuration(s.backoffErrorCount)
 
 	return s.defaultRefreshInterval + backoffTime
 }
 
-func (s *Service) refresh() error {
+func (s *CoreAgentService) refresh() error {
 	s.Lock()
 	activeClients := s.clients.activeClients()
 	s.refreshProducts(activeClients)
@@ -554,7 +578,7 @@ func (s *Service) refresh() error {
 		return err
 	}
 	s.fetchErrorCount = 0
-	err = s.uptane.Update(response)
+	err = s.coreAgentUptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
@@ -585,11 +609,11 @@ func (s *Service) refresh() error {
 	return nil
 }
 
-func (s *Service) forceRefresh() bool {
+func (s *CoreAgentService) forceRefresh() bool {
 	return s.firstUpdate
 }
 
-func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
+func (s *CoreAgentService) refreshProducts(activeClients []*pbgo.Client) {
 	for _, client := range activeClients {
 		for _, product := range client.Products {
 			if _, hasProduct := s.products[rdata.Product(product)]; !hasProduct {
@@ -599,7 +623,7 @@ func (s *Service) refreshProducts(activeClients []*pbgo.Client) {
 	}
 }
 
-func (s *Service) getClientState() ([]byte, error) {
+func (s *CoreAgentService) getClientState() ([]byte, error) {
 	rawTargetsCustom, err := s.uptane.TargetsCustom()
 	if err != nil {
 		return nil, err
@@ -611,7 +635,7 @@ func (s *Service) getClientState() ([]byte, error) {
 	return custom.OpaqueBackendState, nil
 }
 
-func (s *Service) getRefreshInterval() (time.Duration, error) {
+func (s *CoreAgentService) getRefreshInterval() (time.Duration, error) {
 	rawTargetsCustom, err := s.uptane.TargetsCustom()
 	if err != nil {
 		return 0, err
@@ -633,7 +657,7 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
 //
 //nolint:revive // TODO(RC) Fix revive linter
-func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
 	err := validateRequest(request)
@@ -730,7 +754,7 @@ func (s *Service) ClientGetConfigs(_ context.Context, request *pbgo.ClientGetCon
 }
 
 // ConfigGetState returns the state of the configuration and the director repos in the local store
-func (s *Service) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
+func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	state, err := s.uptane.State()
 	if err != nil {
 		return nil, err
@@ -924,4 +948,183 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	}
 
 	return canonical, nil
+}
+
+// HTTPClient defines a client that can be used to fetch Remote Configurations from an HTTP(s)-based backend
+type HTTPClient struct {
+	Service
+	lastUpdate time.Time
+	api        api.API
+	cdnUptane  cdnUptaneClient
+}
+
+// NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
+func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agentVersion string) (*HTTPClient, error) {
+
+	dbPath := path.Join(cfg.GetString("run_path"), "remote-config-cdn.db")
+	db, err := openCacheDB(dbPath, agentVersion, apiKey)
+	if err != nil {
+		return nil, err
+	}
+	uptaneClientOptions := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(site, ""),
+		uptane.WithDirectorRootOverride(site, ""),
+	}
+	baseURL, err := url.Parse(baseRawURL)
+	if err != nil {
+		return nil, err
+	}
+	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
+	if err != nil {
+		return nil, err
+	}
+	http, err := api.NewHTTPClient(authKeys.apiAuth(), cfg, baseURL)
+	if err != nil {
+		return nil, err
+	}
+	uptaneHTTPClient, err := uptane.NewHTTPClient(
+		db,
+		host,
+		site,
+		apiKey,
+		newRCBackendOrgUUIDProvider(http),
+		uptaneClientOptions...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HTTPClient{
+		Service: Service{
+			rcType: "CDN",
+			uptane: uptaneHTTPClient,
+		},
+		api:       http,
+		cdnUptane: uptaneHTTPClient,
+	}, nil
+}
+
+func (s *HTTPClient) update() error {
+	s.Lock()
+	defer s.Unlock()
+
+	err := s.cdnUptane.Update()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *HTTPClient) shouldUpdate() bool {
+	s.Lock()
+	defer s.Unlock()
+	if time.Since(s.lastUpdate) > maxCDNUpdateFrequency {
+		s.lastUpdate = time.Now()
+		return true
+	}
+	return false
+}
+
+// GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
+// in a short amount of time, a cached response is returned. If RC has been disabled,
+// an error is returned. If there is no update (the targets version is up-to-date) nil
+// is returned for both the update and error.
+func (s *HTTPClient) GetCDNConfigUpdate(
+	products []string,
+	currentTargetsVersion, currentRootVersion uint64,
+	cachedTargetFiles []*pbgo.TargetFileMeta,
+) (*state.Update, error) {
+
+	if !s.shouldUpdate() {
+		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	}
+
+	// check org status in the backend. If RC is disabled, return current state.
+	response, err := s.api.FetchOrgStatus(context.Background())
+	if err != nil || !response.Enabled || !response.Authorized {
+		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	}
+
+	err = s.update()
+	if err != nil {
+		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
+	}
+
+	return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+}
+
+func (s *HTTPClient) getUpdate(
+	products []string,
+	currentTargetsVersion, currentRootVersion uint64,
+	cachedTargetFiles []*pbgo.TargetFileMeta,
+) (*state.Update, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	tufVersions, err := s.uptane.TUFVersionState()
+	if err != nil {
+		return nil, err
+	}
+	if tufVersions.DirectorTargets == currentTargetsVersion {
+		return nil, nil
+	}
+	roots, err := s.getNewDirectorRoots(currentRootVersion, tufVersions.DirectorRoot)
+	if err != nil {
+		return nil, err
+	}
+	targetsRaw, err := s.uptane.TargetsMeta()
+	if err != nil {
+		return nil, err
+	}
+	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(products), cachedTargetFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	canonicalTargets, err := enforceCanonicalJSON(targetsRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	directorTargets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+
+	productsMap := make(map[string]struct{})
+	for _, product := range products {
+		productsMap[product] = struct{}{}
+	}
+	configs := make([]string, 0)
+	for path, meta := range directorTargets {
+		pathMeta, err := rdata.ParseConfigPath(path)
+		if err != nil {
+			return nil, err
+		}
+		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
+			continue
+		}
+		configMetadata, err := parseFileMetaCustom(meta.Custom)
+		if err != nil {
+			return nil, err
+		}
+		if configExpired(configMetadata.Expires) {
+			continue
+		}
+
+		configs = append(configs, path)
+	}
+
+	fileMap := make(map[string][]byte, len(targetFiles))
+	for _, f := range targetFiles {
+		fileMap[f.Path] = f.Raw
+	}
+
+	return &state.Update{
+		TUFRoots:      roots,
+		TUFTargets:    canonicalTargets,
+		TargetFiles:   fileMap,
+		ClientConfigs: configs,
+	}, nil
 }
