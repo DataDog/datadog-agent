@@ -82,13 +82,13 @@ func (k kubeDeprecations) print() {
 // ImportKubernetesConf reads the configuration from the kubernetes check (agent5)
 // and create the configuration for the new kubelet check (agent 6) and moves
 // relevant options to datadog.yaml
-func ImportKubernetesConf(src, dst string, overwrite bool, converter *LegacyConfigConverter) error {
+func ImportKubernetesConf(src, dst string, overwrite bool, converter *ConfigConverter) error {
 	_, err := importKubernetesConfWithDeprec(src, dst, overwrite, converter)
 	return err
 }
 
 // Deprecated options are listed in the kubeDeprecations return value, for testing
-func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *LegacyConfigConverter) (kubeDeprecations, error) {
+func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *ConfigConverter) (kubeDeprecations, error) {
 	fmt.Printf("%s\n", warningNewKubeCheck)
 	deprecations := make(kubeDeprecations)
 

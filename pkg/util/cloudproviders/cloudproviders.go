@@ -99,12 +99,13 @@ type cloudProviderAliasesDetector struct {
 	callback func(context.Context) ([]string, error)
 }
 
-func GetValidHostAliases(ctx context.Context) ([]string, error) {
+// getValidHostAliases is an alias from pkg config
+func getValidHostAliases(ctx context.Context) ([]string, error) {
 	return pkgconfigsetup.GetValidHostAliases(ctx, pkgconfigsetup.Datadog())
 }
 
 var hostAliasesDetectors = []cloudProviderAliasesDetector{
-	{name: "config", callback: GetValidHostAliases},
+	{name: "config", callback: getValidHostAliases},
 	{name: alibaba.CloudProviderName, callback: alibaba.GetHostAliases},
 	{name: ec2.CloudProviderName, callback: ec2.GetHostAliases},
 	{name: azure.CloudProviderName, callback: azure.GetHostAliases},

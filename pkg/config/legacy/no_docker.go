@@ -12,7 +12,7 @@ import (
 )
 
 // ImportDockerConf is a place holder if the agent is built without the docker flag
-func ImportDockerConf(_, _ string, _ bool, _ *LegacyConfigConverter) error {
+func ImportDockerConf(_, _ string, _ bool, _ *ConfigConverter) error {
 	fmt.Println("This agent was build without docker support: could not convert docker_daemon.yaml")
 	return nil
 }

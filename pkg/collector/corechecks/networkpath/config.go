@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -118,7 +117,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	)
 
 	c.Tags = instance.Tags
-	c.Namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
+	c.Namespace = setup.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

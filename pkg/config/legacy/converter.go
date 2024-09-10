@@ -18,25 +18,25 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-// LegacyConfigConverter is used in the legacy package
+// ConfigConverter is used in the legacy package
 // to convert A5 config to A6
-type LegacyConfigConverter struct {
+type ConfigConverter struct {
 	model.Config
 }
 
 // Set is used for setting configuration from A5 config
-func (c *LegacyConfigConverter) Set(key string, value interface{}) {
+func (c *ConfigConverter) Set(key string, value interface{}) {
 	c.Config.Set(key, value, model.SourceAgentRuntime)
 }
 
 // NewConfigConverter is creating and returning a config converter
-func NewConfigConverter() *LegacyConfigConverter {
-	return &LegacyConfigConverter{pkgconfigsetup.Datadog()}
+func NewConfigConverter() *ConfigConverter {
+	return &ConfigConverter{pkgconfigsetup.Datadog()}
 }
 
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
 // the values into the current configuration object
-func FromAgentConfig(agentConfig Config, converter *LegacyConfigConverter) error {
+func FromAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 	if err := extractURLAPIKeys(agentConfig, converter); err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func FromAgentConfig(agentConfig Config, converter *LegacyConfigConverter) error
 	return extractTraceAgentConfig(agentConfig, converter)
 }
 
-func extractTraceAgentConfig(agentConfig Config, converter *LegacyConfigConverter) error {
+func extractTraceAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 	for iniKey, yamlKey := range map[string]string{
 		"trace.api.api_key":                      "apm_config.api_key",
 		"trace.api.endpoint":                     "apm_config.apm_dd_url",
@@ -250,7 +250,7 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func extractURLAPIKeys(agentConfig Config, converter *LegacyConfigConverter) error {
+func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	urls := strings.Split(agentConfig["dd_url"], ",")
 	keys := strings.Split(agentConfig["api_key"], ",")
 
