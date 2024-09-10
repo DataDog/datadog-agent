@@ -10,10 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 
@@ -51,8 +49,7 @@ func CheckAndUpgradeConfig() error {
 		return nil
 	}
 	pkgconfigsetup.Datadog().AddConfigPath(path.DefaultConfPath)
-	// Load config without secret using Datadog config
-	_, err := pkgconfigsetup.LoadDatadogCustom(pkgconfigsetup.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
+	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	if err == nil {
 		// was able to read config, check for api key
 		if pkgconfigsetup.Datadog().GetString("api_key") != "" {
