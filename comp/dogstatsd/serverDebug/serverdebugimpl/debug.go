@@ -26,10 +26,10 @@ import (
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
