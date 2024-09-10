@@ -46,21 +46,14 @@ const (
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
-//nolint:revive // TODO(NET) Fix revive linter
 var EbpfTracerTelemetry = struct {
 	connections       telemetry.Gauge
 	tcpFailedConnects *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	TcpSentMiscounts *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	unbatchedTcpClose *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	unbatchedUdpClose *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	UdpSendsProcessed *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	UdpSendsMissed *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
 	// doubleFlushAttemptsClose is a counter measuring the number of attempts to flush a closed connection twice from tcp_close
 	doubleFlushAttemptsClose *prometheus.Desc
@@ -80,19 +73,12 @@ var EbpfTracerTelemetry = struct {
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
 
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	LastTcpSentMiscounts *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnbatchedTcpClose *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnbatchedUdpClose *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpSendsProcessed *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpSendsMissed *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpDroppedConns *atomic.Int64
 	// lastDoubleFlushAttemptsClose is a counter measuring the diff between the last two values of doubleFlushAttemptsClose
 	lastDoubleFlushAttemptsClose *atomic.Int64
@@ -229,7 +215,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	}
 
 	var m *manager.Manager
-	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
 	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
@@ -240,7 +225,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	if err != nil {
 		// load the kprobe tracer
-		log.Info("fentry tracer not supported, falling back to kprobe tracer")
+		log.Info("loading kprobe-based tracer")
 		var kprobeTracerType kprobe.TracerType
 		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
 		if err != nil {

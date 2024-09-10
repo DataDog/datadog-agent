@@ -71,18 +71,18 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-installer", 0755)
+	err = os.MkdirAll("/opt/datadog-packages/run", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog-installer: %w", err)
+		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-installer/locks", 0777)
+	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog-installer/locks: %w", err)
+		return fmt.Errorf("error creating /opt/datadog-packages/run/locks: %w", err)
 	}
 	// Locks directory can already be created by a package install
-	err = os.Chmod("/var/run/datadog-installer/locks", 0777)
+	err = os.Chmod("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /var/run/datadog-installer/locks: %w", err)
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
 	}
 	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
 	if err != nil {
@@ -92,9 +92,14 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID)
+	err = os.Chown("/opt/datadog-packages/run", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
+		return fmt.Errorf("error changing owner of /opt/datadog-packages/run: %w", err)
+	}
+	// Symlink /opt/datadog-packages/run to /var/run/datadog-installer for backwards compatibility
+	// This is a best effort, so we won't fail on it.
+	if err := os.Symlink("/opt/datadog-packages/run", "/var/run/datadog-installer"); err != nil && !os.IsExist(err) {
+		log.Warnf("failed to symlink /opt/datadog-packages/run to /var/run/datadog-installer: %s", err.Error())
 	}
 	// Enforce that the directory exists. It should be created by the bootstrapper but
 	// older versions don't do it
@@ -106,7 +111,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /opt/datadog-installer/tmp: %w", err)
 	}
-
 	// Create installer path symlink
 	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
 	if err != nil && errors.Is(err, os.ErrExist) {
@@ -227,4 +231,9 @@ func StartInstallerExperiment(ctx context.Context) error {
 // StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
+}
+
+// PromoteInstallerExperiment promotes the installer experiment
+func PromoteInstallerExperiment(ctx context.Context) error {
+	return StopInstallerExperiment(ctx)
 }

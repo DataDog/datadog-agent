@@ -92,7 +92,7 @@ func TestOOMKillProbe(t *testing.T) {
 		var result model.OOMKillStats
 		require.Eventually(t, func() bool {
 			for _, r := range oomKillProbe.GetAndFlush() {
-				if r.TPid == uint32(cmd.Process.Pid) {
+				if r.TriggerPid == uint32(cmd.Process.Pid) {
 					result = r
 					return true
 				}
@@ -101,11 +101,11 @@ func TestOOMKillProbe(t *testing.T) {
 		}, 10*time.Second, 500*time.Millisecond, "failed to find an OOM killed process with pid %d", cmd.Process.Pid)
 
 		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
-		assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+		assert.Equal(t, result.TriggerPid, result.VictimPid, "tpid == pid")
 		assert.NotZero(t, result.Score, "score")
 		assert.Equal(t, int16(42), result.ScoreAdj, "score adj")
-		assert.Equal(t, "dd", result.FComm, "fcomm")
-		assert.Equal(t, "dd", result.TComm, "tcomm")
+		assert.Equal(t, "dd", result.VictimComm, "victim comm")
+		assert.Equal(t, "dd", result.TriggerComm, "trigger comm")
 		assert.NotZero(t, result.Pages, "pages")
 		assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 	})

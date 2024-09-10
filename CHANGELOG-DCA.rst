@@ -2,6 +2,129 @@
 Release Notes
 =============
 
+.. _Release Notes_7.57.0:
+
+7.57.0
+======
+
+.. _Release Notes_7.57.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-09
+Pinned to datadog-agent v7.57.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7570>`_.
+
+.. _Release Notes_7.57.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent now supports activating Continuous Profiling
+  using Admission Controller.
+
+- ``LimitRange`` and ``StorageClass`` resources are now collected by the orchestrator check.
+
+
+.. _Release Notes_7.57.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook (beta) uses a new injector library.
+
+
+.. _Release Notes_7.57.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare bug where some Kubernetes events would be emitted
+  without a timestamp and would be dropped upstream as a result.
+
+- Library package versions for auto-instrumentation are now set to the latest major
+  version of the library-package instead of `latest`.
+  
+  * java:v1
+  * dotnet:v2
+  * python:v2
+  * ruby:v2
+  * js:v5
+
+- Fix APIServer error logs generated when external metrics endpoint is activated
+
+
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-02
+Pinned to datadog-agent v7.56.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7562>`_.
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-29
+Pinned to datadog-agent v7.56.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7561>`_.
+
+.. _Release Notes_7.56.0:
+
+7.56.0
+======
+
+.. _Release Notes_7.56.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-16
+Pinned to datadog-agent v7.56.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7560>`_.
+
+.. _Release Notes_7.56.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.
+
+
+.. _Release Notes_7.56.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Mark the NetworkPolicy collector as stable in the Cluster Agent
+
+- Enabled language detection automatically in the injected agent sidecar on EKS Fargate when APM SSI is enabled.
+  This is only available for users using the admission controller to automatically inject the agent sidecar.
+
+- The orchestrator check can now scrub sensitive data from probes in pods specifications.
+
+
+.. _Release Notes_7.56.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where the external metrics server would sometimes return metrics which had not
+  been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+  In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+  has been added to account for the delay between when metrics are resolved and when they
+  are queried by the various autoscaling controllers. It is set to 30 seconds by default.
+
 .. _Release Notes_7.55.3:
 
 7.55.3

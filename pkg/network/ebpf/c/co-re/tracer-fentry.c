@@ -201,7 +201,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         return 0;
     }
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
 }
 
 SEC("fexit/tcp_recvmsg")
@@ -264,7 +264,7 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
 
     if (sent > 0) {
         log_debug("udp_sendmsg: sent: %d", sent);
-        handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
+        handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     }
 
     bpf_map_delete_elem(&udp_send_skb_args, &pid_tgid);

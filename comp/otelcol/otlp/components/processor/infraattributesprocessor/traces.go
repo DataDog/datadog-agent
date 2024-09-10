@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -18,11 +17,11 @@ import (
 
 type infraAttributesSpanProcessor struct {
 	logger      *zap.Logger
-	tagger      tagger.Component
+	tagger      taggerClient
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
@@ -41,9 +40,9 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 
 		// Get all unique tags from resource attributes and global tags
 		for _, entityID := range entityIDs {
-			entityTags, err := iasp.tagger.Tag(entityID, iasp.cardinality)
+			entityTags, err := iasp.tagger.Tag(entityID.String(), iasp.cardinality)
 			if err != nil {
-				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue
 			}
 			for _, tag := range entityTags {

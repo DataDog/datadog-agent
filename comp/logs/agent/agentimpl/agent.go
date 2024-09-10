@@ -22,11 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -79,7 +81,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	IntegrationsLogs   integrations.Component
+	Tagger             tagger.Component
 }
 
 type provides struct {
@@ -89,6 +91,7 @@ type provides struct {
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
+	LogsReciever   optional.Option[integrations.Component]
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -99,6 +102,7 @@ type logAgent struct {
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
+	tagger         tagger.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -129,6 +133,8 @@ func newLogsAgent(deps dependencies) provides {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
+		integrationsLogs := integrationsimpl.NewLogsIntegration()
+
 		logsAgent := &logAgent{
 			log:            deps.Log,
 			config:         deps.Config,
@@ -142,7 +148,8 @@ func newLogsAgent(deps dependencies) provides {
 			flarecontroller:    flareController.NewFlareController(),
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
-			integrationsLogs:   deps.IntegrationsLogs,
+			integrationsLogs:   integrationsLogs,
+			tagger:             deps.Tagger,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -162,6 +169,7 @@ func newLogsAgent(deps dependencies) provides {
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
+			LogsReciever:   optional.NewOption[integrations.Component](integrationsLogs),
 		}
 	}
 
@@ -169,6 +177,7 @@ func newLogsAgent(deps dependencies) provides {
 	return provides{
 		Comp:           optional.NewNoneOption[agent.Component](),
 		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+		LogsReciever:   optional.NewNoneOption[integrations.Component](),
 	}
 }
 

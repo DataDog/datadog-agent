@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && npm
+//go:build linux_bpf
 
 package connection
 
@@ -23,15 +23,10 @@ import (
 type TracerType int
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbePrebuilt TracerType = iota
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeRuntimeCompiled
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeCORE
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeEbpfless
 )
 

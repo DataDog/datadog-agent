@@ -50,8 +50,14 @@ const (
 	socket  = "socket"
 	service = "service"
 
-	// DatadogVolumeName is the name of the volume used to mount the socket
+	// DatadogVolumeName is the name of the volume used to mount the sockets when the volume source is a directory
 	DatadogVolumeName = "datadog"
+
+	// TraceAgentSocketVolumeName is the name of the volume used to mount the trace agent socket
+	TraceAgentSocketVolumeName = "datadog-trace-agent"
+
+	// DogstatsdSocketVolumeName is the name of the volume used to mount the dogstatsd socket
+	DogstatsdSocketVolumeName = "datadog-dogstatsd"
 
 	webhookName = "agent_config"
 )
@@ -184,11 +190,10 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog().GetString("admission_controller.inject_config.socket_path"), true)
-		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		injectedVolumes := injectSocketVolumes(pod)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
-		injectedConfig = injectedEnv || injectedVol
+		injectedConfig = injectedVolumes || injectedEnv
 	default:
 		log.Errorf("invalid injection mode %q", w.mode)
 		return false, errors.New(metrics.InvalidInput)
@@ -218,59 +223,40 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	return globalMode
 }
 
+// buildExternalEnv generate an External Data environment variable.
+func buildExternalEnv(container *corev1.Container, init bool) (corev1.EnvVar, error) {
+	return corev1.EnvVar{
+		Name:  ddExternalDataEnvVarName,
+		Value: fmt.Sprintf("%s%t,%s%s,%s$(%s)", externalDataInitPrefix, init, externalDataContainerNamePrefix, container.Name, externalDataPodUIDPrefix, podUIDEnvVarName),
+	}, nil
+}
+
 // injectExternalDataEnvVar injects the External Data environment variable.
 // The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
 func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
-	type containerInjection struct {
-		container *corev1.Container
-		init      bool
-	}
-	var containerInjections []containerInjection
+	// Inject External Data Environment Variable for the pod
+	injected = common.InjectDynamicEnv(pod, buildExternalEnv)
 
-	// Collect all containers and init containers
-	for i := range pod.Spec.Containers {
-		containerInjections = append(containerInjections, containerInjection{&pod.Spec.Containers[i], false})
-	}
-	for i := range pod.Spec.InitContainers {
-		containerInjections = append(containerInjections, containerInjection{&pod.Spec.InitContainers[i], true})
-	}
-
-	// Inject External Data Environment Variable for each container
-	for _, containerInjection := range containerInjections {
-		if containerInjection.container == nil {
-			_ = log.Errorf("Cannot inject identity into nil container")
-			continue
-		}
-
-		containerInjection.container.Env = append([]corev1.EnvVar{
-			{
-				Name: podUIDEnvVarName,
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "metadata.uid",
-					},
-				},
+	// Inject Internal Pod UID
+	injected = common.InjectEnv(pod, corev1.EnvVar{
+		Name: podUIDEnvVarName,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.uid",
 			},
-			{
-				Name:  ddExternalDataEnvVarName,
-				Value: fmt.Sprintf("%s%t,%s%s,%s$(%s)", externalDataInitPrefix, containerInjection.init, externalDataContainerNamePrefix, containerInjection.container.Name, externalDataPodUIDPrefix, podUIDEnvVarName),
-			},
-		}, containerInjection.container.Env...)
+		},
+	}) || injected
 
-		injected = true
-	}
-
-	return injected
+	return
 }
 
-func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
-	pathType := corev1.HostPathDirectoryOrCreate
+func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
 				Path: path,
-				Type: &pathType,
+				Type: &hostpathType,
 			},
 		},
 	}
@@ -282,4 +268,53 @@ func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.
 	}
 
 	return volume, volumeMount
+}
+
+// injectSocketVolumes injects the volumes for the dogstatsd and trace agent
+// sockets.
+//
+// The type of the volume injected can be either a directory or a socket
+// depending on the configuration. They offer different trade-offs. Using a
+// socket ensures no lost traces or dogstatsd metrics but can cause the pod to
+// wait if the agent has issues that prevent it from creating the sockets.
+//
+// This function returns true if at least one volume was injected.
+func injectSocketVolumes(pod *corev1.Pod) bool {
+	var injectedVolNames []string
+
+	if config.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
+		volumes := map[string]string{
+			DogstatsdSocketVolumeName: strings.TrimPrefix(
+				config.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
+			),
+			TraceAgentSocketVolumeName: strings.TrimPrefix(
+				config.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
+			),
+		}
+
+		for volumeName, volumePath := range volumes {
+			volume, volumeMount := buildVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			injectedVol := common.InjectVolume(pod, volume, volumeMount)
+			if injectedVol {
+				injectedVolNames = append(injectedVolNames, volumeName)
+			}
+		}
+	} else {
+		volume, volumeMount := buildVolume(
+			DatadogVolumeName,
+			config.Datadog().GetString("admission_controller.inject_config.socket_path"),
+			corev1.HostPathDirectoryOrCreate,
+			true,
+		)
+		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		if injectedVol {
+			injectedVolNames = append(injectedVolNames, DatadogVolumeName)
+		}
+	}
+
+	for _, volName := range injectedVolNames {
+		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volName)
+	}
+
+	return len(injectedVolNames) > 0
 }

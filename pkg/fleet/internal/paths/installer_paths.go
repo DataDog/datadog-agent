@@ -14,7 +14,7 @@ const (
 	// ConfigsPath is the path to the Fleet-managed configuration directory.
 	ConfigsPath = "/etc/datadog-packages"
 	// LocksPath is the path to the packages locks directory.
-	LocksPath = "/var/run/datadog-installer/locks"
+	LocksPath = "/opt/datadog-packages/run/locks"
 
 	// DefaultUserConfigsDir is the default Agent configuration directory.
 	DefaultUserConfigsDir = "/etc"

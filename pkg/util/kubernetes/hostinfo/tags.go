@@ -9,6 +9,7 @@ package hostinfo
 
 import (
 	"context"
+	"maps"
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -35,7 +36,7 @@ func (k KubeNodeTagsProvider) GetTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	annotationsToTags := k.metadataAsTags.GetNodeAnnotationsAsTags()
+	annotationsToTags := k.getNodeAnnotationsAsTags()
 	if len(annotationsToTags) == 0 {
 		return tags, nil
 	}
@@ -47,6 +48,10 @@ func (k KubeNodeTagsProvider) GetTags(ctx context.Context) ([]string, error) {
 	tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
 
 	return tags, nil
+}
+
+func (k KubeNodeTagsProvider) getNodeAnnotationsAsTags() map[string]string {
+	return k.metadataAsTags.GetNodeAnnotationsAsTags()
 }
 
 // getNodeInfoTags gets the tags from the kubelet and the cluster-agent
@@ -65,10 +70,6 @@ func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, er
 		return nil, err
 	}
 	tags := []string{"kube_node:" + nodeName}
-	labelsToTags := k.metadataAsTags.GetNodeLabelsAsTags()
-	if len(labelsToTags) == 0 {
-		return tags, nil
-	}
 
 	nodeLabels, err := nodeInfo.GetNodeLabels(ctx)
 	if err != nil {
@@ -76,10 +77,16 @@ func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, er
 		return nil, err
 	}
 	if len(nodeLabels) > 0 {
-		tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+		tags = append(tags, extractTags(nodeLabels, k.getNodeLabelsAsTags())...)
 	}
 
 	return tags, nil
+}
+
+func (k KubeNodeTagsProvider) getNodeLabelsAsTags() map[string]string {
+	labelsToTags := getDefaultLabelsToTags()
+	maps.Copy(labelsToTags, k.metadataAsTags.GetNodeLabelsAsTags())
+	return labelsToTags
 }
 
 func getDefaultLabelsToTags() map[string]string {
