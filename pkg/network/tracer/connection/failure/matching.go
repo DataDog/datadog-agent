@@ -32,13 +32,17 @@ var (
 )
 
 var failureTelemetry = struct {
-	failedConnMatches  telemetry.Counter
-	failedConnOrphans  telemetry.Counter
-	failedConnsDropped telemetry.Counter
+	failedConnMatches        telemetry.Counter
+	failedConnOrphans        telemetry.Counter
+	failedConnsDropped       telemetry.Counter
+	closedConnFlushedCleaned telemetry.Counter
+	ongoingConnectPidCleaned telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
+	telemetry.NewCounter(telemetryModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
+	telemetry.NewCounter(telemetryModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -161,27 +165,29 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 	}
 
 	connFlushedCleaner.Clean(time.Second*10, nil, nil, func(now int64, key ebpf.ConnTuple, val int64) bool {
-		return val > 0 && now-val > connClosedFlushMapTTL
+		expired := val > 0 && now-val > connClosedFlushMapTTL
+		if expired {
+			failureTelemetry.closedConnFlushedCleaned.Inc()
+		}
+		return expired
 	})
 
 	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
 	if err != nil {
-		log.Errorf("adamk error getting %v map: %s", probes.TCPOngoingConnectPid, err)
+		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
 		return
 	}
 
 	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[ebpf.SkpConn, ebpf.PidTs](tcpOngoingConnectPidMap, 1024)
 	if err != nil {
-		log.Errorf("adamk error creating map cleaner: %s", err)
+		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-	log.Debugf("tcpOngoingConnectPidCleaner: %+v", tcpOngoingConnectPidCleaner)
 	tcpOngoingConnectPidCleaner.Clean(time.Second*25, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
-		log.Error("adamk checking ongoing connection")
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
 		if expired {
-			log.Errorf("adamk removing expired ongoing connection")
+			failureTelemetry.ongoingConnectPidCleaned.Inc()
 		}
 		return expired
 	})

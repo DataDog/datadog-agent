@@ -125,26 +125,19 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	var key K
 	var val V
 	totalCount, deletedCount := 0, 0
-	log.Errorf("mapcleaner iterating map: %v", mc.emap)
 
 	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
 	for it.Next(&key, &val) {
 		if it.Err() != nil {
-			log.Errorf("adamk error iterating: %v", it.Err())
 		}
-		log.Errorf("adamk iterating key: %v", key)
 		totalCount++
 		if !shouldClean(nowTS, key, val) {
-			log.Errorf("adamk skipping key: %v", key)
 			continue
 		}
 
 		keysToDelete = append(keysToDelete, key)
 	}
-	log.Errorf("mapcleaner keys to delete: %v", keysToDelete)
-	log.Errorf("mapcleaner keys to delete count: %v", len(keysToDelete))
-	log.Errorf("mapcleaner total count: %v", totalCount)
 
 	var deletionError error
 	if len(keysToDelete) > 0 {
