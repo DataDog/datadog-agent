@@ -311,6 +311,19 @@ int BPF_KRETPROBE(kretprobe__tcp_close_flush) {
     return 0;
 }
 
+SEC("kprobe/inet_shutdown")
+int BPF_BYPASSABLE_KPROBE(kprobe__inet_shutdown, struct sock *sk, int how) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    log_debug("kprobe/inet_shutdown: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    return 0;
+}
+
 #if !defined(COMPILE_RUNTIME) || defined(FEATURE_UDPV6_ENABLED)
 
 static __always_inline void fl6_saddr(struct flowi6 *fl6, u64 *addr_h, u64 *addr_l) {
