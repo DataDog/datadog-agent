@@ -44,6 +44,10 @@ func main() {
 	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(` + strings.Join(int8variableNames, "|") + `)(\s+)\[(\d+)\]u?int8`)
 	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
+	// Convert generated pointers to CGo structs to uintptr
+	convertPointerToUint64Regex := regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
+	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uintptr"))
+
 	b, err = format.Source(b)
 	if err != nil {
 		log.Fatal(err)
