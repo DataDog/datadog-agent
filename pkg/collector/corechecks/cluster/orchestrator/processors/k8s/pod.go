@@ -13,12 +13,14 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	podtagprovider "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
@@ -31,6 +33,17 @@ import (
 // PodHandlers implements the Handlers interface for Kubernetes Pods.
 type PodHandlers struct {
 	common.BaseHandlers
+	tagProvider podtagprovider.PodTagProvider
+}
+
+// NewPodHandlers
+func NewPodHandlers(cfg config.Component, store workloadmeta.Component) *PodHandlers {
+	podHandlers := new(PodHandlers)
+
+	// initialise tag provider
+	podHandlers.tagProvider = podtagprovider.NewPodTagProvider(cfg, store)
+
+	return podHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -58,7 +71,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 	}
 
 	// insert tagger tags
-	taggerTags, err := tagger.Tag(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, string(r.UID)).String(), taggertypes.HighCardinality)
+	taggerTags, err := h.tagProvider.GetTags(r, taggertypes.HighCardinality)
 	if err != nil {
 		log.Debugf("Could not retrieve tags for pod: %s", err.Error())
 		skip = true
