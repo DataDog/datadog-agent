@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -27,6 +30,12 @@ type systemContext struct {
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int]*kernel.ProcMapEntries
+
+	// timeResolver is used to convert from kernel time to system time
+	timeResolver *sectime.Resolver
+
+	// processCache is used to resolve process information
+	processCache *tracer.ProcessCache
 }
 
 // fileData holds the symbol table and Fatbin data for a given file.
@@ -48,16 +57,29 @@ const (
 )
 
 func getSystemContext(opts ...systemContextOpts) (*systemContext, error) {
+	var err error
+
 	ctx := &systemContext{
 		fileData: make(map[string]*fileData),
 		pidMaps:  make(map[int]*kernel.ProcMapEntries),
 	}
 
 	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
-		if err := ctx.queryDevices(); err != nil {
+		if err = ctx.queryDevices(); err != nil {
 			return nil, fmt.Errorf("error querying devices: %w", err)
 		}
 	}
+
+	ctx.timeResolver, err = sectime.NewResolver()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create time resolver: %s", err)
+	}
+
+	ctx.processCache, err = tracer.NewProcessCache(32768)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create process cache: %s", err)
+	}
+	events.RegisterHandler(ctx.processCache)
 
 	return ctx, nil
 }

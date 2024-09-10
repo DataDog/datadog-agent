@@ -73,9 +73,15 @@ type StreamKey struct {
 	Stream uint64 `json:"stream"`
 }
 
+// StreamMetadata contains metadata for a stream, such as container ID
+type StreamMetadata struct {
+	ContainerID string `json:"container_id"`
+}
+
 // StreamData contains kernel spans and allocations for a stream
 type StreamData struct {
 	Key         StreamKey           `json:"key"`
+	Metadata    StreamMetadata      `json:"metadata"`
 	Spans       []*KernelSpan       `json:"spans"`
 	Allocations []*MemoryAllocation `json:"allocations"`
 }
