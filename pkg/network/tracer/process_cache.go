@@ -43,7 +43,8 @@ var processCacheTelemetry = struct {
 
 type processList []*events.Process
 
-type processCache struct {
+// ProcessCache holds data from the process events to be queried later
+type ProcessCache struct {
 	mu sync.Mutex
 
 	// cache of pid -> list of processes holds a list of processes
@@ -64,8 +65,9 @@ type processCacheKey struct {
 	startTime int64
 }
 
-func newProcessCache(maxProcs int) (*processCache, error) {
-	pc := &processCache{
+// NewProcessCache creates a new cache to hold process events
+func NewProcessCache(maxProcs int) (*ProcessCache, error) {
+	pc := &ProcessCache{
 		cacheByPid: map[uint32]processList{},
 		in:         make(chan *events.Process, maxProcessQueueLen),
 		stopped:    make(chan struct{}),
@@ -102,7 +104,7 @@ func newProcessCache(maxProcs int) (*processCache, error) {
 	return pc, nil
 }
 
-func (pc *processCache) HandleProcessEvent(entry *events.Process) {
+func (pc *ProcessCache) HandleProcessEvent(entry *events.Process) {
 
 	select {
 	case <-pc.stopped:
@@ -124,7 +126,7 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 	}
 }
 
-func (pc *processCache) processEvent(entry *events.Process) *events.Process {
+func (pc *ProcessCache) processEvent(entry *events.Process) *events.Process {
 	if len(entry.Tags) == 0 && entry.ContainerID == nil {
 		return nil
 	}
@@ -132,7 +134,7 @@ func (pc *processCache) processEvent(entry *events.Process) *events.Process {
 	return entry
 }
 
-func (pc *processCache) Trim() {
+func (pc *ProcessCache) Trim() {
 	if pc == nil {
 		return
 	}
@@ -159,7 +161,7 @@ func (pc *processCache) Trim() {
 	}
 }
 
-func (pc *processCache) Stop() {
+func (pc *ProcessCache) Stop() {
 	if pc == nil {
 		return
 	}
@@ -167,7 +169,7 @@ func (pc *processCache) Stop() {
 	pc.stop.Do(func() { close(pc.stopped) })
 }
 
-func (pc *processCache) add(p *events.Process) {
+func (pc *ProcessCache) add(p *events.Process) {
 	if pc == nil {
 		return
 	}
@@ -187,7 +189,7 @@ func (pc *processCache) add(p *events.Process) {
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }
 
-func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
+func (pc *ProcessCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	if pc == nil {
 		return nil, false
 	}
@@ -209,7 +211,7 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	return nil, false
 }
 
-func (pc *processCache) Dump() (interface{}, error) {
+func (pc *ProcessCache) Dump() (interface{}, error) {
 	res := map[uint32]interface{}{}
 	if pc == nil {
 		return res, nil
@@ -226,12 +228,12 @@ func (pc *processCache) Dump() (interface{}, error) {
 }
 
 // Describe returns all descriptions of the collector.
-func (pc *processCache) Describe(ch chan<- *prometheus.Desc) {
+func (pc *ProcessCache) Describe(ch chan<- *prometheus.Desc) {
 	ch <- processCacheTelemetry.cacheLength
 }
 
 // Collect returns the current state of all metrics of the collector.
-func (pc *processCache) Collect(ch chan<- prometheus.Metric) {
+func (pc *ProcessCache) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(processCacheTelemetry.cacheLength, prometheus.GaugeValue, float64(pc.cache.Len()))
 }
 

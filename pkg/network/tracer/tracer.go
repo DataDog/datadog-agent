@@ -96,7 +96,7 @@ type Tracer struct {
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
 
-	processCache *processCache
+	processCache *ProcessCache
 
 	timeResolver *timeresolver.Resolver
 
@@ -183,7 +183,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
-		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
+		if tr.processCache, err = NewProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
