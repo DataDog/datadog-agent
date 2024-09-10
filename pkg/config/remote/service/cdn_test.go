@@ -32,7 +32,6 @@ func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane, api *mockAPI) *HT
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
-	opts := make([]HTTPClientOption, 0)
 	client, err := NewHTTPClient(cfg, baseRawURL, host, site, k, "", "9.9.9")
 	require.NoError(t, err)
 	if api != nil {

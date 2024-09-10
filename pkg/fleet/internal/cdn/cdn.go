@@ -74,7 +74,7 @@ func New(env *env.Env) (*CDN, error) {
 
 // Get gets the configuration from the CDN.
 func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	configLayers, err := c.getOrderedLayers()
 	if err != nil {
