@@ -15,7 +15,7 @@ import (
 )
 
 func TestFixup(t *testing.T) {
-	meta := fixupMetadata(usm.ServiceMetadata{Name: "Foo", DDService: "Bar"}, language.Go)
+	meta := fixupMetadata(usm.ServiceMetadata{Name: "fOo", DDService: "BAR"}, language.Go)
 	assert.Equal(t, meta.Name, "foo")
 	assert.Equal(t, meta.DDService, "bar")
 
