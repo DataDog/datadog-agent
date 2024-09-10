@@ -563,7 +563,7 @@ func taggerCardinality(cardinality string,
 }
 
 // Subscribe calls defaultTagger.Subscribe
-func (t *TaggerClient) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+func (t *TaggerClient) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	return t.defaultTagger.Subscribe(subscriptionID, filter)
 }
 

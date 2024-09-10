@@ -130,7 +130,7 @@ func (t *Tagger) List() types.TaggerListResponse {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (t *Tagger) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+func (t *Tagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 

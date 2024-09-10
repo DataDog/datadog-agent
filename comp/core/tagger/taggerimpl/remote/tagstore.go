@@ -101,7 +101,7 @@ func (s *tagStore) collectTelemetry() {
 	}
 }
 
-func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 

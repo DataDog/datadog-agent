@@ -31,11 +31,12 @@ const (
 // streamIDManager is used to generate unique ID's for incoming streaming requests
 // This unique ID is used to subscribe to the tagger
 // TODO: remove this struct when the protobuf of the stream request is updated to use filters.
-type streamIDManager int32
+type streamIDManager struct {
+	atomic.Int32
+}
 
 func (s *streamIDManager) getNextUniqueID() string {
-	id := fmt.Sprintf("stream-client-%d", *s)
-	atomic.AddInt32((*int32)(s), 1)
+	id := fmt.Sprintf("stream-client-%d", s.Add(1))
 	return id
 }
 
@@ -72,7 +73,11 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	filter := types.NewFilterBuilder().Build(cardinality)
 
 	subscriptionID := s.manager.getNextUniqueID()
-	subscription := s.taggerComponent.Subscribe(subscriptionID, filter)
+	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
+	if err != nil {
+		return err
+	}
+
 	defer subscription.Unsubscribe()
 
 	ticker := time.NewTicker(streamKeepAliveInterval)

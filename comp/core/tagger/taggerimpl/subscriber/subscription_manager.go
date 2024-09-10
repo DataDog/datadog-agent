@@ -6,6 +6,7 @@
 package subscriber
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -16,7 +17,7 @@ import (
 // SubscriptionManager allows processes to subscribe to entity events generated from a
 // tagger.
 type SubscriptionManager interface {
-	Subscribe(id string, filter *types.Filter, events []types.EntityEvent) types.Subscription
+	Subscribe(id string, filter *types.Filter, events []types.EntityEvent) (types.Subscription, error)
 	Unsubscribe(subscriptionID string)
 	Notify(events []types.EntityEvent)
 }
@@ -41,12 +42,17 @@ func NewSubscriptionManager(telemetryStore *telemetry.Store) SubscriptionManager
 // Subscribe returns a channel that receives a slice of events whenever an
 // entity is added, modified or deleted. It can send an initial burst of events
 // only to the new subscriber, without notifying all of the others.
-func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events []types.EntityEvent) types.Subscription {
+func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events []types.EntityEvent) (types.Subscription, error) {
 	// this is a `ch []EntityEvent` instead of a `ch EntityEvent` to
 	// improve throughput, as bursts of events are as likely to occur as
 	// isolated events, especially at startup or with collectors that
 	// periodically pull changes.
 	ch := make(chan []types.EntityEvent, bufferSize)
+
+	if _, found := sm.subscribers[id]; found {
+		return nil, fmt.Errorf("duplicate subscription id error: subscription id %s is already in use", id)
+	}
+
 	subscriber := &Subscriber{
 		filter:  *filter,
 		id:      id,
@@ -68,7 +74,7 @@ func (sm *subscriptionManager) Subscribe(id string, filter *types.Filter, events
 		sm.notify(ch, events, subscriber.filter.GetCardinality())
 	}
 
-	return subscriber
+	return subscriber, nil
 }
 
 // unsubscribe ends a subscription to entity events and closes its channel. It

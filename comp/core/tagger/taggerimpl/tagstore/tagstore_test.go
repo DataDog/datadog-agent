@@ -490,9 +490,12 @@ func TestSubscribe(t *testing.T) {
 	lowCardEvents := []types.EntityEvent{}
 
 	highCardSubID := "high-card-sub-id"
-	highCardSubscription := store.Subscribe(highCardSubID, types.NewFilterBuilder().Build(types.HighCardinality))
+	highCardSubscription, err := store.Subscribe(highCardSubID, types.NewFilterBuilder().Build(types.HighCardinality))
+	require.NoError(t, err)
+
 	lowCardSubID := "low-card-sub-id"
-	lowCardSubscription := store.Subscribe(lowCardSubID, types.NewFilterBuilder().Build(types.LowCardinality))
+	lowCardSubscription, err := store.Subscribe(lowCardSubID, types.NewFilterBuilder().Build(types.LowCardinality))
+	require.NoError(t, err)
 
 	store.ProcessTagInfo([]*types.TagInfo{
 		{

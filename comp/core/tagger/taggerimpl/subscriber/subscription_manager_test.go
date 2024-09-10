@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -64,7 +65,8 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Low Cardinality Subscriber
 	lowCardSubID := "low-card-sub"
-	lowCardSubscription := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	lowCardSubscription, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
 		events["added"],
@@ -78,7 +80,8 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// Orchestrator Cardinality Subscriber
 	orchCardSubID := "orch-card-sub"
-	orchCardSubscription := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.OrchestratorCardinality), nil)
+	orchCardSubscription, err := sm.Subscribe(orchCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.OrchestratorCardinality), nil)
+	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
 		events["added"],
@@ -92,9 +95,10 @@ func TestSubscriptionManager(t *testing.T) {
 
 	// High Cardinality Subscriber
 	highCardSubID := "high-card-sub"
-	highCardSubscription := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.HighCardinality), []types.EntityEvent{
+	highCardSubscription, err := sm.Subscribe(highCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.HighCardinality), []types.EntityEvent{
 		events["added"],
 	})
+	require.NoError(t, err)
 
 	sm.Notify([]types.EntityEvent{
 		events["modified"],
@@ -198,4 +202,18 @@ func assertReceivedEvents(t *testing.T, ch chan []types.EntityEvent, expectedEve
 	}
 
 	assert.ElementsMatch(t, receivedEvents, expectedEvents)
+}
+
+func TestSubscriptionManagerDuplicateSubscriberID(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	sm := NewSubscriptionManager(telemetryStore)
+
+	// Low Cardinality Subscriber
+	lowCardSubID := "low-card-sub"
+	_, err := sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	require.NoError(t, err)
+
+	_, err = sm.Subscribe(lowCardSubID, types.NewFilterBuilder().Include(types.EntityIDPrefix("foo")).Build(types.LowCardinality), nil)
+	require.Error(t, err)
 }

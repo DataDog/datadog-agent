@@ -150,7 +150,7 @@ func (f *FakeTagger) List() types.TaggerListResponse {
 }
 
 // Subscribe fake implementation
-func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
 	return f.store.Subscribe(subscriptionID, filter)
 }
 
