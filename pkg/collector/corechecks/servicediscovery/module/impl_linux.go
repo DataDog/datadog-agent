@@ -54,6 +54,7 @@ type serviceInfo struct {
 	cmdLine            []string
 	startTimeSecs      uint64
 	cpuTime            uint64
+	isContainer        bool
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -135,7 +136,6 @@ func getSockets(pid int32) ([]uint64, error) {
 	}
 	defer d.Close()
 	fnames, err := d.Readdirnames(-1)
-
 	if err != nil {
 		return nil, err
 	}
@@ -359,6 +359,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 		startTimeSecs:      uint64(createTime / 1000),
+		isContainer:        false,
 	}, nil
 }
 
@@ -512,6 +513,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		CommandLine:        info.cmdLine,
 		StartTimeSecs:      info.startTimeSecs,
 		CPUCores:           cpu,
+		IsContainer:        info.isContainer,
 	}
 }
 

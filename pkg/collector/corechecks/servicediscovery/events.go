@@ -43,6 +43,7 @@ type eventPayload struct {
 	CommandLine          []string `json:"command_line"`
 	RSSMemory            uint64   `json:"rss_memory"`
 	CPUCores             float64  `json:"cpu_cores"`
+	IsContainer          bool     `json:"is_container"`
 }
 
 type event struct {
@@ -89,6 +90,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			CommandLine:          svc.service.CommandLine,
 			RSSMemory:            svc.service.RSS,
 			CPUCores:             svc.service.CPUCores,
+			IsContainer:          svc.service.IsContainer,
 		},
 	}
 }
