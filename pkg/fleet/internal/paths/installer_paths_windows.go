@@ -22,7 +22,8 @@ var (
 	ConfigsPath string
 	// LocksPath is the path to the locks directory.
 	LocksPath string
-
+	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
+	RootTmpDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
 	DefaultUserConfigsDir string
 )
@@ -32,5 +33,6 @@ func init() {
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	LocksPath = filepath.Join(datadogInstallerData, "locks")
+	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }
