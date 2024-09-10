@@ -9,6 +9,8 @@
 package maps
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"reflect"
@@ -53,7 +55,18 @@ var BatchAPISupported = funcs.MemoizeNoError(func() bool {
 // GenericMap is a wrapper around ebpf.Map that allows to use generic types.
 // Also includes support for batch iterations
 type GenericMap[K any, V any] struct {
-	m *ebpf.Map
+	m                   *ebpf.Map
+	keySupportsBatchAPI bool
+}
+
+func canBinaryReadKey[K any]() bool {
+	kvalList := make([]K, 1)
+	buffer := make([]byte, unsafe.Sizeof(kvalList[0]))
+	reader := bytes.NewReader(buffer)
+
+	err := binary.Read(reader, binary.LittleEndian, kvalList)
+
+	return err == nil
 }
 
 // NewGenericMap creates a new GenericMap with the given spec. Key and Value sizes are automatically
@@ -78,13 +91,21 @@ func NewGenericMap[K any, V any](spec *ebpf.MapSpec) (*GenericMap[K, V], error) 
 		spec.ValueSize = uint32(unsafe.Sizeof(vval))
 	}
 
+	// See if we can perform binary.Read on the key type. If we can't we can't use the batch API
+	// for this map
+	keySupportsBatchAPI := canBinaryReadKey[K]()
+	if !keySupportsBatchAPI {
+		log.Warnf("Key type %T does not support binary.Read, batch API will not be used for this map", kval)
+	}
+
 	m, err := ebpf.NewMap(spec)
 	if err != nil {
 		return nil, err
 	}
 
 	return &GenericMap[K, V]{
-		m: m,
+		m:                   m,
+		keySupportsBatchAPI: keySupportsBatchAPI,
 	}, nil
 }
 
@@ -221,7 +242,7 @@ func (g *GenericMap[K, V]) IterateWithBatchSize(batchSize int) GenericMapIterato
 		batchSize = int(g.m.MaxEntries())
 	}
 
-	if BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
+	if g.keySupportsBatchAPI && BatchAPISupported() && !g.isPerCPU() && batchSize > 1 {
 		it := &genericMapBatchIterator[K, V]{
 			m:                            g.m,
 			batchSize:                    batchSize,
