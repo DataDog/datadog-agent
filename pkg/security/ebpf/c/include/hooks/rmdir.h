@@ -81,7 +81,10 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         syscall->unlink.dentry = dentry;
 
-        if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
+        // fake rmdir event as we will generate and rmdir event at the end
+        syscall->policy = fetch_policy(EVENT_RMDIR);
+
+        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
             // do not pop, we want to invalidate the inode even if the syscall is discarded
             return 0;
         }
