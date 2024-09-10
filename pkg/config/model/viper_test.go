@@ -449,3 +449,20 @@ func TestParseEnvAsSliceMapString(t *testing.T) {
 	t.Setenv("DD_MAP", "__some_data__")
 	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
 }
+
+func TestListenersUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	// Create a listener that will keep track of the changes
+	logLevels := []string{}
+	config.OnUpdate(func(key string, previous, next any) {
+		nextString := next.(string)
+		logLevels = append(logLevels, nextString)
+	})
+
+	config.Set("log_level", "info", SourceFile)
+	config.Set("log_level", "debug", SourceRC)
+	config.UnsetForSource("log_level", SourceRC)
+
+	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
+}
