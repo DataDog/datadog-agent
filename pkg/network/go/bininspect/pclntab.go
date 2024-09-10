@@ -219,7 +219,7 @@ func getFuncTableFieldSize(version version, ptrSize int) int {
 // getSymbols returns the symbols from the pclntab section that match the symbol filter.
 // based on https://github.com/golang/go/blob/6a861010be9eed02d5285509cbaf3fb26d2c5041/src/debug/gosym/pclntab.go#L300-L329
 func (p *pclntanSymbolParser) getSymbols() (map[string]*elf.Symbol, error) {
-	numWanted, _ := p.symbolFilter.getMinMaxLength()
+	numWanted := p.symbolFilter.getNumWanted()
 	symbols := make(map[string]*elf.Symbol, numWanted)
 	data := sectionAccess{section: p.section}
 	for currentIdx := uint32(0); currentIdx < p.funcTableSize; currentIdx++ {
