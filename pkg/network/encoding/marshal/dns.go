@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
 package marshal
 
 import (
@@ -28,8 +27,8 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		conns:             conns,
 		ipc:               ipc,
 		domainSet:         make(map[string]int),
-		queryTypeEnabled:  config.SystemProbe.GetBool("network_config.enable_dns_by_querytype"),
-		dnsDomainsEnabled: config.SystemProbe.GetBool("system_probe_config.collect_dns_domains"),
+		queryTypeEnabled:  config.SystemProbe().GetBool("network_config.enable_dns_by_querytype"),
+		dnsDomainsEnabled: config.SystemProbe().GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 

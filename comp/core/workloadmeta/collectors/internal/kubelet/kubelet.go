@@ -18,9 +18,10 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,7 +60,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -155,6 +156,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -173,6 +175,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
 
@@ -217,7 +220,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
-			if stdErrors.Is(err, containers.ErrImageIsSha256) {
+			if stdErrors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256
@@ -273,6 +276,13 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		// Kubelet considers containers without probe to be ready
+		if container.Ready {
+			containerState.Health = workloadmeta.ContainerHealthHealthy
+		} else {
+			containerState.Health = workloadmeta.ContainerHealthUnhealthy
+		}
+
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
@@ -301,6 +311,13 @@ func (c *collector) parsePodContainers(
 	}
 
 	return podContainers, events
+}
+
+func extractPodRuntimeClassName(spec *kubelet.Spec) string {
+	if spec.RuntimeClassName == nil {
+		return ""
+	}
+	return *spec.RuntimeClassName
 }
 
 func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {

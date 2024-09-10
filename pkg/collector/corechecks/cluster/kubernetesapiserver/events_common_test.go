@@ -57,8 +57,13 @@ func TestGetDDAlertType(t *testing.T) {
 func Test_getInvolvedObjectTags(t *testing.T) {
 	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := telemetry.NewStore(telemetryComponent)
-	taggerInstance := local.NewFakeTagger(telemetryStore)
-	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	cfg := configmock.New(t)
+	taggerInstance := local.NewFakeTagger(cfg, telemetryStore)
+	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
+	taggerInstance.SetTags("deployment://workload-redis/my-deployment-1", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
+	taggerInstance.SetTags("deployment://default/my-deployment-2", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
+	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance.SetTags("kubernetes_metadata://api-group/resourcetypes/default/generic-resource", "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference
@@ -67,6 +72,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 		{
 			name: "get pod basic tags",
 			involvedObject: v1.ObjectReference{
+				UID:       "nginx",
 				Kind:      "Pod",
 				Name:      "my-pod",
 				Namespace: "my-namespace",
@@ -79,11 +85,13 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"kube_namespace:my-namespace",
 				"namespace:my-namespace",
 				"pod_name:my-pod",
+				"additional_pod_tag:nginx",
 			},
 		},
 		{
 			name: "get pod namespace tags",
 			involvedObject: v1.ObjectReference{
+				UID:       "nginx",
 				Kind:      "Pod",
 				Name:      "my-pod",
 				Namespace: "default",
@@ -97,6 +105,63 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"namespace:default",
 				"team:container-int", // this tag is coming from the namespace
 				"pod_name:my-pod",
+				"additional_pod_tag:nginx",
+			},
+		},
+		{
+			name: "get deployment basic tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Deployment",
+				Name:      "my-deployment-1",
+				Namespace: "workload-redis",
+			},
+			tags: []string{
+				"kube_kind:Deployment",
+				"kube_name:my-deployment-1",
+				"kubernetes_kind:Deployment",
+				"name:my-deployment-1",
+				"kube_namespace:workload-redis",
+				"namespace:workload-redis",
+				"kube_deployment:my-deployment-1",
+				"deployment_tag:redis-1",
+			},
+		},
+		{
+			name: "get deployment namespace tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Deployment",
+				Name:      "my-deployment-2",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Deployment",
+				"kube_name:my-deployment-2",
+				"kubernetes_kind:Deployment",
+				"name:my-deployment-2",
+				"kube_namespace:default",
+				"namespace:default",
+				"kube_deployment:my-deployment-2",
+				"team:container-int", // this tag is coming from the namespace
+				"deployment_tag:redis-2",
+			},
+		},
+		{
+			name: "get tags for any metadata resource",
+			involvedObject: v1.ObjectReference{
+				Kind:       "ResourceType",
+				Name:       "generic-resource",
+				Namespace:  "default",
+				APIVersion: "api-group/v1",
+			},
+			tags: []string{
+				"kube_kind:ResourceType",
+				"kube_name:generic-resource",
+				"kubernetes_kind:ResourceType",
+				"name:generic-resource",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"generic_tag:generic-resource",
 			},
 		},
 	}
@@ -259,6 +324,152 @@ func Test_getEventSource(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_shouldCollect(t *testing.T) {
+	tests := []struct {
+		name           string
+		ev             *v1.Event
+		collectedTypes []collectedEventType
+		shouldCollect  bool
+	}{
+		{
+			name: "kubernetes event collection matches based on kind",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind: "Pod",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on source",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source: "kubelet",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by kind and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+				},
+				{
+					Kind:    "Node",
+					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+				},
+				{
+					Kind:    "CronJob",
+					Reasons: []string{"SawCompletedJob"},
+				},
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by source and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches none",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+				},
+				Reason: "something",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.shouldCollect, shouldCollect(tt.ev, tt.collectedTypes))
 		})
 	}
 }

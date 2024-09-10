@@ -13,7 +13,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -29,7 +32,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -43,7 +46,7 @@ func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component])
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance, telemetryStore)
 	if err != nil {
 		return nil, err
 	}
@@ -90,9 +93,10 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
+	taggerEntityID := common.BuildTaggerEntityID(pod.GetID()).String()
 	svc := &service{
 		entity:        pod,
-		tagsHash:      tagger.GetEntityHash(kubelet.PodUIDToTaggerEntityName(pod.ID), tagger.ChecksCardinality()),
+		tagsHash:      tagger.GetEntityHash(taggerEntityID, tagger.ChecksCardinality()),
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -154,7 +158,7 @@ func (l *KubeletListener) createContainerService(
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
+		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
 		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{

@@ -25,9 +25,9 @@ type packageApmInjectSuite struct {
 	packageBaseSuite
 }
 
-func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
+func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
 	return &packageApmInjectSuite{
-		packageBaseSuite: newPackageSuite("apm-inject", os, arch),
+		packageBaseSuite: newPackageSuite("apm-inject", os, arch, method),
 	}
 }
 
@@ -45,9 +45,10 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
-	state.AssertFileExists("/var/run/datadog-installer/environment", 0644, "root", "root")
-	state.AssertSymlinkExists("/etc/default/datadog-agent", "/var/run/datadog-installer/environment", "root", "root")
-	state.AssertSymlinkExists("/etc/default/datadog-agent-trace", "/var/run/datadog-installer/environment", "root", "root")
+	state.AssertFileExists("/opt/datadog-packages/run/environment", 0644, "root", "root")
+	state.AssertSymlinkExists("/run/datadog-installer", "/opt/datadog-packages/run", "root", "root") // /run as /var/run points to /run, it's a limitation of the state packages
+	state.AssertSymlinkExists("/etc/default/datadog-agent", "/opt/datadog-packages/run/environment", "root", "root")
+	state.AssertSymlinkExists("/etc/default/datadog-agent-trace", "/opt/datadog-packages/run/environment", "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
@@ -414,6 +415,12 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
 }
 
+func (s *packageApmInjectSuite) TestInstallWithUmask() {
+	oldmask := s.host.SetUmask("0027")
+	defer s.host.SetUmask(oldmask)
+	s.TestInstall()
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
@@ -489,7 +496,7 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 }
 
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
-	s.Env().RemoteHost.MustExecute("sudo rm -f /var/run/datadog-installer/environment")
+	s.Env().RemoteHost.MustExecute("sudo rm -f /opt/datadog-packages/run/environment")
 	s.Env().RemoteHost.MustExecute("sudo rm -f /etc/datadog-agent/datadog.yaml")
 
 	packageList := []string{

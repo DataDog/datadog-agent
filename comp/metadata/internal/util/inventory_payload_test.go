@@ -18,8 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,7 +38,7 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
 		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, logimpl.MockModule()),
+		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",

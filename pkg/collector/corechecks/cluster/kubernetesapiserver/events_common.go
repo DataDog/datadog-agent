@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -118,6 +119,113 @@ const defaultEventSource = "kubernetes"
 // kubernetesEventSource is the name of the source for kubernetes events
 const kubernetesEventSource = "kubernetes"
 
+// customEventSourceSuffix is the suffix that will be added to the event source type when
+// filtering is enabled and the event does not exist within integrationToCollectedEventTypes.
+const customEventSourceSuffix = "custom"
+
+var integrationToCollectedEventTypes = map[string][]collectedEventType{
+	"kubernetes": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kube_scheduler": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kubernetes controller manager": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"karpenter": {
+		{
+			Source: "karpenter",
+			Reasons: []string{
+				"DisruptionBlocked",
+				"DisruptionLaunching",
+				"DisruptionTerminating",
+				"DisruptionWaitingReadiness",
+				"FailedDraining",
+				"InstanceTerminating",
+				"SpotInterrupted",
+				"SpotRebalanceRecommendation",
+				"TerminatingOnInterruption",
+			},
+		},
+	},
+	"datadog-operator": {
+		{
+			Source: "datadog-operator",
+		},
+	},
+	"amazon elb": {
+		{
+			Source: "amazon elb",
+		},
+	},
+	"cilium": {
+		{
+			Source: "cilium",
+		},
+	},
+	"fluxcd": {
+		{
+			Source: "fluxcd",
+		},
+	},
+	"kubernetes cluster autoscaler": {
+		{
+
+			Source: "kubernetes cluster autoscaler",
+		},
+	},
+	"spark": {
+		{
+			Source: "spark",
+		},
+	},
+	"vault": {
+
+		{
+			Source: "vault",
+		},
+	},
+	"default": {
+		{
+			Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
+		},
+	},
+}
+
 // getDDAlertType converts kubernetes event types into datadog alert types
 func getDDAlertType(k8sType string) event.AlertType {
 	switch k8sType {
@@ -152,11 +260,37 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://namespaces//%s", involvedObject.Namespace)
+		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace))).String()
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
 		}
+	}
+
+	var entityID string
+
+	switch involvedObject.Kind {
+	case podKind:
+		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID)).String()
+	case deploymentKind:
+		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name)).String()
+	default:
+		var apiGroup string
+		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
+		if len(apiVersionParts) == 2 {
+			apiGroup = apiVersionParts[0]
+		} else {
+			apiGroup = ""
+		}
+		resourceType := strings.ToLower(involvedObject.Kind) + "s"
+		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
+	}
+
+	entity, err := taggerInstance.GetEntity(entityID)
+	if err == nil {
+		tagList = append(tagList, entity.GetTags(types.HighCardinality)...)
+	} else {
+		log.Debugf("error getting entity for entity ID '%s': tags may be missing", entityID)
 	}
 
 	kindTag := getKindTag(involvedObject.Kind, involvedObject.Name)
@@ -168,8 +302,9 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 }
 
 const (
-	podKind  = "Pod"
-	nodeKind = "Node"
+	podKind        = "Pod"
+	nodeKind       = "Node"
+	deploymentKind = "Deployment"
 )
 
 func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
@@ -289,4 +424,37 @@ func getEventSource(controllerName string, sourceComponent string) string {
 		return v
 	}
 	return defaultEventSource
+}
+
+func shouldCollectByDefault(ev *v1.Event) bool {
+	if v, ok := integrationToCollectedEventTypes[getEventSource(ev.ReportingController, ev.Source.Component)]; ok {
+		return shouldCollect(ev, append(v, integrationToCollectedEventTypes["default"]...))
+	}
+	return shouldCollect(ev, integrationToCollectedEventTypes["default"])
+}
+
+func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
+	involvedObject := ev.InvolvedObject
+
+	for _, f := range collectedTypes {
+		if f.Kind != "" && f.Kind != involvedObject.Kind {
+			continue
+		}
+
+		if f.Source != "" && f.Source != ev.Source.Component {
+			continue
+		}
+
+		if len(f.Reasons) == 0 {
+			return true
+		}
+
+		for _, r := range f.Reasons {
+			if ev.Reason == r {
+				return true
+			}
+		}
+	}
+
+	return false
 }

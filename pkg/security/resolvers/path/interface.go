@@ -15,6 +15,7 @@ import (
 // ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
+	ResolveFilePath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
 	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error)
 	SetMountRoot(ev *model.Event, e *model.Mount) error
 	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)

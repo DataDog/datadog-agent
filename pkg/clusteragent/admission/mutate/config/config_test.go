@@ -10,6 +10,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -74,8 +76,8 @@ func Test_injectionMode(t *testing.T) {
 func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -85,8 +87,8 @@ func TestInjectHostIP(t *testing.T) {
 func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -100,13 +102,6 @@ func TestInjectEntityID(t *testing.T) {
 		configOverrides map[string]interface{}
 	}{
 		{
-			name: "inject container name and pod uid",
-			env:  corev1.EnvVar{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
-			configOverrides: map[string]interface{}{
-				"admission_controller.inject_config.inject_container_name": true,
-			},
-		},
-		{
 			name: "inject pod uid",
 			env:  mutatecommon.FakeEnvWithFieldRefValue("DD_ENTITY_ID", "metadata.uid"),
 		},
@@ -119,11 +114,10 @@ func TestInjectEntityID(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
-			webhook := NewWebhook(wmeta)
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -306,108 +300,15 @@ func TestInjectExternalDataEnvVar(t *testing.T) {
 	}
 }
 
-func TestInjectIdentity(t *testing.T) {
-	testCases := []struct {
-		name          string
-		inputPod      corev1.Pod
-		expectedPod   corev1.Pod
-		expectedValue bool
-	}{
-		{
-			name: "normal case",
-			inputPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers:     []corev1.Container{{Name: "cont-name"}},
-					InitContainers: []corev1.Container{{Name: "init-container"}},
-				},
-			},
-			expectedPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env: []corev1.EnvVar{
-							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
-						},
-					}},
-					InitContainers: []corev1.Container{{
-						Name: "init-container",
-						Env: []corev1.EnvVar{
-							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-init.$(DD_INTERNAL_POD_UID)/init-container"},
-						},
-					}},
-				},
-			},
-			expectedValue: true,
-		},
-		{
-			name: "with_set_dd_entity_id",
-			inputPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
-					}},
-				},
-			},
-			expectedPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
-					}},
-				},
-			},
-			expectedValue: false,
-		},
-		{
-			name: "override dd_internal_pod_uid",
-			inputPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env: []corev1.EnvVar{
-							{Name: podUIDEnvVarName, Value: "foo"},
-						},
-					}},
-				},
-			},
-			expectedPod: corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env: []corev1.EnvVar{
-							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
-						},
-					}},
-				},
-			},
-			expectedValue: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := injectFullIdentity(&tc.inputPod)
-			assert.Equal(t, tc.expectedValue, got)
-			assert.Equal(t, tc.expectedPod, tc.inputPod)
-		})
-	}
-}
-
 func TestInjectSocket(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
+
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
@@ -416,6 +317,68 @@ func TestInjectSocket(t *testing.T) {
 	assert.Equal(t, pod.Spec.Volumes[0].Name, "datadog")
 	assert.Equal(t, pod.Spec.Volumes[0].VolumeSource.HostPath.Path, "/var/run/datadog")
 	assert.Equal(t, *pod.Spec.Volumes[0].VolumeSource.HostPath.Type, corev1.HostPathDirectoryOrCreate)
+	assert.Equal(t, "datadog", pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation])
+}
+
+func TestInjectSocket_VolumeTypeSocket(t *testing.T) {
+	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
+	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
+	wmeta := fxutil.Test[workloadmeta.Component](
+		t,
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{"admission_controller.inject_config.type_socket_volumes": true},
+		}),
+	)
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
+	injected, err := webhook.inject(pod, "", nil)
+	assert.Nil(t, err)
+	assert.True(t, injected)
+
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
+
+	expectedVolumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "datadog-dogstatsd",
+			MountPath: "/var/run/datadog/dsd.socket",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "datadog-trace-agent",
+			MountPath: "/var/run/datadog/apm.socket",
+			ReadOnly:  true,
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Containers[0].VolumeMounts, expectedVolumeMounts)
+
+	expectedVolumes := []corev1.Volume{
+		{
+			Name: "datadog-dogstatsd",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/dsd.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+		{
+			Name: "datadog-trace-agent",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/datadog/apm.socket",
+					Type: pointer.Ptr(corev1.HostPathSocket),
+				},
+			},
+		},
+	}
+	assert.ElementsMatch(t, pod.Spec.Volumes, expectedVolumes)
+
+	safeToEvictVolumes := strings.Split(pod.Annotations[mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation], ",")
+	assert.Len(t, safeToEvictVolumes, 2)
+	assert.Contains(t, safeToEvictVolumes, "datadog-dogstatsd")
+	assert.Contains(t, safeToEvictVolumes, "datadog-trace-agent")
 }
 
 func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
@@ -439,7 +402,11 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 					VolumeMounts: []corev1.VolumeMount{
 						{
 							Name:      "foo",
-							MountPath: "/var/run/datadog",
+							MountPath: "/var/run/datadog/dsd.socket",
+						},
+						{
+							Name:      "bar",
+							MountPath: "/var/run/datadog/apm.socket",
 						},
 					},
 				},
@@ -458,8 +425,8 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
 	assert.Nil(t, err)
@@ -486,9 +453,6 @@ func TestJSONPatchCorrectness(t *testing.T) {
 		{
 			name: "inject pod uid and cont_name",
 			file: "./testdata/expected_jsonpatch_with_cont_name.json",
-			overrides: map[string]interface{}{
-				"admission_controller.inject_config.inject_container_name": true,
-			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -498,11 +462,10 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			assert.NoError(t, err)
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
-			webhook := NewWebhook(wmeta)
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 			request := admission.MutateRequest{
 				Raw:       podJSON,
 				Namespace: "bar",
@@ -533,7 +496,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
-	webhook := NewWebhook(wmeta)
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 
 	b.ResetTimer()

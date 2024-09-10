@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -24,6 +25,8 @@ const (
 )
 
 func adjustNetwork(cfg config.Config) {
+	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
+
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {
@@ -50,7 +53,7 @@ func adjustNetwork(cfg config.Config) {
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
 		if v <= 0 {
-			return fmt.Errorf("must be a positive value")
+			return errors.New("must be a positive value")
 		}
 		return nil
 	})
@@ -60,11 +63,19 @@ func adjustNetwork(cfg config.Config) {
 	// closed connections in environments with mostly short-lived connections
 	validateInt64(cfg, spNS("max_closed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
 		if v <= 0 {
-			return fmt.Errorf("must be a positive value")
+			return errors.New("must be a positive value")
 		}
 		return nil
 	})
 	limitMaxInt64(cfg, spNS("max_closed_connections_buffered"), math.MaxUint32)
+	// also ensure that max_failed_connections_buffered is equal to max_tracked_connections if the former is not set
+	validateInt64(cfg, netNS("max_failed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
+		if v <= 0 {
+			return errors.New("must be a positive value")
+		}
+		return nil
+	})
+	limitMaxInt64(cfg, netNS("max_failed_connections_buffered"), math.MaxUint32)
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 
@@ -89,5 +100,25 @@ func adjustNetwork(cfg config.Config) {
 	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
 		log.Warn("disabling NPM connection rollups since USM connection rollups are not enabled")
 		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
+	}
+
+	// disable features that are not supported on certain
+	// configs/platforms
+	var disableConfigs []struct {
+		key, reason string
+	}
+	if ebpflessEnabled {
+		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
+		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
+			{netNS("enable_protocol_classification"), notSupportedEbpfless},
+			{evNS("network_process", "enabled"), notSupportedEbpfless}}...,
+		)
+	}
+
+	for _, c := range disableConfigs {
+		if cfg.GetBool(c.key) {
+			log.Warnf("disabling %s: %s", c.key, c.reason)
+			cfg.Set(c.key, false, model.SourceAgentRuntime)
+		}
 	}
 }

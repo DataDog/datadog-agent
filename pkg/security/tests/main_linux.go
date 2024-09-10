@@ -82,6 +82,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestOpenDiscarded",
 			"TestOpenDiscarded/pipefs",
 			"TestOpen/truncate",
+			"TestOpen/ftruncate",
 			"TestOpen/io_uring",
 			"TestProcessContext/inode",
 			"TestProcessContext/pid1",
@@ -97,6 +98,10 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown32",
 			"TestMountEvent/mount-in-container-root",
 			"TestChdir/syscall-context",
+			"TestLoginUID/login-uid-open-test",
+			"TestLoginUID/login-uid-exec-test",
+			"TestActionKillExcludeBinary",
+			"TestActionKillDisarm",
 		}
 
 		if disableSeccomp {

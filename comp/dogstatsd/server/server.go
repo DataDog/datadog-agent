@@ -19,7 +19,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -29,7 +29,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -69,7 +69,7 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log       logComponent.Component
+	Log       log.Component
 	Config    configComponent.Component
 	Debug     serverdebug.Component
 	Replay    replay.Component
@@ -98,8 +98,8 @@ type cachedOriginCounter struct {
 
 // Server represent a Dogstatsd server
 type server struct {
-	log    logComponent.Component
-	config config.Reader
+	log    log.Component
+	config model.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -197,7 +197,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
@@ -393,7 +393,7 @@ func (s *server) start(context.Context) error {
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
 		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
 		if err != nil {
-			s.log.Errorf(err.Error())
+			s.log.Errorf("%s", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, udpListener)
 			s.udpLocalAddr = udpListener.LocalAddr()
@@ -452,9 +452,9 @@ func (s *server) start(context.Context) error {
 
 	cacheSize := s.config.GetInt("dogstatsd_mapper_cache_size")
 
-	mappings, err := config.GetDogstatsdMappingProfiles()
+	mappings, err := getDogstatsdMappingProfiles(s.config)
 	if err != nil {
-		s.log.Warnf("Could not parse mapping profiles: %v", err)
+		s.log.Warn(err)
 	} else if len(mappings) != 0 {
 		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
 		if err != nil {
@@ -815,7 +815,7 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	return serviceCheck, nil
 }
 
-func getBuckets(cfg config.Reader, logger logComponent.Component, option string) []float64 {
+func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
 	if !cfg.IsSet(option) {
 		return nil
 	}
@@ -830,4 +830,15 @@ func getBuckets(cfg config.Reader, logger logComponent.Component, option string)
 		return nil
 	}
 	return buckets
+}
+
+func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
+	var mappings []mapper.MappingProfileConfig
+	if cfg.IsSet("dogstatsd_mapper_profiles") {
+		err := cfg.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

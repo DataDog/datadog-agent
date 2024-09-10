@@ -36,14 +36,14 @@ func TestSNMPListener(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(&config.Listeners{}, nil)
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -84,7 +84,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
@@ -135,14 +135,14 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
-	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
+	worker = func(_ *SNMPListener, jobs <-chan snmpJob) {
 		for {
 			job := <-jobs
 			testChan <- job
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(&config.Listeners{}, nil)
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

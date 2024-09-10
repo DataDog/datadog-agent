@@ -1,7 +1,5 @@
+using Datadog.AgentCustomActions;
 using System.Diagnostics.CodeAnalysis;
-using Datadog.CustomActions;
-using Datadog.CustomActions.Interfaces;
-using Datadog.CustomActions.Rollback;
 using WixSharp;
 
 namespace WixSetup.Datadog_Agent
@@ -26,7 +24,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallState { get; }
 
-        public ManagedAction UninstallWriteInstallState { get; }
+        public ManagedAction DeleteInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
@@ -72,6 +70,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RestoreDaclRollback { get; }
 
+        public ManagedAction DDCreateFolders { get; }
+
         /// <summary>
         /// Registers and sequences our custom actions
         /// </summary>
@@ -80,23 +80,24 @@ namespace WixSetup.Datadog_Agent
         /// </remarks>
         public AgentCustomActions()
         {
-            RunAsAdmin = new CustomAction<PrerequisitesCustomActions>(
+            RunAsAdmin = new CustomAction<CustomActions>(
                 new Id(nameof(RunAsAdmin)),
-                PrerequisitesCustomActions.EnsureAdminCaller,
+                CustomActions.EnsureAdminCaller,
                 Return.check,
                 When.After,
                 Step.AppSearch,
                 Condition.Always,
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence);
 
-            ReadInstallState = new CustomAction<InstallStateCustomActions>(
+            ReadInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(ReadInstallState)),
-                InstallStateCustomActions.ReadInstallState,
+                CustomActions.ReadInstallState,
                 Return.check,
                 // AppSearch is when ReadInstallState is run, so that will overwrite
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
+                // Must run before CostInitialize and WixRemoveFoldersEx since it creates properties used by util:RemoveFolderEx
                 When.After,
                 new Step(RunAsAdmin.Id),
                 // Creates properties used by both install+uninstall
@@ -111,9 +112,9 @@ namespace WixSetup.Datadog_Agent
 
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
-            ReadConfig = new CustomAction<ConfigCustomActions>(
+            ReadConfig = new CustomAction<CustomActions>(
                     new Id(nameof(ReadConfig)),
-                    ConfigCustomActions.ReadConfig,
+                    CustomActions.ReadConfig,
                     Return.ignore,
                     When.After,
                     // Must execute after CostFinalize since we depend
@@ -131,9 +132,9 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            PatchInstaller = new CustomAction<PatchInstallerCustomAction>(
+            PatchInstaller = new CustomAction<CustomActions>(
                 new Id(nameof(PatchInstaller)),
-                PatchInstallerCustomAction.Patch,
+                CustomActions.Patch,
                 Return.ignore,
                 When.After,
                 Step.InstallFiles,
@@ -144,9 +145,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             };
 
-            ReportInstallFailure = new CustomAction<Telemetry>(
+            ReportInstallFailure = new CustomAction<CustomActions>(
                     new Id(nameof(ReportInstallFailure)),
-                    Telemetry.ReportFailure,
+                    CustomActions.ReportFailure,
                     Return.ignore,
                     When.After,
                     Step.InstallInitialize
@@ -158,9 +159,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
                 .HideTarget(true);
 
-            EnsureNpmServiceDepdendency = new CustomAction<ServiceCustomAction>(
+            EnsureNpmServiceDepdendency = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
-                ServiceCustomAction.EnsureNpmServiceDependency,
+                CustomActions.EnsureNpmServiceDependency,
                 Return.check,
                 When.After,
                 Step.InstallServices,
@@ -171,9 +172,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             };
 
-            WriteConfig = new CustomAction<ConfigCustomActions>(
+            WriteConfig = new CustomAction<CustomActions>(
                     new Id(nameof(WriteConfig)),
-                    ConfigCustomActions.WriteConfig,
+                    CustomActions.WriteConfig,
                     Return.check,
                     When.Before,
                     Step.InstallServices,
@@ -213,9 +214,9 @@ namespace WixSetup.Datadog_Agent
             // Cleanup leftover files on rollback
             // must be before the DecompressPythonDistributions custom action.
             // That way, if DecompressPythonDistributions fails, this will get executed.
-            CleanupOnRollback = new CustomAction<CleanUpFilesCustomAction>(
+            CleanupOnRollback = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnRollback)),
-                    CleanUpFilesCustomAction.CleanupFiles,
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.After,
                     new Step(WriteConfig.Id),
@@ -228,9 +229,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            DecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
+            DecompressPythonDistributions = new CustomAction<CustomActions>(
                     new Id(nameof(DecompressPythonDistributions)),
-                    PythonDistributionCustomAction.DecompressPythonDistributions,
+                    CustomActions.DecompressPythonDistributions,
                     Return.check,
                     When.After,
                     new Step(CleanupOnRollback.Id),
@@ -243,9 +244,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], embedded2_SIZE=[embedded2_SIZE], embedded3_SIZE=[embedded3_SIZE]");
 
-            PrepareDecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
+            PrepareDecompressPythonDistributions = new CustomAction<CustomActions>(
                 new Id(nameof(PrepareDecompressPythonDistributions)),
-                PythonDistributionCustomAction.PrepareDecompressPythonDistributions,
+                CustomActions.PrepareDecompressPythonDistributions,
                 Return.ignore,
                 When.Before,
                 new Step(DecompressPythonDistributions.Id),
@@ -257,9 +258,9 @@ namespace WixSetup.Datadog_Agent
             };
 
             // Cleanup leftover files on uninstall
-            CleanupOnUninstall = new CustomAction<CleanUpFilesCustomAction>(
+            CleanupOnUninstall = new CustomAction<CustomActions>(
                     new Id(nameof(CleanupOnUninstall)),
-                    CleanUpFilesCustomAction.CleanupFiles,
+                    CustomActions.CleanupFiles,
                     Return.check,
                     When.Before,
                     Step.RemoveFiles,
@@ -272,9 +273,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties(
                     "PROJECTLOCATION=[PROJECTLOCATION], APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            ConfigureUser = new CustomAction<ConfigureUserCustomActions>(
+            ConfigureUser = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUser)),
-                    ConfigureUserCustomActions.ConfigureUser,
+                    CustomActions.ConfigureUser,
                     Return.check,
                     When.After,
                     new Step(DecompressPythonDistributions.Id),
@@ -295,9 +296,9 @@ namespace WixSetup.Datadog_Agent
                                "WIX_UPGRADE_DETECTED=[WIX_UPGRADE_DETECTED]")
                 .HideTarget(true);
 
-            ConfigureUserRollback = new CustomAction<ConfigureUserCustomActions>(
+            ConfigureUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureUserRollback)),
-                    ConfigureUserCustomActions.ConfigureUserRollback,
+                    CustomActions.ConfigureUserRollback,
                     Return.check,
                     When.Before,
                     new Step(ConfigureUser.Id),
@@ -308,9 +309,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false,
             };
 
-            UninstallUser = new CustomAction<ConfigureUserCustomActions>(
+            UninstallUser = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUser)),
-                    ConfigureUserCustomActions.UninstallUser,
+                    CustomActions.UninstallUser,
                     Return.check,
                     When.After,
                     Step.StopServices,
@@ -324,9 +325,9 @@ namespace WixSetup.Datadog_Agent
                                "PROJECTLOCATION=[PROJECTLOCATION], " +
                                "DDAGENTUSER_NAME=[DDAGENTUSER_NAME]");
 
-            UninstallUserRollback = new CustomAction<ConfigureUserCustomActions>(
+            UninstallUserRollback = new CustomAction<CustomActions>(
                     new Id(nameof(UninstallUserRollback)),
-                    ConfigureUserCustomActions.UninstallUserRollback,
+                    CustomActions.UninstallUserRollback,
                     Return.check,
                     When.Before,
                     new Step(UninstallUser.Id),
@@ -337,9 +338,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false,
             };
 
-            ProcessDdAgentUserCredentials = new CustomAction<ProcessUserCustomActions>(
+            ProcessDdAgentUserCredentials = new CustomAction<CustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
-                    ProcessUserCustomActions.ProcessDdAgentUserCredentials,
+                    CustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
                     // Run at end of "config phase", right before the "make changes" phase.
                     // Ensure no actions that modify the input properties are run after this action.
@@ -354,36 +355,36 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
                 .HideTarget(true);
 
-            ProcessDdAgentUserCredentialsUI = new CustomAction<ProcessUserCustomActions>(
+            ProcessDdAgentUserCredentialsUI = new CustomAction<CustomActions>(
                 new Id(nameof(ProcessDdAgentUserCredentialsUI)),
-                ProcessUserCustomActions.ProcessDdAgentUserCredentialsUI
+                CustomActions.ProcessDdAgentUserCredentialsUI
             )
             {
                 // Not run in a sequence, run when Next is clicked on ddagentuserdlg
                 Sequence = Sequence.NotInSequence
             };
 
-            OpenMsiLog = new CustomAction<MsiLogCustomActions>(
+            OpenMsiLog = new CustomAction<CustomActions>(
                 new Id(nameof(OpenMsiLog)),
-                MsiLogCustomActions.OpenMsiLog
+                CustomActions.OpenMsiLog
             )
             {
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 
-            SendFlare = new CustomAction<Flare>(
+            SendFlare = new CustomAction<CustomActions>(
                 new Id(nameof(SendFlare)),
-                Flare.SendFlare
+                CustomActions.SendFlare
             )
             {
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
 
-            WriteInstallInfo = new CustomAction<InstallInfoCustomActions>(
+            WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
-                    InstallInfoCustomActions.WriteInstallInfo,
+                    CustomActions.WriteInstallInfo,
                     Return.ignore,
                     When.Before,
                     Step.StartServices,
@@ -401,9 +402,9 @@ namespace WixSetup.Datadog_Agent
             // Hitting this CustomAction always means the install succeeded
             // because when an install fails, it rollbacks from the `InstallFinalize`
             // step.
-            ReportInstallSuccess = new CustomAction<Telemetry>(
+            ReportInstallSuccess = new CustomAction<CustomActions>(
                     new Id(nameof(ReportInstallSuccess)),
-                    Telemetry.ReportSuccess,
+                    CustomActions.ReportSuccess,
                     Return.ignore,
                     When.After,
                     Step.InstallFinalize,
@@ -415,9 +416,9 @@ namespace WixSetup.Datadog_Agent
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted
             // so that the new configuration is used.
-            ConfigureServices = new CustomAction<ServiceCustomAction>(
+            ConfigureServices = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureServices)),
-                    ServiceCustomAction.ConfigureServices,
+                    CustomActions.ConfigureServices,
                     Return.check,
                     When.After,
                     Step.InstallServices,
@@ -431,9 +432,9 @@ namespace WixSetup.Datadog_Agent
                                "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], ")
                 .HideTarget(true);
 
-            ConfigureServicesRollback = new CustomAction<ServiceCustomAction>(
+            ConfigureServicesRollback = new CustomAction<CustomActions>(
                     new Id(nameof(ConfigureServicesRollback)),
-                    ServiceCustomAction.ConfigureServicesRollback,
+                    CustomActions.ConfigureServicesRollback,
                     Return.check,
                     When.Before,
                     new Step(ConfigureServices.Id),
@@ -449,9 +450,9 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
-            StopDDServices = new CustomAction<ServiceCustomAction>(
+            StopDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServices)),
-                ServiceCustomAction.StopDDServices,
+                CustomActions.StopDDServices,
                 Return.check,
                 When.Before,
                 Step.StopServices
@@ -464,9 +465,9 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StartServices only starts services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
-            StartDDServices = new CustomAction<ServiceCustomAction>(
+            StartDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServices)),
-                ServiceCustomAction.StartDDServices,
+                CustomActions.StartDDServices,
                 Return.check,
                 When.After,
                 Step.StartServices,
@@ -478,9 +479,9 @@ namespace WixSetup.Datadog_Agent
             };
 
             // Rollback StartDDServices stops the the services so that any file locks are released.
-            StartDDServicesRollback = new CustomAction<ServiceCustomAction>(
+            StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
-                ServiceCustomAction.StartDDServicesRollback,
+                CustomActions.StartDDServicesRollback,
                 Return.ignore,
                 // Must be sequenced before the action it will rollback for
                 When.Before,
@@ -493,9 +494,9 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             };
 
-            WriteInstallState = new CustomAction<InstallStateCustomActions>(
+            WriteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallState)),
-                    InstallStateCustomActions.WriteInstallState,
+                    CustomActions.WriteInstallState,
                     Return.check,
                     When.Before,
                     Step.StartServices,
@@ -509,9 +510,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
 
-            UninstallWriteInstallState = new CustomAction<InstallStateCustomActions>(
-                    new Id(nameof(UninstallWriteInstallState)),
-                    InstallStateCustomActions.UninstallWriteInstallState,
+            DeleteInstallState = new CustomAction<CustomActions>(
+                    new Id(nameof(DeleteInstallState)),
+                    CustomActions.DeleteInstallState,
                     Return.check,
                     // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
                     // so that the built-in registry keys can be removed if they are empty.
@@ -527,9 +528,9 @@ namespace WixSetup.Datadog_Agent
 
             // This custom action resets the SE_DACL_AUTOINHERITED flag on %PROJECTLOCATION% on uninstall
             // to make sure the uninstall doesn't fail due to the non-canonical permission issue.
-            RestoreDaclRollback = new CustomAction<RestoreDaclRollbackCustomAction>(
+            RestoreDaclRollback = new CustomAction<CustomActions>(
                     new Id(nameof(RestoreDaclRollback)),
-                    RestoreDaclRollbackCustomAction.DoRollback,
+                    CustomActions.DoRollback,
                     Return.ignore,
                     When.After,
                     // This is the earliest we can schedule this action
@@ -544,6 +545,22 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            DDCreateFolders = new CustomAction<CustomActions>(
+                    new Id(nameof(DDCreateFolders)),
+                    CustomActions.DDCreateFolders,
+                    Return.check,
+                    When.Before,
+                    Step.CreateFolders,
+                    // Run only on FirstInstall.
+                    // In Upgrade/Repair the directory has already been
+                    // created and configured, and this action could leave the directory
+                    // without access for ddagentuser if the installer rolls back.
+                    Conditions.FirstInstall
+                    )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
         }
     }
 }

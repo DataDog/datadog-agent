@@ -9,6 +9,9 @@
 package kfilters
 
 import (
+	"encoding"
+	"encoding/hex"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -20,10 +23,11 @@ type activeKFilter interface {
 	GetTableName() string
 }
 
-type activeKFilters map[interface{}]activeKFilter
+// ActiveKFilters defines kfilter map
+type ActiveKFilters map[interface{}]activeKFilter
 
-func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
-	ak = make(map[interface{}]activeKFilter)
+func newActiveKFilters(kfilters ...activeKFilter) (ak ActiveKFilters) {
+	ak = make(ActiveKFilters)
 	for _, kfilter := range kfilters {
 		if kfilter != nil {
 			ak.Add(kfilter)
@@ -32,12 +36,14 @@ func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
 	return
 }
 
-func (ak activeKFilters) HasKey(key interface{}) bool {
+// HasKey returns if a filter exists
+func (ak ActiveKFilters) HasKey(key interface{}) bool {
 	_, found := ak[key]
 	return found
 }
 
-func (ak activeKFilters) Sub(ak2 activeKFilters) {
+// Sub remove filters of the given filters
+func (ak ActiveKFilters) Sub(ak2 ActiveKFilters) {
 	for key := range ak {
 		if _, found := ak2[key]; found {
 			delete(ak, key)
@@ -45,15 +51,17 @@ func (ak activeKFilters) Sub(ak2 activeKFilters) {
 	}
 }
 
-func (ak activeKFilters) Add(a activeKFilter) {
+// Add a filter
+func (ak ActiveKFilters) Add(a activeKFilter) {
 	ak[a.Key()] = a
 }
 
-func (ak activeKFilters) Remove(a activeKFilter) {
+// Remove a filter
+func (ak ActiveKFilters) Remove(a activeKFilter) {
 	delete(ak, a.Key())
 }
 
-type mapHash struct {
+type entryKey struct {
 	tableName string
 	key       interface{}
 }
@@ -66,7 +74,7 @@ type arrayEntry struct {
 }
 
 func (e *arrayEntry) Key() interface{} {
-	return mapHash{
+	return entryKey{
 		tableName: e.tableName,
 		key:       e.index,
 	}
@@ -92,25 +100,34 @@ func (e *arrayEntry) Apply(manager *manager.Manager) error {
 	return table.Put(e.index, e.value)
 }
 
-type mapEventMask struct {
+type eventMaskEntry struct {
 	tableName string
 	tableKey  interface{}
-	key       interface{}
 	eventMask uint64
 }
 
-func (e *mapEventMask) Key() interface{} {
-	return mapHash{
+func (e *eventMaskEntry) Key() interface{} {
+	mb, ok := e.tableKey.(encoding.BinaryMarshaler)
+	if !ok {
+		return entryKey{
+			tableName: e.tableName,
+			key:       e.tableKey,
+		}
+	}
+
+	data, _ := mb.MarshalBinary()
+
+	return entryKey{
 		tableName: e.tableName,
-		key:       e.key,
+		key:       hex.EncodeToString(data),
 	}
 }
 
-func (e *mapEventMask) GetTableName() string {
+func (e *eventMaskEntry) GetTableName() string {
 	return e.tableName
 }
 
-func (e *mapEventMask) Remove(manager *manager.Manager) error {
+func (e *eventMaskEntry) Remove(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
@@ -125,7 +142,7 @@ func (e *mapEventMask) Remove(manager *manager.Manager) error {
 	return table.Put(e.tableKey, eventMask)
 }
 
-func (e *mapEventMask) Apply(manager *manager.Manager) error {
+func (e *eventMaskEntry) Apply(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err

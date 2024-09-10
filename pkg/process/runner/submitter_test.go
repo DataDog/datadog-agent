@@ -17,8 +17,8 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -387,14 +387,14 @@ type submitterDeps struct {
 }
 
 func newSubmitterDeps(t *testing.T) submitterDeps {
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(nil))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, nil))
 }
 
 func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterDeps {
 	overrides := config.AllSettings()
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(overrides))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, overrides))
 }
 
-func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), logimpl.MockModule())
+func getForwardersMockModules(t *testing.T, configOverrides map[string]interface{}) fx.Option {
+	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), fx.Provide(func() log.Component { return logmock.New(t) }))
 }

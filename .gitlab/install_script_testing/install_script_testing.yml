@@ -4,9 +4,8 @@ test_install_script:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - source /root/.bashrc
     - set +x
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN)
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID

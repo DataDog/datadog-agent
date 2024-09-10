@@ -28,7 +28,7 @@ type selfReaderFilter struct {
 func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 	// If we run in a container, /sys/fs/cgroup directly contains the values for our own container
 	if inContainer {
-		f.readerFilter = func(path, name string) (string, error) {
+		f.readerFilter = func(_, _ string) (string, error) {
 			return SelfCgroupIdentifier, godirwalk.SkipThis
 		}
 
@@ -37,14 +37,14 @@ func (f *selfReaderFilter) init(inContainer bool, baseController string) error {
 
 	// If we don't run in a container, we expect to be in host cgroup namespace, otherwise this will not work
 	// as the path retrieved from `/proc/self/cgroup` may not be the expected one
-	relativePath, err := IdentiferFromCgroupReferences(f.procPath, SelfCgroupIdentifier, baseController, func(path, name string) (string, error) {
+	relativePath, err := IdentiferFromCgroupReferences(f.procPath, SelfCgroupIdentifier, baseController, func(path, _ string) (string, error) {
 		return path, nil
 	})
 	if err != nil {
 		return fmt.Errorf("unable to get self relative cgroup path, err: %w", err)
 	}
 
-	f.readerFilter = func(path, name string) (string, error) {
+	f.readerFilter = func(path, _ string) (string, error) {
 		if strings.HasSuffix(path, relativePath) {
 			return SelfCgroupIdentifier, godirwalk.SkipThis
 		}

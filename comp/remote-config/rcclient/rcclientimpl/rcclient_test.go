@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -64,7 +65,7 @@ func TestRCClientCreate(t *testing.T) {
 	_, err := newRemoteConfigClient(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			settingsimpl.MockModule(),
 		),
 	)
@@ -74,7 +75,7 @@ func TestRCClientCreate(t *testing.T) {
 	client, err := newRemoteConfigClient(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
@@ -96,7 +97,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",

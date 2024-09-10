@@ -40,13 +40,6 @@ const (
 	ntBangPrefix           = "nt!"
 )
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 /*
  * extra layer of indirection so that we can call the go parsing code
  * (logLineCallbackGo) straight from the test function so that we can

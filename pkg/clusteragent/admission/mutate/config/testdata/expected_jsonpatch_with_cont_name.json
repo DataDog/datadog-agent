@@ -29,20 +29,12 @@
     },
     {
         "value": {
-            "name": "DD_INTERNAL_POD_UID",
+            "name": "DD_ENTITY_ID",
             "valueFrom": {
                 "fieldRef": {
                     "fieldPath": "metadata.uid"
                 }
             }
-        },
-        "op": "add",
-        "path": "/spec/containers/0/env/-"
-    },
-    {
-        "value": {
-            "name": "DD_ENTITY_ID",
-            "value": "en-$(DD_INTERNAL_POD_UID)/container"
         },
         "op": "add",
         "path": "/spec/containers/0/env/-"

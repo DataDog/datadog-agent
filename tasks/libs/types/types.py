@@ -43,6 +43,7 @@ class Test:
 class FailedJobType(Enum):
     JOB_FAILURE = 1
     INFRA_FAILURE = 2
+    BRIDGE_FAILURE = 3
 
 
 class FailedJobReason(Enum):
@@ -53,6 +54,7 @@ class FailedJobReason(Enum):
     KITCHEN = 7
     EC2_SPOT = 8
     E2E_INFRA_FAILURE = 9
+    FAILED_BRIDGE_JOB = 10
 
     @staticmethod
     def get_infra_failure_mapping():

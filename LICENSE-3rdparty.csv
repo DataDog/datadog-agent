@@ -275,7 +275,6 @@ core,github.com/ProtonMail/go-crypto/openpgp/internal/ecc,BSD-3-Clause,Copyright
 core,github.com/ProtonMail/go-crypto/openpgp/internal/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/PuerkitoBio/goquery,BSD-3-Clause,"Copyright (c) 2012-2021, Martin Angers & Contributors"
 core,github.com/Showmax/go-fqdn,Apache-2.0,Copyright since 2015 Showmax s.r.o
 core,github.com/StackExchange/wmi,MIT,Copyright (c) 2013 Stack Exchange
 core,github.com/VividCortex/ewma,MIT,"Copyright (c) 2013 VividCortex | Copyright (c) 2013 VividCortex, Inc. All rights reserved"
@@ -290,10 +289,6 @@ core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017 Alec Thomas | Co
 core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/anchore/go-struct-converter,Apache-2.0,"Copyright (c) 2022-2023 Anchore, Inc."
-core,github.com/andybalholm/cascadia,BSD-2-Clause,Copyright (c) 2011 Andy Balholm. All rights reserved
-core,github.com/antchfx/htmlquery,MIT,Copyright (c) 2016 Zheng Chun
-core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
-core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc"
 core,github.com/aquasecurity/go-gem-version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
@@ -768,7 +763,6 @@ core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"
 core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/events/exchange,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/filters,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -778,7 +772,6 @@ core,github.com/containerd/containerd/images/archive,Apache-2.0,"Copyright 2012-
 core,github.com/containerd/containerd/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -794,11 +787,9 @@ core,github.com/containerd/containerd/pkg/transfer,Apache-2.0,"Copyright 2012-20
 core,github.com/containerd/containerd/pkg/transfer/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/transfer/streaming,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/pkg/unpack,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/pkg/userns,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/protobuf,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/protobuf/plugin,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/protobuf/proto,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/protobuf/types,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/reference,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -825,6 +816,7 @@ core,github.com/containerd/continuity/sysx,Apache-2.0,"Copyright 2012-2015 Docke
 core,github.com/containerd/errdefs,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/fifo,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/platforms,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/stargz-snapshotter/estargz/errorutil,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/ttrpc,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1081,9 +1073,6 @@ core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c)
 core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
-core,github.com/gocolly/colly/v2,Apache-2.0,Copyright 2018 Adam Tauber
-core,github.com/gocolly/colly/v2/debug,Apache-2.0,Copyright 2018 Adam Tauber
-core,github.com/gocolly/colly/v2/storage,Apache-2.0,Copyright 2018 Adam Tauber
 core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,CC0 1.0 Universal
@@ -1300,7 +1289,6 @@ core,github.com/hashicorp/go-sockaddr,MPL-2.0,"Copyright © 2014-2018 HashiCorp,
 core,github.com/hashicorp/go-version,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hashicorp/golang-lru/v2/expirable,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/internal,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -1379,6 +1367,7 @@ core,github.com/jaegertracing/jaeger/thrift-gen/jaeger,Apache-2.0,Copyright 2015
 core,github.com/jaegertracing/jaeger/thrift-gen/sampling,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/thrift-gen/zipkincore,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jbenet/go-context/io,MIT,Copyright (c) 2014 Juan Batiz-Benet
+core,github.com/jellydator/ttlcache/v3,MIT,Copyright (c) 2022 Jellydator
 core,github.com/jinzhu/inflection,MIT,Copyright (c) 2015 - Jinzhu
 core,github.com/jlaffaye/ftp,ISC,"Copyright (c) 2011-2013, Julien Laffaye <jlaffaye@FreeBSD.org>"
 core,github.com/jmespath/go-jmespath,Apache-2.0,Copyright 2015 James Saryerwinnie
@@ -1394,7 +1383,6 @@ core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Co
 core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/karrick/godirwalk,BSD-2-Clause,"Copyright (c) 2017, Karrick McDermott"
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
-core,github.com/kennygrant/sanitize,BSD-3-Clause,Copyright (c) 2017 Mechanism Design. All rights reserved
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
 core,github.com/kjk/lzma,BSD-3-Clause,"Copyright (c) 2010, Andrei Vieru. All rights reserved"
 core,github.com/klauspost/compress,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -1422,6 +1410,7 @@ core,github.com/knqyf263/go-rpmdb/pkg/ndb,MIT,Copyright (c) 2019 Teppei Fukuda
 core,github.com/knqyf263/go-rpmdb/pkg/sqlite3,MIT,Copyright (c) 2019 Teppei Fukuda
 core,github.com/knqyf263/nested,MIT,Copyright (c) 2019 Teppei Fukuda
 core,github.com/kolo/xmlrpc,MIT,Copyright (C) 2012 Dmitry Maksimov
+core,github.com/kouhin/envflag,Apache-2.0,Copyright (c) 2015 kouhin
 core,github.com/kr/pretty,MIT,Copyright 2012 Keith Rarick
 core,github.com/kr/text,MIT,Copyright 2012 Keith Rarick
 core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright (c) 2013-2020 Kyle Lemons
@@ -1499,6 +1488,7 @@ core,github.com/moby/sys/mountinfo,Apache-2.0,Copyright (c) 2014-2018 The Docker
 core,github.com/moby/sys/sequential,Apache-2.0,Kir Kolyshkin <kolyshkin@gmail.com>|Sebastiaan van Stijn <github@gone.nl>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>|Tibor Vass <teabee89@gmail.com>|Brian Goff <cpuguy83@gmail.com>|John Howard <jhoward@microsoft.com>|Victor Vieux <victor.vieux@docker.com>|Michael Crosby <crosby.michael@gmail.com>|Daniel Nephin <dnephin@docker.com>|Tianon Gravi <admwiggin@gmail.com>|Vincent Batts <vbatts@redhat.com>|Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>|Michael Crosby <michael@crosbymichael.com>|Yong Tang <yong.tang.github@outlook.com>|Kir Kolyshkin <kolyshkin@users.noreply.github.com>|Christopher Jones <tophj@linux.vnet.ibm.com>|Guillaume J. Charmes <guillaume@charmes.net>|Kato Kazuyoshi <kato.kazuyoshi@gmail.com>|Manu Gupta <manugupt1@gmail.com>|Michael Crosby <crosbymichael@gmail.com>|Vincent Demeester <vincent@sbr.pm>|Aleksa Sarai <cyphar@cyphar.com>|Amit Krishnan <amit.krishnan@oracle.com>|Arnaud Porterie <arnaud.porterie@docker.com>|Brian Goff <brian.goff@microsoft.com>|Brian Goff <cpuguy@hey.com>|Dan Walsh <dwalsh@redhat.com>|Michael Crosby <michael@docker.com>|Phil Estes <estesp@gmail.com>|Shengjing Zhu <zhsj@debian.org>|Solomon Hykes <solomon@docker.com>|Tobias Klauser <tklauser@distanz.ch>|lalyos <lalyos@yahoo.com>|unclejack <unclejacksons@gmail.com>|Akihiro Suda <suda.kyoto@gmail.com>|Alexander Morozov <lk4d4@docker.com>|Jessica Frazelle <acidburn@docker.com>|Jessica Frazelle <jess@docker.com>|Jessie Frazelle <jfrazelle@users.noreply.github.com>|Justas Brazauskas <brazauskasjustas@gmail.com>|Justin Cormack <justin.cormack@docker.com>|Kazuyoshi Kato <katokazu@amazon.com>|Naveed Jamil <naveed.jamil@tenpearls.com>|Vincent Demeester <vincent.demeester@docker.com>|shuai-z <zs.broccoli@gmail.com>|Ahmet Alp Balkan <ahmetb@microsoft.com>|Aleksa Sarai <asarai@suse.com>|Alexander Larsson <alexl@redhat.com>|Alexander Morozov <lk4d4math@gmail.com>|Alexandr Morozov <lk4d4@docker.com>|Alexandr Morozov <lk4d4math@gmail.com>|Antonio Murdaca <me@runcom.ninja>|Antonio Murdaca <runcom@linux.com>|Antonio Murdaca <runcom@users.noreply.github.com>|Artem Khramov <akhramov@pm.me>|Cezar Sa Espinola <cezarsa@gmail.com>|Chen Hanxiao <chenhanxiao@cn.fujitsu.com>|Darren Stahl <darst@microsoft.com>|David Calavera <david.calavera@gmail.com>|Derek McGowan <derek@mcgstyle.net>|Eng Zer Jun <engzerjun@gmail.com>|Erik Dubbelboer <erik@dubbelboer.com>|Fabian Kramm <kramm@covexo.com>|Guillaume Dufour <gdufour.prestataire@voyages-sncf.com>|Guillaume J. Charmes <guillaume.charmes@docker.com>|Hajime Tazaki <thehajime@gmail.com>|Jamie Hannaford <jamie.hannaford@rackspace.com>|Jason A. Donenfeld <Jason@zx2c4.com>|Jhon Honce <jhonce@redhat.com>|Josh Soref <jsoref@users.noreply.github.com>|Kasper Fabæch Brandt <poizan@poizan.dk>|Kathryn Baldauf <kabaldau@microsoft.com>|Kenfe-Mickael Laventure <mickael.laventure@gmail.com>|Kirill Kolyshkin <kolyshkin@users.noreply.github.com>|Muhammad Kaisar Arkhan <hi@yukiisbo.red>|Oli <oli@overrateddev.co>|Olli Janatuinen <olli.janatuinen@gmail.com>|Paul Nasrat <pnasrat@gmail.com>|Peter Bourgon <peter@bourgon.org>|Peter Waller <peter@scraperwiki.com>|Phil Estes <estesp@linux.vnet.ibm.com>|Samuel Karp <skarp@amazon.com>|Stefan J. Wernli <swernli@microsoft.com>|Steven Hartland <steven.hartland@multiplay.co.uk>|Stig Larsson <stig@larsson.dev>|Tim Wang <timwangdev@gmail.com>|Victor Vieux <victorvieux@gmail.com>|Victor Vieux <vieux@docker.com>|Yan Feng <yanfeng2@huawei.com>|jhowardmsft <jhoward@microsoft.com>|liuxiaodong <liuxiaodong@loongson.cn>|phineas <phin@phineas.io>|unclejack <unclejack@users.noreply.github.com>|yuexiao-wang <wang.yuexiao@zte.com.cn>|谢致邦 (XIE Zhibang) <Yeking@Red54.com>
 core,github.com/moby/sys/signal,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/moby/sys/user,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+core,github.com/moby/sys/userns,Apache-2.0,Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 core,github.com/modern-go/concurrent,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/modern-go/reflect2,Apache-2.0,Copyright (c) 2018 Tao Wen
 core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
@@ -1612,6 +1602,7 @@ core,github.com/open-policy-agent/opa/topdown/print,Apache-2.0,Copyright 2016 Th
 core,github.com/open-policy-agent/opa/tracing,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-policy-agent/opa/util/decoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1896,6 +1887,11 @@ core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,Copyright 2023 pjbgf
 core,github.com/pkg/browser,BSD-2-Clause,"Copyright (c) 2014, Dave Cheney <dave@cheney.net>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/planetscale/vtprotobuf/protohelpers,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/anypb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/durationpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/emptypb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/structpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
+core,github.com/planetscale/vtprotobuf/types/known/wrapperspb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
 core,github.com/pmezard/go-difflib/difflib,BSD-3-Clause,"Copyright (c) 2013, Patrick Mezard"
 core,github.com/power-devops/perfstat,MIT,Copyright (c) 2020 Power DevOps
 core,github.com/prometheus-community/pro-bing,MIT,Copyright 2016 Cameron Sparr and contributors | Copyright 2022 The Prometheus Authors
@@ -1988,8 +1984,9 @@ core,github.com/rs/zerolog/log,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/ryanuber/go-glob,MIT,Copyright (c) 2014 Ryan Uber
 core,github.com/sagikazarmark/locafero,MIT,Copyright (c) 2023 Márk Sági-Kazár <mark.sagikazar@gmail.com>
 core,github.com/sagikazarmark/slog-shim,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/saintfish/chardet,MIT,Copyright (c) 2012 chardet Authors | Sheng Yu (yusheng dot sjtu at gmail dot com)
 core,github.com/samber/lo,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/saracen/walker,MIT,Copyright (c) 2019 Arran Walker
@@ -2125,7 +2122,6 @@ core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Copyright 2012 Surya
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
-core,github.com/temoto/robotstxt,MIT,Copyright (c) 2010 Sergey Shepelev <temotor@gmail.com>
 core,github.com/tetratelabs/wazero,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tetratelabs/wazero/api,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tetratelabs/wazero/experimental,Apache-2.0,Copyright 2020-2023 wazero authors
@@ -2508,8 +2504,8 @@ core,go.opentelemetry.io/otel/metric/noop,Apache-2.0,Copyright The OpenTelemetry
 core,go.opentelemetry.io/otel/propagation,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/instrumentation,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/sdk/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/internal/env,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/sdk/internal/x,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/sdk/metric/internal/aggregate,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2526,7 +2522,9 @@ core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.17.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.20.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.24.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace/noop,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2541,6 +2539,7 @@ core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Tech
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/maxprocs,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/dig,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/digclock,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/digerror,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/digreflect,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/dot,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
@@ -2568,72 +2567,72 @@ core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
-core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
-core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
-core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/blowfish,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright 2015 The Go Authors
+core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright 2015 The Go Authors
+core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/blowfish,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/chacha20poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ocsp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/armor,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/elgamal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/errors,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ocsp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/armor,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/elgamal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/errors,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/packet,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/s2k,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slices,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
-core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html/atom,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http/httpguts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http/httpproxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/icmp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/idna,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/timeseries,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/ipv4,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/ipv6,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/netutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/proxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/trace,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/websocket,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/bpf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/context,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html/atom,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http/httpguts,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http/httpproxy,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/icmp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/idna,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/timeseries,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/ipv4,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/ipv6,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/netutil,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/proxy,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/trace,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/websocket,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/oauth2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2645,52 +2644,52 @@ core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright (c) 
 core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/cases,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/charmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/htmlindex,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/ianaindex,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/japanese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/korean,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/simplifiedchinese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/traditionalchinese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/unicode,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/feature/plural,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/catmsg,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/format,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/language,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/language/compact,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/number,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/stringset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/tag,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/language,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/message,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/message/catalog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/runes,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/secure/bidirule,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/secure/precis,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/transform,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/width,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/time/rate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/unix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/term,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/cases,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/charmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/htmlindex,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/ianaindex,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/japanese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/korean,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/simplifiedchinese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/traditionalchinese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/unicode,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/feature/plural,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/catmsg,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/format,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/language,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/language/compact,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/number,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/stringset,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/tag,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/language,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/message,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/message/catalog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/runes,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/secure/bidirule,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/secure/precis,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/transform,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/width,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/time/rate,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang/go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
 core,gonum.org/v1/gonum/blas,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
@@ -2744,13 +2743,6 @@ core,google.golang.org/api/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc.
 core,google.golang.org/api/transport/grpc,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/base,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/datastore,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/log,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/remote_api,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/internal/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
-core,google.golang.org/appengine/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/expr/v1alpha1,Apache-2.0,Copyright 2015 Google LLC
@@ -2769,6 +2761,7 @@ core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors
 core,google.golang.org/grpc/balancer/grpclb,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/grpc_lb_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2790,7 +2783,9 @@ core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/route_guide/routeguide,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/experimental/stats,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/grpclog/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/backoff,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2803,7 +2798,6 @@ core,google.golang.org/grpc/internal/credentials,Apache-2.0,Copyright 2014 gRPC 
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/googlecloud,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/idle,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2815,12 +2809,14 @@ core,google.golang.org/grpc/internal/resolver/dns/internal,Apache-2.0,Copyright 
 core,google.golang.org/grpc/internal/resolver/passthrough,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/resolver/unix,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/serviceconfig,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/stats,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/status,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/syscall,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/transport/networktype,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/xds,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/keepalive,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/mem,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/metadata,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/peer,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/resolver,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2893,12 +2889,17 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config,Apache-2.0,"Copyrigh
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/httpsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sqlsec/types,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/ossec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener/sqlsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/trace/httptrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
@@ -2912,6 +2913,7 @@ core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname/validate,Apache-2.0,"Copy
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/namingschema,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/normalizer,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
@@ -3621,13 +3623,6 @@ core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/defaulter-gen/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/namer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/parser,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/types,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3645,16 +3640,12 @@ core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1,Apache-2.0,Copyright 201
 core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/cached,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common/restfuladapter,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3665,7 +3656,6 @@ core,k8s.io/kube-openapi/pkg/schemamutation,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/kube-openapi/pkg/spec3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util/proto,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/util/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/errors,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/spec,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/strfmt,Apache-2.0,Copyright 2014 The Kubernetes Authors.

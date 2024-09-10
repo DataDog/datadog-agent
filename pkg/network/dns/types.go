@@ -3,12 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package dns traces DNS activity and caches DNS lookups for reverse DNS capability
 package dns
 
 import (
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
@@ -34,7 +32,7 @@ func ToHostname(s string) Hostname {
 }
 
 // QueryType is the DNS record type
-type QueryType layers.DNSType
+type QueryType int
 
 // DNSType known values.
 const (

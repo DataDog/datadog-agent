@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -120,12 +121,12 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 // TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
+func (s *Server) TaggerFetchEntity(_ context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)
 	}
 
-	entityID := fmt.Sprintf("%s://%s", in.Id.Prefix, in.Id.Uid)
+	entityID := types.EntityIDPrefix(in.Id.Prefix).ToUID(in.Id.Uid)
 	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return nil, err

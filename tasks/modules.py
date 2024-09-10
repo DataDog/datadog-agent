@@ -140,10 +140,15 @@ DEFAULT_MODULES = {
     "comp/core/hostname/hostnameinterface": GoModule(
         "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
     ),
-    "comp/core/log": GoModule("comp/core/log", independent=True, used_by_otel=True),
+    "comp/core/log/def": GoModule("comp/core/log/def", independent=True, used_by_otel=True),
+    "comp/core/log/impl": GoModule("comp/core/log/impl", independent=True, used_by_otel=True),
+    "comp/core/log/impl-trace": GoModule("comp/core/log/impl-trace", independent=True),
+    "comp/core/log/mock": GoModule("comp/core/log/mock", independent=True, used_by_otel=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/core/tagger/types": GoModule("comp/core/tagger/types", independent=True, used_by_otel=True),
+    "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
     "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True, used_by_otel=True),
@@ -162,8 +167,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
-    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
-    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/ddflareextension/def": GoModule(
+        "comp/otelcol/ddflareextension/def", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/ddflareextension/impl": GoModule(
+        "comp/otelcol/ddflareextension/impl", independent=True, used_by_otel=True
+    ),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
@@ -204,14 +213,14 @@ DEFAULT_MODULES = {
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
-    "pkg/config/mock": GoModule("pkg/config/mock", independent=True),
-    "pkg/config/logs": GoModule("pkg/config/logs", independent=True, used_by_otel=True),
+    "pkg/config/mock": GoModule("pkg/config/mock", independent=True, used_by_otel=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
+    "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
     "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True, used_by_otel=True),
     "pkg/logs/client": GoModule("pkg/logs/client", independent=True, used_by_otel=True),
     "pkg/logs/diagnostic": GoModule("pkg/logs/diagnostic", independent=True, used_by_otel=True),
@@ -248,6 +257,7 @@ DEFAULT_MODULES = {
         "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
     ),
     "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
+    "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True, used_by_otel=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
@@ -257,6 +267,7 @@ DEFAULT_MODULES = {
     "pkg/util/http": GoModule("pkg/util/http", independent=True, used_by_otel=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True, used_by_otel=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
+    "pkg/util/log/setup": GoModule("pkg/util/log/setup", independent=True, used_by_otel=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True, used_by_otel=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True, used_by_otel=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True, used_by_otel=True),
@@ -265,6 +276,7 @@ DEFAULT_MODULES = {
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True, used_by_otel=True),
     "pkg/util/system": GoModule("pkg/util/system", independent=True, used_by_otel=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True, used_by_otel=True),
+    "pkg/util/tagger": GoModule("pkg/util/tagger", independent=True, used_by_otel=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True, used_by_otel=True),
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),
@@ -279,6 +291,7 @@ DEFAULT_MODULES = {
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
         lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
+    "test/otel": GoModule("test/otel", independent=True, used_by_otel=True),
     "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
 
@@ -392,15 +405,40 @@ def go_work(_: Context):
 
 
 @task
-def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+def for_each(
+    ctx: Context,
+    cmd: str,
+    skip_untagged: bool = False,
+    ignore_errors: bool = False,
+    use_targets_path: bool = False,
+    use_lint_targets_path: bool = False,
+    skip_condition: bool = False,
+):
     """
     Run the given command in the directory of each module.
     """
+    assert not (
+        use_targets_path and use_lint_targets_path
+    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+
     for mod in DEFAULT_MODULES.values():
         if skip_untagged and not mod.should_tag:
             continue
-        with ctx.cd(mod.full_path()):
-            ctx.run(cmd)
+        if skip_condition and not mod.condition():
+            continue
+
+        targets = [mod.full_path()]
+        if use_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.targets]
+        if use_lint_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.lint_targets]
+
+        for target in targets:
+            with ctx.cd(target):
+                res = ctx.run(cmd, warn=True)
+                assert res is not None
+                if res.failed and not ignore_errors:
+                    raise Exit(f"Command failed in {target}")
 
 
 @task

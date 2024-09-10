@@ -18,7 +18,7 @@ func NewGetCheckRunNamesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "names",
 		Short: "Get check-run names",
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(*cobra.Command, []string) (err error) {
 			names, err := (*cl).GetCheckRunNames()
 			if err != nil {
 				return err

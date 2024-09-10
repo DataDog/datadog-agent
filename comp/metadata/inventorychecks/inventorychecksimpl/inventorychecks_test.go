@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"expvar"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
@@ -36,7 +40,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -132,8 +136,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
-			workloadmetafxmock.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
 		// Setup log sources
@@ -149,8 +152,18 @@ func TestGetPayload(t *testing.T) {
 		// Register an error
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
+		fakeTagger := taggerimpl.SetupFakeTagger(t)
+		defer fakeTagger.ResetTagger()
+
 		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
-			t, logsBundle.MockBundle(), core.MockBundle(), inventoryagentimpl.MockModule(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()),
+			t,
+			logsBundle.MockBundle(),
+			core.MockBundle(),
+			inventoryagentimpl.MockModule(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			fx.Provide(func() tagger.Component {
+				return fakeTagger
+			}),
 		)
 		logsAgent, _ := mockLogAgent.Get()
 		logsAgent.SetSources(logSources)
@@ -174,7 +187,7 @@ func TestGetPayload(t *testing.T) {
 			ic.Set("check1_instance1", "check_provided_key2", "Hi")
 			ic.Set("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
-			p := ic.getPayload().(*Payload)
+			p := ic.getPayloadWithConfigs().(*Payload)
 
 			assert.Equal(t, "test-hostname", p.Hostname)
 
@@ -248,4 +261,12 @@ func TestFlareProviderFilename(t *testing.T) {
 		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
+}
+
+// TODO (Component): This test will be removed when the inventorychecks component will be move into the collector component
+func TestExpvarExist(t *testing.T) {
+	getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+	)
+	assert.NotNil(t, expvar.Get("inventories"))
 }

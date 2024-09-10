@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type transformerFunction func(string) interface{}
+type transformerFunction func(string) []map[string]string
 
 const (
 	spNS                         = "system_probe_config"
@@ -30,6 +30,7 @@ const (
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
+	discoveryNS                  = "discovery"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -51,6 +52,9 @@ const (
 	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
+
+	// defaultEnvoyPath is the default path for envoy binary
+	defaultEnvoyPath = "/bin/envoy"
 )
 
 var (
@@ -163,6 +167,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// User Tracer
 	cfg.BindEnvAndSetDefault(join(diNS, "enabled"), false, "DD_DYNAMIC_INSTRUMENTATION_ENABLED")
+	cfg.BindEnvAndSetDefault(join(diNS, "offline_mode"), false, "DD_DYNAMIC_INSTRUMENTATION_OFFLINE_MODE")
+	cfg.BindEnvAndSetDefault(join(diNS, "probes_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_PROBES_FILE_PATH")
+	cfg.BindEnvAndSetDefault(join(diNS, "snapshot_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_SNAPSHOT_FILE_PATH")
+	cfg.BindEnvAndSetDefault(join(diNS, "diagnostics_output_file_path"), false, "DD_DYNAMIC_INSTRUMENTATION_DIAGNOSTICS_FILE_PATH")
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -180,6 +188,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
+	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
@@ -201,6 +210,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -237,6 +247,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
 	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
@@ -252,6 +263,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "max_postgres_telemetry_buffer"), 160)
 	cfg.BindEnv(join(smNS, "max_redis_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
@@ -263,8 +275,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
 	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+
 	httpRulesTransformer := func(key string) transformerFunction {
-		return func(in string) interface{} {
+		return func(in string) []map[string]string {
 			var out []map[string]string
 			if err := json.Unmarshal([]byte(in), &out); err != nil {
 				log.Warnf(`%q can not be parsed: %v`, key, err)
@@ -272,8 +285,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 			return out
 		}
 	}
-	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
-	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+	cfg.ParseEnvAsSliceMapString(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.ParseEnvAsSliceMapString(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
 	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
@@ -291,6 +304,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
+
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpfless"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -382,6 +397,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CCM config
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
+
+	// Discovery config
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
+
+	// Fleet policies
+	cfg.BindEnv("fleet_policies_dir")
 
 	initCWSSystemProbeConfig(cfg)
 }

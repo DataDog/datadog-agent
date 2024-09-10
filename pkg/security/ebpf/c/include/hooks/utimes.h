@@ -7,10 +7,6 @@
 
 int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
     struct policy_t policy = fetch_policy(EVENT_UTIME);
-    if (is_discarded_by_process(policy.mode, EVENT_UTIME)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_UTIME,
         .policy = policy,

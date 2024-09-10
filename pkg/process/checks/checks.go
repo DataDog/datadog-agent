@@ -13,6 +13,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,6 +35,8 @@ type SysProbeConfig struct {
 	SystemProbeAddress string
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
+	// System probe network_tracer module on/off configuration
+	NetworkTracerModuleEnabled bool
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns
@@ -63,6 +66,7 @@ type Check interface {
 type RunOptions struct {
 	RunStandard bool
 	RunRealtime bool
+	NoChunking  bool
 }
 
 // RunResult is a result for a check run
@@ -131,7 +135,7 @@ func canEnableContainerChecks(config ddconfig.Reader, displayFeatureWarning bool
 	if config.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
-	if !ddconfig.IsAnyContainerFeaturePresent() {
+	if !env.IsAnyContainerFeaturePresent() {
 		if displayFeatureWarning {
 			_ = log.Warn("Disabled container checks because no container environment detected (see list of detected features in `agent status`)")
 		}

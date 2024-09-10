@@ -3,7 +3,7 @@ import re
 
 from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.notify.utils import PIPELINES_CHANNEL, PROJECT_NAME
+from tasks.libs.notify.utils import DEPLOY_PIPELINES_CHANNEL, PIPELINES_CHANNEL, PROJECT_NAME
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     base_message,
@@ -37,7 +37,11 @@ def send_message(ctx, notification_type, dry_run):
         header_icon = ":host-green:"
         state = "succeeded"
 
+    # For deploy pipelines not on the main branch, send notifications in a
+    # dedicated channel.
     slack_channel = PIPELINES_CHANNEL
+    if notification_type == "deploy" and pipeline.ref != DEFAULT_BRANCH:
+        slack_channel = DEPLOY_PIPELINES_CHANNEL
 
     header = ""
     if notification_type == "merge":

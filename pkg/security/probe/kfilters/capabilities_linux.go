@@ -29,39 +29,39 @@ func validateBasenameFilter(value rules.FilterValue) bool {
 	return false
 }
 
-func oneBasenameCapabilities(event string) Capabilities {
-	return Capabilities{
-		event + ".file.path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+func oneBasenameCapabilities(event string) rules.FieldCapabilities {
+	return rules.FieldCapabilities{
+		{
+			Field:       event + ".file.path",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+			ValidateFnc: validateBasenameFilter,
 		},
-		event + ".file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+		{
+			Field:       event + ".file.name",
+			TypeBitmask: eval.ScalarValueType,
 		},
 	}
 }
 
-func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
-	return Capabilities{
-		event + "." + field1 + ".path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+func twoBasenameCapabilities(event string, field1, field2 string) rules.FieldCapabilities {
+	return rules.FieldCapabilities{
+		{
+			Field:       event + "." + field1 + ".path",
+			TypeBitmask: eval.ScalarValueType | eval.GlobValueType,
+			ValidateFnc: validateBasenameFilter,
 		},
-		event + "." + field1 + ".name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+		{
+			Field:       event + "." + field1 + ".name",
+			TypeBitmask: eval.ScalarValueType,
 		},
-		event + "." + field2 + ".path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+		{
+			Field:       event + "." + field2 + ".path",
+			TypeBitmask: eval.ScalarValueType | eval.GlobValueType,
+			ValidateFnc: validateBasenameFilter,
 		},
-		event + "." + field2 + ".name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+		{
+			Field:       event + "." + field2 + ".name",
+			TypeBitmask: eval.ScalarValueType,
 		},
 	}
 }

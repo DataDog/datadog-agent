@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -41,7 +42,7 @@ type ClusterChecksConfigProvider struct {
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
 // cluster check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &config.ConfigurationProviders{}
 	}

@@ -34,7 +34,7 @@ import (
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", expected)
 	}))
 	defer ts.Close()
@@ -111,7 +111,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func TestGetAgentTaggerList(t *testing.T) {
 	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
@@ -120,7 +120,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 		Entities: tagMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
@@ -131,7 +131,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
@@ -149,7 +149,7 @@ func TestGetWorkloadList(t *testing.T) {
 		Entities: workloadMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))

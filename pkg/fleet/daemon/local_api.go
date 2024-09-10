@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
@@ -31,6 +32,7 @@ type StatusResponse struct {
 	Version            string                      `json:"version"`
 	Packages           map[string]repository.State `json:"packages"`
 	ApmInjectionStatus APMInjectionStatus          `json:"apm_injection_status"`
+	RemoteConfigState  []*pbgo.PackageState        `json:"remote_config_state"`
 }
 
 // APMInjectionStatus contains the instrumentation status of the APM injection.
@@ -134,6 +136,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 		Version:            version.AgentVersion,
 		Packages:           packages,
 		ApmInjectionStatus: apmStatus,
+		RemoteConfigState:  l.daemon.GetRemoteConfigState(),
 	}
 }
 
@@ -327,7 +330,7 @@ func (c *localAPIClientImpl) SetCatalog(catalog string) error {
 		return err
 	}
 	if response.Error != nil {
-		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+		return fmt.Errorf("error setting catalog: %s", response.Error.Message)
 	}
 	return nil
 }
@@ -437,7 +440,7 @@ func (c *localAPIClientImpl) Install(pkg, version string) error {
 		return err
 	}
 	if response.Error != nil {
-		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+		return fmt.Errorf("error installing: %s", response.Error.Message)
 	}
 	return nil
 }

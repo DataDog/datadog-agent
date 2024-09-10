@@ -33,6 +33,7 @@ func OTLPTracesToConcentratorInputs(
 	traces ptrace.Traces,
 	conf *config.AgentConfig,
 	containerTagKeys []string,
+	peerTagKeys []string,
 ) []Input {
 	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
@@ -76,7 +77,7 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf))
+		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
 	}
 
 	inputs := make([]Input, 0, len(chunks))
@@ -107,6 +108,7 @@ func otelSpanToDDSpan(
 	lib pcommon.InstrumentationScope,
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
+	peerTagKeys []string,
 ) *pb.Span {
 	ddspan := &pb.Span{
 		Service:  traceutil.GetOTelService(otelspan, otelres, true),
@@ -137,12 +139,9 @@ func otelSpanToDDSpan(
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
-	if conf.PeerTagsAggregation {
-		peerTagKeys := preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
-		for _, peerTagKey := range peerTagKeys {
-			if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-				traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-			}
+	for _, peerTagKey := range peerTagKeys {
+		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
 		}
 	}
 	return ddspan

@@ -10,7 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
@@ -72,15 +72,15 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	}, nil
 }
 
-func createForwarder(deps dependencies, params defaultforwarder.Params) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, params).Comp
+func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) *defaultforwarder.Options {
 	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	return defaultforwarder.Params{Options: forwarderOpts}
+	return forwarderOpts
 }
 
 func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {

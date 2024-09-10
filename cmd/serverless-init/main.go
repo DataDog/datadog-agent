@@ -22,7 +22,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -66,7 +67,6 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
-		workloadmetafx.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -75,15 +75,15 @@ func main() {
 		}),
 		taggerimpl.Module(),
 		healthprobeFx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
 		coreconfig.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
-		fx.Supply(logimpl.ForOneShot(modeConf.LoggerName, "off", true)),
-		logimpl.Module(),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
+		logfx.Module(),
 		nooptelemetry.Module(),
 	)
 
@@ -96,8 +96,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger)
 
 	err := modeConf.Runner(logConfig)
 
@@ -107,7 +107,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -138,7 +138,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger)
 
 	traceAgent := setupTraceAgent(tags)
 
@@ -163,6 +163,8 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}

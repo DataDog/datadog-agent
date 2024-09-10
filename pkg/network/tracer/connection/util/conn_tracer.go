@@ -111,6 +111,7 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 			},
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
 		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
 		if err != nil {
@@ -162,10 +163,10 @@ func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
 	} else {
 		tup.SetType(netebpf.UDP)
 	}
-	if !c.Source.IsZero() {
+	if c.Source.IsValid() {
 		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
 	}
-	if !c.Dest.IsZero() {
+	if c.Dest.IsValid() {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
 }

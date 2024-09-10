@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -505,7 +505,7 @@ func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 // AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (d *AgentDemultiplexer) AggregateCheckSample(sample metrics.MetricSample) {
+func (d *AgentDemultiplexer) AggregateCheckSample(_ metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 

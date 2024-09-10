@@ -194,14 +194,16 @@ func testServer(t *testing.T, opts ...Option) {
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
+					ContentType: "text/plain",
 				},
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
+					ContentType: "text/plain",
 				},
 			},
 		}

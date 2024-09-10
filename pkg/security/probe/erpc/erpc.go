@@ -10,6 +10,7 @@ package erpc
 
 import (
 	"errors"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -24,7 +25,7 @@ const (
 const (
 	// DiscardInodeOp discards an inode
 	DiscardInodeOp = iota + 1
-	// DiscardPidOp discards a pid
+	// DiscardPidOp discards a pid (DEPRECATED)
 	DiscardPidOp
 	// ResolveSegmentOp resolves the requested segment (DEPRECATED)
 	ResolveSegmentOp
@@ -38,7 +39,7 @@ const (
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder
 	ExpirePidDiscarderOp
-	// BumpDiscardersRevision is used to bump the discarders revision
+	// BumpDiscardersRevision is used to bump the discarders revision (DEPRECATED)
 	BumpDiscardersRevision
 	// GetRingbufUsage is used to retrieve the ring buffer usage
 	GetRingbufUsage
@@ -79,7 +80,14 @@ func (k *ERPC) Request(req *Request) error {
 		}
 	}
 
+	runtime.KeepAlive(req)
+
 	return nil
+}
+
+// Close closes the ERPC client
+func (k *ERPC) Close() error {
+	return syscall.Close(k.fd)
 }
 
 // NewERPC returns a new ERPC object

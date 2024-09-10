@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/zstd"
 )
 
 var generateFixture = flag.Bool("generate", false, "generate fixture")
@@ -46,6 +47,7 @@ type Aggregator[P PayloadItem] struct {
 
 const (
 	encodingGzip     = "gzip"
+	encodingZstd     = "zstd"
 	encodingEmpty    = ""
 	encodingJSON     = "application/json"
 	encodingDeflate  = "deflate"
@@ -159,6 +161,8 @@ func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser
 		rc, err = gzip.NewReader(bytes.NewReader(payload))
 	case encodingDeflate:
 		rc, err = zlib.NewReader(bytes.NewReader(payload))
+	case encodingZstd:
+		rc = zstd.NewReader(bytes.NewReader(payload))
 	default:
 		rc = io.NopCloser(bytes.NewReader(payload))
 	}

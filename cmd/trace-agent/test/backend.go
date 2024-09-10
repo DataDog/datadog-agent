@@ -13,12 +13,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.uber.org/atomic"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
+	"github.com/DataDog/zstd"
 	"github.com/tinylib/msgp/msgp"
 	"google.golang.org/protobuf/proto"
 )
@@ -100,11 +102,11 @@ func (s *fakeBackend) Shutdown(wait time.Duration) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func (s *fakeBackend) handleHealth(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
+func (s *fakeBackend) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
+func (s *fakeBackend) handleStats(_ http.ResponseWriter, req *http.Request) {
 	var payload pb.StatsPayload
 	if err := readMsgPRequest(req, &payload); err != nil {
 		log.Println("server: error reading stats: ", err)
@@ -112,7 +114,7 @@ func (s *fakeBackend) handleStats(w http.ResponseWriter, req *http.Request) { //
 	s.out <- &payload
 }
 
-func (s *fakeBackend) handleTraces(w http.ResponseWriter, req *http.Request) { //nolint:revive // TODO fix revive unused-parameter
+func (s *fakeBackend) handleTraces(_ http.ResponseWriter, req *http.Request) {
 	var payload pb.AgentPayload
 	if err := readProtoRequest(req, &payload); err != nil {
 		log.Println("server: error reading traces: ", err)
@@ -150,13 +152,17 @@ func readCloserFromRequest(req *http.Request) (io.ReadCloser, error) {
 		Reader: req.Body,
 		Closer: req.Body,
 	}
-	if req.Header.Get("Accept-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(req.Body)
+
+	encoding := strings.ToLower(req.Header.Get("Content-Encoding"))
+	switch encoding {
+	case "zstd":
+		return zstd.NewReader(req.Body), nil
+	case "gzip":
+		reader, err := gzip.NewReader(req.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gz.Close()
-		rc.Reader = gz
+		return reader, nil
 	}
 	return rc, nil
 }

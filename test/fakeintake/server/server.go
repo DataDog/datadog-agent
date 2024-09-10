@@ -343,7 +343,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
+	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
 	case http.MethodPost:
@@ -420,9 +420,11 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
 	}
+	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
+		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return nil

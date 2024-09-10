@@ -8,7 +8,9 @@ package collectorimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -20,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	metadata "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -30,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -81,6 +86,7 @@ type provides struct {
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
 	APIGetPyStatus   api.AgentEndpointProvider
+	FlareProvider    flaretypes.Provider
 }
 
 // Module defines the fx options for this component.
@@ -106,6 +112,7 @@ func newProvides(deps dependencies) provides {
 		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
 		MetadataProvider: agentCheckMetadata,
 		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
+		FlareProvider:    flaretypes.NewProvider(c.fillFlare),
 	}
 }
 
@@ -130,6 +137,35 @@ func newCollector(deps dependencies) *collectorImpl {
 	})
 
 	return c
+}
+
+// fillFlare collects all the information related to integrations that need to be added to each flare
+func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+	scanner := scanner.GetGlobalScanner()
+	if scanner == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	scanRequest := host.NewScanRequest("/", os.DirFS("/"))
+	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
+	if scanResult.Error != nil {
+		return scanResult.Error
+	}
+
+	cycloneDX, err := scanResult.Report.ToCycloneDX()
+	if err != nil {
+		return err
+	}
+
+	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return fb.AddFile("host-sbom.json", jsonContent)
 }
 
 // AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.

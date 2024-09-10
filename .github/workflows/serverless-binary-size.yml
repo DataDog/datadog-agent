@@ -2,9 +2,6 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
-  push:
-    branches:
-      - mq-working-branch-*
 
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
@@ -36,7 +33,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
 
       - name: Previous binary size and dependencies
         id: previous
@@ -85,14 +82,19 @@ jobs:
         id: should
         run: |
           cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF
+          git fetch origin $GITHUB_HEAD_REF
           if test $(
-            git diff $GITHUB_BASE_REF..$GITHUB_SHA --name-only | grep dependencies_linux_amd64.txt
+            git diff origin/$GITHUB_BASE_REF...origin/$GITHUB_HEAD_REF --name-only | grep dependencies_linux_amd64.txt
           ); then
             echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "dependencies list changed"
           elif [[ ${{ steps.compare.outputs.diff }} > env.SIZE_ALLOWANCE ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "binary size changed"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "nothing changed"
           fi
 
       ### Steps below run if size diff > SIZE_ALLOWANCE or file dependencies_linux_amd64.txt changed ###
@@ -130,11 +132,23 @@ jobs:
           done
 
       - name: Archive dependency graphs
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
         if: steps.should.outputs.should_run == 'true'
         with:
           name: dependency-graphs
           path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
+
+      - name: Write message
+        id: write
+        if: steps.should.outputs.should_run == 'true'
+        env:
+          VAR_COLD_START: ${{ steps.compare.outputs.coldstart }}
+          VAR_DIFF: ${{ steps.compare.outputs.diff }}
+          VAR_DEPS: ${{ steps.deps.outputs.deps }}
+          VAR_RUN_ID: ${{ github.run_id }}
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          ./test/integration/serverless_perf/write_message.sh
 
       - name: Post comment
         uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
@@ -143,21 +157,4 @@ jobs:
           header: serverless-binary-size
           hide_and_recreate: true
           hide_classify: "RESOLVED"
-          message: |
-            :warning::rotating_light: Warning, this pull request increases the binary size of serverless extension by ${{ steps.compare.outputs.diff }} bytes. Each MB of binary size increase means about 10ms of additional cold start time, so this pull request would increase cold start time by ${{ steps.compare.outputs.coldstart }}ms.
-
-            If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
-
-            <details>
-            <summary>Debug info</summary>
-
-            These dependencies were added to the serverless extension by this pull request:
-
-            ```
-            ${{ steps.deps.outputs.deps }}
-            ```
-
-            View dependency graphs for each added dependency in the [artifacts section](https://github.com/DataDog/datadog-agent/actions/runs/${{ github.run_id }}#artifacts) of the github action.
-
-            We suggest you consider adding the `!serverless` build tag to remove any new dependencies not needed in the serverless extension.
-            </details>
+          path: ${{ steps.write.outputs.filename }}

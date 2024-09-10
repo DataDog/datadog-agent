@@ -17,6 +17,7 @@ from tasks import (
     components,
     coverage,
     cws_instrumentation,
+    debug,
     devcontainer,
     diff,
     docker_tasks,
@@ -39,6 +40,7 @@ from tasks import (
     new_e2e_tests,
     notify,
     omnibus,
+    oracle,
     otel_agent,
     owners,
     package,
@@ -90,7 +92,13 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_protoc,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -120,6 +128,7 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
+ns.add_task(install_protoc)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
@@ -168,6 +177,7 @@ ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
+ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)
@@ -193,6 +203,7 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
+ns.add_collection(debug)
 ns.configure(
     {
         "run": {

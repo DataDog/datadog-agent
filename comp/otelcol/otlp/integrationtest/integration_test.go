@@ -37,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -80,10 +80,10 @@ import (
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
-		forwarder.Bundle(),
-		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
+		forwarder.Bundle(defaultforwarder.NewParams()),
+		logtrace.Module(),
 		inventoryagentimpl.Module(),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
@@ -98,15 +98,12 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
+			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
 			if err != nil {
 				return nil, err
 			}
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
-		}),
-		fx.Provide(func() workloadmeta.Params {
-			return workloadmeta.NewParams()
 		}),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
@@ -117,8 +114,8 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		hostnameinterface.MockModule(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
-			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		fx.Provide(func(_ coreconfig.Component) logdef.Params {
+			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
@@ -132,7 +129,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return s
 		}),
 		fx.Supply("test-host"),
-		fx.Provide(defaultforwarder.NewParams),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),

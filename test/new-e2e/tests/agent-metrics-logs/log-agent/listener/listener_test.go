@@ -7,9 +7,12 @@ package listener
 
 import (
 	_ "embed"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 
@@ -91,6 +94,16 @@ func assertLogsReceived(
 	agentVersion := agent.Client.Version()
 	t.Logf("Testing Agent Version '%v'\n", agentVersion)
 
+	// Command to get the IP address of the logger-app container
+	ipCmd := []string{
+		"hostname", "-i",
+	}
+
+	ipAddress, _, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", ipCmd...)
+	require.NoError(t, err)
+	ipAddress = strings.TrimSpace(ipAddress)
+	t.Logf("Logger-app IP address: %s", ipAddress)
+	sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
 	// Command to execute inside the container
 	cmd := []string{
 		"/usr/local/bin/send-message.sh",
@@ -101,5 +114,5 @@ func assertLogsReceived(
 	require.NoError(t, err)
 
 	t.Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
-	utils.CheckLogsExpected(t, fakeIntake, "test-app", "bob", []string{})
+	utils.CheckLogsExpected(t, fakeIntake, "test-app", "bob", []string{sourceHostTag})
 }

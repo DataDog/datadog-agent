@@ -61,6 +61,8 @@ const (
 	totalNetworkMetric           = "aws.lambda.enhanced.total_network"
 	tmpUsedMetric                = "aws.lambda.enhanced.tmp_used"
 	tmpMaxMetric                 = "aws.lambda.enhanced.tmp_max"
+	fdMaxMetric                  = "aws.lambda.enhanced.fd_max"
+	fdUseMetric                  = "aws.lambda.enhanced.fd_use"
 	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
@@ -139,6 +141,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 func ContainsOutOfMemoryLog(logString string) bool {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
+			log.Debug("Found out of memory substring in function log line")
 			return true
 		}
 	}
@@ -561,6 +564,80 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 		}
 	}
 
+}
+
+type generateFdEnhancedMetricsArgs struct {
+	FdMax float64
+	FdUse float64
+	Tags  []string
+	Demux aggregator.Demultiplexer
+	Time  float64
+}
+
+// generateFdEnhancedMetrics generates enhanced metrics for the maximum number of file descriptors available and in use
+func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       fdMaxMetric,
+		Value:      args.FdMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       fdUseMetric,
+		Value:      args.FdUse,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	fdMaxData, err := proc.GetFileDescriptorMaxData()
+	if err != nil {
+		log.Debug("Could not emit file descriptor enhanced metrics. %v", err)
+		return
+	}
+
+	fdUseData, err := proc.GetFileDescriptorUseData()
+	if err != nil {
+		log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
+		return
+	}
+
+	fdMax := fdMaxData.MaximumFileHandles
+	fdUse := fdUseData.UseFileHandles
+
+	ticker := time.NewTicker(1 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case _, open := <-sendMetrics:
+			if !open {
+				generateFdEnhancedMetrics(generateFdEnhancedMetricsArgs{
+					FdMax: fdMax,
+					FdUse: fdUse,
+					Tags:  tags,
+					Demux: metricAgent.Demux,
+					Time:  float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				return
+			}
+		case <-ticker.C:
+			fdUseData, err := proc.GetFileDescriptorUseData()
+			if err != nil {
+				log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
+				return
+			}
+			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
+		}
+	}
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel

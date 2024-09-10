@@ -4,9 +4,6 @@ retry_count=0
 max_retries=10
 parameter_name="$1"
 
-# shellcheck disable=SC1091
-source /root/.bashrc > /dev/null 2>&1
-
 set +x
 
 while [[ $retry_count -lt $max_retries ]]; do
@@ -18,7 +15,7 @@ while [[ $retry_count -lt $max_retries ]]; do
     fi
     if [[ "$error" =~ "Unable to locate credentials" ]]; then
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
-        echo "Credentials won't be retrieved, no need to retry"
+        >&2 echo "Permanent error: unable to locate AWS credentials, not retrying"
         exit 1
     fi
     retry_count=$((retry_count+1))

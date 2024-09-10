@@ -33,14 +33,15 @@ const (
 
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
-	lister       listersv1.ServiceLister
-	upToDate     bool
-	configErrors map[string]ErrorMsgSet
+	lister         listersv1.ServiceLister
+	upToDate       bool
+	configErrors   map[string]ErrorMsgSet
+	telemetryStore *telemetry.Store
 }
 
 // NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeServiceConfigProvider(_ *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	// Using GetAPIClient() (no retry)
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -53,8 +54,9 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 	}
 
 	p := &KubeServiceConfigProvider{
-		lister:       servicesInformer.Lister(),
-		configErrors: make(map[string]ErrorMsgSet),
+		lister:         servicesInformer.Lister(),
+		configErrors:   make(map[string]ErrorMsgSet),
+		telemetryStore: telemetryStore,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -201,7 +203,9 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 
 	k.cleanErrorsOfDeletedServices(setServiceIDs)
 
-	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+	if k.telemetryStore != nil {
+		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeServices)
+	}
 
 	return configs, nil
 }

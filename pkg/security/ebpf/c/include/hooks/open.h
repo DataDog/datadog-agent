@@ -12,10 +12,6 @@
 
 int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
-    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,
@@ -56,6 +52,13 @@ HOOK_SYSCALL_COMPAT_ENTRY1(truncate, const char *, filename) {
     return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
 
+HOOK_SYSCALL_COMPAT_ENTRY0(ftruncate) {
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    umode_t mode = 0;
+    char filename[1] = "";
+    return trace__sys_openat(&filename[0], SYNC_SYSCALL, flags, mode);
+}
+
 HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
@@ -89,8 +92,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     return 0;
 }
 
-HOOK_ENTRY("vfs_truncate")
-int hook_vfs_truncate(ctx_t *ctx) {
+int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path, struct dentry *dentry) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -99,9 +101,6 @@ int hook_vfs_truncate(ctx_t *ctx) {
     if (syscall->open.dentry) {
         return 0;
     }
-
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    struct dentry *dentry = get_path_dentry(path);
 
     if (is_non_mountable_dentry(dentry)) {
         pop_syscall(EVENT_OPEN);
@@ -118,6 +117,47 @@ int hook_vfs_truncate(ctx_t *ctx) {
     }
 
     return 0;
+}
+
+int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
+    if (path == NULL) {
+        return 0;
+    }
+
+    struct dentry *dentry = get_path_dentry(path);
+    return handle_truncate_path_dentry(path, dentry);
+}
+
+HOOK_ENTRY("do_truncate")
+int hook_do_truncate(ctx_t *ctx) {
+    struct dentry *dentry = (struct dentry *)CTX_PARM1(ctx);
+    struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (f == NULL) {
+        return 0;
+    }
+    struct path *path = get_file_f_path_addr(f);
+    return handle_truncate_path_dentry(path, dentry);
+}
+
+HOOK_ENTRY("vfs_truncate")
+int hook_vfs_truncate(ctx_t *ctx) {
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_truncate_path(path);
+}
+
+HOOK_ENTRY("security_file_truncate")
+int hook_security_file_truncate(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    if (f == NULL) {
+        return 0;
+    }
+    return handle_truncate_path(get_file_f_path_addr(f));
+}
+
+HOOK_ENTRY("security_path_truncate")
+int hook_security_path_truncate(ctx_t *ctx) {
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_truncate_path(path);
 }
 
 HOOK_ENTRY("vfs_open")
@@ -229,6 +269,11 @@ HOOK_SYSCALL_COMPAT_EXIT(open_by_handle_at) {
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(truncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+}
+
+HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }

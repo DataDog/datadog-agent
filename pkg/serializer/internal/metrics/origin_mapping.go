@@ -215,6 +215,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubeAPIserverMetrics,
 		metrics.MetricSourceKubeControllerManager,
 		metrics.MetricSourceKubeDNS,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubeMetricsServer,
 		metrics.MetricSourceKubeProxy,
 		metrics.MetricSourceKubeScheduler,
@@ -289,7 +290,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceWindowsService,
 		metrics.MetricSourceWmiCheck,
 		metrics.MetricSourceYarn,
-		metrics.MetricSourceZk:
+		metrics.MetricSourceZk,
+		metrics.MetricSourceAwsNeuron:
 		return 11 // integrationMetrics
 	default:
 		return 0
@@ -847,6 +849,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 399
 	case metrics.MetricSourceVllm:
 		return 412
+	case metrics.MetricSourceAwsNeuron:
+		return 413
+	case metrics.MetricSourceKubeflow:
+		return 416
 	default:
 		return 0
 	}

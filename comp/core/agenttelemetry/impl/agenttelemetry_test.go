@@ -9,7 +9,7 @@
 //
 // ---------------------------------------------------
 
-package impl
+package agenttelemetryimpl
 
 import (
 	"context"
@@ -26,9 +26,10 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,27 +98,12 @@ func newRunnerMock() runner {
 	return &runnerMock{}
 }
 
-// Status component currently has mock but it appears to be not compatible with fx  fx fails
-type statusMock struct {
-}
-
-func (s statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetSections() []string {
-	return []string{}
-}
-func newStatusMock() statusMock {
-	return statusMock{}
-}
-
+// utilities
 func convertYamlStrToMap(t *testing.T, cfgStr string) map[string]any {
 	var c map[string]any
 	err := yaml.Unmarshal([]byte(cfgStr), &c)
 	assert.NoError(t, err)
+	assert.NotNil(t, c)
 	return c
 }
 
@@ -144,16 +130,47 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	return metricMap
 }
 
+func makeTelMock(t *testing.T) telemetry.Component {
+	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
+	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel.Reset()
+	return tel
+}
+
+func makeCfgMock(t *testing.T, confOverrides map[string]any) config.Component {
+	return fxutil.Test[config.Component](t, config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: confOverrides}))
+}
+
+func makeLogMock(t *testing.T) log.Component {
+	return logmock.New(t)
+}
+
+func makeStatusMock(t *testing.T) status.Component {
+	return fxutil.Test[status.Mock](t, fx.Options(statusimpl.MockModule()))
+}
+
+func makeSenderImpl(t *testing.T, c string) sender {
+	o := convertYamlStrToMap(t, c)
+	cfg := makeCfgMock(t, o)
+	log := makeLogMock(t)
+	client := newClientMock()
+	sndr, err := newSenderImpl(cfg, log, client)
+	assert.NoError(t, err)
+	return sndr
+}
+
 // aggregator mock function
 func getTestAtel(t *testing.T,
 	tel telemetry.Component,
-	confOverrides map[string]any,
+	ovrrd map[string]any,
 	sndr sender,
 	client client,
 	runner runner) *atel {
 
 	if tel == nil {
-		tel = fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		tel = makeTelMock(t)
 	}
 
 	if client == nil {
@@ -164,15 +181,8 @@ func getTestAtel(t *testing.T,
 		runner = newRunnerMock()
 	}
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
-	status := fxutil.Test[status.Component](t,
-		func() fxutil.Module {
-			return fxutil.Component(
-				fx.Provide(newStatusMock),
-				fx.Provide(func(s statusMock) status.Component { return s }))
-		}())
+	cfg := makeCfgMock(t, ovrrd)
+	log := makeLogMock(t)
 
 	var err error
 	if sndr == nil {
@@ -180,7 +190,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, status, sndr, runner)
+	atel := createAtel(cfg, log, tel, makeStatusMock(t), sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}
@@ -190,6 +200,11 @@ func getTestAtel(t *testing.T,
 }
 
 func getCommonOverrideConfig(enabled bool, site string) map[string]any {
+	if site == "" {
+		return map[string]any{
+			"agent_telemetry.enabled": enabled,
+		}
+	}
 	return map[string]any{
 		"agent_telemetry.enabled": enabled,
 		"site":                    site,
@@ -206,6 +221,40 @@ func TestDisable(t *testing.T) {
 	o := getCommonOverrideConfig(false, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
+}
+
+func TestDisableIfFipsEnabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            true}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfFipsDisabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            false}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
+}
+
+func TestDisableIfGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "ddog-gov.com"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfNotGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "datadoghq.eu"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
 }
 
 func TestDisableByDefault(t *testing.T) {
@@ -229,11 +278,7 @@ func TestRun(t *testing.T) {
 }
 
 func TestReportMetricBasic(t *testing.T) {
-	// Little hack. Telemetry component is not fully componentized, and relies on global registry so far
-	// so we need to reset it before running the test. This is not ideal and will be improved in the future.
-	// TODO: moved Status and Metric collection to an interface and use a mock for testing
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
+	tel := makeTelMock(t)
 	counter := tel.NewCounter("checks", "execution_time", []string{"check_name"}, "")
 	counter.Inc("mycheck")
 
@@ -263,8 +308,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
   `
 
 	// setup and initiate atel
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
+	tel := makeTelMock(t)
 	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 	counter.AddWithTags(20, map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"})
@@ -304,8 +348,7 @@ func TestNoTagSpecifiedAggregationGauge(t *testing.T) {
   `
 
 	// setup and initiate atel
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
+	tel := makeTelMock(t)
 	gauge := tel.NewGauge("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Set(10)
 	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
@@ -345,9 +388,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
   `
 
 	// setup and initiate atel
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
-
+	tel := makeTelMock(t)
 	buckets := []float64{10, 100, 1000, 10000}
 	gauge := tel.NewHistogram("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "", buckets)
 	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Observe(1001)
@@ -388,8 +429,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
     `
 
 	// setup and initiate atel
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
+	tel := makeTelMock(t)
 	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 
 	// should generate 2 timeseries withj tag1:a1, tag1:a2
@@ -437,8 +477,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
                   - tag1
     `
 	// setup and initiate atel
-	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	tel.Reset()
+	tel := makeTelMock(t)
 	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 
 	// should generate 4 timeseries withj tag1:a1, tag1:a2, tag1:a3 and total:6
@@ -483,4 +522,136 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
 }
 
-// TODO: Add more status tests (status mock inspirations are at datadog-agent\comp\core\status\statusimpl\status_test.go)
+func TestSenderConfigNoConfig(t *testing.T) {
+	c := `
+    agent_telemetry:
+      enabled: true
+    `
+	sndr := makeSenderImpl(t, c)
+
+	url := buildURL(sndr.(*senderImpl).endpoints.Main)
+	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigSite tests that the site configuration is correctly used to build the endpoint URL
+func TestSenderConfigOnlySites(t *testing.T) {
+	ctemp := `
+    site: %s
+    agent_telemetry:
+      enabled: true
+    `
+	// Probably overkill (since 2 should be sufficient), but let's test all the sites
+	tests := []struct {
+		site    string
+		testURL string
+	}{
+		{"datadoghq.com", "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry"},
+		{"datad0g.com", "https://instrumentation-telemetry-intake.datad0g.com/api/v2/apmtelemetry"},
+		{"datadoghq.eu", "https://instrumentation-telemetry-intake.datadoghq.eu/api/v2/apmtelemetry"},
+		{"us3.datadoghq.com", "https://instrumentation-telemetry-intake.us3.datadoghq.com/api/v2/apmtelemetry"},
+		{"us5.datadoghq.com", "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry"},
+		{"ap1.datadoghq.com", "https://instrumentation-telemetry-intake.ap1.datadoghq.com/api/v2/apmtelemetry"},
+	}
+
+	for _, tt := range tests {
+		c := fmt.Sprintf(ctemp, tt.site)
+		sndr := makeSenderImpl(t, c)
+		url := buildURL(sndr.(*senderImpl).endpoints.Main)
+		assert.Equal(t, tt.testURL, url)
+	}
+}
+
+// TestSenderConfigAdditionalEndpoint tests that the additional endpoint configuration is correctly used to build the endpoint URL
+func TestSenderConfigAdditionalEndpoint(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      additional_endpoints:
+        - api_key: bar
+          host: instrumentation-telemetry-intake.us5.datadoghq.com
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry", url)
+	url = buildURL(sndr.(*senderImpl).endpoints.Endpoints[1])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigPartialDDUrl dd_url overrides alone
+func TestSenderConfigPartialDDUrl(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigFullDDUrl dd_url overrides alone
+func TestSenderConfigFullDDUrl(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: https://instrumentation-telemetry-intake.us5.datadoghq.com.
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigDDUrlWithAdditionalEndpoints dd_url overrides with additional endpoints
+func TestSenderConfigDDUrlWithAdditionalEndpoints(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
+      additional_endpoints:
+        - api_key: bar
+          host: instrumentation-telemetry-intake.us3.datadoghq.com.
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+	url = buildURL(sndr.(*senderImpl).endpoints.Endpoints[1])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us3.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigDDUrlWithEmptyAdditionalPoint dd_url overrides with empty additional endpoints
+func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
+      additional_endpoints:
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}

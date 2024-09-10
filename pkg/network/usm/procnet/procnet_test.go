@@ -23,7 +23,7 @@ func TestGetTCPConnections(t *testing.T) {
 	const srvAddress = "127.0.0.1:8080"
 
 	// Create TCP server
-	srv := testutil.NewTCPServer(srvAddress, func(c net.Conn) { time.Sleep(time.Minute) }, false)
+	srv := testutil.NewTCPServer(srvAddress, func(net.Conn) { time.Sleep(time.Minute) }, false)
 	done := make(chan struct{})
 	srv.Run(done)
 	t.Cleanup(func() { close(done) })

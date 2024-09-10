@@ -1,8 +1,6 @@
 ---
 .docker_build_job_definition:
   stage: container_build
-  variables:
-    CI_ENABLE_CONTAINER_IMAGE_BUILDS: "true"
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -15,10 +13,10 @@
       fi
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    # Build image
-    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." $BUILD_CONTEXT
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    # Build image, use target none label to avoid replication
+    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." --label "target=none" $BUILD_CONTEXT
     # Squash image
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures
@@ -49,7 +47,7 @@ docker_build_agent6:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -61,7 +59,7 @@ docker_build_agent6_arm64:
     - job: agent_deb-arm64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=2 --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*arm64.deb
@@ -76,7 +74,7 @@ docker_build_agent6_jmx:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*_amd64.deb
     TAG_SUFFIX: -6-jmx
@@ -90,7 +88,7 @@ docker_build_agent6_jmx_arm64:
     - job: agent_deb-arm64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     BUILD_ARTIFACT_GLOB: datadog-agent_6*arm64.deb
     TAG_SUFFIX: -6-jmx
@@ -107,7 +105,7 @@ docker_build_agent6_py2py3_jmx:
     - job: agent_deb-x64-a6
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -6-py2py3-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent_6*_amd64.deb
@@ -122,7 +120,7 @@ docker_build_agent7:
     - job: agent_deb-x64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
@@ -149,7 +147,7 @@ docker_build_agent7_arm64:
     - job: agent_deb-arm64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
@@ -164,7 +162,7 @@ docker_build_agent7_jmx:
     - job: agent_deb-x64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
@@ -178,7 +176,7 @@ docker_build_agent7_jmx_arm64:
     - job: agent_deb-arm64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_arm64.deb
@@ -193,7 +191,7 @@ docker_build_ot_agent7:
     - job: ot_agent_deb-x64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_amd64.deb
@@ -207,7 +205,7 @@ docker_build_ot_agent7_arm64:
     - job: ot_agent_deb-arm64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta
     BUILD_ARG: --target test --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_arm64.deb
@@ -222,7 +220,7 @@ docker_build_ot_agent7_jmx:
     - job: ot_agent_deb-x64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_amd64.deb
@@ -236,7 +234,7 @@ docker_build_ot_agent7_jmx_arm64:
     - job: ot_agent_deb-arm64-a7
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-ot-beta-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-ot-agent_7*_arm64.deb
@@ -253,7 +251,7 @@ docker_build_cluster_agent_amd64:
     - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
@@ -269,7 +267,7 @@ docker_build_cluster_agent_arm64:
     - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
   before_script:
     - cp -Rvf Dockerfiles/agent/nosys-seccomp Dockerfiles/cluster-agent/
@@ -282,7 +280,7 @@ docker_build_cws_instrumentation_amd64:
     - job: cws_instrumentation-build_amd64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-instrumentation
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
 
 docker_build_cws_instrumentation_arm64:
@@ -292,7 +290,7 @@ docker_build_cws_instrumentation_arm64:
     - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-instrumentation
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
     BUILD_CONTEXT: Dockerfiles/cws-instrumentation
 
 # build the dogstatsd image
@@ -305,7 +303,7 @@ docker_build_dogstatsd_amd64:
     - job: build_dogstatsd_static-binary_x64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
   timeout: 20m
 
@@ -319,6 +317,6 @@ docker_build_dogstatsd_arm64:
     - job: build_dogstatsd_static-binary_arm64
       artifacts: false
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
   timeout: 20m

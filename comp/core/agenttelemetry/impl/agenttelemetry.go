@@ -9,8 +9,8 @@
 //
 // ---------------------------------------------------
 
-// Package impl provides the implementation of the agenttelemetry component.
-package impl
+// Package agenttelemetryimpl provides the implementation of the agenttelemetry component.
+package agenttelemetryimpl
 
 import (
 	"bytes"
@@ -25,7 +25,7 @@ import (
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -114,6 +114,18 @@ func createAtel(
 		return &atel{}
 	}
 
+	if sender == nil {
+		sender, err = createSender(cfgComp, logComp)
+		if err != nil {
+			logComp.Errorf("Failed to create agent telemetry sender: %s", err.Error())
+			return &atel{}
+		}
+	}
+
+	if runner == nil {
+		runner = newRunnerImpl()
+	}
+
 	return &atel{
 		enabled:    true,
 		cfgComp:    cfgComp,
@@ -128,31 +140,23 @@ func createAtel(
 
 // NewComponent creates a new agent telemetry component.
 func NewComponent(req Requires) agenttelemetry.Component {
-	sender, err := createSender(req.Config, req.Log)
-	if err != nil {
-		return &atel{}
-	}
-
-	runner := newRunnerImpl()
-
 	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
 	a := createAtel(
 		req.Config,
 		req.Log,
 		req.Telemetry,
 		req.Status,
-		sender,
-		runner,
+		nil,
+		nil,
 	)
 
-	// If agent telemetry is enabled, add the start and stop hooks
+	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		// Instruct FX to start and stop the agent telemetry
 		req.Lifecycle.Append(compdef.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				return a.start()
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				return a.stop()
 			},
 		})

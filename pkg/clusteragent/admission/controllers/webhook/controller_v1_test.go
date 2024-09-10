@@ -29,7 +29,6 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -952,16 +951,13 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 			tt.setupConfig(mockConfig)
-			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
@@ -1091,7 +1087,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 
 func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),

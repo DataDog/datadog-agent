@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -135,7 +136,7 @@ func xccdfEnabled() bool {
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
 func DefaultRuleFilter(r *Rule) bool {
-	if config.IsKubernetes() {
+	if env.IsKubernetes() {
 		if r.SkipOnK8s {
 			return false
 		}
@@ -148,7 +149,7 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel("")
+		ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 		if err != nil {
 			log.Errorf("failed to apply rule filters: %v", err)
 			return false
@@ -390,7 +391,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 }
 
 func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
-	if !config.IsKubernetes() {
+	if !env.IsKubernetes() {
 		return
 	}
 
@@ -411,7 +412,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel("")
+	ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return

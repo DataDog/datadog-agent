@@ -16,7 +16,8 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
@@ -63,14 +64,13 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMock),
 		fx.Supply(config.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		telemetryimpl.MockModule(),
-		workloadmetafx.Module(),
 	)
 }
 
