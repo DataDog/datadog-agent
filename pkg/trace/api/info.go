@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -36,21 +38,19 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
-		DefaultEnv                  string                        `json:"default_env"`
-		TargetTPS                   float64                       `json:"target_tps"`
-		MaxEPS                      float64                       `json:"max_eps"`
-		ReceiverPort                int                           `json:"receiver_port"`
-		ReceiverSocket              string                        `json:"receiver_socket"`
-		ConnectionLimit             int                           `json:"connection_limit"`
-		ReceiverTimeout             int                           `json:"receiver_timeout"`
-		MaxRequestBytes             int64                         `json:"max_request_bytes"`
-		StatsdPort                  int                           `json:"statsd_port"`
-		MaxMemory                   float64                       `json:"max_memory"`
-		MaxCPU                      float64                       `json:"max_cpu"`
-		AnalyzedSpansByService      map[string]map[string]float64 `json:"analyzed_spans_by_service"`
-		ProbabilisticSamplerEnabled bool                          `json:"probabilistic_sampler_enabled"`
-		ComputeStatsBySpanKind      bool                          `json:"compute_stats_by_span_kind"`
-		Obfuscation                 reducedObfuscationConfig      `json:"obfuscation"`
+		DefaultEnv             string                        `json:"default_env"`
+		TargetTPS              float64                       `json:"target_tps"`
+		MaxEPS                 float64                       `json:"max_eps"`
+		ReceiverPort           int                           `json:"receiver_port"`
+		ReceiverSocket         string                        `json:"receiver_socket"`
+		ConnectionLimit        int                           `json:"connection_limit"`
+		ReceiverTimeout        int                           `json:"receiver_timeout"`
+		MaxRequestBytes        int64                         `json:"max_request_bytes"`
+		StatsdPort             int                           `json:"statsd_port"`
+		MaxMemory              float64                       `json:"max_memory"`
+		MaxCPU                 float64                       `json:"max_cpu"`
+		AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
+		Obfuscation            reducedObfuscationConfig      `json:"obfuscation"`
 	}
 	var oconf reducedObfuscationConfig
 	if o := r.conf.Obfuscation; o != nil {
@@ -63,6 +63,17 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Redis = o.Redis
 		oconf.Memcached = o.Memcached
 	}
+
+	// We check that endpoints contains stats, even though we know this version of the
+	// agent supports it. It's conceivable that the stats endpoint could be disabled at some point
+	// so this is defensive against that case.
+	canDropP0 := !r.conf.ProbabilisticSamplerEnabled && slices.Contains(all, "/v0.6/stats")
+
+	var spanKindsStatsComputed []string
+	if r.conf.ComputeStatsBySpanKind {
+		spanKindsStatsComputed = stats.KindsComputed
+	}
+
 	txt, err := json.MarshalIndent(struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
@@ -74,31 +85,31 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
 		Config                 reducedConfig `json:"config"`
 		PeerTags               []string      `json:"peer_tags"`
+		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
 		Endpoints:              all,
 		FeatureFlags:           r.conf.AllFeatures(),
-		ClientDropP0s:          true,
+		ClientDropP0s:          canDropP0,
 		SpanMetaStructs:        true,
 		LongRunningSpans:       true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
+		SpanKindsStatsComputed: spanKindsStatsComputed,
 		Config: reducedConfig{
-			DefaultEnv:                  r.conf.DefaultEnv,
-			TargetTPS:                   r.conf.TargetTPS,
-			MaxEPS:                      r.conf.MaxEPS,
-			ReceiverPort:                r.conf.ReceiverPort,
-			ReceiverSocket:              r.conf.ReceiverSocket,
-			ConnectionLimit:             r.conf.ConnectionLimit,
-			ReceiverTimeout:             r.conf.ReceiverTimeout,
-			MaxRequestBytes:             r.conf.MaxRequestBytes,
-			StatsdPort:                  r.conf.StatsdPort,
-			MaxMemory:                   r.conf.MaxMemory,
-			MaxCPU:                      r.conf.MaxCPU,
-			AnalyzedSpansByService:      r.conf.AnalyzedSpansByService,
-			ProbabilisticSamplerEnabled: r.conf.ProbabilisticSamplerEnabled,
-			ComputeStatsBySpanKind:      r.conf.ComputeStatsBySpanKind,
-			Obfuscation:                 oconf,
+			DefaultEnv:             r.conf.DefaultEnv,
+			TargetTPS:              r.conf.TargetTPS,
+			MaxEPS:                 r.conf.MaxEPS,
+			ReceiverPort:           r.conf.ReceiverPort,
+			ReceiverSocket:         r.conf.ReceiverSocket,
+			ConnectionLimit:        r.conf.ConnectionLimit,
+			ReceiverTimeout:        r.conf.ReceiverTimeout,
+			MaxRequestBytes:        r.conf.MaxRequestBytes,
+			StatsdPort:             r.conf.StatsdPort,
+			MaxMemory:              r.conf.MaxMemory,
+			MaxCPU:                 r.conf.MaxCPU,
+			AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
+			Obfuscation:            oconf,
 		},
 		PeerTags: r.conf.ConfiguredPeerTags(),
 	}, "", "\t")
