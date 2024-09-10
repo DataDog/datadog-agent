@@ -43,8 +43,8 @@ type Component interface {
 	Standard(entityID string) ([]string, error)
 	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
-	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
-	Unsubscribe(ch chan []types.EntityEvent)
+	// subscriptionID is used for logging and debugging purposes
+	Subscribe(subscriptionID string, filter *types.Filter) types.Subscription
 	GetEntityHash(entityID string, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
