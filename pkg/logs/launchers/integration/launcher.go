@@ -250,17 +250,20 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 	return fileSource
 }
 
-// TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(source string) (*FileInfo, error) {
 	filepath := s.integrationLogFilePath(source)
 
 	file, err := os.Create(filepath)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	ddLog.Info("Successfully created integrations log file.")
-	defer file.Close()
+
+	err = file.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	fileInfo := &FileInfo{
 		filename:     filepath,
@@ -297,9 +300,8 @@ func (s *Launcher) deleteAndRemakeFile(filepath string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
 
-	return nil
+	return file.Close()
 }
 
 // computerDiskUsageMax computes the max disk space the launcher can use based
