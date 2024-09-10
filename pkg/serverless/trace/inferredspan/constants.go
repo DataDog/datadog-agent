@@ -11,6 +11,7 @@ const (
 	apiName          = "apiname"
 	bucketARN        = "bucket_arn"
 	bucketName       = "bucketname"
+	busName          = "BusName"
 	connectionID     = "connection_id"
 	detailType       = "detail_type"
 	endpoint         = "endpoint"

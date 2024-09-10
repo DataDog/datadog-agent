@@ -293,10 +293,17 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.eventbridge"
 	inferredSpan.Span.Service = serviceName
-	// todo make span name the bus name
 
-	// Use the SentTimestamp time passed in by the tracer if it exists
-	// Otherwise use the time that AWS gives us.
+	// The bus name isn't included in the payload, so we use `BusName`
+	// passed in by the tracer if it exists. Otherwise, use "EventBridge"
+	if resourceName, ok := eventPayload.Detail[busName].(string); ok {
+		inferredSpan.Span.Resource = resourceName
+	} else {
+		inferredSpan.Span.Resource = "EventBridge"
+	}
+
+	// Use the `SentTimestamp` time passed in by the tracer if it exists.
+	// Otherwise, use the time that AWS gives us in `eventPayload.Time`.
 	// `eventPayload.Time` only has second resolution, so it's very inaccurate.
 	var startTimeNanos int64
 	if startTime, ok := eventPayload.Detail[sentTimestamp].(string); ok {
@@ -306,7 +313,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 	}
 
 	inferredSpan.Span.Start = startTimeNanos
-	inferredSpan.Span.Resource = source
 	inferredSpan.Span.Type = "web"
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.eventbridge",
