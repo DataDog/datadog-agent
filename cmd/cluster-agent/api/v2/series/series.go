@@ -13,7 +13,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,6 +31,7 @@ const (
 // InstallNodeMetricsEndpoints installs node metrics collection endpoints
 func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
 	service := newHandler(cfg)
+	service.store.StartCleanupInBackground(ctx)
 	handler := api.WithLeaderProxyHandler(
 		nodeMetricHandlerName,
 		service.prehandler,
@@ -41,11 +41,13 @@ func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.
 }
 
 type Handler struct {
-	cfg config.Component
+	cfg   config.Component
+	store *EntityStore
 }
 
 func newHandler(cfg config.Component) Handler {
-	return Handler{cfg: cfg}
+	return Handler{cfg: cfg,
+		store: NewEntityStore()}
 }
 
 func (h *Handler) prehandler(w http.ResponseWriter, r *http.Request) bool {
@@ -59,7 +61,7 @@ func (h *Handler) leaderHandler(w http.ResponseWriter, r *http.Request) {
 		if err := metricPayload.Unmarshal(payload); err != nil {
 			return err
 		}
-		h.printSeries(metricPayload)
+		h.processSeries(metricPayload)
 
 		return nil
 	}
@@ -78,10 +80,21 @@ func (h *Handler) leaderHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (h *Handler) printSeries(payload *gogen.MetricPayload) {
-	for _, series := range payload.Series {
-		log.Infof("Metric=%q\t Tags=%q", series.Metric, strings.Join(series.Tags, ", "))
+func (h *Handler) processSeries(payload *gogen.MetricPayload) {
+	entities := createEntitiesFromPayload(payload)
+	for entity, entityValues := range entities {
+		for _, ev := range entityValues {
+			h.store.Insert(&entity, ev)
+		}
 	}
+
+	for hash, entity := range h.store.key2EntityMap {
+		values := h.store.GetValues(hash)
+		for _, ev := range values {
+			log.Infof("Entity: %s, %s", entity, ev)
+		}
+	}
+	log.Infof(h.store.GetStoreInfo())
 }
 
 func getReaderFromRequest(r *http.Request) (error, io.ReadCloser) {
