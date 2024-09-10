@@ -129,7 +129,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 		return nil, fmt.Errorf("failed to parse agent version: %v", err)
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
