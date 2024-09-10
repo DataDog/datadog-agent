@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,7 +46,7 @@ func NewProvider(entityID string, tagAdder EntityTagAdder) Provider {
 func newProviderWithClock(entityID string, clock clock.Clock, tagAdder EntityTagAdder) Provider {
 	p := &provider{
 		entityID:             entityID,
-		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog()),
+		taggerWarmupDuration: config.TaggerWarmupDuration(pkgconfigsetup.Datadog()),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
 		tagAdder:             tagAdder,

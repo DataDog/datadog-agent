@@ -20,7 +20,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -149,8 +149,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog().GetDuration("logs_config.close_timeout") * time.Second
-	windowsOpenFileTimeout := coreConfig.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
+	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated

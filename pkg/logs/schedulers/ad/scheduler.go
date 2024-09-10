@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -153,7 +153,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
-		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
 			// config supplied by remote config
 			configs, err = logsConfig.ParseJSON(config.LogsConfig)
 		} else {
