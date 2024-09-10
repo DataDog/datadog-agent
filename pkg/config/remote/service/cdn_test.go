@@ -7,11 +7,11 @@ package service
 
 import (
 	"encoding/base32"
-	"encoding/json"
 	"fmt"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupCDNClient(t *testing.T, uptaneClient *uptane.CdnClient, api *mockAPI) *HTTPClient {
+func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane, api *mockAPI) *HTTPClient {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
 	cfg.SetWithoutSource("hostname", "test-hostname")
@@ -33,7 +33,7 @@ func setupCDNClient(t *testing.T, uptaneClient *uptane.CdnClient, api *mockAPI) 
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
 	opts := make([]HTTPClientOption, 0)
-	client, err := NewHTTPClient(cfg, baseRawURL, host, site, k, opts...)
+	client, err := NewHTTPClient(cfg, baseRawURL, host, site, k, "", "9.9.9")
 	require.NoError(t, err)
 	if api != nil {
 		client.api = api
@@ -44,11 +44,12 @@ func setupCDNClient(t *testing.T, uptaneClient *uptane.CdnClient, api *mockAPI) 
 	return client
 }
 
-// TODO use mock uptane client and values
 var (
-	host = "remote-config.datad0g.com"
-	site = "datad0g.com"
-	k    = "" // TODO don't hardcode
+	host    = "test-host"
+	site    = "test-site"
+	k       = "test-api-key"
+	tmpPath = "tmp"
+	db      = "test-config.db"
 )
 
 func getTestOrgUUIDProvider(orgID int) uptane.OrgUUIDProvider {
@@ -62,82 +63,173 @@ func getTestOrgUUIDFromID(orgID int) string {
 }
 
 // TODO use mock uptane client
-func setupHTTPUptaneClient(t *testing.T) *uptane.CdnClient {
+func setupHTTPUptaneClient(t *testing.T) *uptane.CDNClient {
 
-	dbPath := path.Join("/opt/tim/datadog-agent", "remote-cdn-config.db")
+	dbPath := path.Join(tmpPath, db)
 	db, err := openCacheDB(dbPath, agentVersion, k)
 	require.NoError(t, err)
-	opts := make([]uptane.CDNClientOption, 0)
+	opts := make([]uptane.ClientOption, 0)
 	httpCDNClient, err := uptane.NewHTTPClient(db, host, site, k, getTestOrgUUIDProvider(2), opts...)
 	require.NoError(t, err)
 	return httpCDNClient
 }
 
-func TestHTTPClient_Update(t *testing.T) {
+// TestHTTPClientRecentUpdate tests that with a recent (<50s ago) last-update-time,
+// the client will not fetch a new update and will return the cached state
+func TestHTTPClientRecentUpdate(t *testing.T) {
+	api := &mockAPI{}
+
+	uptaneClient := &mockCDNUptane{}
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+		DirectorRoot:    1,
+		DirectorTargets: 1,
+		ConfigRoot:      1,
+		ConfigSnapshot:  1,
+	}, nil)
+	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
+	uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
+	uptaneClient.On("Targets").Return(
+		data.TargetFiles{
+			"datadog/2/TESTING1/id/1": {},
+			"datadog/2/TESTING2/id/2": {},
+		},
+		nil,
+	)
+	uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+
+	client := setupCDNClient(t, uptaneClient, api)
+	client.lastUpdate = time.Now()
+
+	u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+	require.NoError(t, err)
+	uptaneClient.AssertExpectations(t)
+	require.NotNil(t, u)
+	require.Len(t, u.TargetFiles, 1)
+	require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
+	require.Len(t, u.ClientConfigs, 1)
+	require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
+	require.Len(t, u.TUFRoots, 1)
+	require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+
 	response := &pbgo.OrgStatusResponse{
 		Enabled:    true,
 		Authorized: true,
 	}
-	api := &mockAPI{}
 	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-
-	uptaneClient := setupHTTPUptaneClient(t)
-	client := setupCDNClient(t, uptaneClient, api)
-	err := client.update()
-	require.NoError(t, err)
 }
 
-func TestHTTPClient_GetUpdates(t *testing.T) {
-	response := &pbgo.OrgStatusResponse{
-		Enabled:    true,
-		Authorized: true,
+// TestHTTPClientNegativeOrgStatus tests that with a recent (<50s ago) last-update-time,
+// the client will not fetch a new update and will return the cached state
+func TestHTTPClientNegativeOrgStatus(t *testing.T) {
+	var tests = []struct {
+		enabled, authorized bool
+		err                 error
+	}{
+		{false, true, nil},
+		{true, false, nil},
+		{false, false, nil},
+		{true, true, fmt.Errorf("error")},
+		{false, false, fmt.Errorf("error")},
 	}
-	api := &mockAPI{}
-	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
 
-	uptaneClient := setupHTTPUptaneClient(t)
-	client := setupCDNClient(t, uptaneClient, api)
-	u, err := client.GetCDNConfigUpdate([]string{"DEBUG"}, 0, 0, []*pbgo.TargetFileMeta{})
-	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, 1, len(u.TargetFiles))
-	require.Equal(t, 1, len(u.ClientConfigs))
-	require.Equal(t, 22, len(u.TUFRoots))
-
-	var signedTargets data.Signed
-	err = json.Unmarshal(u.TUFTargets, &signedTargets)
-	require.NoError(t, err)
-	var targets data.Targets
-	err = json.Unmarshal(signedTargets.Signed, &targets)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(targets.Targets))
-
-	targetsFileVersion := targets.Version
-	var cachedTargetFiles []*pbgo.TargetFileMeta
-	for p, target := range targets.Targets {
-		var hashes []*pbgo.TargetFileHash
-		for algo, hash := range target.Hashes {
-			hashes = append(hashes, &pbgo.TargetFileHash{
-				Algorithm: algo,
-				Hash:      string(hash),
-			})
-			targetFile := &pbgo.TargetFileMeta{
-				Path:   p,
-				Hashes: hashes,
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("enabled=%t, authorized=%t, err=%v", tt.enabled, tt.authorized, tt.err), func(t *testing.T) {
+			api := &mockAPI{}
+			response := &pbgo.OrgStatusResponse{
+				Enabled:    tt.enabled,
+				Authorized: tt.authorized,
 			}
-			cachedTargetFiles = append(cachedTargetFiles, targetFile)
-		}
+			api.On("FetchOrgStatus", mock.Anything).Return(response, tt.err)
+			uptaneClient := &mockCDNUptane{}
+			uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+				DirectorRoot:    1,
+				DirectorTargets: 1,
+				ConfigRoot:      1,
+				ConfigSnapshot:  1,
+			}, nil)
+			uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
+			uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
+			uptaneClient.On("Targets").Return(
+				data.TargetFiles{
+					"datadog/2/TESTING1/id/1": {},
+					"datadog/2/TESTING2/id/2": {},
+				},
+				nil,
+			)
+			uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+
+			client := setupCDNClient(t, uptaneClient, api)
+			client.lastUpdate = time.Now().Add(time.Second * -60)
+
+			u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			require.NoError(t, err)
+			uptaneClient.AssertExpectations(t)
+			require.NotNil(t, u)
+			require.Len(t, u.TargetFiles, 1)
+			require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
+			require.Len(t, u.ClientConfigs, 1)
+			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
+			require.Len(t, u.TUFRoots, 1)
+			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+		})
 	}
-	require.Equal(t, 1, len(cachedTargetFiles))
+}
 
-	u, err = client.GetCDNConfigUpdate([]string{"DEBUG"}, 0, 0, []*pbgo.TargetFileMeta{})
-	require.NoError(t, err)
-	require.NotNil(t, u)
-	require.Equal(t, 1, len(u.TargetFiles))
-	require.Equal(t, 1, len(u.ClientConfigs))
-	require.Equal(t, 22, len(u.TUFRoots))
+// TestHTTPClientUpdateSuccess tests that a stale state will trigger an update of the cached state
+// before returning the cached state. In the event that the Update fails, the stale state will be returned.
+func TestHTTPClientUpdateSuccess(t *testing.T) {
+	var tests = []struct {
+		updateSucceeds bool
+	}{
+		{true},
+		{false},
+	}
 
-	u, err = client.GetCDNConfigUpdate([]string{"DEBUG"}, uint64(targetsFileVersion), 22, cachedTargetFiles)
-	require.NoError(t, err)
-	require.Nil(t, u)
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("updateSucceeds=%t", tt.updateSucceeds), func(t *testing.T) {
+			api := &mockAPI{}
+			response := &pbgo.OrgStatusResponse{
+				Enabled:    true,
+				Authorized: true,
+			}
+			api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
+			uptaneClient := &mockCDNUptane{}
+			uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+				DirectorRoot:    1,
+				DirectorTargets: 1,
+				ConfigRoot:      1,
+				ConfigSnapshot:  1,
+			}, nil)
+			uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
+			uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
+			uptaneClient.On("Targets").Return(
+				data.TargetFiles{
+					"datadog/2/TESTING1/id/1": {},
+					"datadog/2/TESTING2/id/2": {},
+				},
+				nil,
+			)
+			uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+
+			updateErr := fmt.Errorf("uh oh")
+			if tt.updateSucceeds {
+				updateErr = nil
+			}
+			uptaneClient.On("Update").Return(updateErr)
+
+			client := setupCDNClient(t, uptaneClient, api)
+			client.lastUpdate = time.Now().Add(time.Second * -60)
+
+			u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			require.NoError(t, err)
+			uptaneClient.AssertExpectations(t)
+			require.NotNil(t, u)
+			require.Len(t, u.TargetFiles, 1)
+			require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
+			require.Len(t, u.ClientConfigs, 1)
+			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
+			require.Len(t, u.TUFRoots, 1)
+			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+		})
+	}
 }

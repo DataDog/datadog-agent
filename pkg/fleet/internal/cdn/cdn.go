@@ -16,6 +16,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/go-tuf/data"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -57,6 +58,8 @@ func New(env *env.Env) (*CDN, error) {
 		fmt.Sprintf("https://config.%s", env.Site),
 		env.Site,
 		env.APIKey,
+		"",
+		version.AgentVersion,
 	)
 	if err != nil {
 		return nil, err

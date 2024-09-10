@@ -337,7 +337,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
-	uptaneClient, err := uptane.NewClient(
+	uptaneClient, err := uptane.NewCoreAgentClient(
 		db,
 		newRCBackendOrgUUIDProvider(http),
 		opt...,

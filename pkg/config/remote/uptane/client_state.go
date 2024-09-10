@@ -145,7 +145,7 @@ func (c *Client) State() (State, error) {
 }
 
 // TUFVersionState TODO <remote-config>
-func (c *CdnClient) TUFVersionState() (TUFVersions, error) {
+func (c *CDNClient) TUFVersionState() (TUFVersions, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -178,7 +178,7 @@ func (c *CdnClient) TUFVersionState() (TUFVersions, error) {
 }
 
 // State returns the state of the uptane client
-func (c *CdnClient) State() (State, error) {
+func (c *CDNClient) State() (State, error) {
 	c.Lock()
 	defer c.Unlock()
 

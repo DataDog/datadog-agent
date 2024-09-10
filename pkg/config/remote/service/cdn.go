@@ -23,14 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/go-tuf/data"
 	tufutil "github.com/DataDog/go-tuf/util"
-	"go.etcd.io/bbolt"
 )
 
 const maxUpdateFrequency = 50 * time.Second
 
 // httpUptaneClient is used to mock the uptane component for testing
 type httpUptaneClient interface {
-	HTTPUpdate() error
+	Update() error
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
 	StoredOrgUUID() (string, error)
@@ -53,57 +52,26 @@ type HTTPClient struct {
 	rcType string
 
 	api    api.API
-	db     *bbolt.DB
 	uptane httpUptaneClient
-
-	// Previous /status response
-	previousOrgStatus *pbgo.OrgStatusResponse
 }
 
-type httpClientOptions struct {
-	rcType               string
-	agentVersion         string
-	apiKey               string
-	rcKey                string
-	databaseFileName     string
-	configRootOverride   string
-	directorRootOverride string
-}
+// NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
+func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agentVersion string) (*HTTPClient, error) {
 
-var defaultHTTPClientOptions = httpClientOptions{
-	rcType:               "CDN Client",
-	agentVersion:         "",
-	apiKey:               "",
-	rcKey:                "",
-	databaseFileName:     "remote-config.db",
-	configRootOverride:   "",
-	directorRootOverride: "",
-}
-
-type HTTPClientOption func(o *httpClientOptions)
-
-func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey string, opts ...HTTPClientOption) (*HTTPClient, error) {
-	options := defaultHTTPClientOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
-
-	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
-	db, err := openCacheDB(dbPath, options.agentVersion, options.apiKey)
+	dbPath := path.Join(cfg.GetString("run_path"), "remote-config-cdn.db")
+	db, err := openCacheDB(dbPath, agentVersion, apiKey)
 	if err != nil {
 		return nil, err
 	}
-	configRoot := options.configRootOverride
-	directorRoot := options.directorRootOverride
-	uptaneClientOptions := []uptane.CDNClientOption{
-		uptane.ConfigRootOverride(site, configRoot),
-		uptane.DirectorRootOverride(site, directorRoot),
+	uptaneClientOptions := []uptane.ClientOption{
+		uptane.WithConfigRootOverride(site, ""),
+		uptane.WithDirectorRootOverride(site, ""),
 	}
 	baseURL, err := url.Parse(baseRawURL)
 	if err != nil {
 		return nil, err
 	}
-	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey)
+	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +88,11 @@ func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey string, opts
 		uptaneClientOptions...,
 	)
 	if err != nil {
-		db.Close()
 		return nil, err
 	}
 
 	return &HTTPClient{
-		rcType: options.rcType,
+		rcType: "CDN",
 		uptane: uptaneHTTPClient,
 		api:    http,
 	}, nil
@@ -135,7 +102,7 @@ func (s *HTTPClient) update() error {
 	s.Lock()
 	defer s.Unlock()
 
-	err := s.uptane.HTTPUpdate()
+	err := s.uptane.Update()
 	if err != nil {
 		return err
 	}

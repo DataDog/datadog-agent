@@ -18,13 +18,18 @@ import (
 // It is an HTTP interface to an authenticated remote server that serves an uptane repository
 // See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 type cdnRemoteStore struct {
-	httpClient     *http.Client
+	httpClient     RequestDoer
 	host           string
 	site           string
 	apiKey         string
 	repositoryType string
 
 	authnToken string
+}
+
+// RequestDoer is an interface that abstracts the http.Client.Do method
+type RequestDoer interface {
+	Do(req *http.Request) (*http.Response, error)
 }
 
 type cdnRemoteConfigStore struct {
@@ -59,7 +64,7 @@ func newCDNRemoteDirectorStore(client *http.Client, host, site, apiKey string) *
 	}
 }
 
-func (s *cdnRemoteStore) newAuthenticatedHttpReq(method, p string) (*http.Request, error) {
+func (s *cdnRemoteStore) newAuthenticatedHTTPReq(method, p string) (*http.Request, error) {
 	req, err := http.NewRequest(method, s.host, nil)
 	if err != nil {
 		return nil, err
@@ -86,7 +91,7 @@ func (s *cdnRemoteStore) updateAuthnToken(resp *http.Response) {
 }
 
 func (s *cdnRemoteStore) getRCFile(path string) (io.ReadCloser, int64, error) {
-	req, err := s.newAuthenticatedHttpReq("GET", path)
+	req, err := s.newAuthenticatedHTTPReq("GET", path)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -112,6 +117,6 @@ func (s *cdnRemoteStore) GetMeta(p string) (io.ReadCloser, int64, error) {
 
 // GetTarget implements go-tuf's RemoteStore.GetTarget
 // See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
-func (s *cdnRemoteStore) GetTarget(path string) (stream io.ReadCloser, size int64, err error) {
+func (s *cdnRemoteStore) GetTarget(path string) (io.ReadCloser, int64, error) {
 	return s.getRCFile(path)
 }
