@@ -162,9 +162,24 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 }
 
 // UnsetForSource unsets a config entry for a given source
-// calls Set under the hood with a nil value
 func (c *safeConfig) UnsetForSource(key string, source Source) {
-	c.Set(key, nil, source)
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
+	c.Lock()
+	previousValue := c.Viper.Get(key)
+	c.configSources[source].Set(key, nil)
+	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if !reflect.DeepEqual(previousValue, nil) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
