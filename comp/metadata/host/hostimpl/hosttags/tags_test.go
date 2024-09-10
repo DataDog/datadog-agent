@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -111,7 +111,7 @@ func TestHostTagsCache(t *testing.T) {
 	var fooErr error
 	nbCall := 0
 
-	getProvidersDefinitionsFunc = func(config.Reader) map[string]*providerDef {
+	getProvidersDefinitionsFunc = func(model.Reader) map[string]*providerDef {
 		return map[string]*providerDef{
 			"foo": {
 				retries: 2,
