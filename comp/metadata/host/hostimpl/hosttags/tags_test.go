@@ -17,7 +17,6 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
