@@ -43,7 +43,7 @@ const (
 	// DefaultMinTTL defines the default minimum TTL
 	DefaultMinTTL = 1
 	// DefaultDelay defines the default delay
-	DefaultDelay = 50 //msec
+	DefaultDelay = 100 //msec
 	// DefaultOutputFormat defines the default output format
 	DefaultOutputFormat = "json"
 

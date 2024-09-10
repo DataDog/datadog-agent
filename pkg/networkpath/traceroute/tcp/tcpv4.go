@@ -103,8 +103,9 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// hops should be of length # of hops
 	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
 
+	seqNumber := rand.Uint32()
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
+		time.Sleep(t.Delay)
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)

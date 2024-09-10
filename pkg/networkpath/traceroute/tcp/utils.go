@@ -104,7 +104,6 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		Seq:     seqNum,
 		Ack:     0,
 		SYN:     true,
-		Window:  1024,
 	}
 
 	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
