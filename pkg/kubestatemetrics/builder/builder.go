@@ -50,6 +50,7 @@ type Builder struct {
 
 	collectPodsFromKubelet    bool
 	collectOnlyUnassignedPods bool
+	KubeletReflector          *kubeletReflector
 }
 
 // New returns new Builder instance
@@ -161,7 +162,17 @@ func (b *Builder) Build() metricsstore.MetricsWriterList {
 // BuildStores initializes and registers all enabled stores.
 // It returns metric cache stores.
 func (b *Builder) BuildStores() [][]cache.Store {
-	return b.ksmBuilder.BuildStores()
+	stores := b.ksmBuilder.BuildStores()
+
+	if b.KubeletReflector != nil {
+		// Starting the reflector here allows us to start just one for all stores.
+		err := b.KubeletReflector.start(b.ctx)
+		if err != nil {
+			log.Errorf("Failed to start the kubelet reflector: %s", err)
+		}
+	}
+
+	return stores
 }
 
 // WithResync is used if a resync period is configured
@@ -302,7 +313,22 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
 	if b.collectPodsFromKubelet {
-		b.startKubeletPodWatcher(store, namespace)
+		if b.KubeletReflector == nil {
+			kr, err := newKubeletReflector(b.namespaces)
+			if err != nil {
+				log.Errorf("Failed to create kubeletReflector: %s", err)
+				return
+			}
+			b.KubeletReflector = &kr
+		}
+
+		err := b.KubeletReflector.addStore(store)
+		if err != nil {
+			log.Errorf("Failed to add store to kubeletReflector: %s", err)
+			return
+		}
+
+		// The kubelet reflector will be started when all stores are added.
 		return
 	}
 
