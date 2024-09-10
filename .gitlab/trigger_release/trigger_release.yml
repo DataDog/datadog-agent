@@ -21,8 +21,7 @@
     - export RELEASE_VERSION=$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
-    - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
+    - 'GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "main"
       --variable ACTION
       --variable AUTO_RELEASE
       --variable BUILD_PIPELINE_ID

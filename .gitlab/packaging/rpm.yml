@@ -12,8 +12,7 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY || exit $?
     - printf -- "$(pop_secret)" | gpg --import --batch
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE || exit $?
-    - export RPM_SIGNING_PASSPHRASE=$(pop_secret)
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - RPM_SIGNING_PASSPHRASE=$(pop_secret) inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
   stage: packaging
@@ -143,8 +142,7 @@ installer_suse_rpm-arm64:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY || exit $?
     - printf -- "$(pop_secret)" | gpg --import --batch
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE || exit $?
-    - export RPM_SIGNING_PASSPHRASE=$(pop_secret)
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
+    - RPM_SIGNING_PASSPHRASE=$(pop_secret) inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
   stage: packaging

@@ -58,10 +58,8 @@ send_pipeline_stats:
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2 || exit $?
-    - export DD_API_KEY=$(pop_secret)
-    - invoke -e notify.send-stats
+    - GITLAB_TOKEN=$(pop_front_secret) DD_API_KEY=$(pop_secret) invoke -e notify.send-stats
 
 notify_github:
   stage: notify
@@ -117,15 +115,11 @@ notify_gitlab_ci_changes:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
       source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY || exit $?
-      export GITHUB_KEY_B64=$(pop_secret | base64)
-      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID || exit $?
-      export GITHUB_APP_ID=$(pop_secret)
-      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID || exit $?
-      export GITHUB_INSTALLATION_ID=$(pop_secret)
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN || exit $?
-      export GITLAB_TOKEN=$(pop_secret)
-    - inv -e notify.gitlab-ci-diff --pr-comment
+      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID || exit $?
+      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID || exit $?
+      $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY || exit $?
+    - GITLAB_TOKEN=$(pop_front_secret) GITHUB_APP_ID=$(pop_front_secret) GITHUB_INSTALLATION_ID=$(pop_front_secret) GITHUB_KEY_B64=$(pop_secret | base64) inv -e notify.gitlab-ci-diff --pr-comment
 
 .failure_summary_job:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

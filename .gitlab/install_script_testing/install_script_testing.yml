@@ -5,13 +5,12 @@ test_install_script:
   tags: ["arch:amd64"]
   script:
     - set +x
-    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
-    - export GITLAB_TOKEN=$(pop_secret)
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main --timeout 5400
+    - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN || exit $?
+    - "GITLAB_TOKEN=$(pop_secret) inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main --timeout 5400
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
       --variable TEST_PIPELINE_ID"

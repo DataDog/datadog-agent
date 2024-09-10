@@ -53,8 +53,7 @@
   - source /root/.bashrc
   - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN || exit $?
-  - export CODECOV_TOKEN=$(pop_secret)
-  - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
+  - CODECOV_TOKEN=$(pop_secret) inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_lint:
   stage: source_test
