@@ -28,7 +28,7 @@ import (
 var (
 	telemetryModuleName     = "network_tracer__tcp_failure"
 	connClosedFlushMapTTL   = 10 * time.Millisecond.Nanoseconds()
-	tcpOngoingConnectMapTTL = 30 * time.Second.Nanoseconds()
+	tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -183,7 +183,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-	tcpOngoingConnectPidCleaner.Clean(time.Second*25, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
+	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
 		if expired {

@@ -91,7 +91,6 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 					if preClean != nil && !preClean() {
 						continue
 					}
-					log.Errorf("mapcleaner cleaning map %s", mc.emap)
 					cleaner(now, shouldClean)
 					// Allowing cleanup after the cleanup.
 					if postClean != nil {
@@ -125,12 +124,9 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	var key K
 	var val V
 	totalCount, deletedCount := 0, 0
-
 	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
 	for it.Next(&key, &val) {
-		if it.Err() != nil {
-		}
 		totalCount++
 		if !shouldClean(nowTS, key, val) {
 			continue
