@@ -68,7 +68,7 @@ func newExtractionFailureCounter(metricGroup *libtelemetry.MetricGroup, metricNa
 	}
 }
 
-// inc increments the counter of completed results or counter incomplete results.
+// inc increments the appropriate counter based on the provided state.
 func (c *extractionFailureCounter) inc(state counterStateEnum) {
 	switch state {
 	case tableAndOperation:
@@ -80,7 +80,7 @@ func (c *extractionFailureCounter) inc(state counterStateEnum) {
 	case tableAndOpNotFound:
 		c.countTableAndOpNotFound.Add(1)
 	default:
-		log.Errorf("\"unable to increment extractionFailureCounter due to undefined state: %v\", state", state)
+		log.Errorf("unable to increment extractionFailureCounter due to undefined state: %v\n", state)
 	}
 }
 
