@@ -84,8 +84,6 @@ const (
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
-	// InetShutdown traces the inet_shutdown() system call
-	InetShutdown ProbeFuncName = "kprobe__inet_shutdown"
 	// TCPDoneFlushReturn traces the return of the tcp_done() system call
 	TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call

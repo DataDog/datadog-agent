@@ -32,7 +32,6 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
 	probes.TCPDone,
-	probes.InetShutdown,
 	probes.TCPDoneFlushReturn,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
