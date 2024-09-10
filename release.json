@@ -3,7 +3,7 @@
     "current_milestone": "7.59.0",
     "last_stable": {
         "6": "6.53.0",
-        "7": "7.56.2"
+        "7": "7.57.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
