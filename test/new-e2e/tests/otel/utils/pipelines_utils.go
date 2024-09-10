@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package utils contains util functions for OTel e2e tests
 package utils
 
 import (
@@ -27,21 +33,23 @@ const (
 	customAttributeValue = "true"
 )
 
+// OTelTestSuite is an interface for the OTel e2e test suite.
 type OTelTestSuite interface {
 	T() *testing.T
 	Env() *environments.Kubernetes
 }
 
+// TestTraces tests that OTLP traces are received through OTel pipelines as expected
 func TestTraces(s OTelTestSuite) {
 	ctx := context.Background()
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 	numTraces := 10
 
 	s.T().Log("Starting telemetrygen")
 	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
 	var traces []*aggregator.TracePayload
-	var err error
 	s.T().Log("Waiting for traces")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		traces, err = s.Env().FakeIntake.Client().GetTraces()
@@ -82,6 +90,7 @@ func TestTraces(s OTelTestSuite) {
 	TestAPMStats(s, numTraces)
 }
 
+// TestAPMStats checks that APM stats are received with the correct number of hits per traces given
 func TestAPMStats(s OTelTestSuite, numTraces int) {
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
@@ -109,16 +118,17 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 	s.T().Log("Got APM stats", stats)
 }
 
+// TestMetrics tests that OTLP metrics are received through OTel pipelines as expected
 func TestMetrics(s OTelTestSuite) {
 	ctx := context.Background()
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 	numMetrics := 10
 
 	s.T().Log("Starting telemetrygen")
 	createTelemetrygenJob(ctx, s, "metrics", []string{"--metrics", fmt.Sprint(numMetrics)})
 
 	var metrics []*aggregator.MetricSeries
-	var err error
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service)}))
@@ -153,9 +163,11 @@ func TestMetrics(s OTelTestSuite) {
 	}
 }
 
+// TestLogs tests that OTLP logs are received through OTel pipelines as expected
 func TestLogs(s OTelTestSuite) {
 	ctx := context.Background()
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 	numLogs := 10
 	logBody := "telemetrygen log"
 
@@ -164,7 +176,6 @@ func TestLogs(s OTelTestSuite) {
 	createTelemetrygenJob(ctx, s, "logs", []string{"--logs", fmt.Sprint(numLogs), "--body", logBody, "--telemetry-attributes", ddtags})
 
 	var logs []*aggregator.Log
-	var err error
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
@@ -193,9 +204,11 @@ func TestLogs(s OTelTestSuite) {
 	}
 }
 
+// TestHosts verifies that OTLP traces, metrics, and logs have consistent hostnames
 func TestHosts(s OTelTestSuite) {
 	ctx := context.Background()
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 	numTelemetry := 10
 	logBody := "telemetrygen log"
 
@@ -209,7 +222,6 @@ func TestHosts(s OTelTestSuite) {
 	var traces []*aggregator.TracePayload
 	var metrics []*aggregator.MetricSeries
 	var logs []*aggregator.Log
-	var err error
 	s.T().Log("Waiting for telemetry")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		traces, err = s.Env().FakeIntake.Client().GetTraces()
@@ -245,9 +257,11 @@ func TestHosts(s OTelTestSuite) {
 	assert.Equal(s.T(), logHostname, metricHostname)
 }
 
+// TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite) {
 	ctx := context.Background()
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 	numTraces := 10
 
 	s.T().Log("Starting telemetrygen")

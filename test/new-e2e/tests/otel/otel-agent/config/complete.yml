@@ -21,8 +21,6 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${DD_API_KEY}
-  debug:
-    verbosity: detailed
 processors:
   batch:
   infraattributes/dd-autoconfigured:
@@ -41,9 +39,6 @@ extensions:
     endpoint: "localhost:55679"
   ddflare/dd-autoconfigured:
 service:
-  telemetry:
-    logs:
-      level: debug
   extensions:
     [
       pprof/dd-autoconfigured,
@@ -67,4 +62,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch, infraattributes/dd-autoconfigured]
-      exporters: [datadog, debug]
+      exporters: [datadog]
