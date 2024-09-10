@@ -130,13 +130,8 @@ func (t *Tagger) List() types.TaggerListResponse {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (t *Tagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return t.tagStore.Subscribe(cardinality)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.tagStore.Unsubscribe(ch)
+func (t *Tagger) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 
 // ReplayTagger returns the replay tagger instance

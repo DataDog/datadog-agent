@@ -9,6 +9,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -27,15 +28,30 @@ const (
 	streamKeepAliveInterval = 9 * time.Minute
 )
 
+// streamIDManager is used to generate unique ID's for incoming streaming requests
+// This unique ID is used to subscribe to the tagger
+// TODO: remove this struct when the protobuf of the stream request is updated to use filters.
+type streamIDManager int32
+
+func (s *streamIDManager) getNextUniqueID() string {
+	id := fmt.Sprintf("stream-client-%d", *s)
+	atomic.AddInt32((*int32)(s), 1)
+	return id
+}
+
+var sharedIDManager streamIDManager
+
 // Server is a grpc server that streams tagger entities
 type Server struct {
 	taggerComponent tagger.Component
+	manager         *streamIDManager
 }
 
 // NewServer returns a new Server
 func NewServer(t tagger.Component) *Server {
 	return &Server{
 		taggerComponent: t,
+		manager:         &sharedIDManager,
 	}
 }
 
@@ -53,14 +69,17 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	// these filters will be introduced when we implement a container
 	// metadata service that can receive them as is from the tagger.
 
-	eventCh := s.taggerComponent.Subscribe(cardinality)
-	defer s.taggerComponent.Unsubscribe(eventCh)
+	filter := types.NewFilterBuilder().Build(cardinality)
+
+	subscriptionID := s.manager.getNextUniqueID()
+	subscription := s.taggerComponent.Subscribe(subscriptionID, filter)
+	defer subscription.Unsubscribe()
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case events, ok := <-eventCh:
+		case events, ok := <-subscription.EventsChan():
 			if !ok {
 				log.Warnf("subscriber channel closed, client will reconnect")
 				return fmt.Errorf("subscriber channel closed")

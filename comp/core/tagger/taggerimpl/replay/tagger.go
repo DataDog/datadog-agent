@@ -102,14 +102,9 @@ func (t *Tagger) List() types.TaggerListResponse {
 }
 
 // Subscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Subscribe(types.TagCardinality) chan []types.EntityEvent {
+func (t *Tagger) Subscribe(_ string, _ *types.Filter) types.Subscription {
 	// NOP
 	return nil
-}
-
-// Unsubscribe does nothing in the replay tagger this tagger does not respond to events.
-func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
-	// NOP
 }
 
 // ReplayTagger returns the replay tagger instance

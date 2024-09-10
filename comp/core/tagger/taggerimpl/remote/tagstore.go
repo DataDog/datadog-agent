@@ -23,17 +23,17 @@ type tagStore struct {
 	telemetry map[string]float64
 	cfg       config.Component
 
-	subscriber     *subscriber.Subscriber
-	telemetryStore *telemetry.Store
+	subscriptionManager subscriber.SubscriptionManager
+	telemetryStore      *telemetry.Store
 }
 
 func newTagStore(cfg config.Component, telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:          genericstore.NewObjectStore[*types.Entity](cfg),
-		telemetry:      make(map[string]float64),
-		cfg:            cfg,
-		subscriber:     subscriber.NewSubscriber(telemetryStore),
-		telemetryStore: telemetryStore,
+		store:               genericstore.NewObjectStore[*types.Entity](cfg),
+		telemetry:           make(map[string]float64),
+		cfg:                 cfg,
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -101,7 +101,7 @@ func (s *tagStore) collectTelemetry() {
 	}
 }
 
-func (s *tagStore) subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (s *tagStore) subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -114,15 +114,11 @@ func (s *tagStore) subscribe(cardinality types.TagCardinality) chan []types.Enti
 		})
 	})
 
-	return s.subscriber.Subscribe(cardinality, events)
-}
-
-func (s *tagStore) unsubscribe(ch chan []types.EntityEvent) {
-	s.subscriber.Unsubscribe(ch)
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *tagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriber.Notify(events)
+	s.subscriptionManager.Notify(events)
 }
 
 // reset clears the local store, preparing it to be re-initialized from a fresh

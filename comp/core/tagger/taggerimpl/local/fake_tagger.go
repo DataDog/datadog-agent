@@ -150,13 +150,8 @@ func (f *FakeTagger) List() types.TaggerListResponse {
 }
 
 // Subscribe fake implementation
-func (f *FakeTagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return f.store.Subscribe(cardinality)
-}
-
-// Unsubscribe fake implementation
-func (f *FakeTagger) Unsubscribe(ch chan []types.EntityEvent) {
-	f.store.Unsubscribe(ch)
+func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+	return f.store.Subscribe(subscriptionID, filter)
 }
 
 // Fake internals

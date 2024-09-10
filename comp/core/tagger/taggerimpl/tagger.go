@@ -563,13 +563,8 @@ func taggerCardinality(cardinality string,
 }
 
 // Subscribe calls defaultTagger.Subscribe
-func (t *TaggerClient) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return t.defaultTagger.Subscribe(cardinality)
-}
-
-// Unsubscribe calls defaultTagger.Unsubscribe
-func (t *TaggerClient) Unsubscribe(ch chan []types.EntityEvent) {
-	t.defaultTagger.Unsubscribe(ch)
+func (t *TaggerClient) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
+	return t.defaultTagger.Subscribe(subscriptionID, filter)
 }
 
 type optionalTaggerDeps struct {

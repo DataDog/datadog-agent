@@ -41,7 +41,7 @@ type TagStore struct {
 	store     types.ObjectStore[EntityTags]
 	telemetry map[string]map[string]float64
 
-	subscriber *subscriber.Subscriber
+	subscriptionManager subscriber.SubscriptionManager
 
 	clock clock.Clock
 
@@ -56,12 +56,12 @@ func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStor
 
 func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
-		telemetry:      make(map[string]map[string]float64),
-		store:          genericstore.NewObjectStore[EntityTags](cfg),
-		subscriber:     subscriber.NewSubscriber(telemetryStore),
-		clock:          clock,
-		cfg:            cfg,
-		telemetryStore: telemetryStore,
+		telemetry:           make(map[string]map[string]float64),
+		store:               genericstore.NewObjectStore[EntityTags](cfg),
+		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
+		clock:               clock,
+		cfg:                 cfg,
+		telemetryStore:      telemetryStore,
 	}
 }
 
@@ -186,29 +186,24 @@ func (s *TagStore) collectTelemetry() {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (s *TagStore) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (s *TagStore) Subscribe(subscriptionID string, filter *types.Filter) types.Subscription {
 	s.RLock()
 	defer s.RUnlock()
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(nil, func(_ types.EntityID, et EntityTags) {
+	s.store.ForEach(filter, func(_ types.EntityID, et EntityTags) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
 			Entity:    et.toEntity(),
 		})
 	})
 
-	return s.subscriber.Subscribe(cardinality, events)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *TagStore) Unsubscribe(ch chan []types.EntityEvent) {
-	s.subscriber.Unsubscribe(ch)
+	return s.subscriptionManager.Subscribe(subscriptionID, filter, events)
 }
 
 func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
-	s.subscriber.Notify(events)
+	s.subscriptionManager.Notify(events)
 }
 
 // Prune deletes tags for entities that have been marked as deleted. This is to
