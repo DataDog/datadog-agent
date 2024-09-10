@@ -88,7 +88,9 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
 		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
 		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
 	})

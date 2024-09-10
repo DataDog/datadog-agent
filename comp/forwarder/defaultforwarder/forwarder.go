@@ -33,16 +33,23 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
+	if dep.Params.useNoopForwarder {
+		return provides{
+			Comp: NoopForwarder{},
+		}
+	}
+
 	options := createOptions(dep.Params, dep.Config, dep.Log)
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.useNoopForwarder)
+
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options)
 }
 
 func createOptions(params Params, config config.Component, log log.Component) *Options {
 	var options *Options
+	keysPerDomain := getMultipleEndpoints(config, log)
 	if !params.withResolver {
-		options = NewOptions(config, log, getMultipleEndpoints(config, log))
+		options = NewOptions(config, log, keysPerDomain)
 	} else {
-		keysPerDomain := getMultipleEndpoints(config, log)
 		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
@@ -66,12 +73,7 @@ func getMultipleEndpoints(config config.Component, log log.Component) map[string
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options, useNoopForwarder bool) provides {
-	if useNoopForwarder {
-		return provides{
-			Comp: NoopForwarder{},
-		}
-	}
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
 	forwarder := NewDefaultForwarder(config, log, options)
 
 	lc.Append(fx.Hook{

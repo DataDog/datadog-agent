@@ -36,13 +36,13 @@ const (
 
 	ProgramKafka ProgramType = 0x9
 
-	ProgramKafkaResponsePartitionParserV0 ProgramType = 0xa
+	ProgramKafkaFetchResponsePartitionParserV0 ProgramType = 0xa
 
-	ProgramKafkaResponsePartitionParserV12 ProgramType = 0xb
+	ProgramKafkaFetchResponsePartitionParserV12 ProgramType = 0xb
 
-	ProgramKafkaResponseRecordBatchParserV0 ProgramType = 0xc
+	ProgramKafkaFetchResponseRecordBatchParserV0 ProgramType = 0xc
 
-	ProgramKafkaResponseRecordBatchParserV12 ProgramType = 0xd
+	ProgramKafkaFetchResponseRecordBatchParserV12 ProgramType = 0xd
 
 	ProgramKafkaProduceResponsePartitionParserV0 ProgramType = 0xe
 
