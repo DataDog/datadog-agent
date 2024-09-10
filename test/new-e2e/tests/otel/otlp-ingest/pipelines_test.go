@@ -32,8 +32,8 @@ datadog:
           enabled: true
     logs:
       enabled: true
-	metrics:
-	  resource_attributes_as_tags: true
+    metrics:
+      resource_attributes_as_tags: true
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
