@@ -455,7 +455,7 @@ func TestListenersUnsetForSource(t *testing.T) {
 
 	// Create a listener that will keep track of the changes
 	logLevels := []string{}
-	config.OnUpdate(func(key string, previous, next any) {
+	config.OnUpdate(func(_ string, _, next any) {
 		nextString := next.(string)
 		logLevels = append(logLevels, nextString)
 	})
