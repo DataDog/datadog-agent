@@ -1114,9 +1114,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
@@ -1124,9 +1124,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             switch (api_key) {
             case KAFKA_FETCH:
                 if (api_version >= 12) {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
                 } else {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
                 }
                 break;
             case KAFKA_PRODUCE:
@@ -1147,9 +1147,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
@@ -1157,9 +1157,9 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             switch (api_key) {
             case KAFKA_FETCH:
                 if (api_version >= 12) {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12;
                 } else {
-                    index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                    index = PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0;
                 }
                 break;
             case KAFKA_PRODUCE:
@@ -1410,23 +1410,23 @@ static __always_inline int __socket__kafka_response_parser(struct __sk_buff *skb
     return 0;
 }
 
-SEC("socket/kafka_response_partition_parser_v0")
-int socket__kafka_response_partition_parser_v0(struct __sk_buff *skb) {
+SEC("socket/kafka_fetch_response_partition_parser_v0")
+int socket__kafka_fetch_response_partition_parser_v0(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 0, 11, KAFKA_FETCH);
 }
 
-SEC("socket/kafka_response_partition_parser_v12")
-int socket__kafka_response_partition_parser_v12(struct __sk_buff *skb) {
+SEC("socket/kafka_fetch_response_partition_parser_v12")
+int socket__kafka_fetch_response_partition_parser_v12(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
 }
 
-SEC("socket/kafka_response_record_batch_parser_v0")
-int socket__kafka_response_record_batch_parser_v0(struct __sk_buff *skb) {
+SEC("socket/kafka_fetch_response_record_batch_parser_v0")
+int socket__kafka_fetch_response_record_batch_parser_v0(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_RECORD_BATCH, 0, 11, KAFKA_FETCH);
 }
 
-SEC("socket/kafka_response_record_batch_parser_v12")
-int socket__kafka_response_record_batch_parser_v12(struct __sk_buff *skb) {
+SEC("socket/kafka_fetch_response_record_batch_parser_v12")
+int socket__kafka_fetch_response_record_batch_parser_v12(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
 }
 
@@ -1460,23 +1460,23 @@ static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *c
     return 0;
 }
 
-SEC("uprobe/kafka_tls_response_partition_parser_v0")
-int uprobe__kafka_tls_response_partition_parser_v0(struct pt_regs *ctx) {
+SEC("uprobe/kafka_tls_fetch_response_partition_parser_v0")
+int uprobe__kafka_tls_fetch_response_partition_parser_v0(struct pt_regs *ctx) {
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 0, 11, KAFKA_FETCH);
 }
 
-SEC("uprobe/kafka_tls_response_partition_parser_v12")
-int uprobe__kafka_tls_response_partition_parser_v12(struct pt_regs *ctx) {
+SEC("uprobe/kafka_tls_fetch_response_partition_parser_v12")
+int uprobe__kafka_tls_fetch_response_partition_parser_v12(struct pt_regs *ctx) {
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 12, 12, KAFKA_FETCH);
 }
 
-SEC("uprobe/kafka_tls_response_record_batch_parser_v0")
-int uprobe__kafka_tls_response_record_batch_parser_v0(struct pt_regs *ctx) {
+SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v0")
+int uprobe__kafka_tls_fetch_response_record_batch_parser_v0(struct pt_regs *ctx) {
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 0, 11, KAFKA_FETCH);
 }
 
-SEC("uprobe/kafka_tls_response_record_batch_parser_v12")
-int uprobe__kafka_tls_response_record_batch_parser_v12(struct pt_regs *ctx) {
+SEC("uprobe/kafka_tls_fetch_response_record_batch_parser_v12")
+int uprobe__kafka_tls_fetch_response_record_batch_parser_v12(struct pt_regs *ctx) {
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_RECORD_BATCH, 12, 12, KAFKA_FETCH);
 }
 
