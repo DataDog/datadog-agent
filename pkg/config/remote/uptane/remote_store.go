@@ -82,7 +82,7 @@ func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	return io.NopCloser(bytes.NewReader(requestedVersion)), int64(len(requestedVersion)), nil
 }
 
-// GetMeta implements go-tuf's RemoteStore.GetTarget
+// GetTarget implements go-tuf's RemoteStore.GetTarget
 // See https://pkg.go.dev/github.com/DataDog/go-tuf/client#RemoteStore
 func (s *remoteStore) GetTarget(targetPath string) (stream io.ReadCloser, size int64, err error) {
 	target, found, err := s.targetStore.getTargetFile(targetPath)

@@ -94,22 +94,26 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	return newDaemon(rc, installer, env), nil
+	return newDaemon(rc, installer, env)
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) (*daemonImpl, error) {
+	cdn, err := cdn.New(env)
+	if err != nil {
+		return nil, err
+	}
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
 		installer:     installer,
-		cdn:           cdn.New(env),
+		cdn:           cdn,
 		requests:      make(chan remoteAPIRequest, 32),
 		catalog:       catalog{},
 		stopChan:      make(chan struct{}),
 		requestsState: make(map[string]requestState),
 	}
 	i.refreshState(context.Background())
-	return i
+	return i, nil
 }
 
 // GetState returns the state.

@@ -69,8 +69,21 @@ type mockUptane struct {
 	mock.Mock
 }
 
-func (m *mockUptane) Update(response *pbgo.LatestConfigsResponse) error {
+type mockCoreAgentUptane struct {
+	mockUptane
+}
+
+type mockCDNUptane struct {
+	mockUptane
+}
+
+func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error {
 	args := m.Called(response)
+	return args.Error(0)
+}
+
+func (m *mockCDNUptane) Update() error {
+	args := m.Called()
 	return args.Error(0)
 }
 
@@ -139,7 +152,7 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
+func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clock clock.Clock) *Service {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
 	cfg.SetWithoutSource("hostname", "test-hostname")
@@ -167,7 +180,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 
 func TestServiceBackoffFailure(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -251,7 +264,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -319,7 +332,7 @@ func customMeta(tracerPredicates []*pbgo.TracerPredicateV1, expiration int64) *j
 // gRPC's InvalidArgument status code.
 func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -384,7 +397,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 
 func TestService(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -415,7 +428,7 @@ func TestService(t *testing.T) {
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 
-	*uptaneClient = mockUptane{}
+	*uptaneClient = mockCoreAgentUptane{}
 	*api = mockAPI{}
 
 	root3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
@@ -530,7 +543,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
 	}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
@@ -624,7 +637,7 @@ func TestServiceClientPredicates(t *testing.T) {
 
 func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -664,7 +677,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 
 func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -704,7 +717,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -744,7 +757,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 
 func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -784,7 +797,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 
 func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -836,7 +849,7 @@ func TestConfigExpiration(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
 	}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
@@ -914,7 +927,7 @@ func TestConfigExpiration(t *testing.T) {
 func TestOrgStatus(t *testing.T) {
 	api := &mockAPI{}
 	clock := clock.NewMock()
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	service := newTestService(t, api, uptaneClient, clock)
 
 	response := &pbgo.OrgStatusResponse{
