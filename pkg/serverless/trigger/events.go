@@ -259,7 +259,7 @@ func isAppSyncResolverEvent(event map[string]any) bool {
 }
 
 func isEventBridgeEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "detail-type") != nil && json.GetNestedValue(event, "source") != "aws.events"
+	return json.GetNestedValue(event, "detail-type") != nil
 }
 
 func isLambdaFunctionURLEvent(event map[string]any) bool {

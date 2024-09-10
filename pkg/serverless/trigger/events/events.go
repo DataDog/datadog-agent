@@ -228,9 +228,10 @@ type KinesisRecord struct {
 // EventBridgeEvent is used for unmarshalling a EventBridge event.  AWS Go
 // libraries do not provide this type of event for deserialization.
 type EventBridgeEvent struct {
-	DetailType string `json:"detail-type"`
-	Source     string
-	StartTime  string
+	DetailType string                 `json:"detail-type"`
+	Source     string                 `json:"source"`
+	Time       time.Time              `json:"time"` // Time only has precision to the nearest second
+	Detail     map[string]interface{} `json:"detail"`
 }
 
 // S3Event mirrors events.S3Event type, removing unused fields.

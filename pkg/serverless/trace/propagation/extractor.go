@@ -100,6 +100,8 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		return nil, errorNoSNSRecordFound
 	case events.SNSEntity:
 		carrier, err = snsEntityCarrier(ev)
+	case events.EventBridgeEvent:
+		carrier, err = eventBridgeCarrier(ev)
 	case events.APIGatewayProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.APIGatewayV2HTTPRequest:

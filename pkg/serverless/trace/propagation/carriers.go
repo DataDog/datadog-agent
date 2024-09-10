@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	awsTraceHeader   = "AWSTraceHeader"
-	datadogSQSHeader = "_datadog"
+	awsTraceHeader     = "AWSTraceHeader"
+	datadogTraceHeader = "_datadog"
 
 	rootPrefix     = "Root="
 	parentPrefix   = "Parent="
@@ -108,7 +108,7 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 // sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
 func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	if attr, ok := event.MessageAttributes[datadogSQSHeader]; ok {
+	if attr, ok := event.MessageAttributes[datadogTraceHeader]; ok {
 		return sqsMessageAttrCarrier(attr)
 	}
 	return snsSqsMessageCarrier(event)
@@ -162,7 +162,7 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 // snsEntityCarrier returns the tracer.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
-	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
+	msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]
 	if !ok {
 		return nil, errorNoDDContextFound
 	}
@@ -198,6 +198,29 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 	if err = json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
 	}
+	return carrier, nil
+}
+
+// eventBridgeCarrier returns the tracer.TextMapReader used to extract trace
+// context from the events.EventBridgeEvent type.
+func eventBridgeCarrier(event events.EventBridgeEvent) (tracer.TextMapReader, error) {
+	// Check if trace context is in the Detail field
+	traceContext, ok := event.Detail[datadogTraceHeader].(map[string]interface{})
+	if !ok {
+		return nil, errorNoDDContextFound
+	}
+
+	carrier := make(tracer.TextMapCarrier)
+	for key, value := range traceContext {
+		if strValue, ok := value.(string); ok {
+			carrier[key] = strValue
+		}
+	}
+
+	if carrier["x-datadog-trace-id"] == "" || carrier["x-datadog-parent-id"] == "" {
+		return nil, errorNoDDContextFound
+	}
+
 	return carrier, nil
 }
 
