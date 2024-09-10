@@ -30,7 +30,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -65,11 +65,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog())
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 		}()
 	}
 	creationTime := time.Now().Unix()
