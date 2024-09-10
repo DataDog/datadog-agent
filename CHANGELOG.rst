@@ -24,7 +24,7 @@ Upgrade Notes
 
 - Update cURL to 8.7.1.
 
-- Update OpenSSL from 3.0.14 to 3.3.1.
+- Update OpenSSL from 3.0.14 to 3.3.1 (on Linux and macOS).
 
 
 .. _Release Notes_7.57.0_New Features:
