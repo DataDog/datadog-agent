@@ -326,10 +326,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
-func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
-	pod := ev.Entity.(*workloadmeta.KubernetesPod)
-
-	tagList := taglist.NewTagList()
+func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
@@ -409,16 +406,24 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	}
 
 	low, orch, high, standard := tagList.Compute()
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               podSource,
-			EntityID:             common.BuildTaggerEntityID(pod.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
+	tagInfo := &types.TagInfo{
+		Source:               podSource,
+		EntityID:             common.BuildTaggerEntityID(pod.EntityID),
+		HighCardTags:         high,
+		OrchestratorCardTags: orch,
+		LowCardTags:          low,
+		StandardTags:         standard,
 	}
+
+	return tagInfo
+}
+
+func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
+	pod := ev.Entity.(*workloadmeta.KubernetesPod)
+	tagList := taglist.NewTagList()
+	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList)}
+
+	c.extractTagsFromPodLabels(pod, tagList)
 
 	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy())
