@@ -221,8 +221,6 @@ func writeLogToFile(logFilePath, log string) error {
 		return err
 	}
 
-	defer file.Close()
-
 	_, err = file.WriteString(log)
 	if err != nil {
 		ddLog.Warn("Failed to write integration log to file: ", err)
@@ -232,7 +230,8 @@ func writeLogToFile(logFilePath, log string) error {
 		ddLog.Warn("Failed to write integration log to file: ", err)
 		return err
 	}
-	return nil
+
+	return file.Close()
 }
 
 // makeFileSource Turns an integrations source into a logsSource
