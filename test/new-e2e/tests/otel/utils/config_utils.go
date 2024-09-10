@@ -25,7 +25,8 @@ func TestOTelAgentInstalled(s OTelTestSuite) {
 
 // TestOTelFlare tests that the OTel Agent flare functionality works as expected
 func TestOTelFlare(s OTelTestSuite) {
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 
 	s.T().Log("Starting flare")
 	agent := getAgentPod(s)

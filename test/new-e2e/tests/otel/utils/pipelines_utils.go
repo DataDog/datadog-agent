@@ -270,6 +270,27 @@ func TestSampling(s OTelTestSuite) {
 	TestAPMStats(s, numTraces)
 }
 
+// TestPrometheusMetrics tests that expected prometheus metrics are scraped
+func TestPrometheusMetrics(s OTelTestSuite) {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	var otelcolMetrics []*aggregator.MetricSeries
+	var traceAgentMetrics []*aggregator.MetricSeries
+	s.T().Log("Waiting for metrics")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		otelcolMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_process_uptime")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, otelcolMetrics)
+
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, traceAgentMetrics)
+	}, 2*time.Minute, 10*time.Second)
+	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
+	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+}
+
 func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry string, options []string) {
 	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4

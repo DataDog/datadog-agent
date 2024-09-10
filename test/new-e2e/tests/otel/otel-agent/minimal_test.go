@@ -46,6 +46,10 @@ func (s *minimalTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
+func (s *minimalTestSuite) TestPrometheusMetrics() {
+	utils.TestPrometheusMetrics(s)
+}
+
 func (s *minimalTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }

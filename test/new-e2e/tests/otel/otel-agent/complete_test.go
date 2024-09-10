@@ -57,3 +57,7 @@ func (s *completeTestSuite) TestOTLPLogs() {
 func (s *completeTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
+
+func (s *completeTestSuite) TestPrometheusMetrics() {
+	utils.TestPrometheusMetrics(s)
+}
