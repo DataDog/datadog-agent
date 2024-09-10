@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -114,6 +115,18 @@ func TestHTTPReceiverStart(t *testing.T) {
 			return true, port, socket, []string{
 				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
 				fmt.Sprintf("Listening for traces at unix://%s", socket),
+			}
+		},
+		"err_uds": func() (bool, int, string, []string) {
+			dir := t.TempDir()
+			err := os.Chmod(dir, 0555) // read-execute only
+			assert.NoError(t, err)
+
+			port := freeTCPPort()
+			socket := filepath.Join(dir, "apm.socket")
+			return true, port, socket, []string{
+				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
+				fmt.Sprintf("Error creating UDS listener: listen unix %s: bind: permission denied", socket),
 			}
 		},
 	} {
