@@ -14,7 +14,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -27,7 +27,7 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *ContainerCheck {
+func NewContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
 		wmeta:  wmeta,
@@ -38,7 +38,7 @@ func NewContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *Co
 type ContainerCheck struct {
 	sync.Mutex
 
-	config ddconfig.Reader
+	config pkgconfigmodel.Reader
 
 	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
