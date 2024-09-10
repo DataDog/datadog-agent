@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	coreconfig.Datadog().SetDefault("network_devices.namespace", "my-namespace")
+	pkgconfigsetup.Datadog().SetDefault("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data

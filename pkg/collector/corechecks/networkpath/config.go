@@ -10,11 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 const (
@@ -117,7 +118,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	)
 
 	c.Tags = instance.Tags
-	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
+	c.Namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

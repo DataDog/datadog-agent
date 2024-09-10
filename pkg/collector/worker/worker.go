@@ -15,7 +15,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -179,7 +179,7 @@ func (w *Worker) Run() {
 		}
 
 		if sender != nil && !longRunning {
-			if config.Datadog().GetBool("integration_check_status_enabled") {
+			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
 				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
 			}
 			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
