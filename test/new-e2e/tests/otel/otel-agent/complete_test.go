@@ -18,30 +18,42 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type minimalTestSuite struct {
+type completeTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
 //go:embed config/minimal.yml
-var minimalConfig string
+var completeConfig string
 
-func TestPipelinesMinimal(t *testing.T) {
+func TestOTelAgentComplete(t *testing.T) {
+	values := `
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
+          value: false
+    otelAgent:
+      env:
+        - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
+          value: false
+`
 	t.Parallel()
-	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))
 }
 
-func (s *minimalTestSuite) TestOTLPTraces() {
+func (s *completeTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s)
 }
 
-func (s *minimalTestSuite) TestOTLPMetrics() {
+func (s *completeTestSuite) TestOTLPMetrics() {
 	utils.TestMetrics(s)
 }
 
-func (s *minimalTestSuite) TestOTLPLogs() {
+func (s *completeTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s)
 }
 
-func (s *minimalTestSuite) TestHosts() {
+func (s *completeTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }

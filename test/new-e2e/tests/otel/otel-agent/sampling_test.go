@@ -25,7 +25,7 @@ type samplingTestSuite struct {
 //go:embed config/sampling.yml
 var samplingConfig string
 
-func TestPipelinesSampling(t *testing.T) {
+func TestOTelAgentSampling(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }

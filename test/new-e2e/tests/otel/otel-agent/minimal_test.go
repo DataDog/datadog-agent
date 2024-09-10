@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package otelagent contains e2e OTLP Ingest tests
-package otlpingest
+// Package otelagent contains e2e otel agent tests
+package otelagent
 
 import (
 	_ "embed"
@@ -18,43 +18,38 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type otlpIngestTestSuite struct {
+type minimalTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOTLPIngest(t *testing.T) {
-	values := `
-datadog:
-  otlp:
-    receiver:
-      protocols:
-        grpc:
-          enabled: true
-    logs:
-      enabled: true
-agents:
-  containers:
-    agent:
-      env:
-        - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
-          value: true
-`
+//go:embed config/minimal.yml
+var minimalConfig string
+
+func TestOTelAgentMinimal(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
 }
 
-func (s *otlpIngestTestSuite) TestOTLPTraces() {
+func (s *minimalTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s)
 }
 
-func (s *otlpIngestTestSuite) TestOTLPMetrics() {
+func (s *minimalTestSuite) TestOTLPMetrics() {
 	utils.TestMetrics(s)
 }
 
-func (s *otlpIngestTestSuite) TestOTLPLogs() {
+func (s *minimalTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s)
 }
 
-func (s *otlpIngestTestSuite) TestHosts() {
+func (s *minimalTestSuite) TestHosts() {
 	utils.TestHosts(s)
+}
+
+func (s *minimalTestSuite) TestOTelAgentInstalled() {
+	utils.TestOTelAgentInstalled(s)
+}
+
+func (s *minimalTestSuite) TestOTelFlare() {
+	utils.TestOTelFlare(s)
 }

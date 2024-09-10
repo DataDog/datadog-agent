@@ -32,11 +32,18 @@ datadog:
           enabled: true
     logs:
       enabled: true
-    metrics:
-      resource_attributes_as_tags: true
-    traces:
-      probabilistic_sampler:
-        sampling_percentage: 50
+agents:
+  containers:
+    agent:
+      env:
+        - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
+          value: true
+        - name: DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
+          value: 50
+    traceAgent:
+      env:
+        - name: DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
+          value: 50
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestSamplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))

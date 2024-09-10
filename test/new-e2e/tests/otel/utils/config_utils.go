@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package otelagent contains e2e otel agent tests
-package otelagent
+// Package utils contains util functions for OTel e2e tests
+package utils
 
 import (
 	"context"
-	_ "embed"
 	"strings"
 
 	"github.com/stretchr/testify/assert"
@@ -18,16 +17,18 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 )
 
-func (s *minimalTestSuite) TestOTelAgentInstalled() {
-	agent := s.getAgentPod()
+// TestOTelAgentInstalled checks that the OTel Agent is installed in the test suite
+func TestOTelAgentInstalled(s OTelTestSuite) {
+	agent := getAgentPod(s)
 	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
 
-func (s *minimalTestSuite) TestOTelFlare() {
+// TestOTelFlare tests that the OTel Agent flare functionality works as expected
+func TestOTelFlare(s OTelTestSuite) {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	s.T().Log("Starting flare")
-	agent := s.getAgentPod()
+	agent := getAgentPod(s)
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
 	require.NoError(s.T(), err, "Failed to execute flare")
 	require.Empty(s.T(), stderr)
@@ -59,7 +60,7 @@ func (s *minimalTestSuite) TestOTelFlare() {
 	}
 }
 
-func (s *minimalTestSuite) getAgentPod() corev1.Pod {
+func getAgentPod(s OTelTestSuite) corev1.Pod {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
