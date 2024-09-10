@@ -22,7 +22,7 @@ type completeTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-//go:embed config/minimal.yml
+//go:embed config/complete.yml
 var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
