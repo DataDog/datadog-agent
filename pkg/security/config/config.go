@@ -519,6 +519,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
 	}
 
+	c.sanitizePlatform()
+
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
 

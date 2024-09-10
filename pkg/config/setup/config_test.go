@@ -665,7 +665,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
-	assert.Equal(t, 10000, config.GetInt("network_path.collector.timeout"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))

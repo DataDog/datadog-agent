@@ -46,6 +46,12 @@ type ConfigFetcher interface {
 	ClientGetConfigs(context.Context, *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error)
 }
 
+// Listener defines the interface of a remote config listener
+type Listener interface {
+	OnUpdate(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	OnStateChange(bool)
+}
+
 // fetchConfigs defines the function that an agent client uses to get config updates
 type fetchConfigs func(context.Context, *pbgo.ClientGetConfigsRequest, ...grpc.CallOption) (*pbgo.ClientGetConfigsResponse, error)
 
@@ -69,7 +75,7 @@ type Client struct {
 
 	state *state.Repository
 
-	listeners map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
+	listeners map[string][]Listener
 
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
@@ -159,9 +165,6 @@ func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *
 
 	return g.fetchConfigs(ctx, request)
 }
-
-// Handler is a function that is called when a config update is received.
-type Handler func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 // NewClient creates a new client
 func NewClient(updater ConfigFetcher, opts ...func(o *Options)) (*Client, error) {
@@ -289,7 +292,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		installerState: installerState,
 		state:          repository,
 		backoffPolicy:  backoffPolicy,
-		listeners:      make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
+		listeners:      make(map[string][]Listener),
 		configFetcher:  cf,
 	}, nil
 }
@@ -324,8 +327,8 @@ func (c *Client) SetAgentName(agentName string) {
 	}
 }
 
-// Subscribe subscribes to config updates of a product.
-func (c *Client) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+// SubscribeAll subscribes to all events (config updates, state changed, ...)
+func (c *Client) SubscribeAll(product string, listener Listener) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
@@ -341,7 +344,12 @@ func (c *Client) Subscribe(product string, fn func(update map[string]state.RawCo
 		c.products = append(c.products, product)
 	}
 
-	c.listeners[product] = append(c.listeners[product], fn)
+	c.listeners[product] = append(c.listeners[product], listener)
+}
+
+// Subscribe subscribes to config updates of a product.
+func (c *Client) Subscribe(product string, cb func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.SubscribeAll(product, NewUpdateListener(cb))
 }
 
 // GetConfigs returns the current configs applied of a product.
@@ -428,11 +436,29 @@ func (c *Client) pollLoop() {
 						log.Infof("retrying the first update of remote-config state (%v)", err)
 					}
 				} else {
+					c.m.Lock()
+					for _, productListeners := range c.listeners {
+						for _, listener := range productListeners {
+							listener.OnStateChange(false)
+						}
+					}
+					c.m.Unlock()
+
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
+				if c.lastUpdateError != nil {
+					c.m.Lock()
+					for _, productListeners := range c.listeners {
+						for _, listener := range productListeners {
+							listener.OnStateChange(true)
+						}
+					}
+					c.m.Unlock()
+				}
+
 				c.lastUpdateError = nil
 				successfulFirstRun = true
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
@@ -470,7 +496,7 @@ func (c *Client) update() error {
 	for product, productListeners := range c.listeners {
 		if containsProduct(changedProducts, product) {
 			for _, listener := range productListeners {
-				listener(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
+				listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 			}
 		}
 	}
@@ -592,6 +618,33 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	}
 
 	return req, nil
+}
+
+type listener struct {
+	onUpdate      func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	onStateChange func(bool)
+}
+
+func (l *listener) OnUpdate(configs map[string]state.RawConfig, cb func(cfgPath string, status state.ApplyStatus)) {
+	if l.onUpdate != nil {
+		l.onUpdate(configs, cb)
+	}
+}
+
+func (l *listener) OnStateChange(state bool) {
+	if l.onStateChange != nil {
+		l.onStateChange(state)
+	}
+}
+
+// NewUpdateListener creates a remote config listener from a update callback
+func NewUpdateListener(onUpdate func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) Listener {
+	return &listener{onUpdate: onUpdate}
+}
+
+// NewListener creates a remote config listener from a couple of update and state change callbacks
+func NewListener(onUpdate func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)), onStateChange func(bool)) Listener {
+	return &listener{onUpdate: onUpdate, onStateChange: onStateChange}
 }
 
 var (

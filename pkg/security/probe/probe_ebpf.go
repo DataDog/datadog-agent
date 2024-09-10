@@ -467,6 +467,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
 
+	p.processKiller.SendStats(p.statsdClient)
+
 	if err := p.profileManagers.SendStats(); err != nil {
 		return err
 	}
@@ -1626,6 +1628,11 @@ func (p *EBPFProbe) GetFieldHandlers() model.FieldHandlers {
 // DumpProcessCache dumps the process cache
 func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.ToDot(withArgs)
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe

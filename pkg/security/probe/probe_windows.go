@@ -1111,6 +1111,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1384,6 +1387,11 @@ func (p *WindowsProbe) zeroEvent() *model.Event {
 // Origin returns origin
 func (p *Probe) Origin() string {
 	return ""
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewProbe instantiates a new runtime security agent probe
