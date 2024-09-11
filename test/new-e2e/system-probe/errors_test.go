@@ -94,7 +94,7 @@ Resources:
 Duration: 6s
 `
 
-const outputSshFailed = `
+const outputSSHFailed = `
     pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 **failed** 1 error
 Diagnostics:
   pulumi:pulumi:Stack (e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877):
@@ -109,7 +109,7 @@ Resources:
 Duration: 7m35s
 `
 
-const outputSshFailedWithChangedOrder = `
+const outputSSHFailedWithChangedOrder = `
 @ updating....
  +  pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 creating (933s) error: update failed
  +  pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 **creating failed (933s)** 1 error
@@ -148,7 +148,7 @@ func TestParseDiagnostics(t *testing.T) {
 		},
 		{
 			caseName: "SSHFailed",
-			output:   outputSshFailed,
+			output:   outputSSHFailed,
 			result: pulumiError{
 				command:      "remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb",
 				arch:         "arm64",
@@ -159,7 +159,7 @@ func TestParseDiagnostics(t *testing.T) {
 		},
 		{
 			caseName: "SSHFailedWithChangedOrder",
-			output:   outputSshFailedWithChangedOrder,
+			output:   outputSSHFailedWithChangedOrder,
 			result: pulumiError{
 				command:      "remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb",
 				arch:         "arm64",
