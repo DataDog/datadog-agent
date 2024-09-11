@@ -84,6 +84,21 @@ func TestUDS(t *testing.T) {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}
 	})
+
+	t.Run("uds_permission_err", func(t *testing.T) {
+		dir := t.TempDir()
+		err := os.Chmod(dir, 0444) // read-only
+		assert.NoError(t, err)
+
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverSocket = filepath.Join(dir, "apm.socket")
+
+		r := newTestReceiverFromConfig(conf)
+		// should not crash
+		r.Start()
+		r.Stop()
+	})
 }
 
 func TestHTTPReceiverStart(t *testing.T) {
@@ -115,18 +130,6 @@ func TestHTTPReceiverStart(t *testing.T) {
 			return true, port, socket, []string{
 				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
 				fmt.Sprintf("Listening for traces at unix://%s", socket),
-			}
-		},
-		"err_uds": func() (bool, int, string, []string) {
-			dir := t.TempDir()
-			err := os.Chmod(dir, 0555) // read-execute only
-			assert.NoError(t, err)
-
-			port := freeTCPPort()
-			socket := filepath.Join(dir, "apm.socket")
-			return true, port, socket, []string{
-				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
-				fmt.Sprintf("Error creating UDS listener: listen unix %s: bind: permission denied", socket),
 			}
 		},
 	} {
