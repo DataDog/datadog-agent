@@ -158,7 +158,7 @@
     - pulumi logout
   after_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
-    - AWS_PROFILE=agent-qa-ci || exit $?; export AWS_PROFILE
+    - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq
     - !reference [.get_instance_ip_by_type]
