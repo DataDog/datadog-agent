@@ -162,10 +162,22 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 // snsEntityCarrier returns the tracer.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
-	msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]
-	if !ok {
-		return nil, errorNoDDContextFound
+	// Check if this is a regular SNS message with Datadog trace information
+	if msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]; ok {
+		return handleRegularSNSMessage(msgAttrs)
 	}
+
+	// If not, check if this is an EventBridge event sent through SNS
+	var eventBridgeEvent map[string]interface{}
+	if err := json.Unmarshal([]byte(event.Message), &eventBridgeEvent); err == nil {
+		return handleEventBridgeThroughSNS(eventBridgeEvent)
+	}
+
+	return nil, errorNoDDContextFound
+}
+
+// handleRegularSNSMessage builds the payload carrier for a regular SNS message.
+func handleRegularSNSMessage(msgAttrs interface{}) (tracer.TextMapReader, error) {
 	mapAttrs, ok := msgAttrs.(map[string]interface{})
 	if !ok {
 		return nil, errorUnsupportedPayloadType
@@ -197,6 +209,28 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 	var carrier tracer.TextMapCarrier
 	if err = json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
+	}
+	return carrier, nil
+}
+
+// handleEventBridgeThroughSNS builds payload carrier for an EventBridge
+// event wrapped in an SNS message.
+func handleEventBridgeThroughSNS(eventBridgeEvent map[string]interface{}) (tracer.TextMapReader, error) {
+	detail, ok := eventBridgeEvent["detail"].(map[string]interface{})
+	if !ok {
+		return nil, errorUnsupportedTypeType
+	}
+
+	datadogInfo, ok := detail["_datadog"].(map[string]interface{})
+	if !ok {
+		return nil, errorUnsupportedTypeType
+	}
+
+	carrier := make(tracer.TextMapCarrier)
+	for key, value := range datadogInfo {
+		if strValue, ok := value.(string); ok {
+			carrier[key] = strValue
+		}
 	}
 	return carrier, nil
 }
