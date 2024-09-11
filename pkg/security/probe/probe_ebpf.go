@@ -1228,6 +1228,11 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
+
+			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
+			if !slices.Contains(requestedEventTypes, eventType) {
+				requestedEventTypes = append(requestedEventTypes, eventType)
+			}
 		}
 	}
 
