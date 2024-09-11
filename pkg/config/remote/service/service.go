@@ -91,8 +91,10 @@ type Service struct {
 	rcType string
 
 	uptane uptaneClient
+	db     *bbolt.DB
 }
 
+// CoreAgentService fetches  Remote Configurations from the RC backend
 type CoreAgentService struct {
 	Service
 	firstUpdate bool
@@ -113,7 +115,6 @@ type CoreAgentService struct {
 	hostname        string
 	tagsGetter      func() []string
 	traceAgentEnv   string
-	db              *bbolt.DB
 	coreAgentUptane coreAgentUptaneClient
 	api             api.API
 
@@ -374,6 +375,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		Service: Service{
 			rcType: rcType,
 			uptane: uptaneClient,
+			db:     db,
 		},
 		firstUpdate:                    true,
 		defaultRefreshInterval:         options.refresh,
@@ -386,7 +388,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		tagsGetter:                     tagsGetter,
 		clock:                          clock,
 		traceAgentEnv:                  options.traceAgentEnv,
-		db:                             db,
 		api:                            http,
 		coreAgentUptane:                uptaneClient,
 		clients:                        newClients(clock, options.clientTTL),
@@ -950,7 +951,7 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	return canonical, nil
 }
 
-// HTTPClient defines a client that can be used to fetch Remote Configurations from an HTTP(s)-based backend
+// HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
 type HTTPClient struct {
 	Service
 	lastUpdate time.Time
@@ -959,13 +960,15 @@ type HTTPClient struct {
 }
 
 // NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
+// It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
+// An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
 func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agentVersion string) (*HTTPClient, error) {
-
 	dbPath := path.Join(cfg.GetString("run_path"), "remote-config-cdn.db")
 	db, err := openCacheDB(dbPath, agentVersion, apiKey)
 	if err != nil {
 		return nil, err
 	}
+
 	uptaneClientOptions := []uptane.ClientOption{
 		uptane.WithConfigRootOverride(site, ""),
 		uptane.WithDirectorRootOverride(site, ""),
@@ -998,17 +1001,52 @@ func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agen
 		Service: Service{
 			rcType: "CDN",
 			uptane: uptaneHTTPClient,
+			db:     db,
 		},
 		api:       http,
 		cdnUptane: uptaneHTTPClient,
 	}, nil
 }
 
-func (s *HTTPClient) update() error {
-	s.Lock()
-	defer s.Unlock()
+// Close closes the HTTPClient and cleans up any resources. Close must be called
+// before any other HTTPClients are instantiated via NewHTTPClient
+func (c *HTTPClient) Close() error {
+	return c.db.Close()
+}
 
-	err := s.cdnUptane.Update()
+// GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
+// in a short amount of time, a cached response is returned. If RC has been disabled,
+// an error is returned. If there is no update (the targets version is up-to-date) nil
+// is returned for both the update and error.
+func (c *HTTPClient) GetCDNConfigUpdate(
+	products []string,
+	currentTargetsVersion, currentRootVersion uint64,
+	cachedTargetFiles []*pbgo.TargetFileMeta,
+) (*state.Update, error) {
+
+	if !c.shouldUpdate() {
+		return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	}
+
+	// check org status in the backend. If RC is disabled, return current state.
+	response, err := c.api.FetchOrgStatus(context.Background())
+	if err != nil || !response.Enabled || !response.Authorized {
+		return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	}
+
+	err = c.update()
+	if err != nil {
+		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
+	}
+
+	return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+}
+
+func (c *HTTPClient) update() error {
+	c.Lock()
+	defer c.Unlock()
+
+	err := c.cdnUptane.Update()
 	if err != nil {
 		return err
 	}
@@ -1016,68 +1054,40 @@ func (s *HTTPClient) update() error {
 	return nil
 }
 
-func (s *HTTPClient) shouldUpdate() bool {
-	s.Lock()
-	defer s.Unlock()
-	if time.Since(s.lastUpdate) > maxCDNUpdateFrequency {
-		s.lastUpdate = time.Now()
+func (c *HTTPClient) shouldUpdate() bool {
+	c.Lock()
+	defer c.Unlock()
+	if time.Since(c.lastUpdate) > maxCDNUpdateFrequency {
+		c.lastUpdate = time.Now()
 		return true
 	}
 	return false
 }
 
-// GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
-// in a short amount of time, a cached response is returned. If RC has been disabled,
-// an error is returned. If there is no update (the targets version is up-to-date) nil
-// is returned for both the update and error.
-func (s *HTTPClient) GetCDNConfigUpdate(
+func (c *HTTPClient) getUpdate(
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
 	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
+	c.Lock()
+	defer c.Unlock()
 
-	if !s.shouldUpdate() {
-		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
-	}
-
-	// check org status in the backend. If RC is disabled, return current state.
-	response, err := s.api.FetchOrgStatus(context.Background())
-	if err != nil || !response.Enabled || !response.Authorized {
-		return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
-	}
-
-	err = s.update()
-	if err != nil {
-		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
-	}
-
-	return s.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
-}
-
-func (s *HTTPClient) getUpdate(
-	products []string,
-	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
-) (*state.Update, error) {
-	s.Lock()
-	defer s.Unlock()
-
-	tufVersions, err := s.uptane.TUFVersionState()
+	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
 		return nil, err
 	}
 	if tufVersions.DirectorTargets == currentTargetsVersion {
 		return nil, nil
 	}
-	roots, err := s.getNewDirectorRoots(currentRootVersion, tufVersions.DirectorRoot)
+	roots, err := c.getNewDirectorRoots(currentRootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
-	targetsRaw, err := s.uptane.TargetsMeta()
+	targetsRaw, err := c.uptane.TargetsMeta()
 	if err != nil {
 		return nil, err
 	}
-	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(products), cachedTargetFiles)
+	targetFiles, err := c.getTargetFiles(rdata.StringListToProduct(products), cachedTargetFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -1087,7 +1097,7 @@ func (s *HTTPClient) getUpdate(
 		return nil, err
 	}
 
-	directorTargets, err := s.uptane.Targets()
+	directorTargets, err := c.uptane.Targets()
 	if err != nil {
 		return nil, err
 	}

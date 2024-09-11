@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -97,6 +98,11 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Close() error {
+	args := m.Called()
 	return args.Error(0)
 }
 
@@ -181,6 +187,9 @@ type testInstaller struct {
 }
 
 func newTestInstaller(t *testing.T) *testInstaller {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", t.TempDir())
+
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)

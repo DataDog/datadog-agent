@@ -228,7 +228,13 @@ func installCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0], installArgs)
 		},
@@ -248,7 +254,13 @@ func removeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -267,7 +279,13 @@ func purgeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -286,7 +304,13 @@ func installExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -305,7 +329,13 @@ func removeExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -324,7 +354,13 @@ func promoteExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -343,7 +379,13 @@ func garbageCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -366,7 +408,13 @@ func isInstalledCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer func() {
+				i.Stop(err)
+				err = i.Installer.Close()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+				}
+			}()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

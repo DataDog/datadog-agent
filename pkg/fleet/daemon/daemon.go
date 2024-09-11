@@ -237,6 +237,7 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	defer d.m.Unlock()
 	d.rc.Close()
 	close(d.stopChan)
+	d.cdn.Close()
 	d.requestsWG.Wait()
 	return nil
 }

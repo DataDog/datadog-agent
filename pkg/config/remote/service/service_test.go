@@ -1214,6 +1214,7 @@ func TestHTTPClientRecentUpdate(t *testing.T) {
 	uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
 
 	client := setupCDNClient(t, uptaneClient, api)
+	defer client.Close()
 	client.lastUpdate = time.Now()
 
 	u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
@@ -1275,6 +1276,7 @@ func TestHTTPClientNegativeOrgStatus(t *testing.T) {
 			uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
 
 			client := setupCDNClient(t, uptaneClient, api)
+			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
 			u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
@@ -1334,6 +1336,7 @@ func TestHTTPClientUpdateSuccess(t *testing.T) {
 			uptaneClient.On("Update").Return(updateErr)
 
 			client := setupCDNClient(t, uptaneClient, api)
+			defer client.Close()
 			client.lastUpdate = time.Now().Add(time.Second * -60)
 
 			u, err := client.GetCDNConfigUpdate([]string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})

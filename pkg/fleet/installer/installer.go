@@ -64,6 +64,8 @@ type Installer interface {
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
+
+	Close() error
 }
 
 // installerImpl is the implementation of the package manager.
@@ -398,6 +400,11 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
 	return nil
+}
+
+// Close cleans up the Installer's dependencies
+func (i *installerImpl) Close() error {
+	return i.cdn.Close()
 }
 
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {

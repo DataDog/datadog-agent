@@ -195,6 +195,11 @@ func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
 	return states, err
 }
 
+// Close cleans up any resources.
+func (i *InstallerExec) Close() error {
+	return nil
+}
+
 func (iCmd *installerCmd) Run() error {
 	var errBuf bytes.Buffer
 	iCmd.Stderr = &errBuf
