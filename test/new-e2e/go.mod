@@ -270,4 +270,5 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.59.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.60.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 )
