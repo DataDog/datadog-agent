@@ -799,8 +799,8 @@ func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.Proces
 	}
 	log.Infof("Env block %v", start.EnvBlock)
 
-	var envs []string // TODO
-	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, envs, start.CmdLine, start.OwnerSidString)
+	
+	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.EnvBlock, start.CmdLine, start.OwnerSidString)
 	if err != nil {
 		log.Errorf("error in resolver %v", err)
 		return false

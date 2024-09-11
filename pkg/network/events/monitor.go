@@ -146,7 +146,8 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 				}
 			}
 		}
-	}
+	} 
+	
 	if len(tagsFound) < len(envFilter) {
 		apmTags := getAPMTags(tagsFound, ev.GetExecFilePath())
 		if len(apmTags) > 0 {
