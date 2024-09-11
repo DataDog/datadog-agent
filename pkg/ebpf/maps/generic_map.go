@@ -60,11 +60,11 @@ type GenericMap[K any, V any] struct {
 }
 
 func canBinaryReadKey[K any]() bool {
-	kvalList := make([]K, 1)
-	buffer := make([]byte, unsafe.Sizeof(kvalList[0]))
+	kval := new(K)
+	buffer := make([]byte, unsafe.Sizeof(*kval))
 	reader := bytes.NewReader(buffer)
 
-	err := binary.Read(reader, binary.LittleEndian, kvalList)
+	err := binary.Read(reader, binary.LittleEndian, kval)
 
 	return err == nil
 }
