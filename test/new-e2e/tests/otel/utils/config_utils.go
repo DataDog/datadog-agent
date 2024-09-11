@@ -54,6 +54,7 @@ func TestOTelFlare(s OTelTestSuite) {
 	assert.True(s.T(), otelFolder)
 	assert.True(s.T(), otelFlareFolder)
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
+	s.T().Log("Got flare otel-response.json", otelResponseContent)
 	require.NoError(s.T(), err)
 	expectedContents := []string{"otel-agent", "ddflare/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
 	for _, expected := range expectedContents {

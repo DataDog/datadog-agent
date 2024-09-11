@@ -29,14 +29,10 @@ func TestOTelAgentComplete(t *testing.T) {
 	values := `
 agents:
   containers:
-    agent:
-      env:
-        - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
-          value: false
     otelAgent:
       env:
         - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
-          value: false
+          value: 'false'
 `
 	t.Parallel()
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))

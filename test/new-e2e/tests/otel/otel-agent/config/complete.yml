@@ -5,7 +5,7 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-  prometheus/dd-autoconfigured:
+  prometheus:
     config:
       scrape_configs:
         - job_name: 'datadog-agent'
@@ -23,7 +23,7 @@ exporters:
       key: ${DD_API_KEY}
 processors:
   batch:
-  infraattributes/dd-autoconfigured:
+  infraattributes:
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
@@ -33,33 +33,33 @@ connectors:
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
 extensions:
-  pprof/dd-autoconfigured:
-  health_check/dd-autoconfigured:
-  zpages/dd-autoconfigured:
+  pprof:
+  health_check:
+  zpages:
     endpoint: "localhost:55679"
-  ddflare/dd-autoconfigured:
+  ddflare:
 service:
   extensions:
     [
-      pprof/dd-autoconfigured,
-      zpages/dd-autoconfigured,
-      health_check/dd-autoconfigured,
-      ddflare/dd-autoconfigured,
+      pprof,
+      zpages,
+      health_check,
+      ddflare,
     ]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [batch, infraattributes]
       exporters: [datadog/connector]
     traces/send:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [batch, infraattributes]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus/dd-autoconfigured]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      receivers: [otlp, datadog/connector, prometheus]
+      processors: [batch, infraattributes]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [batch, infraattributes]
       exporters: [datadog]
