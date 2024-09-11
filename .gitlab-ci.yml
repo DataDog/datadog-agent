@@ -1035,6 +1035,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - pkg/security/**/*
         - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
 
 .on_windows_systemprobe_or_e2e_changes:
