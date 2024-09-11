@@ -194,7 +194,6 @@ func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
 }
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
-
 	for i := 0; i < len(tel.queryLengthBuckets); i++ {
 		expState := expected.counterState
 		expCount := expected.queryLength[i]
