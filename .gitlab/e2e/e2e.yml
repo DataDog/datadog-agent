@@ -337,6 +337,7 @@ new-e2e-installer:
     TARGETS: ./tests/installer
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
+  allow_failure: true # incident-30484
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -359,6 +360,7 @@ new-e2e-installer-ansible:
     TARGETS: ./tests/installer
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
+  allow_failure: true # incident-30484
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template

@@ -8,6 +8,7 @@ on:
         required: true
         type: string
 
+permissions: {}
 
 jobs:
   create_release_schedule:
