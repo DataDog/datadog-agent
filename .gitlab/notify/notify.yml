@@ -109,10 +109,10 @@ notify_gitlab_ci_changes:
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID)
-      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN)
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
+      GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e notify.gitlab-ci-diff --pr-comment
 
 .failure_summary_job:

@@ -30,14 +30,14 @@
   # This balances the requests made to GitHub between the two apps we have set up.
   - |
     if [[ "$(( RANDOM % 2 ))" == "1" ]]; then
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID)
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 1"
     else
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY_2)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID_2)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID_2)
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY_2) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID_2) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID_2) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 2"
     fi
 
