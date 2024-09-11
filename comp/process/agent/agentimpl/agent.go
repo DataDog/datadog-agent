@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -100,7 +100,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		}, nil
 	}
 
-	if err := processStatsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
+	if err := processStatsd.Configure(pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog()), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
 		deps.Log.Criticalf("Error configuring statsd for process-agent: %s", err)
 		return provides{
 			Comp: processAgent{
