@@ -30,6 +30,7 @@ import (
 
 var detectorsWithPrivilege = []languagemodels.Detector{
 	detectors.NewGoDetector(),
+	detectors.NewDotnetDetector(),
 }
 
 var (
