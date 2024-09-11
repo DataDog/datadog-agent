@@ -35,13 +35,11 @@ var failureTelemetry = struct {
 	failedConnOrphans        telemetry.Counter
 	failedConnsDropped       telemetry.Counter
 	closedConnFlushedCleaned telemetry.Counter
-	ongoingConnectPidCleaned telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
 	telemetry.NewCounter(telemetryModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
-	telemetry.NewCounter(telemetryModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -156,13 +154,13 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		return
 	}
-	connFlushedCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	connFlushedCleaner.Clean(time.Second*10, nil, nil, func(now int64, key ebpf.ConnTuple, val int64) bool {
+	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, key ebpf.ConnTuple, val int64) bool {
 		expired := val > 0 && now-val > connClosedFlushMapTTL
 		if expired {
 			failureTelemetry.closedConnFlushedCleaned.Inc()
@@ -170,5 +168,5 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return expired
 	})
 
-	fc.connCloseFlushedCleaner = connFlushedCleaner
+	fc.connCloseFlushedCleaner = mapCleaner
 }

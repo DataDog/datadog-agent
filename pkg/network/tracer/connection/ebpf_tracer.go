@@ -683,6 +683,31 @@ func (t *ebpfTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTup
 	return t.tcpStats.Lookup(tuple, stats) == nil
 }
 
+// setupMapCleaner sets up a map cleaner for the tcp_ongoing_connect_pid map
+func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
+	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
+	if err != nil {
+		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
+		return
+	}
+
+	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
+		ts := int64(val.Timestamp)
+		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
+		if expired {
+			EbpfTracerTelemetry.ongoingConnectPidCleaned.Inc()
+		}
+		return expired
+	})
+
+	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
+}
+
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
 	*stats = network.ConnectionStats{
 		Pid:    t.Pid,
@@ -753,28 +778,4 @@ func updateTCPStats(conn *network.ConnectionStats, tcpStats *netebpf.TCPStats, r
 		conn.RTT = tcpStats.Rtt
 		conn.RTTVar = tcpStats.Rtt_var
 	}
-}
-
-func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
-	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
-	if err != nil {
-		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
-		return
-	}
-
-	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
-		ts := int64(val.Timestamp)
-		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
-		if expired {
-			EbpfTracerTelemetry.ongoingConnectPidCleaned.Inc()
-		}
-		return expired
-	})
-
-	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
 }
