@@ -46,7 +46,7 @@ func main() {
 
 	// Convert generated pointers to CGo structs to uintptr
 	convertPointerToUint64Regex := regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
-	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uintptr"))
+	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uint64"))
 
 	b, err = format.Source(b)
 	if err != nil {

@@ -45,7 +45,7 @@ type FailedConn struct {
 	Pad_cgo_0 [4]byte
 }
 type SkpConn struct {
-	Sk  uintptr
+	Sk  uint64
 	Tup ConnTuple
 }
 type PidTs struct {
@@ -88,12 +88,12 @@ type PIDFD struct {
 	Fd  uint32
 }
 type UDPRecvSock struct {
-	Sk  uintptr
-	Msg uintptr
+	Sk  uint64
+	Msg uint64
 }
 type BindSyscallArgs struct {
-	Addr uintptr
-	Sk   uintptr
+	Addr uint64
+	Sk   uint64
 }
 type ProtocolStack struct {
 	Api         uint8
