@@ -231,7 +231,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 		ev = event
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
-	case trigger.StepFunctionEvent:
+	case trigger.LegacyStepFunctionEvent:
 		var event events.StepFunctionEvent
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
@@ -239,6 +239,15 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 		ev = event.Payload
 		lp.initFromStepFunctionEvent(event)
+	case trigger.StepFunctionEvent:
+		var eventPayload events.StepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		sfe := events.StepFunctionEvent{Payload: eventPayload}
+		ev = eventPayload
+		lp.initFromStepFunctionEvent(sfe)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}

@@ -341,6 +341,7 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 type StepFunctionEvent struct {
 	Payload StepFunctionPayload
 }
+
 type StepFunctionPayload struct {
 	Execution struct {
 		ID string

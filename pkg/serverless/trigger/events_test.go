@@ -117,7 +117,7 @@ func TestGetEventType(t *testing.T) {
 		"sqs.json":                            SQSEvent,
 		"lambdaurl.json":                      LambdaFunctionURLEvent,
 		"stepfunction.json":                   StepFunctionEvent,
-		"legacystepfunction.json":             StepFunctionEvent,
+		"legacystepfunction.json":             LegacyStepFunctionEvent,
 	}
 
 	for testFile, expectedEventType := range testCases {

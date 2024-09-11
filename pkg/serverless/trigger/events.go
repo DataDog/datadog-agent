@@ -79,6 +79,9 @@ const (
 
 	// StepFunctionEvent describes an event with a Step Function execution context
 	StepFunctionEvent
+
+	// LegacyStepFunctionEvent describes an event with a Legacy Lambda Step Function execution context
+	LegacyStepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -114,6 +117,7 @@ var (
 		{isEventBridgeEvent, EventBridgeEvent},
 		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
 		{isStepFunctionEvent, StepFunctionEvent},
+		{isLegacyStepFunctionEvent, LegacyStepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -274,19 +278,24 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 	return strings.Contains(lambdaURL, "lambda-url")
 }
 
-func isStepFunctionEvent(event map[string]any) bool {
-	payload := json.GetNestedValue(event, "payload")
-	if payload == nil {
-		return innerIsStepFunctionEvent(event)
-	}
-	payloadMSA, ok := payload.(map[string]any)
-	if !ok {
+func isLegacyStepFunctionEvent(event map[string]any) bool {
+	execId := json.GetNestedValue(event, "payload", "execution", "id")
+	if execId == nil {
 		return false
 	}
-	return innerIsStepFunctionEvent(payloadMSA)
+	stateName := json.GetNestedValue(event, "payload", "state", "name")
+	if stateName == nil {
+		return false
+	}
+	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
+	if stateEnteredTime == nil {
+		return false
+	}
+	return true
+
 }
 
-func innerIsStepFunctionEvent(event map[string]any) bool {
+func isStepFunctionEvent(event map[string]any) bool {
 	execId := json.GetNestedValue(event, "execution", "id")
 	if execId == nil {
 		return false
