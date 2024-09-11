@@ -1,0 +1,4 @@
+name: windows-dev
+description: A windows dev instance.
+runtime:
+  name: go
