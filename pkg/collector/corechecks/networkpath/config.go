@@ -12,15 +12,26 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"gopkg.in/yaml.v2"
 )
 
-const defaultCheckInterval time.Duration = 1 * time.Minute
+const (
+	defaultCheckInterval time.Duration = 1 * time.Minute
+)
+
+// Number is a type that is used to make a generic version
+// of the firstNonZero function
+type Number interface {
+	~int | ~int64 | ~uint8
+}
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	MinCollectionInterval int `yaml:"min_collection_interval"`
+	MinCollectionInterval int64 `yaml:"min_collection_interval"`
+	TimeoutMs             int64 `yaml:"timeout"`
+	MaxTTL                uint8 `yaml:"max_ttl"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -36,7 +47,7 @@ type InstanceConfig struct {
 
 	MaxTTL uint8 `yaml:"max_ttl"`
 
-	TimeoutMs uint `yaml:"timeout"` // millisecond
+	TimeoutMs int64 `yaml:"timeout"`
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 
@@ -52,7 +63,7 @@ type CheckConfig struct {
 	DestinationService    string
 	MaxTTL                uint8
 	Protocol              payload.Protocol
-	TimeoutMs             uint
+	Timeout               time.Duration
 	MinCollectionInterval time.Duration
 	Tags                  []string
 	Namespace             string
@@ -79,8 +90,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestPort = instance.DestPort
 	c.SourceService = instance.SourceService
 	c.DestinationService = instance.DestinationService
-	c.MaxTTL = instance.MaxTTL
-	c.TimeoutMs = instance.TimeoutMs
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 
 	c.MinCollectionInterval = firstNonZero(
@@ -92,13 +101,28 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
 
+	c.Timeout = firstNonZero(
+		time.Duration(instance.TimeoutMs)*time.Millisecond,
+		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
+		setup.DefaultNetworkPathTimeout*time.Millisecond,
+	)
+	if c.Timeout <= 0 {
+		return nil, fmt.Errorf("timeout must be > 0")
+	}
+
+	c.MaxTTL = firstNonZero(
+		instance.MaxTTL,
+		initConfig.MaxTTL,
+		setup.DefaultNetworkPathMaxTTL,
+	)
+
 	c.Tags = instance.Tags
 	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }
 
-func firstNonZero(values ...time.Duration) time.Duration {
+func firstNonZero[T Number](values ...T) T {
 	for _, value := range values {
 		if value != 0 {
 			return value

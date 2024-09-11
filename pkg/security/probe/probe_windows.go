@@ -196,6 +196,8 @@ type etwCallback func(n interface{}, pid uint32)
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if !p.opts.disableProcmon {
 		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
 		if err != nil {
@@ -1109,6 +1111,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1255,6 +1260,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
+	p.processKiller.Reset()
+
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1380,6 +1387,11 @@ func (p *WindowsProbe) zeroEvent() *model.Event {
 // Origin returns origin
 func (p *Probe) Origin() string {
 	return ""
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewProbe instantiates a new runtime security agent probe
