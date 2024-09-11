@@ -117,14 +117,13 @@ func TestStartExecutionSpan(t *testing.T) {
 	}
 
 	testcases := []struct {
-		name                    string
-		event                   interface{}
-		payload                 []byte
-		reqHeaders              http.Header
-		infSpanEnabled          bool
-		propStyle               string
-		expectCtx               *ExecutionStartInfo
-		expectTraceIDUpper64Hex string
+		name           string
+		event          interface{}
+		payload        []byte
+		reqHeaders     http.Header
+		infSpanEnabled bool
+		propStyle      string
+		expectCtx      *ExecutionStartInfo
 	}{
 		{
 			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithoutCtx-datadog",
@@ -339,11 +338,11 @@ func TestStartExecutionSpan(t *testing.T) {
 			infSpanEnabled: false,
 			propStyle:      "datadog",
 			expectCtx: &ExecutionStartInfo{
-				TraceID:          5377636026938777059,
-				parentID:         8947638978974359093,
-				SamplingPriority: 1,
+				TraceID:           5377636026938777059,
+				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
 			},
-			expectTraceIDUpper64Hex: "6fb5c3a05c73dbfe",
 		},
 	}
 
@@ -388,11 +387,6 @@ func TestStartExecutionSpan(t *testing.T) {
 			} else {
 				assert.Equal(uint64(0), inferredSpan.Span.TraceID)
 				assert.Equal(uint64(0), inferredSpan.Span.ParentID)
-			}
-			if tc.expectTraceIDUpper64Hex != "" {
-				actualUpper64, ok := lp.requestHandler.GetMetaTag("_dd.p.tid")
-				assert.True(ok)
-				assert.Equal(tc.expectTraceIDUpper64Hex, actualUpper64)
 			}
 		})
 	}

@@ -153,8 +153,7 @@ func TestStartExecutionSpanStepFunctionEvent(t *testing.T) {
 	assert.Equal(t, uint64(5744042798732701615), testProcessor.GetExecutionInfo().TraceID)
 	assert.Equal(t, uint64(2902498116043018663), testProcessor.GetExecutionInfo().parentID)
 	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
-	upper64, ok := testProcessor.requestHandler.GetMetaTag(ddTraceIDUpper64BitsHeader)
-	assert.True(t, ok)
+	upper64 := testProcessor.GetExecutionInfo().TraceIDUpper64Hex
 	assert.Equal(t, "1914fe7789eb32be", upper64)
 	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }
@@ -190,8 +189,7 @@ func TestLegacyLambdaStartExecutionSpanStepFunctionEvent(t *testing.T) {
 	assert.Equal(t, uint64(5744042798732701615), testProcessor.GetExecutionInfo().TraceID)
 	assert.Equal(t, uint64(2902498116043018663), testProcessor.GetExecutionInfo().parentID)
 	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
-	upper64, ok := testProcessor.requestHandler.GetMetaTag(ddTraceIDUpper64BitsHeader)
-	assert.True(t, ok)
+	upper64 := testProcessor.GetExecutionInfo().TraceIDUpper64Hex
 	assert.Equal(t, "1914fe7789eb32be", upper64)
 	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }

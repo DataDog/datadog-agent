@@ -35,6 +35,12 @@ const (
 	// SamplingPriorityHeader is the header containing the sampling priority for execution and/or inferred spans
 	SamplingPriorityHeader = "x-datadog-sampling-priority"
 
+	// TraceTagsHeader is the header containing trace tags, e.g. the upper 64 bits tag
+	TraceTagsHeader = "x-datadog-tags"
+
+	// Upper64BitsTag is the tag for the upper 64 bits of the trace ID, if it exists
+	Upper64BitsTag = "_dd.p.tid"
+
 	// Lambda function trigger span tag values
 	apiGateway              = "api-gateway"
 	applicationLoadBalancer = "application-load-balancer"
