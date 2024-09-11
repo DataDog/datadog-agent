@@ -51,3 +51,7 @@
 .lint_linux_packages:
   - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
   - find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint
+  - |
+    if [ -n "$PACKAGE_REQUIRED_FILES_LIST" ]; then
+      find $OMNIBUS_PACKAGE_DIR \( -name '*.deb' -or -name '*.rpm' \) -a -not -name '*-dbg[_-]*' | xargs dd-pkg check-files --required-files ${PACKAGE_REQUIRED_FILES_LIST}
+    fi
