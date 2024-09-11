@@ -78,8 +78,10 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
-	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
-	DefaultZstdCompressionLevel = 5
+	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
+	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
+	// in situations where we have a high value for `GOMAXPROCS`.
+	DefaultZstdCompressionLevel = 1
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
