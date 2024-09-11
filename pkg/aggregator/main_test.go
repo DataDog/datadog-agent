@@ -11,11 +11,11 @@ import (
 	"os"
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestMain(m *testing.M) {
-	checker := pkgconfigsetup.NewChangeChecker()
+	checker := config.NewChangeChecker()
 	exit := m.Run()
 	if checker.HasChanged() {
 		os.Exit(1)
