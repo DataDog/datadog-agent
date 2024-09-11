@@ -807,6 +807,10 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
 
+	if opts.staticOpts.discardRuntime {
+		emopts.ProbeOpts.DontDiscardRuntime = false
+	}
+
 	fxDeps := fxutil.Test[testModuleFxDeps](
 		t,
 		core.MockBundle(),
