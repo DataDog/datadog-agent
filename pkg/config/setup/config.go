@@ -1537,7 +1537,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Max size in MB an integration logs file can use
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
 	// Max disk usage in MB all integrations logs files are allowed to use in total
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 1000)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
 

@@ -294,7 +294,7 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	actualSize := file1Stat.Size() + file2Stat.Size() + file3Stat.Size()
 
 	assert.Equal(suite.T(), suite.s.combinedUsageSize, actualSize)
-	assert.Equal(suite.T(), suite.s.integrationToFile["sample_integration2:123"], suite.s.leastRecentlyModifiedFile)
+	assert.Equal(suite.T(), suite.s.integrationToFile["sample_integration2:123"], suite.s.getLeastRecentlyModifiedFile())
 }
 
 // TestInitialLogsExceedTotalUsageMultipleFiles ensures initial files are deleted if they

@@ -32,17 +32,15 @@ var endOfLine = []byte{'\n'}
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
-	sources                   *sources.LogSources
-	addedConfigs              chan integrations.IntegrationConfig
-	stop                      chan struct{}
-	runPath                   string
-	integrationsLogsChan      chan integrations.IntegrationLog
-	integrationToFile         map[string]*FileInfo
-	fileSizeMax               int64
-	combinedUsageMax          int64
-	combinedUsageSize         int64
-	leastRecentlyModifiedTime time.Time
-	leastRecentlyModifiedFile *FileInfo
+	sources              *sources.LogSources
+	addedConfigs         chan integrations.IntegrationConfig
+	stop                 chan struct{}
+	runPath              string
+	integrationsLogsChan chan integrations.IntegrationLog
+	integrationToFile    map[string]*FileInfo
+	fileSizeMax          int64
+	combinedUsageMax     int64
+	combinedUsageSize    int64
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeLogToFileFunction func(filepath, log string) error
@@ -86,8 +84,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		integrationToFile:    make(map[string]*FileInfo),
 		// Set the initial least recently modified time to the largest possible
 		// value, used for the first comparison
-		leastRecentlyModifiedTime: time.Unix(1<<63-62135596801, 999999999),
-		writeLogToFileFunction:    writeLogToFile,
+		writeLogToFileFunction: writeLogToFile,
 	}
 }
 
@@ -163,7 +160,6 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// Ensure combined logs usage doesn't exceed integrations_logs_total_usage
 	for s.combinedUsageSize+logSize > s.combinedUsageMax {
 		s.deleteLeastRecentlyModified()
-		s.updateLeastRecentlyModifiedFile()
 	}
 
 	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
@@ -175,30 +171,25 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// Update information for the modified file
 	fileToUpdate.lastModified = time.Now()
 	fileToUpdate.size += logSize
-
-	// Update leastRecentlyModifiedFile
-	if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationToFile) > 1 {
-		s.updateLeastRecentlyModifiedFile()
-	}
-
 }
 
 // deleteLeastRecentlyModified deletes and remakes the least recently log file
 func (s *Launcher) deleteLeastRecentlyModified() {
-	s.combinedUsageSize -= s.leastRecentlyModifiedFile.size
-	err := s.deleteAndRemakeFile(filepath.Join(s.runPath, s.leastRecentlyModifiedFile.filename))
+	leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+	s.combinedUsageSize -= leastRecentlyModifiedFile.size
+	err := s.deleteAndRemakeFile(filepath.Join(s.runPath, leastRecentlyModifiedFile.filename))
 	if err != nil {
 		ddLog.Warn("Unable to delete and remake least recently modified file: ", err)
 	}
 
-	s.leastRecentlyModifiedFile.size = 0
-	s.leastRecentlyModifiedFile.lastModified = time.Now()
+	leastRecentlyModifiedFile.size = 0
+	leastRecentlyModifiedFile.lastModified = time.Now()
 }
 
-// updateLeastRecentlyModifiedFile finds the least recently modified file among
-// all the files tracked by the integrations launcher and sets the
-// leastRecentlyModifiedFile to that file
-func (s *Launcher) updateLeastRecentlyModifiedFile() {
+// getLeastRecentlyModifiedFile returns the least recently modified file among
+// all the files tracked by the integrations launcher
+func (s *Launcher) getLeastRecentlyModifiedFile() *FileInfo {
 	leastRecentlyModifiedTime := time.Now()
 	var leastRecentlyModifiedFile *FileInfo
 
@@ -209,8 +200,7 @@ func (s *Launcher) updateLeastRecentlyModifiedFile() {
 		}
 	}
 
-	s.leastRecentlyModifiedFile = leastRecentlyModifiedFile
-	s.leastRecentlyModifiedTime = leastRecentlyModifiedTime
+	return leastRecentlyModifiedFile
 }
 
 // writeLogToFile is used as a function pointer that writes a log to a given file
@@ -338,15 +328,8 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 
 			s.integrationToFile[integrationID] = fileInfo
 
-			if s.leastRecentlyModifiedFile == nil {
-				s.leastRecentlyModifiedFile = fileInfo
-			} else if fileInfo.lastModified.Before(s.leastRecentlyModifiedFile.lastModified) {
-				s.leastRecentlyModifiedFile = fileInfo
-			}
-
 			for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
 				s.deleteLeastRecentlyModified()
-				s.updateLeastRecentlyModifiedFile()
 			}
 
 			s.combinedUsageSize += info.Size()
