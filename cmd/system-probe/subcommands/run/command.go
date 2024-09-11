@@ -50,7 +50,6 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -384,7 +383,7 @@ func stopSystemProbe() {
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(settings settings.Component, cfg ddconfig.Reader, configPrefix string, log log.Component) {
+func setupInternalProfiling(settings settings.Component, cfg model.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
