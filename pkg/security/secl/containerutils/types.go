@@ -14,3 +14,8 @@ type CGroupID string
 
 // CGroupFlags represents the flags of a cgroup
 type CGroupFlags uint64
+
+// IsContainer returns whether a cgroup maps to a container
+func (f CGroupFlags) IsContainer() bool {
+	return (f&0b111 != 0) && ((f & 0b111) != CGroupFlags(CGroupManagerSystemd))
+}
