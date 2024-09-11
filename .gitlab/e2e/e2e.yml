@@ -453,6 +453,19 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new-e2e_package_signing
   rules: !reference [.on_default_new_e2e_tests]
 
+new-e2e-cspm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cspm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e

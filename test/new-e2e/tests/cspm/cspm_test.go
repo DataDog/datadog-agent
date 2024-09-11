@@ -167,13 +167,10 @@ var expectedFindingsWorkerNode = findings{
 	},
 }
 
-func TestCSPM(t *testing.T) {
-	values := `
-datadog:
-  securityAgent:
-    compliance:
-      enabled: true`
+//go:embed values.yaml
+var values string
 
+func TestCSPM(t *testing.T) {
 	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithoutDualShipping()))))
 }
 
