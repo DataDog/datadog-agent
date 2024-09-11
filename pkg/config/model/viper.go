@@ -161,12 +161,25 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if previousValue != nil {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
@@ -640,6 +653,8 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
 // it overrides the existing values with the new ones in the FleetPolicies source, and updates the main config
 // according to sources priority order.
+//
+// Note: this should only be called at startup, as notifiers won't receive a notification when this loads
 func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
