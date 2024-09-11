@@ -426,6 +426,7 @@
 /pkg/util/orchestrator/                 @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/prometheus                    @DataDog/container-integrations
+/pkg/util/tagger                        @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/uuid/                         @DataDog/agent-shared-components
 /pkg/util/cgroups/                      @DataDog/container-integrations

@@ -4395,22 +4395,13 @@ api_key:
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
-  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
   #
   # debug:
-
-    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
-    ## @param loglevel - string - optional - default: none
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
-    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are disabled, debug, info, error, warn.
-    #
-    # loglevel: info
-
     ## @param verbosity - string - optional - default: normal
     ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
     ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are basic, normal, detailed.
+    ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
 {{- if (eq .OS "windows")}}

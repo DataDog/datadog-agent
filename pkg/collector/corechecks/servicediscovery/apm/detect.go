@@ -118,12 +118,16 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
-	if err != nil {
-		return None
+	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
 	}
 
-	return Provided
+	// We failed to find symbols in the regular symbols section, now we can try the pclntab
+	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
+	}
+	return None
+
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {

@@ -49,6 +49,7 @@ include:
 default:
   retry:
     max: 2
+    exit_codes: 42
     when:
       - runner_system_failure
       - stuck_or_timeout_failure
@@ -214,6 +215,7 @@ variables:
   E2E_TESTS_AZURE_CLIENT_SECRET: ci.datadog-agent.e2e_tests_azure_client_secret  # agent-devx-loops
   E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
+  E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops

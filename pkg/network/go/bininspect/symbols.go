@@ -281,3 +281,19 @@ func GetAnySymbolWithPrefix(elfFile *elf.File, prefix string, maxLength int) (*e
 	// Shouldn't happen
 	return nil, errors.New("empty symbols map")
 }
+
+// GetAnySymbolWithPrefixPCLNTAB returns any one symbol with the given prefix and the
+// specified maximum length from the pclntab section in ELF file.
+func GetAnySymbolWithPrefixPCLNTAB(elfFile *elf.File, prefix string, maxLength int) (*elf.Symbol, error) {
+	symbols, err := GetPCLNTABSymbolParser(elfFile, newPrefixSymbolFilter(prefix, maxLength))
+	if err != nil {
+		return nil, err
+	}
+
+	for key := range symbols {
+		return symbols[key], nil
+	}
+
+	// Shouldn't happen
+	return nil, errors.New("empty symbols map")
+}
