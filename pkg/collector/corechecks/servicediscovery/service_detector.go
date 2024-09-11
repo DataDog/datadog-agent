@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // ServiceMetadata stores metadata about a service.
@@ -42,11 +43,27 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 	return name
 }
 
+// fixupMetadata performs additional adjustments on the meta data returned from
+// the meta data extraction library.
+func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.ServiceMetadata {
+	meta.Name = makeFinalName(meta)
+
+	langName := ""
+	if lang != language.Unknown {
+		langName = string(lang)
+	}
+	meta.Name, _ = traceutil.NormalizeService(meta.Name, langName)
+	if meta.DDService != "" {
+		meta.DDService, _ = traceutil.NormalizeService(meta.DDService, langName)
+	}
+
+	return meta
+}
+
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
 func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) usm.ServiceMetadata {
 	fs := usm.NewSubDirFS(root)
 	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
-	meta.Name = makeFinalName(meta)
-	return meta
+	return fixupMetadata(meta, lang)
 }
