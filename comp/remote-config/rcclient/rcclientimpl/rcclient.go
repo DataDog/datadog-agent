@@ -269,8 +269,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog().Get("log_level"))
 			config.Datadog().UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog().Get("log_level"))
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
