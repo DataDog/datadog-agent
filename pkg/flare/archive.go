@@ -45,7 +45,7 @@ var cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
 // searchPaths is a list of path where to look for checks configurations
 type searchPaths map[string]string
 
-// gerProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
+// getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
 func getProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 }
