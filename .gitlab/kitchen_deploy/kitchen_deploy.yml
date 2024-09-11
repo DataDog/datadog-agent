@@ -3,20 +3,18 @@
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
 .setup_rpm_signing_key: &setup_rpm_signing_key
-  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE
-  - printf -- "$(pop_front)" | gpg --import --batch
-  - export RPM_SIGNING_PASSPHRASE=$(pop_front)
+  - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY || exit $?
+  - printf -- "$(pop_secret)" | gpg --import --batch
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE || exit $?
+  - export RPM_SIGNING_PASSPHRASE=$(pop_secret)
 
 .setup_apt_signing_key: &setup_apt_signing_key
-  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE
-  - APT_SIGNING_PRIVATE_KEY=$(pop_front)
-  - APT_SIGNING_KEY_PASSPHRASE=$(pop_front)
-
-  - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
+  - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY || exit $?
+  - printf -- "$(pop_secret)" | gpg --import --batch
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE || exit $?
+  - APT_SIGNING_KEY_PASSPHRASE=$(pop_secret)
 
 .setup_signing_keys_package:
   &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package
