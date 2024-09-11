@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -88,15 +88,11 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 	if err != nil {
 		return err
 	}
-
 	body, err := json.Marshal(&cliParams.filters)
-
 	if err != nil {
 		return err
 	}
-
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
-
 	var f *os.File
 	var bufWriter *bufio.Writer
 
@@ -105,7 +101,7 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 			return fmt.Errorf("error creating directory for file %s: %v", cliParams.FilePath, err)
 		}
 
-		f, bufWriter, err = openFileForWriting(cliParams.FilePath)
+		f, bufWriter, err = stream.OpenFileForWriting(cliParams.FilePath)
 		if err != nil {
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
 		}
@@ -117,12 +113,10 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 			f.Close()
 		}()
 	}
-
 	return streamRequest(urlstr, body, cliParams.Duration, func(chunk []byte) {
 		if !cliParams.Quiet {
 			fmt.Print(string(chunk))
 		}
-
 		if bufWriter != nil {
 			if _, err = bufWriter.Write(chunk); err != nil {
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
@@ -152,29 +146,6 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the logs and contact support if you continue having issues. \n", e)
 	}
 	return e
-}
-
-// openFileForWriting opens a file for writing
-func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
-	}
-	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
-	return f, bufWriter, nil
-}
-
-// checkDirExists checks if the directory for the given path exists, if not then create it.
-func checkDirExists(path string) error {
-	dir := filepath.Dir(path)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-	return nil
 }
 
 // StreamLogs is a public function that can be used by other packages to stream logs.

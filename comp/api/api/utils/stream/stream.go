@@ -7,16 +7,29 @@
 package stream
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// LogParams represents the parameters for streaming logs
+type LogParams struct {
+	// FilePath represents the output file path to write the log stream to.
+	FilePath string
+
+	// Duration represents the duration of the log stream.
+	Duration time.Duration
+}
 
 // MessageReceiver is an exported interface for a valid receiver of streamed output
 type MessageReceiver interface {
