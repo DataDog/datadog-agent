@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -98,12 +99,41 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		SrcIP:    sourceIP,
 	}
 
+	tsVal := make([]byte, 8)
+	binary.BigEndian.PutUint32(tsVal, uint32(time.Now().UnixMilli()))
+
 	tcpLayer := &layers.TCP{
 		SrcPort: layers.TCPPort(sourcePort),
 		DstPort: layers.TCPPort(destPort),
 		Seq:     seqNum,
 		Ack:     0,
 		SYN:     true,
+		Window:  35844,
+		Options: []layers.TCPOption{
+			{
+				OptionType:   layers.TCPOptionKindMSS,
+				OptionLength: 4,
+				OptionData:   []byte{0x23, 0x01}, // 8961
+			},
+			{
+				OptionType:   layers.TCPOptionKindSACKPermitted,
+				OptionLength: 2,
+			},
+			{
+				OptionType:   layers.TCPOptionKindTimestamps,
+				OptionLength: 10,
+				OptionData:   tsVal,
+			},
+			{
+				OptionType:   layers.TCPOptionKindNop,
+				OptionLength: 1,
+			},
+			{
+				OptionType:   layers.TCPOptionKindWindowScale,
+				OptionLength: 3,
+				OptionData:   []byte{0x02}, // 2
+			},
+		},
 	}
 
 	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
