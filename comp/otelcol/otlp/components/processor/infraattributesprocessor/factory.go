@@ -18,6 +18,8 @@ import (
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
+// TODO: Remove tagger and generateID as depenendencies to enable future import of 
+// infraattributesprocessor by external go packages like ocb
 type factory struct {
 	tagger     taggerClient
 	generateID GenerateKubeMetadataEntityID
