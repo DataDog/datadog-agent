@@ -446,8 +446,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     modified_files = get_go_modified_files(ctx)
 
     modified_go_files = [f"./{file}" for file in modified_files]
-    print("Modified files:")
-    print("\n".join(modified_go_files))
+
     if build_tags is None:
         build_tags = []
 
