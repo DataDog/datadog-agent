@@ -7,13 +7,12 @@ package module
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
-
-var pidNSReadinkError = errors.New("could not read process PID namespace")
 
 func isProcessContainerized(pid int, rootPIDNamespace string) bool {
 	processPIDNamespace, err := getPIDNamespace(pid)
@@ -29,10 +28,20 @@ func getPIDNamespace(pid int) (string, error) {
 
 	pidNamespace, err := os.Readlink(pidNamespacePath)
 	if err != nil {
-		return "", errors.Join(pidNSReadinkError, err)
+		return "", fmt.Errorf("could not read process %d PID namespace: %w", pid, err)
 	}
 
 	// Readlink read a string with the following format: pid:[<id>]
 	// We only care about the <id> portion, which we extract here.
-	return pidNamespace[5 : len(pidNamespace)-1], nil
+
+	// Length of "pid:["
+	const nsPrefixLen = 5
+
+	closingBracketIndex := len(pidNamespace) - 1
+
+	if closingBracketIndex < nsPrefixLen {
+		return "", errors.New("read invalid PID namespace")
+	}
+
+	return pidNamespace[nsPrefixLen:closingBracketIndex], nil
 }

@@ -232,6 +232,7 @@ func TestBasic(t *testing.T) {
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
 		assertStat(t, serviceMap[pid])
+		require.False(t, serviceMap[pid].IsContainer)
 	}
 }
 
