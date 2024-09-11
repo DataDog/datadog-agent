@@ -193,9 +193,8 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
 SEC("kprobe/tcp_done")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
-    u64 pid_tgid = 0;
 
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_done_failed_tuple);
         return 0;
     }
@@ -273,13 +272,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
 
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-    skp_conn.tup.pid = 0;
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
     if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
+        skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+        skp_conn.tup.pid = 0;
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         cleanup_conn(ctx, &t, sk);
     } else {
@@ -1004,8 +1003,6 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
-    log_debug("kretprobe/inet_csk_accept: skp_conn.tup.pid: %u", skp_conn.tup.pid);
-
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
 

@@ -460,7 +460,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_NOEXIST);
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
 
     return 0;
 }
@@ -511,6 +511,10 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     pb.netns = t.netns;
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
 }

@@ -160,7 +160,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, key ebpf.ConnTuple, val int64) bool {
+	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
 		expired := val > 0 && now-val > connClosedFlushMapTTL
 		if expired {
 			failureTelemetry.closedConnFlushedCleaned.Inc()
