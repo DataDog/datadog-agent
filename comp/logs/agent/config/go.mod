@@ -16,7 +16,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model/
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
-	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure/
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
