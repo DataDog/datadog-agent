@@ -72,7 +72,6 @@ func (c *Check) Run() error {
 	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = commonTags
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
