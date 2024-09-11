@@ -27,10 +27,11 @@ const (
 	ProcPath               = "/proc"
 	PidLimitsPathFormat    = "/%d/limits"
 	PidFdPathFormat        = "/%d/fd"
+	PidTaskPathFormat      = "/%d/task"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
-func getPidList(procPath string) []int {
+func GetPidList(procPath string) []int {
 	files, err := os.ReadDir(procPath)
 	pids := []int{}
 	if err != nil {
@@ -74,7 +75,7 @@ func getEnvVariablesFromPid(procPath string, pid int) map[string]string {
 // it returns a slice since a value could be found in more than one process
 func SearchProcsForEnvVariable(procPath string, envName string) []string {
 	result := []string{}
-	pidList := getPidList(procPath)
+	pidList := GetPidList(procPath)
 	for _, pid := range pidList {
 		envMap := getEnvVariablesFromPid(procPath, pid)
 		if value, ok := envMap[envName]; ok {
@@ -207,12 +208,11 @@ type FileDescriptorMaxData struct {
 }
 
 // GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
-func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	return getFileDescriptorMaxData(ProcPath)
+func GetFileDescriptorMaxData(pids []int) (*FileDescriptorMaxData, error) {
+	return getFileDescriptorMaxData(ProcPath, pids)
 }
 
-func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
-	pids := getPidList(path)
+func getFileDescriptorMaxData(path string, pids []int) (*FileDescriptorMaxData, error) {
 	fdMax := math.Inf(1)
 
 	for _, pid := range pids {
@@ -260,12 +260,11 @@ type FileDescriptorUseData struct {
 }
 
 // GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
-func GetFileDescriptorUseData() (*FileDescriptorUseData, error) {
-	return getFileDescriptorUseData(ProcPath)
+func GetFileDescriptorUseData(pids []int) (*FileDescriptorUseData, error) {
+	return getFileDescriptorUseData(ProcPath, pids)
 }
 
-func getFileDescriptorUseData(path string) (*FileDescriptorUseData, error) {
-	pids := getPidList(path)
+func getFileDescriptorUseData(path string, pids []int) (*FileDescriptorUseData, error) {
 	fdUse := 0
 
 	for _, pid := range pids {
@@ -279,5 +278,34 @@ func getFileDescriptorUseData(path string) (*FileDescriptorUseData, error) {
 
 	return &FileDescriptorUseData{
 		UseFileHandles: float64(fdUse),
+	}, nil
+}
+
+type ThreadsMaxData struct {
+	ThreadsMax float64
+}
+
+// GetThreadsMaxData returns the maximum number of threads the function has used at a time
+func GetThreadsMaxData(pids []int) (*ThreadsMaxData, error) {
+	return getThreadsMaxData(ProcPath, pids)
+}
+
+func getThreadsMaxData(path string, pids []int) (*ThreadsMaxData, error) {
+	threadCount := 0
+	for _, pid := range pids {
+		taskPath := fmt.Sprint(path + fmt.Sprintf(PidTaskPathFormat, pid))
+		files, err := os.ReadDir(taskPath)
+		if err != nil {
+			return nil, fmt.Errorf("threads data not found in directory '%s'", taskPath)
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				threadCount++
+			}
+		}
+	}
+
+	return &ThreadsMaxData{
+		ThreadsMax: float64(threadCount),
 	}, nil
 }
