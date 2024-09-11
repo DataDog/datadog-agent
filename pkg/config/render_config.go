@@ -59,6 +59,7 @@ type context struct {
 	OTLP                             bool
 	APMInjection                     bool
 	NetworkPath                      bool
+	SBOM                             bool
 }
 
 func mkContext(buildType string) context {
@@ -91,6 +92,7 @@ func mkContext(buildType string) context {
 		PrometheusScrape:  true,
 		OTLP:              true,
 		NetworkPath:       true,
+		SBOM:              true,
 	}
 
 	switch buildType {
