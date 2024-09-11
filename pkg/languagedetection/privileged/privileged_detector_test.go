@@ -8,6 +8,7 @@
 package privileged
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,4 +149,70 @@ func TestShortLivingProc(t *testing.T) {
 	require.Len(t, res, 1)
 	require.Equal(t, languagemodels.Language{}, res[0])
 	require.Zero(t, d.binaryIDCache.Len())
+}
+
+// DummyDetector is a detector used for testing
+type DummyDetector struct {
+	language languagemodels.LanguageName
+}
+
+// DummyProcess is a process used for testing
+type DummyProcess struct{}
+
+// GetPid is unused
+func (p DummyProcess) GetPid() int32 {
+	return int32(os.Getpid())
+}
+
+// GetCommand is unused
+func (p DummyProcess) GetCommand() string {
+	return "dummy"
+}
+
+// GetCmdline is unused
+func (p DummyProcess) GetCmdline() []string {
+	return []string{"dummy"}
+}
+
+// DetectLanguage "detects" a dummy language for testing
+func (d DummyDetector) DetectLanguage(_ languagemodels.Process) (languagemodels.Language, error) {
+	if d.language == languagemodels.Unknown {
+		return languagemodels.Language{}, errors.New("unable to detect")
+	}
+
+	return languagemodels.Language{Name: languagemodels.LanguageName(d.language)}, nil
+}
+
+func TestDetectorStopAtFirstGood(t *testing.T) {
+	MockPrivilegedDetectors(t, []languagemodels.Detector{
+		DummyDetector{languagemodels.Java},
+		DummyDetector{languagemodels.Python}})
+
+	d := NewLanguageDetector()
+	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+	require.Len(t, res, 1)
+	require.NotNil(t, res[0])
+	assert.Equal(t, languagemodels.Java, res[0].Name)
+}
+
+func TestDetectorTrySecondIfFirstFails(t *testing.T) {
+	MockPrivilegedDetectors(t, []languagemodels.Detector{
+		DummyDetector{},
+		DummyDetector{languagemodels.Python}})
+
+	d := NewLanguageDetector()
+	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+	require.Len(t, res, 1)
+	require.NotNil(t, res[0])
+	assert.Equal(t, languagemodels.Python, res[0].Name)
+}
+
+func TestDetectorAllFails(t *testing.T) {
+	MockPrivilegedDetectors(t, []languagemodels.Detector{DummyDetector{}})
+
+	d := NewLanguageDetector()
+	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+	require.Len(t, res, 1)
+	require.NotNil(t, res[0])
+	assert.Equal(t, languagemodels.Unknown, res[0].Name)
 }
