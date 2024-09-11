@@ -275,15 +275,27 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 }
 
 func isStepFunctionEvent(event map[string]any) bool {
-	execId := json.GetNestedValue(event, "payload", "execution", "id")
+	payload := json.GetNestedValue(event, "payload")
+	if payload == nil {
+		return innerIsStepFunctionEvent(event)
+	}
+	payloadMSA, ok := payload.(map[string]any)
+	if !ok {
+		return false
+	}
+	return innerIsStepFunctionEvent(payloadMSA)
+}
+
+func innerIsStepFunctionEvent(event map[string]any) bool {
+	execId := json.GetNestedValue(event, "execution", "id")
 	if execId == nil {
 		return false
 	}
-	stateName := json.GetNestedValue(event, "payload", "state", "name")
+	stateName := json.GetNestedValue(event, "state", "name")
 	if stateName == nil {
 		return false
 	}
-	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
+	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
 	if stateEnteredTime == nil {
 		return false
 	}
