@@ -213,6 +213,7 @@ func (s *cspmTestSuite) TestMetrics() {
 
 }
 func (s *cspmTestSuite) checkFindings(findings, expectedFindings findings) {
+	s.T().Helper()
 	checkedRule := []string{}
 	for expectedRule, expectedRuleFindinds := range expectedFindings {
 		assert.Contains(s.T(), findings, expectedRule)
