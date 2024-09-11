@@ -32,6 +32,36 @@ var usmTaggingTests = []usmTaggingTest{
 		},
 	},
 	{
+		name:            "all values server from json client from environment",
+		description:     "Tests that for executables (not IIS), that settings are read from the environment",
+		clientJSONFile:  "usmtest/client_all.json",
+		clientAppConfig: "",
+		defaultFiles: usmTaggingFiles{
+			jsonFile:      "usmtest/defaultsite_all.json",
+			appConfigFile: "",
+		},
+		clientEnvVars: map[string]string{
+			"DD_SERVICE": "webclient_env",
+			"DD_ENV":     "testing_env_env",
+			"DD_VERSION": "1_env",
+		},
+		serverSiteName: "", // empty is default site
+		serverSitePort: "80",
+		expectedClientTags: []string{
+			"service:webclient_env",
+			"env:testing_env_env",
+			"version:1_env",
+		},
+		expectedServerTags: []string{
+			"service:defaultsite_json",
+			"env:testing_env_json",
+			"version:1_json",
+			"http.iis.site:1",
+			"http.iis.app_pool:DefaultAppPool",
+			"'http.iis.sitename:Default Web Site'",
+		},
+	},
+	{
 		name:            "all values xml test 1",
 		description:     "Test with both json and app config provided, xml supercedes json",
 		clientJSONFile:  "usmtest/client_all.json",
@@ -212,4 +242,5 @@ var usmTaggingTests = []usmTaggingTest{
 			"'http.iis.sitename:TestSite1'",
 		},
 	},
+	
 }
