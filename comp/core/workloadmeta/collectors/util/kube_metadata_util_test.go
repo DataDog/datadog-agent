@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestGenerateKubeMetadataEntityID(t *testing.T) {
@@ -22,7 +20,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 		namespace    string
 		resourceType string
 		resourceName string
-		expectedID   workloadmeta.KubeMetadataEntityID
+		expectedID   string
 	}{
 		{
 			name:         "namespace scoped resource",
@@ -53,7 +51,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 func TestParseKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
-		entityID          workloadmeta.KubeMetadataEntityID
+		entityID          string
 		expectedGroup     string
 		expectedName      string
 		expectedNamespace string

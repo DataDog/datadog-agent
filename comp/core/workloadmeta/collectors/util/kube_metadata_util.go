@@ -8,15 +8,13 @@ package util
 import (
 	"fmt"
 	"strings"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity
 // for namespaced objects, the id will have the format {group}/{resourceType}/{namespace}/{name} (e.g. app/deployments/default/app )
 // for cluster scoped objects, the id will have the format {group}/{resourceType}//{name} (e.g. /nodes//master-node)
-func GenerateKubeMetadataEntityID(group, resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
-	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name))
+func GenerateKubeMetadataEntityID(group, resource, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name)
 }
 
 // ParseKubeMetadataEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.
@@ -26,7 +24,7 @@ func GenerateKubeMetadataEntityID(group, resource, namespace, name string) workl
 // - app/deployments/default/app
 // - /namespaces//default
 // If the parsed id is malformatted, this function will return empty strings and a non nil error
-func ParseKubeMetadataEntityID(id workloadmeta.KubeMetadataEntityID) (group, resource, namespace, name string, err error) {
+func ParseKubeMetadataEntityID(id string) (group, resource, namespace, name string, err error) {
 	parts := strings.Split(string(id), "/")
 	if len(parts) != 4 {
 		err := fmt.Errorf("malformatted metadata entity id: %s", id)
