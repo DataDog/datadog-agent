@@ -76,7 +76,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		}
 
 		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
-		if kv >= kernel.VersionCode(4, 10, 0) || family == "rhel" {
+		if len(kernelHeaders) > 0 && (kv >= kernel.VersionCode(4, 10, 0) || family == "rhel") {
 			var helperPath string
 			helperPath, err = includeHelperAvailability(kernelHeaders)
 			if err != nil {

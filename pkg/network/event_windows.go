@@ -8,7 +8,7 @@
 package network
 
 import (
-	"net"
+	"net/netip"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -57,14 +57,14 @@ func isTCPFlowEstablished(flow *driver.PerFlowData) bool {
 	return false
 }
 
-func convertV4Addr(addr [16]uint8) util.Address {
+func convertV4Addr(addr [16]byte) util.Address {
 	// We only read the first 4 bytes for v4 address
-	return util.V4AddressFromBytes(addr[:net.IPv4len])
+	return util.Address{Addr: netip.AddrFrom4([4]byte(addr[:]))}
 }
 
-func convertV6Addr(addr [16]uint8) util.Address {
+func convertV6Addr(addr [16]byte) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V6AddressFromBytes(addr[:net.IPv6len])
+	return util.Address{Addr: netip.AddrFrom16(addr)}
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport

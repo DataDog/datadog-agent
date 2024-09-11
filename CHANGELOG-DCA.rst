@@ -2,6 +2,58 @@
 Release Notes
 =============
 
+.. _Release Notes_7.57.0:
+
+7.57.0
+======
+
+.. _Release Notes_7.57.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-09-09
+Pinned to datadog-agent v7.57.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7570>`_.
+
+.. _Release Notes_7.57.0_New Features:
+
+New Features
+------------
+
+- The Cluster Agent now supports activating Continuous Profiling
+  using Admission Controller.
+
+- ``LimitRange`` and ``StorageClass`` resources are now collected by the orchestrator check.
+
+
+.. _Release Notes_7.57.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The auto-instrumentation webhook (beta) uses a new injector library.
+
+
+.. _Release Notes_7.57.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a rare bug where some Kubernetes events would be emitted
+  without a timestamp and would be dropped upstream as a result.
+
+- Library package versions for auto-instrumentation are now set to the latest major
+  version of the library-package instead of `latest`.
+  
+  * java:v1
+  * dotnet:v2
+  * python:v2
+  * ruby:v2
+  * js:v5
+
+- Fix APIServer error logs generated when external metrics endpoint is activated
+
+
 .. _Release Notes_7.56.2:
 
 7.56.2
