@@ -49,7 +49,8 @@ func OTLPTracesToConcentratorInputs(
 		if _, exists := ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
 			continue
 		}
-		env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeDeploymentEnvironment)
+		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+		env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
 		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
 		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
