@@ -98,7 +98,6 @@
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx-loops
-/.gitlab/e2e_k8s/e2e_k8s.yml                         @DataDog/container-integrations @DataDog/agent-devx-loops
 /.gitlab/e2e/install_packages                        @DataDog/agent-delivery
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
@@ -564,10 +563,6 @@
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/e2e/                              @DataDog/container-integrations @DataDog/agent-security
-/test/e2e/cws-tests/                    @DataDog/agent-security
-/test/e2e/argo-workflows/otlp-workflow.yaml @DataDog/opentelemetry
-/test/e2e/containers/otlp_sender/        @DataDog/opentelemetry
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless

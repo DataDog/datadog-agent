@@ -22,7 +22,6 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_k8s/e2e_k8s.yml
   - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml

@@ -281,9 +281,6 @@ DEFAULT_MODULES = {
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),
     "pkg/version": GoModule("pkg/version", independent=True, used_by_otel=True),
-    "test/e2e/containers/otlp_sender": GoModule(
-        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
-    ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),
     "test/new-e2e": GoModule(
         "test/new-e2e",
