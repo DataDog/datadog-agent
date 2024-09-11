@@ -43,7 +43,7 @@ func getKnownErrors() []knownError {
 			retryType:    ReCreate,
 		},
 		{
-			errorMessage: `waiting for ECS Service .+fakeintake-ecs.+ create\: timeout while waiting for state to become 'tfSTABLE'`,
+			errorMessage: `waiting for ECS Service .+fakeintake-ecs.+ create: timeout while waiting for state to become 'tfSTABLE'`,
 			retryType:    ReCreate,
 		},
 		{
