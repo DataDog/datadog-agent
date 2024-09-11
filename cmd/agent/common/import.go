@@ -18,6 +18,7 @@ import (
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -30,7 +31,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
-	configConverter := legacy.NewConfigConverter()
+	configConverter := config.NewConfigConverter()
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 
