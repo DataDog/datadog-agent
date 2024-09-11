@@ -21,6 +21,7 @@ instances:
 
     ## @param port - integer - optional
     ## Port of the target endpoint to monitor via Network Path.
+    ## For UDP, we recommend not setting the port since it can make probes less reliable.
     ## If port is not set, a random port will be used.
     #
     # port: <PORT>
