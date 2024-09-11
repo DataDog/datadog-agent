@@ -620,15 +620,11 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType,
 	}
 
 	for _, knownError := range sm.knownErrors {
-		if knownError.isRegex {
-			isMatch, err := regexp.MatchString(knownError.errorMessage, err.Error())
-			if err != nil {
-				fmt.Printf("Error matching regex %s: %v\n", knownError.errorMessage, err)
-			}
-			if isMatch {
-				return knownError.retryType, nil
-			}
-		} else if strings.Contains(err.Error(), knownError.errorMessage) {
+		isMatch, err := regexp.MatchString(knownError.errorMessage, err.Error())
+		if err != nil {
+			fmt.Printf("Error matching regex %s: %v\n", knownError.errorMessage, err)
+		}
+		if isMatch {
 			return knownError.retryType, nil
 		}
 	}
