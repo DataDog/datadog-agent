@@ -147,6 +147,7 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 	for i := len(orderFile.Config.Order) - 1; i >= 0; i-- {
 		if layer, found := parsedLayers[orderFile.Config.Order[i]]; found {
 			mergedConfig.LogLevel = layer.Config.Config.LogLevel
+			mergedConfig.EnableStreamLogs = layer.Config.Config.EnableStreamLogs
 		}
 	}
 	// Same for internal config

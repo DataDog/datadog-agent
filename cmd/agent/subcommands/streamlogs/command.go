@@ -88,11 +88,15 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 	if err != nil {
 		return err
 	}
+
 	body, err := json.Marshal(&cliParams.filters)
+
 	if err != nil {
 		return err
 	}
+
 	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
+
 	var f *os.File
 	var bufWriter *bufio.Writer
 
@@ -113,10 +117,12 @@ func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) 
 			f.Close()
 		}()
 	}
+
 	return streamRequest(urlstr, body, cliParams.Duration, func(chunk []byte) {
 		if !cliParams.Quiet {
 			fmt.Print(string(chunk))
 		}
+
 		if bufWriter != nil {
 			if _, err = bufWriter.Write(chunk); err != nil {
 				fmt.Printf("Error writing stream-logs to file %s: %v", cliParams.FilePath, err)
