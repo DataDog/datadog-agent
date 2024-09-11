@@ -13,16 +13,17 @@ default_version "0.0.1"
 
 resources_path="#{Omnibus::Config.project_root}/resources/fips"
 
-OPENSSL_VERSION="3.0.14"
-OPENSSL_SHA256_SUM="eeca035d4dd4e84fc25846d952da6297484afa0650a6f84c682e39df3a4123ca"
-OPENSSL_FILENAME="openssl-#{OPENSSL_VERSION}.tar.gz"
+OPENSSL_VERSION="3.0.15"
+OPENSSL_SHA256_SUM="23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533"
+OPENSSL_FILENAME="openssl-#{OPENSSL_VERSION}"
 
 DIST_DIR="#{install_dir}/embedded"
 
-source url: "https://www.openssl.org/source/#{OPENSSL_FILENAME}",
+
+source url: "https://github.com/openssl/openssl/releases/download/#{OPENSSL_FILENAME}/#{OPENSSL_FILENAME}.tar.gz",
            sha256: "#{OPENSSL_SHA256_SUM}",
            extract: :seven_zip,
-           target_filename: "#{OPENSSL_FILENAME}"
+           target_filename: "#{OPENSSL_FILENAME}.tar.gz"
 
 relative_path "openssl-#{OPENSSL_VERSION}"
 
