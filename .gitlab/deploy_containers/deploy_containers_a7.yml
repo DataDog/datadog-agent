@@ -57,14 +57,6 @@ include:
     - export IMG_SOURCES="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta${JMX}-arm64"
     - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}-ot-beta${JMX}"
 
-.deploy_containers-a7-ot_external:
-  extends: .deploy_containers-a7-base-ot
-  parallel:
-    matrix:
-      - JMX:
-          - ""
-          - "-jmx"
-
 deploy_containers-a7:
   extends: .deploy_containers-a7_external
   rules:
@@ -105,10 +97,15 @@ deploy_containers-a7_internal-rc:
 
 
 deploy_containers-ot:
-  extends: .deploy_containers-a7-ot_external
+  extends: .deploy_containers-a7-base-ot
   rules:
     - when: manual
       allow_failure: true
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
 
 
 #
