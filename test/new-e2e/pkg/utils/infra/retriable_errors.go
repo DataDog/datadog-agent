@@ -18,6 +18,7 @@ const (
 type knownError struct {
 	errorMessage string
 	retryType    RetryType
+	isRegex      bool
 }
 
 func getKnownErrors() []knownError {
