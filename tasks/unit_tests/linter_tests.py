@@ -32,7 +32,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_without_wrapper_with_env(self):
         with open(self.test_file, "w") as f:
             f.write(
-                "  - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name $API_KEY_ORG2 --with-decryption  --query Parameter.Value --out text"
+                "  - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name $API_KEY_ORG2 --with-decryption  --query Parameter.Value --out text || exit $?; export DD_API_KEY"
             )
         matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertFalse(matched.with_wrapper)

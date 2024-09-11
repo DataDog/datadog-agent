@@ -11,16 +11,16 @@
   variables:
     LANG: C.UTF-8
   before_script:
-    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN)
-    - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_DDDEV)
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN) || exit $?; export DOCKER_REGISTRY_LOGIN
+    - DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD) || exit $?; export DOCKER_REGISTRY_PWD
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_DDDEV) || exit $?; export DD_API_KEY
 
 .k8s-e2e-cws-cspm-init:
   - set +x
-  - export DATADOG_AGENT_SITE=datadoghq.com
-  - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_API_KEY)
-  - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_APP_KEY)
-  - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_RC_KEY)
+  - DATADOG_AGENT_SITE=datadoghq.com || exit $?; export DATADOG_AGENT_SITE
+  - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_API_KEY) || exit $?; export DATADOG_AGENT_API_KEY
+  - DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_APP_KEY) || exit $?; export DATADOG_AGENT_APP_KEY
+  - DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_RC_KEY) || exit $?; export DATADOG_AGENT_RC_KEY
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template
