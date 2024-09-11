@@ -72,15 +72,25 @@ type discovery struct {
 	// lastGlobalCPUTime stores the total cpu time of the system from the last time
 	// the endpoint was called.
 	lastGlobalCPUTime uint64
+
+	// rootPIDNamespaceID stores the ID of root PID namespace, to be used to
+	// compare against processes PID namespace ID in container detection.
+	rootPIDNamespace string
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
+	rootPIDNamespace, err := getPIDNamespace(1)
+	if err != nil {
+		return nil, err
+	}
+
 	return &discovery{
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
 		scrubber:           procutil.NewDefaultDataScrubber(),
+		rootPIDNamespace:   rootPIDNamespace,
 	}, nil
 }
 
@@ -359,7 +369,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		ddServiceInjected:  nameMeta.DDServiceInjected,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 		startTimeSecs:      uint64(createTime / 1000),
-		isContainer:        false,
+		isContainer:        isProcessContainerized(int(proc.Pid), s.rootPIDNamespace),
 	}, nil
 }
 
