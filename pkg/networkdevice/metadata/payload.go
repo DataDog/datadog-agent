@@ -44,7 +44,7 @@ type NetworkDevicesMetadata struct {
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
-	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
+	DeviceOIDs       []DeviceOID_           `json:"device_oids,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -79,6 +79,14 @@ type DeviceMetadata struct {
 type DeviceOID struct {
 	*gosnmplib.PDU
 	DeviceID string `json:"device_id"`
+}
+
+type DeviceOID_ struct {
+	DeviceID      string `json:"device_id"`
+	OID           string `json:"oid"`
+	Type          string `json:"type"`
+	ValueAsString string `json:"value_as_string"`
+	ValueAsBase64 any    `json:"value_as_base64"`
 }
 
 // InterfaceMetadata contains interface metadata

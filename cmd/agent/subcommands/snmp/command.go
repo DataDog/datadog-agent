@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"net"
 	"os"
 	"strconv"
@@ -37,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
@@ -397,6 +397,7 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 		return confErrf("missing argument: IP address")
 	}
 	deviceAddr := args[0]
+	fmt.Println("Scanning device ", deviceAddr)
 	if len(args) > 1 {
 		return confErrf("unexpected extra arguments; only one argument expected.")
 	}
@@ -425,9 +426,10 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 
 	namespace := conf.GetString("network_devices.namespace")
 	deviceID := namespace + ":" + deviceAddr
-	var deviceOids []*metadata.DeviceOID
+	var deviceOids []*metadata.DeviceOID_
 	for _, pdu := range pdus {
-		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
+		//record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
+		record, err := metadata.DeviceOIDFromPDU_(deviceID, pdu)
 		if err != nil {
 			logger.Warnf("PDU parsing error: %v", err)
 			continue
@@ -439,19 +441,33 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 		return fmt.Errorf("unable to get sender: %w", err)
 	}
 	metadataPayloads := metadata.BatchDeviceScan(namespace, time.Now(), metadata.PayloadMetadataBatchSize, deviceOids)
+	fmt.Printf("payload length %d\n", len(metadataPayloads))
 	for _, payload := range metadataPayloads {
+		fmt.Println("Start sending metadata payload")
+		element := payload.DeviceOIDs[0]
+		fmt.Printf("example payload: device_id %s, OID %s, type %s, raw_value %s, string_value %s\n", element.DeviceID, element.OID, element.Type, element.ValueAsBase64, element.ValueAsString)
 		payloadBytes, err := json.Marshal(payload)
+		fmt.Println("checking payload marshal error")
 		if err != nil {
 			logger.Errorf("Error marshalling device metadata: %v", err)
+			fmt.Println("Error marshalling device metadata: %v", err)
 			continue
 		}
+		fmt.Println("init msg")
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 		logger.Debugf("Device OID metadata payload is %d bytes", len(payloadBytes))
 		logger.Tracef("Device OID metadata payload: %s", string(payloadBytes))
-		if err := forwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
+		fmt.Printf("Device OID metadata payload is %d bytes\n", len(payloadBytes))
+		//fmt.Printf("Device OID metadata payload: %s\n", string(payloadBytes))
+		fmt.Println("Sending metadata payload")
+		if err := forwarder.SendEventPlatformEvent(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
+			fmt.Printf("Error sending metadata payload %e\n", err)
 			return err
 		}
+		fmt.Println("Sent metadata payload")
+
 	}
+	fmt.Println("Finished scanning device ", deviceAddr)
 
 	return nil
 }

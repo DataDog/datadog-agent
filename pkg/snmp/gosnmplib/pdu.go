@@ -24,6 +24,30 @@ type PDU struct {
 	Value string `json:"value"`
 }
 
+type PDU_ struct {
+	OID         string         `json:"oid"`
+	Type        gosnmp.Asn1BER `json:"type"`
+	StringValue string         `json:"value_as_string"`
+	RawValue    any            `json:"value_as_base64"`
+}
+
+func PDU_FromSNMP(pdu *gosnmp.SnmpPDU) (*PDU_, error) {
+	value, string_value, err := GetValueFromPDU_(pdu)
+	if err != nil {
+		return nil, err
+	}
+	record := PDU_{
+		OID:         strings.TrimLeft(pdu.Name, "."),
+		Type:        pdu.Type,
+		StringValue: string_value,
+		RawValue:    value,
+	}
+	//if err := record.SetValue(value); err != nil {
+	//	return nil, fmt.Errorf("unsupported PDU type for OID %s: %w", pdu.Name, err)
+	//}
+	return &record, nil
+}
+
 // PDUFromSNMP packages a gosnmp.SnmpPDU as a PDU
 func PDUFromSNMP(pdu *gosnmp.SnmpPDU) (*PDU, error) {
 	value, err := GetValueFromPDU(*pdu)

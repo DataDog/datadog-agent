@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -83,6 +84,55 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (interface{}, error) {
 		return strings.TrimLeft(strValue, "."), nil
 	default:
 		return nil, fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
+	}
+}
+
+func GetValueFromPDU_(pduVariable *gosnmp.SnmpPDU) (interface{}, string, error) {
+	switch pduVariable.Type {
+	case gosnmp.OctetString, gosnmp.BitString:
+		bytesValue, ok := pduVariable.Value.([]byte)
+		if !ok {
+			return nil, "", fmt.Errorf("oid %s: OctetString/BitString should be []byte type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
+		}
+		var strValue string
+		if !IsStringPrintable(bytesValue) {
+			var strBytes []string
+			for _, bt := range bytesValue {
+				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
+			}
+			strValue = strings.Join(strBytes, "")
+		} else {
+			strValue = string(bytesValue)
+		}
+		return bytesValue, strValue, nil
+	case gosnmp.Integer, gosnmp.Counter32, gosnmp.Gauge32, gosnmp.TimeTicks, gosnmp.Counter64, gosnmp.Uinteger32:
+		return float64(gosnmp.ToBigInt(pduVariable.Value).Int64()), strconv.FormatFloat(float64(gosnmp.ToBigInt(pduVariable.Value).Int64()), 'f', -1, 64), nil
+	case gosnmp.OpaqueFloat:
+		floatValue, ok := pduVariable.Value.(float32)
+		if !ok {
+			return nil, "", fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
+		}
+		return float64(floatValue), strconv.FormatFloat(float64(floatValue), 'f', -1, 64), nil
+	case gosnmp.OpaqueDouble:
+		floatValue, ok := pduVariable.Value.(float64)
+		if !ok {
+			return nil, "", fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
+		}
+		return floatValue, strconv.FormatFloat(floatValue, 'f', -1, 64), nil
+	case gosnmp.IPAddress:
+		strValue, ok := pduVariable.Value.(string)
+		if !ok {
+			return nil, "", fmt.Errorf("oid %s: IPAddress should be string type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
+		}
+		return strValue, strValue, nil
+	case gosnmp.ObjectIdentifier:
+		strValue, ok := pduVariable.Value.(string)
+		if !ok {
+			return nil, "", fmt.Errorf("oid %s: ObjectIdentifier should be string type but got type `%T` and value `%v`", pduVariable.Name, pduVariable.Value, pduVariable.Value)
+		}
+		return strings.TrimLeft(strValue, "."), strings.TrimLeft(strValue, "."), nil
+	default:
+		return nil, "", fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
 	}
 }
 

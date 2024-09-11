@@ -54,7 +54,7 @@ func BatchPayloads(namespace string, subnet string, collectTime time.Time, batch
 }
 
 // BatchDeviceScan batches a bunch of DeviceOID entries across multiple NetworkDevicesMetadata payloads.
-func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, deviceOIDs []*DeviceOID) []NetworkDevicesMetadata {
+func BatchDeviceScan(namespace string, collectTime time.Time, batchSize int, deviceOIDs []*DeviceOID_) []NetworkDevicesMetadata {
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
 
@@ -95,5 +95,19 @@ func DeviceOIDFromPDU(deviceID string, snmpPDU *gosnmp.SnmpPDU) (*DeviceOID, err
 	return &DeviceOID{
 		DeviceID: deviceID,
 		PDU:      pdu,
+	}, nil
+}
+
+func DeviceOIDFromPDU_(deviceID string, snmpPDU *gosnmp.SnmpPDU) (*DeviceOID_, error) {
+	pdu, err := gosnmplib.PDU_FromSNMP(snmpPDU)
+	if err != nil {
+		return nil, err
+	}
+	return &DeviceOID_{
+		DeviceID:      deviceID,
+		OID:           pdu.OID,
+		Type:          pdu.Type.String(),
+		ValueAsString: pdu.StringValue,
+		ValueAsBase64: pdu.RawValue,
 	}, nil
 }
