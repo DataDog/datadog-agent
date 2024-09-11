@@ -115,11 +115,8 @@ typedef struct {
     __u64 double_flush_attempts_done;
     __u64 unsupported_tcp_failures;
     __u64 tcp_done_missing_pid;
-    __u64 tcp_connect_pid_match;
-    __u64 tcp_connect_pid_mismatch;
     __u64 tcp_connect_failed_tuple;
     __u64 tcp_done_failed_tuple;
-    __u64 tcp_done_mismatched_tuple;
     __u64 tcp_finish_connect_failed_tuple;
 } telemetry_t;
 

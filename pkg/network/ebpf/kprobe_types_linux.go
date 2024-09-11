@@ -45,7 +45,7 @@ type FailedConn struct {
 	Pad_cgo_0 [4]byte
 }
 type SkpConn struct {
-	Sk  *_Ctype_struct_sock
+	Sk  uintptr
 	Tup ConnTuple
 }
 type PidTs struct {
@@ -74,11 +74,8 @@ type Telemetry struct {
 	Double_flush_attempts_done      uint64
 	Unsupported_tcp_failures        uint64
 	Tcp_done_missing_pid            uint64
-	Tcp_connect_pid_match           uint64
-	Tcp_connect_pid_mismatch        uint64
 	Tcp_connect_failed_tuple        uint64
 	Tcp_done_failed_tuple           uint64
-	Tcp_done_mismatched_tuple       uint64
 	Tcp_finish_connect_failed_tuple uint64
 }
 type PortBinding struct {

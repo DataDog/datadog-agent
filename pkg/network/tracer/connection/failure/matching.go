@@ -26,9 +26,8 @@ import (
 )
 
 var (
-	telemetryModuleName     = "network_tracer__tcp_failure"
-	connClosedFlushMapTTL   = 10 * time.Millisecond.Nanoseconds()
-	tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
+	telemetryModuleName   = "network_tracer__tcp_failure"
+	connClosedFlushMapTTL = 10 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -67,7 +66,6 @@ type FailedConns struct {
 	maxFailuresBuffered     uint32
 	failureTuple            *ebpf.ConnTuple
 	connCloseFlushedCleaner *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	ongoingConnectCleaner   *ddebpf.MapCleaner[ebpf.SkpConn, ebpf.PidTs]
 	sync.Mutex
 }
 
@@ -172,26 +170,5 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return expired
 	})
 
-	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
-	if err != nil {
-		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
-		return
-	}
-
-	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[ebpf.SkpConn, ebpf.PidTs](tcpOngoingConnectPidMap, 1024)
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ ebpf.SkpConn, val ebpf.PidTs) bool {
-		ts := int64(val.Timestamp)
-		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
-		if expired {
-			failureTelemetry.ongoingConnectPidCleaned.Inc()
-		}
-		return expired
-	})
-
 	fc.connCloseFlushedCleaner = connFlushedCleaner
-	fc.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
 }

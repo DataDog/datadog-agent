@@ -58,7 +58,6 @@ func (c *TCPFailedConnConsumer) Stop() {
 		close(c.closed)
 	})
 	c.FailedConns.connCloseFlushedCleaner.Stop()
-	c.FailedConns.ongoingConnectCleaner.Stop()
 }
 
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {
