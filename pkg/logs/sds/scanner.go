@@ -33,7 +33,7 @@ var (
 		"Count of SDS reconfiguration error.", telemetry.Options{DefaultMetric: true})
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
-	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
+	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency_us", "Processing latency histogram",
 	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
