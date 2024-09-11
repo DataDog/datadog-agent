@@ -23,5 +23,5 @@ func MockModule() fxutil.Module {
 
 // NewMockCompressor returns a new Mock
 func NewMockCompressor() compression.Component {
-	return NewNoopCompressor()
+	return NewCompressorFactory().NewNoopCompressor()
 }

@@ -10,6 +10,7 @@ package aggregator
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -22,15 +23,25 @@ import (
 // TestDeps contains dependencies for InitAndStartAgentDemultiplexerForTest
 type TestDeps struct {
 	fx.In
-	Log             log.Component
-	Hostname        hostname.Component
-	SharedForwarder defaultforwarder.Component
-	Compressor      compression.Component
+	Log                log.Component
+	Hostname           hostname.Component
+	SharedForwarder    defaultforwarder.Component
+	CompressionFactory compression.Factory
+	Config             config.Component
 }
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.Compressor, hostname)
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
+
+	// TODO Could this be the MockCompressor?
+	compressor := deps.CompressionFactory.NewCompressor(
+		deps.Config.GetString("serializer_compressor_kind"),
+		deps.Config.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string{"zstd", "zlib"},
+	)
+
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
 }

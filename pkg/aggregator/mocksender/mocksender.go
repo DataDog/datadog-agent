@@ -42,7 +42,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog(), log, forwarder.NewOptions(config.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), compressionimpl.NewCompressorFactory()))
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
 
 }
