@@ -43,5 +43,10 @@ func getKnownErrors() []knownError {
 			errorMessage: "Process exited with status 2: running \" sudo cloud-init status --wait\"",
 			retryType:    ReCreate,
 		},
+		{
+			isRegex:      true,
+			errorMessage: `waiting for ECS Service .+fakeintake-ecs.+ create\: timeout while waiting for state to become 'tfSTABLE'`,
+			retryType:    ReCreate,
+		},
 	}
 }
