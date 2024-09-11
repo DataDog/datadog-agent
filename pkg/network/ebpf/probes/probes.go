@@ -91,6 +91,9 @@ const (
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
+	// InetRelease traces the inet_release() system call
+	InetRelease ProbeFuncName = "kprobe__inet_release"
+
 	// We use the following two probes for UDP sends
 
 	// IPMakeSkb traces ip_make_skb

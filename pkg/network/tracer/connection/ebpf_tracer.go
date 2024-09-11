@@ -696,7 +696,7 @@ func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
-	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
+	tcpOngoingConnectPidCleaner.Clean(time.Minute*5000, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
 		ts := int64(val.Timestamp)
 		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
 		if expired {

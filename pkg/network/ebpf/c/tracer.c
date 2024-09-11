@@ -190,6 +190,27 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, skp);
 }
 
+SEC("kprobe/inet_release")
+int BPF_BYPASSABLE_KPROBE(kprobe__inet_release, struct sock *sk) {
+    log_debug("kprobe/inet_release");
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    log_debug("kprobe/inet_release: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err != 0) {
+        log_debug("kprobe/inet_release: error: %d", err);
+        return 0; // no failure
+    }
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    return 0;
+}
+
 SEC("kprobe/tcp_done")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
@@ -277,9 +298,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
     if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
-        skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-        skp_conn.tup.pid = 0;
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+        // skp_conn.tup.pid = 0;
+        // bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         cleanup_conn(ctx, &t, sk);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
