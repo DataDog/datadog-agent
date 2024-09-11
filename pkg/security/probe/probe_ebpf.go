@@ -1001,7 +1001,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 	case model.IMDSEventType:
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
