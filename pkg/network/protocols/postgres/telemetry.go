@@ -31,21 +31,6 @@ const (
 	tableAndOpNotFound
 )
 
-func (e counterStateEnum) String() string {
-	switch e {
-	case tableAndOperation:
-		return "tableAndOperation"
-	case operationNotFound:
-		return "operationNotFound"
-	case tableNameNotFound:
-		return "tableNameNotFound"
-	case tableAndOpNotFound:
-		return "tableAndOpNotFound"
-	default:
-		return fmt.Sprintf("%d", int(e))
-	}
-}
-
 // extractionFailureCounter stores counter when goal was achieved and counter when target not found.
 type extractionFailureCounter struct {
 	// countTableAndOperationFound counts the number of successfully retrieved table name and operation.
