@@ -157,9 +157,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.18.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.18.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.18.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.20.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.13.5
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
@@ -773,8 +773,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.58.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.26.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.17.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.17.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.20.0 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.20.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
 	github.com/Intevation/jsonpath v0.2.1 // indirect
