@@ -797,9 +797,7 @@ func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.Proces
 		log.Warnf("insufficient buffer size %v", start.RequiredSize)
 
 	}
-	log.Infof("Env block %v", start.EnvBlock)
 
-	
 	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.EnvBlock, start.CmdLine, start.OwnerSidString)
 	if err != nil {
 		log.Errorf("error in resolver %v", err)
