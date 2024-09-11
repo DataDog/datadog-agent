@@ -40,9 +40,7 @@ class TestIsGetParameterCall(unittest.TestCase):
 
     def test_with_wrapper_no_env(self):
         with open(self.test_file, "w") as f:
-            f.write(
-                "$CI_PROJECT_DIR/tools/ci/fetch_secret.sh test.datadog-agent.datadog_api_key_org2 || exit $?"
-            )
+            f.write("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh test.datadog-agent.datadog_api_key_org2 || exit $?")
         matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertTrue(matched.with_wrapper)
         self.assertFalse(matched.with_env_var)

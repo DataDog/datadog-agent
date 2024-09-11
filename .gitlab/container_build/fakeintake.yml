@@ -18,7 +18,7 @@ docker_build_fakeintake:
     - source $CI_PROJECT_DIR/tools/ci/open_local_secret_store.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN || exit $?
     - DOCKER_LOGIN=$(pop_secret)
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD || exit $?
     - pop_secret | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     - docker buildx build --push --pull --platform ${PLATFORMS} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2

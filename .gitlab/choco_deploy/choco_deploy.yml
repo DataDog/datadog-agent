@@ -11,9 +11,10 @@ publish_choco_7_x64:
     ARCH: "x64"
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
-    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" "$Env:CHOCOLATEY_API_KEY") > $tmpfile
+    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" "$Env:CHOCOLATEY_API_KEY" "$tmpfile")
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - $chocolateyApiKey=$(& cat $tmpfile)
+    - $chocolateyApiKey=$(cat "$tmpfile")
+    - Remove-Item "$tmpfile"
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"
