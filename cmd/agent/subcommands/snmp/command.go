@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,7 +32,7 @@ import (
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
-	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/gosnmp/gosnmp"
@@ -84,6 +83,14 @@ var levelOpts = NewOptions(OptPairs[gosnmp.SnmpV3MsgFlags]{
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
 
+type snmpConnectionParams struct {
+	// embed a SNMPConfig because it's all the same fields anyway
+	snmpparse.SNMPConfig
+	// fields that aren't part of snmpparse.SNMPConfig
+	SecurityLevel           string
+	UseUnconnectedUDPSocket bool
+}
+
 // configErr wraps any error caused by invalid configuration.
 // If the main script returns a configErr it will print the usage string along
 // with the error message.
@@ -109,7 +116,7 @@ func confErrf(msg string, args ...any) configErr {
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	connParams := &snmpscan.SnmpConnectionParams{}
+	connParams := &snmpConnectionParams{}
 	snmpCmd := &cobra.Command{
 		Use:   "snmp",
 		Short: "Snmp tools",
@@ -252,12 +259,12 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func getParamsFromAgent(deviceIP string, conf config.Component) (*parse.SNMPConfig, error) {
-	snmpConfigList, err := parse.GetConfigCheckSnmp(conf)
+func getParamsFromAgent(deviceIP string, conf config.Component) (*snmpparse.SNMPConfig, error) {
+	snmpConfigList, err := snmpparse.GetConfigCheckSnmp(conf)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
 	}
-	instance := parse.GetIPConfig(deviceIP, snmpConfigList)
+	instance := snmpparse.GetIPConfig(deviceIP, snmpConfigList)
 	if instance.IPAddress != "" {
 		instance.IPAddress = deviceIP
 		return &instance, nil
@@ -265,7 +272,7 @@ func getParamsFromAgent(deviceIP string, conf config.Component) (*parse.SNMPConf
 	return nil, fmt.Errorf("agent has no SNMP config for IP %s", deviceIP)
 }
 
-func setDefaultsFromAgent(connParams *snmpscan.SnmpConnectionParams, conf config.Component) error {
+func setDefaultsFromAgent(connParams *snmpConnectionParams, conf config.Component) error {
 	agentParams, agentError := getParamsFromAgent(connParams.IPAddress, conf)
 	if agentError != nil {
 		return agentError
@@ -307,7 +314,7 @@ func setDefaultsFromAgent(connParams *snmpscan.SnmpConnectionParams, conf config
 }
 
 // newSNMP validates connection parameters and builds a GoSNMP from them.
-func newSNMP(connParams *snmpscan.SnmpConnectionParams, logger log.Component) (*gosnmp.GoSNMP, error) {
+func newSNMP(connParams *snmpConnectionParams, logger log.Component) (*gosnmp.GoSNMP, error) {
 	// Communication options check
 	if connParams.Timeout == 0 {
 		return nil, fmt.Errorf("timeout cannot be 0")
@@ -388,7 +395,7 @@ func newSNMP(connParams *snmpscan.SnmpConnectionParams, logger log.Component) (*
 	}, nil
 }
 
-func scanDevice(connParams *snmpscan.SnmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, demux demultiplexer.Component) error {
+func scanDevice(connParams *snmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -425,7 +432,7 @@ func scanDevice(connParams *snmpscan.SnmpConnectionParams, args argsType, snmpSc
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpWalk(connParams *snmpscan.SnmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func snmpWalk(connParams *snmpConnectionParams, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")

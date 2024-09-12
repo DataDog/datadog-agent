@@ -616,4 +616,4 @@ Package compression provides a compression implementation based on the configura
 
 *Datadog Team*: network-device-monitoring
 
-Package snmpscan ...
+Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device

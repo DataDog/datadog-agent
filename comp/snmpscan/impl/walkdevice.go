@@ -15,10 +15,10 @@ import (
 )
 
 // RunSnmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func (s snmpScannerImpl) RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error {
+func (s snmpScannerImpl) RunSnmpWalk(snmpConnection *gosnmp.GoSNMP, firstOid string) error {
 	// Perform a snmpwalk using Walk for all versions
-	if err := snmpConection.Walk(firstOid, printValue); err != nil {
-		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmpConection.Target, snmpConection.Port, err)
+	if err := snmpConnection.Walk(firstOid, printValue); err != nil {
+		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmpConnection.Target, snmpConnection.Port, err)
 	}
 
 	return nil
