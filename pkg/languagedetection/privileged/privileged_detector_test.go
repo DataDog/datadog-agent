@@ -183,36 +183,41 @@ func (d DummyDetector) DetectLanguage(_ languagemodels.Process) (languagemodels.
 	return languagemodels.Language{Name: languagemodels.LanguageName(d.language)}, nil
 }
 
-func TestDetectorStopAtFirstGood(t *testing.T) {
-	MockPrivilegedDetectors(t, []languagemodels.Detector{
-		DummyDetector{languagemodels.Java},
-		DummyDetector{languagemodels.Python}})
-
-	d := NewLanguageDetector()
-	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
-	require.Len(t, res, 1)
-	require.NotNil(t, res[0])
-	assert.Equal(t, languagemodels.Java, res[0].Name)
-}
-
-func TestDetectorTrySecondIfFirstFails(t *testing.T) {
-	MockPrivilegedDetectors(t, []languagemodels.Detector{
-		DummyDetector{},
-		DummyDetector{languagemodels.Python}})
-
-	d := NewLanguageDetector()
-	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
-	require.Len(t, res, 1)
-	require.NotNil(t, res[0])
-	assert.Equal(t, languagemodels.Python, res[0].Name)
-}
-
-func TestDetectorAllFails(t *testing.T) {
-	MockPrivilegedDetectors(t, []languagemodels.Detector{DummyDetector{}})
-
-	d := NewLanguageDetector()
-	res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
-	require.Len(t, res, 1)
-	require.NotNil(t, res[0])
-	assert.Equal(t, languagemodels.Unknown, res[0].Name)
+func TestDetectorOrder(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		detectors []languagemodels.Detector
+		language  languagemodels.LanguageName
+	}{
+		{
+			name: "stop at first good",
+			detectors: []languagemodels.Detector{
+				DummyDetector{languagemodels.Java},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Java,
+		},
+		{
+			name: "try second if first fails",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Python,
+		},
+		{
+			name: "all fail",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{}},
+			language: languagemodels.Unknown,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			MockPrivilegedDetectors(t, test.detectors)
+			d := NewLanguageDetector()
+			res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+			require.Len(t, res, 1)
+			require.NotNil(t, res[0])
+			assert.Equal(t, test.language, res[0].Name)
+		})
+	}
 }
