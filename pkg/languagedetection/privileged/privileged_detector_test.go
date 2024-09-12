@@ -8,6 +8,7 @@
 package privileged
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -148,4 +149,75 @@ func TestShortLivingProc(t *testing.T) {
 	require.Len(t, res, 1)
 	require.Equal(t, languagemodels.Language{}, res[0])
 	require.Zero(t, d.binaryIDCache.Len())
+}
+
+// DummyDetector is a detector used for testing
+type DummyDetector struct {
+	language languagemodels.LanguageName
+}
+
+// DummyProcess is a process used for testing
+type DummyProcess struct{}
+
+// GetPid is unused
+func (p DummyProcess) GetPid() int32 {
+	return int32(os.Getpid())
+}
+
+// GetCommand is unused
+func (p DummyProcess) GetCommand() string {
+	return "dummy"
+}
+
+// GetCmdline is unused
+func (p DummyProcess) GetCmdline() []string {
+	return []string{"dummy"}
+}
+
+// DetectLanguage "detects" a dummy language for testing
+func (d DummyDetector) DetectLanguage(_ languagemodels.Process) (languagemodels.Language, error) {
+	if d.language == languagemodels.Unknown {
+		return languagemodels.Language{}, errors.New("unable to detect")
+	}
+
+	return languagemodels.Language{Name: languagemodels.LanguageName(d.language)}, nil
+}
+
+func TestDetectorOrder(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		detectors []languagemodels.Detector
+		language  languagemodels.LanguageName
+	}{
+		{
+			name: "stop at first good",
+			detectors: []languagemodels.Detector{
+				DummyDetector{languagemodels.Java},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Java,
+		},
+		{
+			name: "try second if first fails",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Python,
+		},
+		{
+			name: "all fail",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{}},
+			language: languagemodels.Unknown,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			MockPrivilegedDetectors(t, test.detectors)
+			d := NewLanguageDetector()
+			res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+			require.Len(t, res, 1)
+			require.NotNil(t, res[0])
+			assert.Equal(t, test.language, res[0].Name)
+		})
+	}
 }

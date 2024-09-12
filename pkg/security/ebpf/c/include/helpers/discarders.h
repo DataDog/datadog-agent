@@ -283,4 +283,8 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
     return 0;
 }
 
+static __attribute__((always_inline)) int is_discarded_by_pid() {
+    return is_runtime_discarded() && is_runtime_request();
+}
+
 #endif
