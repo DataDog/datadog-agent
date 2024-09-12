@@ -148,8 +148,8 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*Policy
 	return result
 }
 
-// PopulateFieldsWithRuleActionsData populates the fields with the data from the rule actions
-func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, opts PolicyLoaderOpts) *multierror.Error {
+// populateFieldsWithRuleActionsData populates the fields with the data from the rule actions
+func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*PolicyRule, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
@@ -284,6 +284,13 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	return eventType, nil
 }
 
+func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
+	if action.Def.Name() == HashAction && eventType != model.FileOpenEventType.String() {
+		return false
+	}
+	return true
+}
+
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (*eval.Rule, error) {
 	if pRule.Def.Disabled {
@@ -339,6 +346,10 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
+		if !rs.isActionAvailable(eventType, action) {
+			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
+		}
+
 		// compile action filter
 		if action.Def.Filter != nil {
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
@@ -765,7 +776,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		errs = multierror.Append(errs, err)
 	}
 
-	if err := rs.PopulateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 

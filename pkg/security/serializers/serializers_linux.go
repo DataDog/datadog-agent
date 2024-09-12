@@ -658,15 +658,14 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		inode = forceInode[0]
 	}
 
-	mode := uint32(fe.FileFields.Mode)
 	fs := &FileSerializer{
 		Path:                e.FieldHandlers.ResolveFilePath(e, fe),
 		PathResolutionError: fe.GetPathResolutionError(),
 		Name:                e.FieldHandlers.ResolveFileBasename(e, fe),
-		Inode:               getUint64Pointer(&inode),
-		MountID:             getUint32Pointer(&fe.MountID),
+		Inode:               createNumPointer(inode),
+		MountID:             createNumPointer(fe.MountID),
 		Filesystem:          e.FieldHandlers.ResolveFileFilesystem(e, fe),
-		Mode:                getUint32Pointer(&mode), // only used by open events
+		Mode:                createNumPointer(uint32(fe.FileFields.Mode)), // only used by open events
 		UID:                 int64(fe.UID),
 		GID:                 int64(fe.GID),
 		User:                e.FieldHandlers.ResolveFileFieldsUser(e, &fe.FileFields),
@@ -727,7 +726,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 			Pid:           ps.Pid,
 			Tid:           ps.Tid,
-			PPid:          getUint32Pointer(&ps.PPid),
+			PPid:          createNumPointer(ps.PPid),
 			Comm:          ps.Comm,
 			TTY:           ps.TTYName,
 			Executable:    newFileSerializer(&ps.FileEvent, e),
@@ -1174,7 +1173,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
 			Destination: &FileSerializer{
-				Mode: &event.Chmod.Mode,
+				Mode: createNumPointer(event.Chmod.Mode),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
@@ -1210,7 +1209,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		if event.Open.Flags&syscall.O_CREAT > 0 {
 			s.FileEventSerializer.Destination = &FileSerializer{
-				Mode: &event.Open.Mode,
+				Mode: createNumPointer(event.Open.Mode),
 			}
 		}
 
@@ -1223,7 +1222,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
 			Destination: &FileSerializer{
-				Mode: &event.Mkdir.Mode,
+				Mode: createNumPointer(event.Mkdir.Mode),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)

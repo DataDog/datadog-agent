@@ -259,6 +259,9 @@ rules:
           signal: {{$Action.Kill.Signal}}
           {{- end}}
 {{- end}}
+{{- if $Action.Hash}}
+      - hash: {}
+{{- end}}
 {{- end}}
 {{end}}
 `

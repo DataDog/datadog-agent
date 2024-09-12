@@ -254,7 +254,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
-		Rule:       rule,
+		rule:       rule,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
