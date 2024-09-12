@@ -529,6 +529,7 @@ func (s *Service) refresh() error {
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)
+	fmt.Printf("Josh response: %+v\n", response)
 	s.Lock()
 	defer s.Unlock()
 	s.lastUpdateErr = nil
