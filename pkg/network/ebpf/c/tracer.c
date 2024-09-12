@@ -217,6 +217,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        // TODO: this gets hit sometimes. can we track the tuple in tcp_connect and look it up here from skp?
         increment_telemetry_count(tcp_done_failed_tuple);
         return 0;
     }
@@ -964,13 +965,24 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, 0, CONN_TYPE_TCP)) {
-        increment_telemetry_count(tcp_connect_failed_tuple);
         return 0;
     }
 
+
+    u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp);
+    if (existing_pid) {
+        if (*existing_pid == pid_tgid) {
+            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            increment_telemetry_count(tcp_connect_pid_match);
+        } else {
+            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            increment_telemetry_count(tcp_connect_pid_mismatch);
+        }
+    }
+
     // skp_conn_tuple_t skp_conn = {.sk = skp, .tup = t};
-    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_ts, BPF_ANY);
+    // pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
 
     return 0;
 }
@@ -1025,8 +1037,8 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
 
     // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     // skp_conn.tup.pid = 0;
-    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_ts, BPF_ANY);
+    // pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
 
     return 0;
 }
