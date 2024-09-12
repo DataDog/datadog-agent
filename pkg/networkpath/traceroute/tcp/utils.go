@@ -151,13 +151,6 @@ type packetResponse struct {
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
 func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	//var tcpErr error
-	//var icmpErr error
-	//var icmpIP net.IP
-	//var tcpIP net.IP
-	//var icmpCode layers.ICMPv4TypeCode
-	//var port uint16
-
 	packetChan := make(chan packetResponse)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
