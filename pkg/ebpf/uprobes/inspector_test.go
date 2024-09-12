@@ -24,7 +24,7 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
+	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 	fpath := utils.FilePath{HostPath: lib}
 
