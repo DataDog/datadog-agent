@@ -23,10 +23,6 @@ func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 		return fmt.Errorf("unable to get sender: %w", err)
 	}
 
-	if err := snmpConnection.Connect(); err != nil {
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmpConnection.LocalAddr, snmpConnection.Port, err)
-	}
-	defer snmpConnection.Conn.Close()
 	pdus, err := gatherPDUs(snmpConnection)
 	if err != nil {
 		return err
