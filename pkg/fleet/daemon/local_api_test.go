@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -65,6 +66,11 @@ func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
+func (m *testDaemon) GetRemoteConfigState() []*pbgo.PackageState {
+	args := m.Called()
+	return args.Get(0).([]*pbgo.PackageState)
+}
+
 func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 	args := m.Called()
 	return args.Get(0).(APMInjectionStatus), args.Error(1)
@@ -112,6 +118,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetRemoteConfigState").Return([]*pbgo.PackageState(nil))
 	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()

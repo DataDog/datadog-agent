@@ -107,7 +107,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 		}
 	}
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -408,11 +408,10 @@ func batchConnections(
 				continue
 			}
 
-			//nolint:revive // TODO(NET) Fix revive linter
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
+			newIdx := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = newIdx
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
+			c.RouteIdx = newIdx
 		}
 
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
@@ -503,4 +502,18 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 
 	return tagsStr
+}
+
+// fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+func retryGetNetworkID(sysProbeUtil *net.RemoteSysProbeUtil) (string, error) {
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	if err != nil && sysProbeUtil != nil {
+		log.Infof("no network ID detected. retrying via system-probe: %s", err)
+		networkID, err = sysProbeUtil.GetNetworkID()
+		if err != nil {
+			log.Infof("failed to get network ID from system-probe: %s", err)
+			return "", err
+		}
+	}
+	return networkID, err
 }
