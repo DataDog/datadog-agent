@@ -15,6 +15,8 @@ permissions: {}
 jobs:
   CodeQL-Build:
     runs-on: ubuntu-20.04
+    permissions:
+      security-events: write
     strategy:
       matrix:
         language: ["go", "javascript", "python", "cpp"]
