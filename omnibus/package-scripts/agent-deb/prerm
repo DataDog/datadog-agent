@@ -158,6 +158,13 @@ remove_apm_remote_config()
     fi
 }
 
+remove_fips_module()
+{
+    # We explicitly remove the ssl directory because files within this folder are generated via a script
+    # outside of omnibus (omnibus only removes files present in the package).
+    rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
+}
+
 stop_agent
 deregister_agent
 remove_custom_integrations
@@ -169,6 +176,7 @@ case "$1" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_fips_module
     ;;
     upgrade)
         # We're upgrading.
