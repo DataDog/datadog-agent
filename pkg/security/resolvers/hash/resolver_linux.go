@@ -221,7 +221,7 @@ func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
 	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, fkey, nil
 }
 
-// hash hashes the provided file event
+// HashFileEvent hashes the provided file event
 func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID containerutils.ContainerID, pid uint32, file *model.FileEvent) {
 	if !resolver.opts.Enabled {
 		return

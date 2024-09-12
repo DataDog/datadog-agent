@@ -34,11 +34,6 @@ type FileHasher struct {
 	pendingReports []*HashActionReport
 }
 
-type FileHasherStats struct {
-	actionPerformed int64
-	processesKilled int64
-}
-
 // NewFileHasher returns a new FileHasher
 func NewFileHasher(cfg *config.Config, resolver *hash.Resolver) *FileHasher {
 	return &FileHasher{

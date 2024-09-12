@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -96,7 +95,6 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 
 	return mergeJSON(backendEventJSON, eventJSON), nil
 }
@@ -394,18 +392,6 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 
 		a.msgSender.Send(m, a.expireEvent)
 	}
-}
-
-func marshalEvent(event events.Event, opts *eval.Opts) ([]byte, error) {
-	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, opts)
-	}
-
-	if ev, ok := event.(events.EventMarshaler); ok {
-		return ev.ToJSON()
-	}
-
-	return json.Marshal(event)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule
