@@ -15,7 +15,10 @@ type CGroupID string
 // CGroupFlags represents the flags of a cgroup
 type CGroupFlags uint64
 
+// CGroupManagerMask holds the bitmask for the cgroup manager
+const CGroupManagerMask CGroupFlags = 0b111
+
 // IsContainer returns whether a cgroup maps to a container
 func (f CGroupFlags) IsContainer() bool {
-	return (f&0b111 != 0) && ((f & 0b111) != CGroupFlags(CGroupManagerSystemd))
+	return (f&CGroupManagerMask != 0) && ((f & CGroupManagerMask) != CGroupFlags(CGroupManagerSystemd))
 }
