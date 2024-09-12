@@ -1721,8 +1721,8 @@ api_key:
 
   ## uncomment the sections below to enable where the vulnerability scanning is done
 
-  ## @param host
-  ## enable the host-level check
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Infrastructure Vulnerabiltilies
   # host:
   #  enabled: false
 {{- if (eq .OS "linux")}}
