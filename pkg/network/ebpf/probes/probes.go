@@ -91,6 +91,9 @@ const (
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
 	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
+	// InetRelease traces the inet_release() system call
+	InetRelease ProbeFuncName = "kprobe__inet_release"
+
 	// We use the following two probes for UDP sends
 
 	// IPMakeSkb traces ip_make_skb
@@ -192,8 +195,8 @@ const (
 	TCPStatsMap BPFMapName = "tcp_stats"
 	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
-	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
-	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
+	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
+	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
 	// ConnCloseFlushed is the map storing closed connections that were already flushed
 	ConnCloseFlushed BPFMapName = "conn_close_flushed"
 	// ConnCloseEventMap is the map storing connection close events

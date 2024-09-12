@@ -24,7 +24,12 @@ enum telemetry_counter {
     double_flush_attempts_close,
     double_flush_attempts_done,
     unsupported_tcp_failures,
-    tcp_done_pid_mismatch,
+    tcp_done_missing_pid,
+    tcp_connect_failed_tuple,
+    tcp_done_failed_tuple,
+    tcp_finish_connect_failed_tuple,
+    tcp_connect_pid_match,
+    tcp_connect_pid_mismatch,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -63,8 +68,23 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case unsupported_tcp_failures:
         __sync_fetch_and_add(&val->unsupported_tcp_failures, 1);
         break;
-    case tcp_done_pid_mismatch:
-        __sync_fetch_and_add(&val->tcp_done_pid_mismatch, 1);
+    case tcp_done_missing_pid:
+        __sync_fetch_and_add(&val->tcp_done_missing_pid, 1);
+        break;
+    case tcp_connect_failed_tuple:
+        __sync_fetch_and_add(&val->tcp_connect_failed_tuple, 1);
+        break;
+    case tcp_done_failed_tuple:
+        __sync_fetch_and_add(&val->tcp_done_failed_tuple, 1);
+        break;
+    case tcp_finish_connect_failed_tuple:
+        __sync_fetch_and_add(&val->tcp_finish_connect_failed_tuple, 1);
+        break;
+    case tcp_connect_pid_match:
+        __sync_fetch_and_add(&val->tcp_connect_pid_match, 1);
+        break;
+    case tcp_connect_pid_mismatch:
+        __sync_fetch_and_add(&val->tcp_connect_pid_mismatch, 1);
         break;
     }
 }
