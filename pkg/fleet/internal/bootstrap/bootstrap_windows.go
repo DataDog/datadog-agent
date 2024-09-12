@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"net/http"
 	"os"
 	"os/exec"
@@ -82,9 +81,5 @@ func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir str
 	if err != nil {
 		return nil, fmt.Errorf("failed to install the Datadog Installer")
 	}
-	installerPath, err := winregistry.GetProgramFilesDirForProduct("Datadog Installer")
-	if err != nil {
-		return nil, fmt.Errorf("failed to find the path to the Datadog Installer")
-	}
-	return iexec.NewInstallerExec(env, filepath.Join(installerPath, "datadog-installer.exe")), nil
+	return iexec.NewInstallerExec(env, paths.StableInstallerPath), nil
 }

@@ -26,6 +26,8 @@ var (
 	RootTmpDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
 	DefaultUserConfigsDir string
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath string
 )
 
 func init() {
@@ -34,5 +36,7 @@ func init() {
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	LocksPath = filepath.Join(datadogInstallerData, "locks")
 	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
+	datadogInstallerPath, _ := winregistry.GetProgramFilesDirForProduct("Datadog Installer")
+	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }

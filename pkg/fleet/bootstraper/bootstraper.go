@@ -9,6 +9,7 @@ package bootstraper
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -29,7 +30,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}
 
-	cmd := exec.NewInstallerExec(env, exec.StableInstallerPath)
+	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get default packages: %w", err)
