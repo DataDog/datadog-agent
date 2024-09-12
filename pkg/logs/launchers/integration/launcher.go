@@ -38,10 +38,6 @@ type Launcher struct {
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeFunction func(logFilePath, log string) error
-	// isWritable tracks whether the launcher is able to write to the
-	// filesystem. Even if it's not, the launcher still needs to be able to
-	// receive on channels so it doesn't block.
-	isWritable bool
 }
 
 // NewLauncher creates and returns an integrations launcher, and creates the
