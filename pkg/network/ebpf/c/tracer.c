@@ -223,10 +223,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     // connection timeouts will have 0 pids as they are cleaned up by an idle process. 
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
-    __u64 *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
-        t.pid = *failed_conn_pid >> 32;
+        t.pid = failed_conn_pid->pid_tgid >> 32;
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
@@ -961,12 +961,12 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
         return 0;
     }
     skp_conn_tuple_t skp_conn = {.sk = skp, .tup = t};
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (!pid_tgid_p) {
         return 0;
     }
 
-    u64 pid_tgid = *pid_tgid_p;
+    u64 pid_tgid = pid_tgid_p->pid_tgid;
     t.pid = pid_tgid >> 32;
     log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 

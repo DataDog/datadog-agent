@@ -474,11 +474,11 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
         return 0;
     }
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (!pid_tgid_p) {
         return 0;
     }
-    u64 pid_tgid = *pid_tgid_p;
+    u64 pid_tgid = pid_tgid_p->pid_tgid;
     t.pid = pid_tgid >> 32;
     log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
