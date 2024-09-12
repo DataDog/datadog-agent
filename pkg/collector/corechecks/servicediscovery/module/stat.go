@@ -85,24 +85,25 @@ func getGlobalCPUTime() (uint64, error) {
 	return totalTime, nil
 }
 
-func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) (float64, error) {
+// updateCPUCoresStats updates the provided serviceInfo cpuUsage and cpuTime stats.
+func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) error {
 	statPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "stat")
 
 	// This file is very small so just read it fully.
 	content, err := os.ReadFile(statPath)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	startIndex := bytes.LastIndexByte(content, byte(')'))
 	if startIndex == -1 || startIndex+1 >= len(content) {
-		return 0, errors.New("invalid stat format")
+		return errors.New("invalid stat format")
 	}
 
 	// See proc(5) for a description of the format of statm and the fields.
 	fields := strings.Fields(string(content[startIndex+1:]))
 	if len(fields) < 50 {
-		return 0, errors.New("invalid stat format")
+		return errors.New("invalid stat format")
 	}
 
 	// Parse fields number 14 and 15, resp. User and System CPU time.
@@ -110,19 +111,19 @@ func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPU
 	// Here we address 11 & 12 since we skipped the first two fields.
 	usrTime, err := strconv.ParseUint(fields[11], 10, 64)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	sysTime, err := strconv.ParseUint(fields[12], 10, 64)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	processTimeDelta := float64(usrTime + sysTime - info.cpuTime)
 	globalTimeDelta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
-	cpuUsage := processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
 
+	info.cpuUsage = processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
 	info.cpuTime = usrTime + sysTime
 
-	return cpuUsage, nil
+	return nil
 }
