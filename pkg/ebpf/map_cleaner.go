@@ -71,7 +71,7 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 	// of a version comparison because some distros have backported this API), and fallback to
 	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
 	cleaner := mc.cleanWithoutBatches
-	if maps.BatchAPISupported() {
+	if mc.emap.CanUseBatchAPI() {
 		cleaner = mc.cleanWithBatches
 	}
 
