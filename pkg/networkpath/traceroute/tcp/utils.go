@@ -10,13 +10,11 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
 )
 
@@ -139,62 +137,68 @@ func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) err
 	return nil
 }
 
+type packetResponse struct {
+	proto    string
+	ip       net.IP
+	port     uint16
+	icmpCode layers.ICMPv4TypeCode
+	error    error
+}
+
 // listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
 // and TCP responses based on the passed in trace information. If neither listener
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
 func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
-	var tcpErr error
-	var icmpErr error
-	var wg sync.WaitGroup
-	var icmpIP net.IP
-	var tcpIP net.IP
-	var icmpCode layers.ICMPv4TypeCode
-	var port uint16
-	wg.Add(2)
+	//var tcpErr error
+	//var icmpErr error
+	//var icmpIP net.IP
+	//var tcpIP net.IP
+	//var icmpCode layers.ICMPv4TypeCode
+	//var port uint16
+
+	packetChan := make(chan packetResponse)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	go func() {
-		defer wg.Done()
 		defer cancel()
-		tcpIP, port, _, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
+		tcpIP, port, _, tcpErr := handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
+		packetChan <- packetResponse{
+			proto: "tcp",
+			ip:    tcpIP,
+			port:  port,
+			error: tcpErr,
+		}
 	}()
 	go func() {
-		defer wg.Done()
 		defer cancel()
-		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
+		icmpIP, _, icmpCode, icmpErr := handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
+		packetChan <- packetResponse{
+			proto:    "icmp",
+			ip:       icmpIP,
+			icmpCode: icmpCode,
+			error:    icmpErr,
+		}
 	}()
-	wg.Wait()
+	resp := <-packetChan
 	// TODO: while this is okay, we
 	// should do this more cleanly
 	finished := time.Now()
 
-	if tcpErr != nil && icmpErr != nil {
-		_, tcpCanceled := tcpErr.(canceledError)
-		_, icmpCanceled := icmpErr.(canceledError)
-		if icmpCanceled && tcpCanceled {
+	if resp.error != nil {
+		_, canceled := resp.error.(canceledError)
+		if canceled {
 			log.Trace("timed out waiting for responses")
 			return net.IP{}, 0, 0, finished, nil
 		}
-		if tcpErr != nil {
-			log.Errorf("TCP listener error: %s", tcpErr.Error())
-		}
-		if icmpErr != nil {
-			log.Errorf("ICMP listener error: %s", icmpErr.Error())
-		}
+		log.Errorf("listener error: proto=%s: %s", resp.proto, resp.error.Error())
 
-		return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
-	}
-
-	// if there was an error for TCP, but not
-	// ICMP, return the ICMP response
-	if tcpErr != nil {
-		return icmpIP, port, icmpCode, finished, nil
+		return net.IP{}, 0, 0, finished, fmt.Errorf("resp error, proto=%s: %w", resp.proto, resp.error)
 	}
 
 	// return the TCP response
-	return tcpIP, port, 0, finished, nil
+	return resp.ip, resp.port, resp.icmpCode, finished, nil
 }
 
 // handlePackets in its current implementation should listen for the first matching
