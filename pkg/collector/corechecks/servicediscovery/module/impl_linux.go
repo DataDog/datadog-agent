@@ -58,6 +58,8 @@ type serviceInfo struct {
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
+	config *discoveryConfig
+
 	mux *sync.RWMutex
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
@@ -76,6 +78,7 @@ type discovery struct {
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, module.FactoryDependencies) (module.Module, error) {
 	return &discovery{
+		config:             newConfig(),
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
@@ -135,7 +138,6 @@ func getSockets(pid int32) ([]uint64, error) {
 	}
 	defer d.Close()
 	fnames, err := d.Readdirnames(-1)
-
 	if err != nil {
 		return nil, err
 	}
