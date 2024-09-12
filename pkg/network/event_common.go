@@ -10,6 +10,7 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -353,10 +354,8 @@ const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 // Note: This is only used in /debug/* endpoints
 func BeautifyKey(key string) string {
 	bytesToAddress := func(buf []byte) util.Address {
-		if len(buf) == 4 {
-			return util.V4AddressFromBytes(buf)
-		}
-		return util.V6AddressFromBytes(buf)
+		addr, _ := netip.AddrFromSlice(buf)
+		return util.Address{Addr: addr}
 	}
 
 	raw := []byte(key)
@@ -464,8 +463,8 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += copy(buf[n:], laddr.AsSlice()) // 4 or 16 bytes
+	n += copy(buf[n:], raddr.AsSlice()) // 4 or 16 bytes
 
 	return buf[:n]
 }

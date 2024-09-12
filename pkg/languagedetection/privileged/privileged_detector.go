@@ -30,6 +30,7 @@ import (
 
 var detectorsWithPrivilege = []languagemodels.Detector{
 	detectors.NewGoDetector(),
+	detectors.NewDotnetDetector(),
 }
 
 var (
@@ -97,6 +98,7 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 				continue
 			}
 			languages[i] = lang
+			break
 		}
 		l.mux.Lock()
 		l.binaryIDCache.Add(bin, lang)

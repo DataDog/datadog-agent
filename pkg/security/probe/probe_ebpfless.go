@@ -558,6 +558,7 @@ func (p *EBPFLessProbe) NewModel() *model.Model {
 
 // SendStats send the stats
 func (p *EBPFLessProbe) SendStats() error {
+	p.processKiller.SendStats(p.statsdClient)
 	return nil
 }
 
@@ -631,6 +632,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFLessProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe

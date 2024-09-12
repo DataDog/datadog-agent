@@ -40,7 +40,6 @@ go_deps:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
@@ -60,7 +59,6 @@ go_tools_deps:
   extends: .cache
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
     - inv -e download-tools
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:

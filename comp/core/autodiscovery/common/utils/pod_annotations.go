@@ -58,6 +58,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		Name                    string          `json:"name"`
 		InitConfig              json.RawMessage `json:"init_config"`
 		Instances               []interface{}   `json:"instances"`
+		Logs                    json.RawMessage `json:"logs"`
 		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
 
@@ -83,6 +84,9 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
 		}
 
+		if len(config.Logs) > 0 {
+			c.LogsConfig = integration.Data(config.Logs)
+		}
 		for _, i := range config.Instances {
 			instance, err := parseJSONObjToData(i)
 			if err != nil {
