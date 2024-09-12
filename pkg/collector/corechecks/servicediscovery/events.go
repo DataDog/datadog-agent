@@ -26,20 +26,23 @@ const (
 )
 
 type eventPayload struct {
-	NamingSchemaVersion string   `json:"naming_schema_version"`
-	ServiceName         string   `json:"service_name"`
-	HostName            string   `json:"host_name"`
-	Env                 string   `json:"env"`
-	ServiceLanguage     string   `json:"service_language"`
-	ServiceType         string   `json:"service_type"`
-	StartTime           int64    `json:"start_time"`
-	LastSeen            int64    `json:"last_seen"`
-	APMInstrumentation  string   `json:"apm_instrumentation"`
-	ServiceNameSource   string   `json:"service_name_source"`
-	Ports               []uint16 `json:"ports"`
-	PID                 int      `json:"pid"`
-	CommandLine         []string `json:"command_line"`
-	RSSMemory           uint64   `json:"rss_memory"`
+	NamingSchemaVersion  string   `json:"naming_schema_version"`
+	ServiceName          string   `json:"service_name"`
+	GeneratedServiceName string   `json:"generated_service_name"`
+	DDService            string   `json:"dd_service,omitempty"`
+	HostName             string   `json:"host_name"`
+	Env                  string   `json:"env"`
+	ServiceLanguage      string   `json:"service_language"`
+	ServiceType          string   `json:"service_type"`
+	StartTime            int64    `json:"start_time"`
+	LastSeen             int64    `json:"last_seen"`
+	APMInstrumentation   string   `json:"apm_instrumentation"`
+	ServiceNameSource    string   `json:"service_name_source,omitempty"`
+	Ports                []uint16 `json:"ports"`
+	PID                  int      `json:"pid"`
+	CommandLine          []string `json:"command_line"`
+	RSSMemory            uint64   `json:"rss_memory"`
+	CPUCores             float64  `json:"cpu_cores"`
 }
 
 type event struct {
@@ -57,24 +60,35 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 	host := ts.hostname.GetSafe(context.Background())
 	env := pkgconfig.Datadog().GetString("env")
 
+	nameSource := ""
+	if svc.service.DDService != "" {
+		nameSource = "provided"
+		if svc.service.DDServiceInjected {
+			nameSource = "injected"
+		}
+	}
+
 	return &event{
 		RequestType: t,
 		APIVersion:  "v2",
 		Payload: &eventPayload{
-			NamingSchemaVersion: "1",
-			ServiceName:         svc.meta.Name,
-			HostName:            host,
-			Env:                 env,
-			ServiceLanguage:     svc.meta.Language,
-			ServiceType:         svc.meta.Type,
-			StartTime:           int64(svc.process.Stat.StartTime),
-			LastSeen:            svc.LastHeartbeat.Unix(),
-			APMInstrumentation:  svc.meta.APMInstrumentation,
-			ServiceNameSource:   svc.meta.NameSource,
-			Ports:               svc.process.Ports,
-			PID:                 svc.process.PID,
-			CommandLine:         svc.process.CmdLine,
-			RSSMemory:           svc.process.Stat.RSS,
+			NamingSchemaVersion:  "1",
+			ServiceName:          svc.meta.Name,
+			GeneratedServiceName: svc.service.GeneratedName,
+			DDService:            svc.service.DDService,
+			HostName:             host,
+			Env:                  env,
+			ServiceLanguage:      svc.meta.Language,
+			ServiceType:          svc.meta.Type,
+			StartTime:            int64(svc.service.StartTimeSecs),
+			LastSeen:             svc.LastHeartbeat.Unix(),
+			APMInstrumentation:   svc.meta.APMInstrumentation,
+			ServiceNameSource:    nameSource,
+			Ports:                svc.service.Ports,
+			PID:                  svc.service.PID,
+			CommandLine:          svc.service.CommandLine,
+			RSSMemory:            svc.service.RSS,
+			CPUCores:             svc.service.CPUCores,
 		},
 	}
 }
@@ -88,9 +102,9 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 
 func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
-		svc.process.Ports,
+		svc.service.Ports,
 	)
 
 	e := ts.newEvent(eventTypeStartService, svc)
@@ -105,7 +119,7 @@ func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 
 func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] heartbeat-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
 	)
 
@@ -121,7 +135,7 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 
 func (ts *telemetrySender) sendEndServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] end-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
 	)
 

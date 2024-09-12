@@ -88,7 +88,9 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
 		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
 		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
 	})
@@ -360,7 +362,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -376,6 +378,15 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	}
 
 	return policyProviders
+}
+
+func (e *RuleEngine) rcStateCallback(state bool) {
+	if state {
+		seclog.Infof("Connection to remote config established")
+	} else {
+		seclog.Infof("Connection to remote config lost")
+	}
+	e.probe.EnableEnforcement(state)
 }
 
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
