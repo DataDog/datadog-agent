@@ -144,3 +144,34 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
+
+// TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
+// filesystem
+func TestReadyOnlyFileSystem(t *testing.T) {
+	readOnlyDir := t.TempDir()
+
+	err := os.Chmod(readOnlyDir, 0444)
+	assert.Nil(t, err, "Unable to make tempdir readonly")
+
+	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+	assert.False(t, s.isWritable)
+
+	// Check the launcher doesn't block on receiving channels
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
+	id := "123456789"
+
+	s.Start(nil, nil, nil, nil)
+	integrationsComp.RegisterIntegration(id, *mockConf)
+
+	logSample := "hello world"
+	integrationsComp.SendLog(logSample, id)
+
+	// Change tempdir back to writable
+	err = os.Chmod(readOnlyDir, 0755)
+	assert.Nil(t, err, "Unable to change tempdir permissions back to writable.")
+}

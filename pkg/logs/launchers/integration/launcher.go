@@ -38,6 +38,10 @@ type Launcher struct {
 	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeFunction func(logFilePath, log string) error
+	// isWritable tracks whether the launcher is able to write to the
+	// filesystem. Even if it's not, the launcher still needs to be able to
+	// receive on channels so it doesn't block.
+	isWritable bool
 }
 
 // NewLauncher creates and returns an integrations launcher, and creates the
@@ -45,9 +49,11 @@ type Launcher struct {
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
 	err := os.MkdirAll(runPath, 0755)
+	isWritable := true
+
 	if err != nil {
-		ddLog.Warn("Unable to make integrations logs directory: ", err)
-		return nil
+		ddLog.Warn("Unable to create integrations logs directory:", err)
+		isWritable = false
 	}
 
 	return &Launcher{
@@ -58,6 +64,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
 		integrationToFile:    make(map[string]string),
 		writeFunction:        writeLogToFile,
+		isWritable:           isWritable,
 	}
 }
 
@@ -76,6 +83,10 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
+			if !s.isWritable {
+				continue
+			}
+
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
 				ddLog.Warn("Failed to create source ", err)
@@ -99,6 +110,10 @@ func (s *Launcher) run() {
 			}
 
 		case log := <-s.integrationsLogsChan:
+			if !s.isWritable {
+				continue
+			}
+
 			logFilePath := s.integrationToFile[log.IntegrationID]
 
 			err := s.ensureFileSize(logFilePath)
