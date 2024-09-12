@@ -146,7 +146,7 @@ func TestLauncherTestSuite(t *testing.T) {
 }
 
 // TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
-// filesystem
+// file system. There will be errors but it should handle them gracefully.
 func TestReadyOnlyFileSystem(t *testing.T) {
 	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
 	err := os.Mkdir(readOnlyDir, 0444)
@@ -156,7 +156,6 @@ func TestReadyOnlyFileSystem(t *testing.T) {
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(sources.NewLogSources(), integrationsComp)
-	assert.False(t, s.isWritable)
 
 	// Check the launcher doesn't block on receiving channels
 	mockConf := &integration.Config{}

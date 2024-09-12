@@ -49,11 +49,9 @@ type Launcher struct {
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
 	err := os.MkdirAll(runPath, 0755)
-	isWritable := true
 
 	if err != nil {
 		ddLog.Warn("Unable to create integrations logs directory:", err)
-		isWritable = false
 	}
 
 	return &Launcher{
@@ -64,7 +62,6 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
 		integrationToFile:    make(map[string]string),
 		writeFunction:        writeLogToFile,
-		isWritable:           isWritable,
 	}
 }
 
@@ -83,9 +80,6 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
-			if !s.isWritable {
-				continue
-			}
 
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
@@ -110,10 +104,6 @@ func (s *Launcher) run() {
 			}
 
 		case log := <-s.integrationsLogsChan:
-			if !s.isWritable {
-				continue
-			}
-
 			logFilePath := s.integrationToFile[log.IntegrationID]
 
 			err := s.ensureFileSize(logFilePath)
