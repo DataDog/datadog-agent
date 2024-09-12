@@ -53,9 +53,9 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
-		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, "shared_libraries", lib)
+		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, UsmTLSAttacherName, lib)
 	}
 }
 
