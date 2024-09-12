@@ -11,11 +11,15 @@
         },
         "state": {
             "type": "string"
+        },
+        "trigger": {
+            "type": "string"
         }
     },
     "required": [
         "type",
         "path",
-        "state"
+        "state",
+        "trigger"
     ]
 }

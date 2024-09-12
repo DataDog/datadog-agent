@@ -20,14 +20,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const (
+	// HashTriggerTimeout hash triggered because of a timeout
+	HashTriggerTimeout = "timeout"
+	// HashTriggerProcessExit hash triggered on process exit
+	HashTriggerProcessExit = "process_exit"
+)
+
 // HashActionReport defines a hash action reports
 // easyjson:json
 type HashActionReport struct {
 	sync.RWMutex
 
-	Type  string `json:"type"`
-	Path  string `json:"path"`
-	State string `json:"state"`
+	Type    string `json:"type"`
+	Path    string `json:"path"`
+	State   string `json:"state"`
+	Trigger string `json:"trigger"`
 
 	// internal
 	resolved  bool

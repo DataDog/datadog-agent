@@ -24,7 +24,7 @@ const (
 	defaultHashActionFlushDelay = 5 * time.Second
 )
 
-// FileHasher defines a process killer structure
+// FileHasher defines a file hasher structure
 type FileHasher struct {
 	sync.Mutex
 
@@ -65,6 +65,7 @@ func (p *FileHasher) FlushPendingReports() {
 		defer report.Unlock()
 
 		if time.Now().After(report.seenAt.Add(defaultHashActionFlushDelay)) {
+			report.Trigger = HashTriggerTimeout
 			p.hash(report)
 			return true
 		}
@@ -82,6 +83,7 @@ func (p *FileHasher) HandleProcessExited(event *model.Event) {
 		defer report.Unlock()
 
 		if report.pid == event.ProcessContext.Pid {
+			report.Trigger = HashTriggerProcessExit
 			p.hash(report)
 			return true
 		}
@@ -94,7 +96,7 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, ev *model.Event) {
 	eventType := ev.GetEventType()
 
 	// only open events are supported
-	if eventType != model.FileOpenEventType {
+	if eventType != model.FileOpenEventType && eventType != model.ExecEventType {
 		return
 	}
 

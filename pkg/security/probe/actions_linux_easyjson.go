@@ -45,6 +45,8 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.Path = string(in.String())
 		case "state":
 			out.State = string(in.String())
+		case "trigger":
+			out.Trigger = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -73,6 +75,11 @@ func easyjson7cab6e30EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		const prefix string = ",\"state\":"
 		out.RawString(prefix)
 		out.String(string(in.State))
+	}
+	{
+		const prefix string = ",\"trigger\":"
+		out.RawString(prefix)
+		out.String(string(in.Trigger))
 	}
 	out.RawByte('}')
 }

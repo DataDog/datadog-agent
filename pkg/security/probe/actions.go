@@ -52,8 +52,8 @@ func (k *KillActionReport) IsResolved() bool {
 	k.RLock()
 	defer k.RUnlock()
 
+	// for sigkill wait for exit
 	return k.Signal != "SIGKILL" || k.resolved
-
 }
 
 // ToJSON marshal the action
@@ -61,7 +61,6 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 	k.RLock()
 	defer k.RUnlock()
 
-	// for sigkill wait for exit
 	jk := JKillActionReport{
 		Type:       rules.KillAction,
 		Signal:     k.Signal,

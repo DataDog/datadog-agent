@@ -595,7 +595,10 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("open", func(t *testing.T) {
+	done := make(chan bool, 10)
+
+	t.Run("open-process-exit", func(t *testing.T) {
+		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
 			go func() {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -607,6 +610,8 @@ func TestActionHash(t *testing.T) {
 				); err != nil {
 					t.Error(err)
 				}
+
+				done <- true
 			}()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -624,13 +629,67 @@ func TestActionHash(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
 				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
+
+		<-done
 	})
+
+	t.Run("open-timeout", func(t *testing.T) {
+		test.msgSender.flush()
+		test.WaitSignal(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					// exceed the file hasher timeout, use fork to force an event that will trigger the flush mechanism
+					"slow-write", "2", testFile, "aaa", ";", "sleep", "4", ";", "fork", ";", "sleep", "1",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action")
+		})
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'timeout')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		<-done
+	})
+
 }
