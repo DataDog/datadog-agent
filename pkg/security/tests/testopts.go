@@ -71,6 +71,7 @@ type testOpts struct {
 	enforcementDisarmerExecutableMaxAllowed    int
 	enforcementDisarmerExecutablePeriod        time.Duration
 	eventServerRetention                       time.Duration
+	discardRuntime                             bool
 }
 
 type dynamicTestOpts struct {
@@ -153,5 +154,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enforcementDisarmerExecutableEnabled == opts.enforcementDisarmerExecutableEnabled &&
 		to.enforcementDisarmerExecutableMaxAllowed == opts.enforcementDisarmerExecutableMaxAllowed &&
 		to.enforcementDisarmerExecutablePeriod == opts.enforcementDisarmerExecutablePeriod &&
-		to.eventServerRetention == opts.eventServerRetention
+		to.eventServerRetention == opts.eventServerRetention &&
+		to.discardRuntime == opts.discardRuntime
 }
