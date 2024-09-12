@@ -238,12 +238,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     __u64 timestamp = bpf_ktime_get_ns();
     if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
+        flush_tcp_failure(ctx, &t, err);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_done);
     }
-
-    flush_tcp_failure(ctx, &t, err);
 
     return 0;
 }
@@ -272,15 +271,28 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
 
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    if (!tcp_failed_connections_enabled()) {
+        cleanup_conn(ctx, &t, sk);
+        return 0;
+    }
+
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
-    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
-        skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-        skp_conn.tup.pid = 0;
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
+        int err = 0;
+        bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+        if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
+            increment_telemetry_count(tcp_close_target_failures);
+            flush_tcp_failure(ctx, &t, err);
+        }
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_close);
