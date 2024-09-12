@@ -264,7 +264,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		ch:                 newCookieHasher(),
 	}
 
-	tr.setupMapCleaner(m)
+	//tr.setupMapCleaner(m)
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {

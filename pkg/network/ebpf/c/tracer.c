@@ -193,19 +193,20 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
 SEC("kprobe/inet_release")
 int BPF_BYPASSABLE_KPROBE(kprobe__inet_release, struct sock *sk) {
     log_debug("kprobe/inet_release");
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err != 0) {
+        log_debug("kprobe/inet_release: error: %d", err);
+    }
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        log_debug("kprobe/inet_release: failed to read conn tuple");
         return 0;
     }
     log_debug("kprobe/inet_release: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
-    int err = 0;
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-    if (err != 0) {
-        log_debug("kprobe/inet_release: error: %d", err);
-        return 0; // no failure
-    }
+
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     return 0;
