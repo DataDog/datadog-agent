@@ -115,6 +115,18 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	require.ErrorIs(t, err, ErrSelfExcluded)
 }
 
+func TestContainerdTmpErrEnvironment(t *testing.T) {
+	config := AttacherConfig{
+		ExcludeTargets: ExcludeContainerdTmp,
+	}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.attachToBinary(utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}, nil, nil)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
+}
+
 func TestGetExecutablePath(t *testing.T) {
 	exe := "/bin/bash"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
