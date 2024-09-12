@@ -335,13 +335,14 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 	UserAgent string
 }
 
-// StepFunctionEvent is the event you get when you instrument a StepFunction's Lambda:Invoke task state
+// StepFunctionEvent is the event you get when you instrument a legacy Stepfunction Lambda:Invoke task state
 // as recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
 // This isn't an "official" event, as a default StepFunction invocation will just contain {}
 type StepFunctionEvent struct {
 	Payload StepFunctionPayload
 }
 
+// StepFunctionPayload is the payload of a StepFunctionEvent. It's also a non-legacy version of the `StepFunctionEvent`.
 type StepFunctionPayload struct {
 	Execution struct {
 		ID string

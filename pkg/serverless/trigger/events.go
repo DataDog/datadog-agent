@@ -288,11 +288,7 @@ func isLegacyStepFunctionEvent(event map[string]any) bool {
 		return false
 	}
 	stateEnteredTime := json.GetNestedValue(event, "payload", "state", "enteredtime")
-	if stateEnteredTime == nil {
-		return false
-	}
-	return true
-
+	return stateEnteredTime != nil
 }
 
 func isStepFunctionEvent(event map[string]any) bool {
@@ -305,10 +301,7 @@ func isStepFunctionEvent(event map[string]any) bool {
 		return false
 	}
 	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
-	if stateEnteredTime == nil {
-		return false
-	}
-	return true
+	return stateEnteredTime != nil
 }
 
 func eventRecordsKeyExists(event map[string]any, key string) bool {
