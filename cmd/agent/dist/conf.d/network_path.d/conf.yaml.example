@@ -5,6 +5,12 @@ init_config:
     #
     # min_collection_interval: 60
 
+    ## @param timeout - integer - optional - default: 1000
+    ## Specifies how much time in milliseconds the traceroute should
+    ## wait for a response from each hop before timing out.
+    #
+    # timeout: 1000
+
 # Network Path integration is used to monitor individual endpoints.
 # Supported platforms are Linux and Windows. macOS is not supported yet.
 instances:
@@ -15,6 +21,7 @@ instances:
 
     ## @param port - integer - optional
     ## Port of the target endpoint to monitor via Network Path.
+    ## For UDP, we do not recommend setting the port since it can make probes less reliable.
     ## If port is not set, a random port will be used.
     #
     # port: <PORT>
@@ -29,6 +36,12 @@ instances:
     ## Specifies the maximum number of hops (max time-to-live value) traceroute will probe.
     #
     # max_ttl: <PORT>
+
+    ## @param timeout - integer - optional - default: 1000
+    ## Specifies how much time in milliseconds the traceroute should
+    ## wait for a response from each hop before timing out.
+    #
+    # timeout: 1000
 
     ## @param min_collection_interval - number - optional - default: 60
     ## Specifies how frequently we should probe the endpoint.

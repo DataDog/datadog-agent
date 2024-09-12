@@ -686,6 +686,7 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 
 	filename := profile.Metadata.Name + ".profile"
 	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+	tmpOutputPath := outputPath + ".tmp"
 
 	// create output directory and output file, truncate existing file if a profile already exists
 	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
@@ -693,18 +694,22 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
 	}
 
-	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	file, err := os.OpenFile(tmpOutputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
 	if err != nil {
 		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
 	}
 	defer file.Close()
 
-	if _, err = file.Write(raw); err != nil {
-		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	if _, err := file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", tmpOutputPath, err)
 	}
 
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpOutputPath, outputPath); err != nil {
+		return fmt.Errorf("couldn't rename profile file [%s] to [%s]: %w", tmpOutputPath, outputPath, err)
 	}
 
 	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)

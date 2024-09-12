@@ -44,7 +44,7 @@ func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "open.file.name", "open.file.path": // already handled by getBasenameKFilters
 		case "open.flags":
-			kfilter, err := getFlagsKFilters("open_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("open_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}

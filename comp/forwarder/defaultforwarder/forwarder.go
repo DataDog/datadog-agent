@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type dependencies struct {
@@ -31,19 +33,48 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, dep.Params)
+	if dep.Params.useNoopForwarder {
+		return provides{
+			Comp: NoopForwarder{},
+		}
+	}
+
+	options := createOptions(dep.Params, dep.Config, dep.Log)
+
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options)
+}
+
+func createOptions(params Params, config config.Component, log log.Component) *Options {
+	var options *Options
+	keysPerDomain := getMultipleEndpoints(config, log)
+	if !params.withResolver {
+		options = NewOptions(config, log, keysPerDomain)
+	} else {
+		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+	}
+	// Override the DisableAPIKeyChecking only if WithFeatures was called
+	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
+		options.DisableAPIKeyChecking = disableAPIKeyChecking
+	}
+	options.SetEnabledFeatures(params.features)
+
+	return options
+}
+
+func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
+	// Inject the config to make sure we can call GetMultipleEndpoints.
+	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
+	}
+	return keysPerDomain
 }
 
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, params Params) provides {
-	if params.UseNoopForwarder {
-		return provides{
-			Comp: NoopForwarder{},
-		}
-	}
-	forwarder := NewDefaultForwarder(config, log, params.Options)
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+	forwarder := NewDefaultForwarder(config, log, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {

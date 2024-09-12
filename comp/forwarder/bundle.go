@@ -18,9 +18,3 @@ func Bundle(params defaultforwarder.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		defaultforwarder.Module(params))
 }
-
-// BundleWithProvider defines the fx options for this bundle with a provider.
-func BundleWithProvider[T1 any, T2 any](provider func(T1, T2) defaultforwarder.Params) fxutil.BundleOptions {
-	return fxutil.Bundle(
-		defaultforwarder.ModuleWithProvider(provider))
-}

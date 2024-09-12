@@ -47,7 +47,7 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 		return payload.NetworkPath{}, err
 	}
 
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.TimeoutMs)
+	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.Timeout)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

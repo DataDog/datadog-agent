@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -215,7 +216,7 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 	ids := []string{entity}
 
 	// Add Image names (long then short if different)
-	long, _, short, _, err := containers.SplitImageName(image)
+	long, _, short, _, err := pkgcontainersimage.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
 	}

@@ -9,6 +9,10 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY0(splice) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_SPLICE);
     struct syscall_cache_t syscall = {
         .type = EVENT_SPLICE,
