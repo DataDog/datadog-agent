@@ -1477,7 +1477,7 @@ api_key:
 #####################
 
 ## @param sbom - custom object - optional
-## Enter specific configurations for generating Software Bill of Materials (SBOM).
+## Enter specific configurations for generating a Software Bill of Materials (SBOM).
 # sbom:
 
   ## @param enabled - boolean - optional - default: false
@@ -1497,7 +1497,7 @@ api_key:
     # enabled: false
 
   ## @param host - custom object - optional
-  ## Configuration for generating SBOM for the host.
+  ## Configuration for generating an SBOM for the host.
   #
   # host:
     ## @param enabled - boolean - optional - default: false
