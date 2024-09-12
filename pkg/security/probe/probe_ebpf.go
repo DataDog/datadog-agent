@@ -1001,7 +1001,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 	case model.IMDSEventType:
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
+			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
@@ -1208,17 +1209,17 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 // of the applied approvers for it.
 func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
-	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
-	eventTypes = append(eventTypes, ruleEventTypes...)
+	requestedEventTypes := append([]eval.EventType{}, defaultEventTypes...)
+	requestedEventTypes = append(requestedEventTypes, ruleEventTypes...)
 	for eventType, handlers := range p.probe.eventHandlers {
 		if len(handlers) == 0 {
 			continue
 		}
-		if slices.Contains(eventTypes, model.EventType(eventType).String()) {
+		if slices.Contains(requestedEventTypes, model.EventType(eventType).String()) {
 			continue
 		}
 		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
-			eventTypes = append(eventTypes, model.EventType(eventType).String())
+			requestedEventTypes = append(requestedEventTypes, model.EventType(eventType).String())
 		}
 	}
 
@@ -1226,8 +1227,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
-		if (eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
+		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) || p.isNeededForActivityDump(eventType) || p.isNeededForSecurityProfile(eventType) || p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
+
+			// to ensure the `enabled_events` map is correctly set with events that are enabled because of ADs
+			if !slices.Contains(requestedEventTypes, eventType) {
+				requestedEventTypes = append(requestedEventTypes, eventType)
+			}
 		}
 	}
 
@@ -1292,7 +1298,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	}
 
 	enabledEvents := uint64(0)
-	for _, eventName := range eventTypes {
+	for _, eventName := range requestedEventTypes {
 		if eventName != "*" {
 			eventType := config.ParseEvalEventType(eventName)
 			if eventType == model.UnknownEventType {
@@ -1424,6 +1430,9 @@ func (err QueuedNetworkDeviceError) Error() string {
 
 func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
 	select {
+	case <-p.ctx.Done():
+		// the probe is stopping, do not push the new tc classifier request
+		return
 	case p.newTCNetDevices <- device:
 		// do nothing
 	default:

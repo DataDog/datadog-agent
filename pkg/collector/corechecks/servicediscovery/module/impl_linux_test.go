@@ -335,7 +335,7 @@ func TestServiceName(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
-	cmd.Env = append(cmd.Env, "DD_SERVICE=foobar")
+	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -346,7 +346,8 @@ func TestServiceName(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
-		assert.Equal(t, "foobar", portMap[pid].DDService)
+		// Non-ASCII character removed due to normalization.
+		assert.Equal(t, "foo_bar", portMap[pid].DDService)
 		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
 		assert.False(t, portMap[pid].DDServiceInjected)
@@ -644,7 +645,8 @@ func TestNodeDocker(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
-		assert.Equal(collect, "nodejs-https-server", svcMap[pid].GeneratedName)
+		// test@... changed to test_... due to normalization.
+		assert.Equal(collect, "test_nodejs-https-server", svcMap[pid].GeneratedName)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])

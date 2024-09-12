@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -122,17 +123,20 @@ func ProcRootFilePath(pid uint32, file string) string {
 	return procPidPath2(pid, "root", file)
 }
 
+// we do not use `HostProc` here because of the double call to `filepath.Join`
+// and those functions can be called in a tight loop
+
 func procPidPath(pid uint32, path string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path)
 }
 
 func procPidPath2(pid uint32, path1 string, path2 string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path1, path2)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path1, path2)
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return kernel.HostProc("modules")
+	return filepath.Join(kernel.ProcFSRoot(), "modules")
 }
 
 // GetLoginUID returns the login uid of the provided process

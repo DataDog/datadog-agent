@@ -7,6 +7,10 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY0(mprotect) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_MPROTECT);
     struct syscall_cache_t syscall = {
         .type = EVENT_MPROTECT,
