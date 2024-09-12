@@ -9,9 +9,17 @@ package snmpscanimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 )
+
+// Requires defines the dependencies for the snmpscan component
+type Requires struct {
+	compdef.In
+	Logger        log.Component
+	Demultiplexer demultiplexer.Component
+}
 
 // Provides defines the output of the snmpscan component
 type Provides struct {
@@ -20,7 +28,7 @@ type Provides struct {
 }
 
 // NewComponent creates a new snmpscan component
-func NewComponent(reqs snmpscan.Requires) (Provides, error) {
+func NewComponent(reqs Requires) (Provides, error) {
 	scanner := snmpScannerImpl{
 		log:   reqs.Logger,
 		demux: reqs.Demultiplexer,

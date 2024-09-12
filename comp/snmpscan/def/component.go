@@ -7,20 +7,10 @@
 package snmpscan
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/gosnmp/gosnmp"
-	"go.uber.org/fx"
 )
 
 // team: network-device-monitoring
-
-// Requires defines the dependencies for the snmpscan component
-type Requires struct {
-	fx.In
-	Logger        log.Component
-	Demultiplexer demultiplexer.Component
-}
 
 // Component is the component type.
 type Component interface {
