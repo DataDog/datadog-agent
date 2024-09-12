@@ -148,9 +148,8 @@ func TestLauncherTestSuite(t *testing.T) {
 // TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // filesystem
 func TestReadyOnlyFileSystem(t *testing.T) {
-	readOnlyDir := t.TempDir()
-
-	err := os.Chmod(readOnlyDir, 0444)
+	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
+	err := os.Mkdir(readOnlyDir, 0444)
 	assert.Nil(t, err, "Unable to make tempdir readonly")
 
 	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
@@ -171,7 +170,6 @@ func TestReadyOnlyFileSystem(t *testing.T) {
 	logSample := "hello world"
 	integrationsComp.SendLog(logSample, id)
 
-	// Change tempdir back to writable
-	err = os.Chmod(readOnlyDir, 0755)
-	assert.Nil(t, err, "Unable to change tempdir permissions back to writable.")
+	// send a second log to make sure the launcher isn't blocking
+	integrationsComp.SendLog(logSample, id)
 }
