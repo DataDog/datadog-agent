@@ -31,5 +31,6 @@ jobs:
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
         ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
+        SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
       run: |
         inv -e release.chase-release-managers --version ${{ github.event.inputs.version }}
