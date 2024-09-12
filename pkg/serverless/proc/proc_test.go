@@ -183,11 +183,31 @@ func TestGetThreadsMaxData(t *testing.T) {
 	pids := GetPidList(path)
 	threadsMaxData, err := getThreadsMaxData(path, pids)
 	assert.Nil(t, err)
-	assert.Equal(t, float64(5), threadsMaxData.ThreadsMax)
+	assert.Equal(t, float64(1024), threadsMaxData.ThreadsMax)
+
+	path = "./testData/process/invalid_malformed"
+	pids = GetPidList(path)
+	threadsMaxData, err = getThreadsMaxData(path, pids)
+	assert.NotNil(t, err)
+	assert.Nil(t, threadsMaxData)
 
 	path = "./testData/process/invalid_missing"
 	pids = GetPidList(path)
 	threadsMaxData, err = getThreadsMaxData(path, pids)
 	assert.NotNil(t, err)
 	assert.Nil(t, threadsMaxData)
+}
+
+func TestGetThreadsUseData(t *testing.T) {
+	path := "./testData/process/valid"
+	pids := GetPidList(path)
+	threadsUseData, err := getThreadsUseData(path, pids)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(5), threadsUseData.ThreadsUse)
+
+	path = "./testData/process/invalid_missing"
+	pids = GetPidList(path)
+	threadsUseData, err = getThreadsUseData(path, pids)
+	assert.NotNil(t, err)
+	assert.Nil(t, threadsUseData)
 }

@@ -64,6 +64,7 @@ const (
 	fdMaxMetric                  = "aws.lambda.enhanced.fd_max"
 	fdUseMetric                  = "aws.lambda.enhanced.fd_use"
 	threadsMaxMetric             = "aws.lambda.enhanced.threads_max"
+	threadsUseMetric             = "aws.lambda.enhanced.threads_use"
 	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
@@ -575,8 +576,9 @@ type generateFdEnhancedMetricsArgs struct {
 	Time  float64
 }
 
-type generateThreadsMaxEnhancedMetricsArgs struct {
+type generateThreadEnhancedMetricsArgs struct {
 	ThreadsMax float64
+	ThreadsUse float64
 	Tags       []string
 	Demux      aggregator.Demultiplexer
 	Time       float64
@@ -602,11 +604,19 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 	})
 }
 
-// generateThreadsMaxEnhancedMetrics generates enhanced metrics for the maximum number of threads in use
-func generateThreadsMaxEnhancedMetrics(args generateThreadsMaxEnhancedMetricsArgs) {
+// generateThreadEnhancedMetrics generates enhanced metrics for the maximum number of threads available and in use
+func generateThreadEnhancedMetrics(args generateThreadEnhancedMetricsArgs) {
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       threadsMaxMetric,
 		Value:      args.ThreadsMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       threadsUseMetric,
+		Value:      args.ThreadsUse,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
@@ -635,13 +645,20 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 
 	threadsMaxData, err := proc.GetThreadsMaxData(pids)
 	if err != nil {
-		log.Debugf("Could not emit threads max enhanced metric. %v", err)
+		log.Debugf("Could not emit thread enhanced metrics. %v", err)
+		return
+	}
+
+	threadsUseData, err := proc.GetThreadsUseData(pids)
+	if err != nil {
+		log.Debugf("Could not emit thread enhanced metrics. %v", err)
 		return
 	}
 
 	fdMax := fdMaxData.MaximumFileHandles
 	fdUse := fdUseData.UseFileHandles
 	threadsMax := threadsMaxData.ThreadsMax
+	threadsUse := threadsUseData.ThreadsUse
 
 	ticker := time.NewTicker(1 * time.Millisecond)
 	defer ticker.Stop()
@@ -656,8 +673,9 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 					Demux: metricAgent.Demux,
 					Time:  float64(time.Now().UnixNano()) / float64(time.Second),
 				})
-				generateThreadsMaxEnhancedMetrics(generateThreadsMaxEnhancedMetricsArgs{
+				generateThreadEnhancedMetrics(generateThreadEnhancedMetricsArgs{
 					ThreadsMax: threadsMax,
+					ThreadsUse: threadsUse,
 					Tags:       tags,
 					Demux:      metricAgent.Demux,
 					Time:       float64(time.Now().UnixNano()) / float64(time.Second),
@@ -674,12 +692,12 @@ func SendProcessEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgen
 			}
 			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
 
-			threadsMaxData, err := proc.GetThreadsMaxData(pids)
+			threadsUseData, err := proc.GetThreadsUseData(pids)
 			if err != nil {
-				log.Debugf("Could not emit threads max enhanced metric. %v", err)
+				log.Debugf("Could not emit thread enhanced metric. %v", err)
 				return
 			}
-			threadsMax = math.Max(threadsMax, threadsMaxData.ThreadsMax)
+			threadsUse = math.Max(threadsUse, threadsUseData.ThreadsUse)
 		}
 	}
 }

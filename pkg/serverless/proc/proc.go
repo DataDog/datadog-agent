@@ -285,18 +285,70 @@ type ThreadsMaxData struct {
 	ThreadsMax float64
 }
 
-// GetThreadsMaxData returns the maximum number of threads the function has used at a time
+// GetThreadsMaxData returns the maximum limit of threads the function can use
 func GetThreadsMaxData(pids []int) (*ThreadsMaxData, error) {
 	return getThreadsMaxData(ProcPath, pids)
 }
 
 func getThreadsMaxData(path string, pids []int) (*ThreadsMaxData, error) {
+	threadsMax := math.Inf(1)
+
+	for _, pid := range pids {
+		limitsPath := fmt.Sprint(path + fmt.Sprintf(PidLimitsPathFormat, pid))
+		file, err := os.Open(limitsPath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Max processes") {
+				fields := strings.Fields(line)
+				if len(fields) < 5 {
+					log.Debugf("threads max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				threadsMaxPidStr := fields[2]
+				threadsMaxPid, err := strconv.Atoi(threadsMaxPidStr)
+				if err != nil {
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				threadsMax = math.Min(float64(threadsMax), float64(threadsMaxPid))
+				break
+			}
+		}
+	}
+
+	if threadsMax != math.Inf(1) {
+		return &ThreadsMaxData{
+			ThreadsMax: threadsMax,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("threads max data not found")
+}
+
+type ThreadsUseData struct {
+	ThreadsUse float64
+}
+
+// GetThreadsUseData returns the maximum number of threads the function has used at a time
+func GetThreadsUseData(pids []int) (*ThreadsUseData, error) {
+	return getThreadsUseData(ProcPath, pids)
+}
+
+func getThreadsUseData(path string, pids []int) (*ThreadsUseData, error) {
 	threadCount := 0
 	for _, pid := range pids {
 		taskPath := fmt.Sprint(path + fmt.Sprintf(PidTaskPathFormat, pid))
 		files, err := os.ReadDir(taskPath)
 		if err != nil {
-			return nil, fmt.Errorf("threads data not found in directory '%s'", taskPath)
+			return nil, fmt.Errorf("threads use data not found in directory '%s'", taskPath)
 		}
 		for _, file := range files {
 			if file.IsDir() {
@@ -305,7 +357,7 @@ func getThreadsMaxData(path string, pids []int) (*ThreadsMaxData, error) {
 		}
 	}
 
-	return &ThreadsMaxData{
-		ThreadsMax: float64(threadCount),
+	return &ThreadsUseData{
+		ThreadsUse: float64(threadCount),
 	}, nil
 }
