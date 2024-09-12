@@ -7,9 +7,10 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -182,17 +183,7 @@ func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	ddFileName := "testdata/doesnotexists.yaml"
 	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
 
-	expectedError := fmt.Sprintf(
-		"open %s: no such file or directory\nopen %s: no such file or directory",
-		ddFileName, ddFileName)
-
-	if runtime.GOOS == "windows" {
-		expectedError = fmt.Sprintf(
-			"open %s: The system cannot find the file specified.\nopen %s: The system cannot find the file specified.",
-			ddFileName, ddFileName)
-	}
-
-	assert.ErrorContains(t, err, expectedError)
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
 }
 
 func (suite *ConfigTestSuite) TestBadLogLevel() {
