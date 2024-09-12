@@ -34,7 +34,7 @@ service:
       exporters: [datadog/connector]
     traces/send:
       receivers: [datadog/connector]
-      processors: [batch, probabilistic_sampler]
+      processors: [probabilistic_sampler, batch]
       exporters: [datadog]
     metrics:
       receivers: [otlp, datadog/connector]
