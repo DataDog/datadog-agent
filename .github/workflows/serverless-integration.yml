@@ -12,6 +12,8 @@ on:
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
