@@ -25,12 +25,13 @@ type FieldCapabilities []FieldCapability
 
 // FieldCapability represents a field and the type of its value (scalar, pattern, bitmask, ...)
 type FieldCapability struct {
-	Field            eval.Field
-	TypeBitmask      eval.FieldValueType
-	ValidateFnc      func(FilterValue) bool
-	FilterWeight     int
-	FilterMode       FilterMode
-	RangeFilterValue *RangeFilterValue
+	Field                  eval.Field
+	TypeBitmask            eval.FieldValueType
+	ValidateFnc            func(FilterValue) bool
+	FilterWeight           int
+	FilterMode             FilterMode
+	RangeFilterValue       *RangeFilterValue
+	HandleNotApproverValue func(value interface{}) (interface{}, bool)
 }
 
 // TypeMatches return if a type is supported

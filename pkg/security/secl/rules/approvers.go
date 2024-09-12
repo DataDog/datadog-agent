@@ -120,7 +120,7 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap Fiel
 		}
 	}
 
-	isaa := func(v1, v2 interface{}) (bool, error) {
+	isaaFnc := func(v1, v2 interface{}) (bool, error) {
 		origResult, err := partialEval(event, ctx, rule, fieldCap.Field, v1)
 		if err != nil {
 			return false, err
@@ -141,12 +141,24 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap Fiel
 		return false, value, err
 	}
 
-	result, err := isaa(value, notValue)
+	result, err := isaaFnc(value, notValue)
 	if result || err != nil {
 		return result, value, err
 	}
 
-	return result, value, err
+	if fieldCap.HandleNotApproverValue == nil {
+		return false, value, err
+	}
+
+	result, err = isaaFnc(notValue, value)
+	if result {
+		value, ok := fieldCap.HandleNotApproverValue(value)
+		if ok {
+			return true, value, nil
+		}
+	}
+
+	return false, value, err
 }
 
 func bitmaskCombinations(bitmasks []int) []int {
@@ -214,7 +226,7 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 			for _, value := range rule.GetFieldValues(field) {
 				// TODO: handle range for bitmask field, for now ignore range value
-				if fieldCap.TypeBitmask&eval.BitmaskValueType != 0 && value.Type == eval.RangeValueType {
+				if fieldCap.TypeBitmask&eval.BitmaskValueType == eval.BitmaskValueType && value.Type == eval.RangeValueType {
 					continue
 				}
 

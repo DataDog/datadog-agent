@@ -872,6 +872,12 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 			FilterMode:       ApproverOnlyMode,
 			RangeFilterValue: &RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1},
 			FilterWeight:     10,
+			HandleNotApproverValue: func(value interface{}) (interface{}, bool) {
+				if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+					return RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+				}
+				return value, false
+			},
 		},
 	}
 
@@ -911,16 +917,21 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 		}
 	})
 
-	/*t.Run("not-equal-unset", func(t *testing.T) {
+	t.Run("not-equal-unset", func(t *testing.T) {
 		exprs := []string{
 			`open.file.path != "" && process.auid != AUDIT_AUID_UNSET`,
 		}
 
 		approvers := getApprovers(exprs)
-		if len(approvers) != 0 {
-			t.Fatalf("shouldn't get an approver`: %v", approvers)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
 		}
-	})*/
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 0 || rge.Max != model.AuditUIDUnset-1 {
+			t.Fatalf("unexpected range")
+		}
+	})
 
 	t.Run("lesser-equal-than", func(t *testing.T) {
 		exprs := []string{

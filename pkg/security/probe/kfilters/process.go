@@ -29,6 +29,13 @@ var processCapabilities = rules.FieldCapability{
 	FilterMode:       rules.ApproverOnlyMode,
 	RangeFilterValue: &rules.RangeFilterValue{Min: 0, Max: maxAUID},
 	FilterWeight:     100,
+	// convert a != model.AuditUIDUnset to the max range
+	HandleNotApproverValue: func(value interface{}) (interface{}, bool) {
+		if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+			return rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+		}
+		return value, false
+	},
 }
 
 func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([]activeKFilter, error) {
