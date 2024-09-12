@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -46,6 +47,9 @@ type GlobalParams struct {
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
+
+	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
+	FleetPoliciesDirPath string
 
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
@@ -84,6 +88,8 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
+	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
@@ -125,7 +131,7 @@ func SetHostMountEnv(logger log.Component) {
 	// Set default values for proc/sys paths if unset.
 	// Generally only applicable for container-only cases like Fargate.
 	// This is primarily used by gopsutil to correlate cpu metrics with host processes
-	if !config.IsContainerized() || !filesystem.FileExists("/host") {
+	if !env.IsContainerized() || !filesystem.FileExists("/host") {
 		return
 	}
 

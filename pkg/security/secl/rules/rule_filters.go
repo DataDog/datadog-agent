@@ -9,11 +9,12 @@ package rules
 import (
 	"fmt"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
-	"github.com/Masterminds/semver/v3"
 )
 
 // RuleFilter definition of a rule filter

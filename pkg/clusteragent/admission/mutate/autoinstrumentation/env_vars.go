@@ -60,18 +60,6 @@ const (
 	localLibraryInstrumentationInstallType = "k8s_lib_injection"
 )
 
-var (
-	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
-		Name:  instrumentationInstallTypeEnvVarName,
-		Value: singleStepInstrumentationInstallType,
-	}
-
-	localLibraryInstrumentationInstallTypeEnvVar = corev1.EnvVar{
-		Name:  instrumentationInstallTypeEnvVarName,
-		Value: localLibraryInstrumentationInstallType,
-	}
-)
-
 type envVar struct {
 	key                string
 	valFunc            envValFunc

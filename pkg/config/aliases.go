@@ -39,43 +39,6 @@ var NewConfig = model.NewConfig
 // Warnings represent the warnings in the config
 type Warnings = model.Warnings
 
-// environment Aliases
-var (
-	IsFeaturePresent             = env.IsFeaturePresent
-	IsECS                        = env.IsECS
-	IsKubernetes                 = env.IsKubernetes
-	IsECSFargate                 = env.IsECSFargate
-	IsServerless                 = env.IsServerless
-	IsContainerized              = env.IsContainerized
-	IsDockerRuntime              = env.IsDockerRuntime
-	IsHostProcAvailable          = env.IsHostProcAvailable
-	IsHostSysAvailable           = env.IsHostSysAvailable
-	IsAnyContainerFeaturePresent = env.IsAnyContainerFeaturePresent
-	GetDetectedFeatures          = env.GetDetectedFeatures
-)
-
-type (
-	// Feature Alias
-	Feature = env.Feature
-	// FeatureMap Alias
-	FeatureMap = env.FeatureMap
-)
-
-// Aliases for constants
-const (
-	ECSFargate               = env.ECSFargate
-	Podman                   = env.Podman
-	Docker                   = env.Docker
-	EKSFargate               = env.EKSFargate
-	ECSEC2                   = env.ECSEC2
-	Kubernetes               = env.Kubernetes
-	CloudFoundry             = env.CloudFoundry
-	Cri                      = env.Cri
-	Containerd               = env.Containerd
-	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
-	ECSOrchestratorExplorer  = env.ECSOrchestratorExplorer
-)
-
 var (
 	// Datadog Alias
 	Datadog = pkgconfigsetup.Datadog
@@ -183,8 +146,6 @@ type (
 	ConfigurationProviders = pkgconfigsetup.ConfigurationProviders
 	// Listeners Alias
 	Listeners = pkgconfigsetup.Listeners
-	// MappingProfile Alias
-	MappingProfile = pkgconfigsetup.MappingProfile
 )
 
 // GetObsPipelineURL Alias using Datadog config
@@ -222,11 +183,6 @@ func GetBindHost() string {
 	return pkgconfigsetup.GetBindHost(Datadog())
 }
 
-// GetDogstatsdMappingProfiles Alias using Datadog config
-func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
-	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog())
-}
-
 var (
 	// IsRemoteConfigEnabled Alias
 	IsRemoteConfigEnabled = pkgconfigsetup.IsRemoteConfigEnabled
@@ -252,7 +208,7 @@ var (
 
 // LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe().GetEnvVars())
 }
 
 // GetProcessAPIAddressPort Alias using Datadog config

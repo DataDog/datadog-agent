@@ -15,11 +15,22 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+// IISApplicationDefinition represents an IIS application definition
+type IISApplicationDefinition struct {
+	Name string // name of the application.  this will also be the path
+	// e.g. app1/dir2
+	PhysicalPath string // physical path to the application
+	// this must exist prior to creation of the application, or it will fail
+}
+
 // IISSiteDefinition represents an IIS site definition
 type IISSiteDefinition struct {
 	Name        string //  name of the site
 	BindingPort string // port to bind to, of the form '*:8081'
-	AssetsDir   string // directory to copy for assets
+	SiteDir     string // directory to create for the site
+	// can be empty for default.
+	AssetsDir    string // directory to copy for assets
+	Applications []IISApplicationDefinition
 }
 
 var (
@@ -54,7 +65,12 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 
 		// create the site directory
 		//tgtpath := fmt.Sprintf("c:\\tmp\\inetpub\\%s", s.Name)
-		tgtpath := path.Join("c:", "tmp", "inetpub", s.Name)
+		var tgtpath string
+		if s.SiteDir == "" {
+			tgtpath = path.Join("c:", "tmp", "inetpub", s.Name)
+		} else {
+			tgtpath = s.SiteDir
+		}
 		err := host.MkdirAll(tgtpath)
 		if err != nil {
 			return err
@@ -76,6 +92,32 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 		output, err := host.Execute(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to create IIS site: %w\n%s", err, output)
+		}
+		for _, app := range s.Applications {
+			// create the application
+			script := `
+			$res = Get-WebApplication -Name '%s'
+			if ($res -eq $null) {
+				New-WebApplication -Site '%s' -Name '%s' -PhysicalPath '%s'
+			}`
+			physpath := strings.Replace(app.PhysicalPath, "/", "\\", -1)
+
+			// make the physical path first since it's required
+			err := host.MkdirAll(physpath)
+			if err != nil {
+				return err
+			}
+			if s.AssetsDir != "" {
+				// copy the assets
+				if err := host.CopyFolder(s.AssetsDir, physpath); err != nil {
+					return err
+				}
+			}
+			cmd := fmt.Sprintf(script, app.Name, s.Name, app.Name, physpath)
+			output, err := host.Execute(cmd)
+			if err != nil {
+				return fmt.Errorf("failed to create IIS app %s in site: %w\n%s", app.Name, err, output)
+			}
 		}
 	}
 	return nil

@@ -46,8 +46,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
@@ -117,7 +117,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{
 			"/etc/*",
-			"/lib/apk/*",
+			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",

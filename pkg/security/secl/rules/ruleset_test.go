@@ -19,17 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-type testFieldValues map[string][]interface{}
+type testFieldValues map[eval.Field][]interface{}
 
 type testHandler struct {
-	filters map[string]testFieldValues
+	filters map[eval.EventType]testFieldValues
+}
+
+func (f *testHandler) Reset() {
+	f.filters = make(map[eval.EventType]testFieldValues)
 }
 
 func (f *testHandler) RuleMatch(_ *Rule, _ eval.Event) bool {
 	return true
 }
 
-func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field string, _ eval.EventType) {
+func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field eval.Field, _ eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {
 		values = make(testFieldValues)
@@ -533,7 +537,7 @@ func TestRuleSetApprovers14(t *testing.T) {
 
 	approvers, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
-		t.Fatalf("shouldn't get an approver for `open.file.path`: %v", approvers)
+		t.Fatalf("should get an approver for `open.file.path`: %v", approvers)
 	}
 }
 
@@ -555,7 +559,189 @@ func TestRuleSetApprovers15(t *testing.T) {
 
 	approvers, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.name"]) != 1 {
-		t.Fatalf("shouldn't get an approver for `open.file.name`: %v", approvers)
+		t.Fatalf("should get an approver for `open.file.name`: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers16(t *testing.T) {
+	exprs := []string{
+		`open.file.path == "/etc/httpd.conf"`,
+		`open.file.path != "" && open.retval == -1 && process.auid == 1000`,
+	}
+
+	handler := &testHandler{
+		filters: make(map[string]testFieldValues),
+	}
+
+	rs := newRuleSet()
+	rs.AddListener(handler)
+
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatal("shouldn't get an approver")
+	}
+
+	caps = FieldCapabilities{
+		{
+			Field:        "open.file.oath",
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
+			FilterWeight: 3,
+		},
+		{
+			Field:       "process.auid",
+			TypeBitmask: eval.ScalarValueType,
+		},
+	}
+
+	approvers, _ = rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatal("shouldn't get an approver")
+	}
+
+	// shouldn't generate a discarder
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.SetFieldValue("open.file.path", "/usr/local/bin/rootkit")
+
+	if !rs.Evaluate(ev) {
+		rs.EvaluateDiscarders(ev)
+	}
+
+	if _, ok := handler.filters["open.file.path"]; ok {
+		t.Fatalf("shouldn't have a discarder for `open.file.path`")
+	}
+
+	// change the approver mode, now should have an approver + a discader
+	caps = FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
+			FilterWeight: 3,
+		},
+		{
+			Field:       "process.auid",
+			TypeBitmask: eval.ScalarValueType,
+			FilterMode:  ApproverOnlyMode,
+		},
+	}
+
+	approvers, _ = rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 2 || len(approvers["open.file.path"]) != 1 || len(approvers["process.auid"]) != 1 {
+		t.Fatalf("should get an approver`: %v", approvers)
+	}
+
+	if !rs.Evaluate(ev) {
+		rs.EvaluateDiscarders(ev)
+	}
+
+	if _, ok := handler.filters["open"]; !ok {
+		t.Fatalf("should have a discarder for `open.file.path`: %v", handler.filters)
+	}
+}
+
+func TestRuleSetApprovers17(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.file.path == "/var/lib/httpd"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.path"]) != 3 {
+		t.Fatalf("should get an approver for `open.file.path`: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers18(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.flags == O_RDONLY`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+		{
+			Field:       "open.flags",
+			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 2 || len(approvers["open.file.path"]) != 2 || len(approvers["open.flags"]) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers19(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.flags == O_RDONLY`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatal("shouldn't get an approver")
+	}
+}
+
+func TestRuleSetApprovers20(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`unlink.file.name == "test"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
+		t.Fatalf("should get approvers: %v", approvers)
 	}
 }
 

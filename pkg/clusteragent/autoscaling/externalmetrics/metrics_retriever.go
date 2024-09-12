@@ -58,6 +58,7 @@ func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscale
 func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting MetricsRetriever")
 	tickerRefreshProcess := time.NewTicker(time.Duration(mr.refreshPeriod) * time.Second)
+	defer tickerRefreshProcess.Stop()
 	for {
 		select {
 		case <-tickerRefreshProcess.C:

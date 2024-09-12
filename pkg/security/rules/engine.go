@@ -88,7 +88,9 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
 		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
 		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
 	})
@@ -298,7 +300,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 
 	// update current policies related module attributes
-	e.policiesVersions = getPoliciesVersions(rs)
+	e.policiesVersions = getPoliciesVersions(rs, e.config.PolicyMonitorReportInternalPolicies)
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -360,7 +362,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -378,6 +380,15 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	return policyProviders
 }
 
+func (e *RuleEngine) rcStateCallback(state bool) {
+	if state {
+		seclog.Infof("Connection to remote config established")
+	} else {
+		seclog.Infof("Connection to remote config lost")
+	}
+	e.probe.EnableEnforcement(state)
+}
+
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if e.reloading.Load() {
@@ -393,7 +404,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
 	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Def.Version))
 	}
 
 	if e.AutoSuppression.Suppresses(rule, ev) {
@@ -402,7 +413,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	e.probe.HandleActions(rule, event)
 
-	if rule.Definition.Silent {
+	if rule.Def.Silent {
 		return false
 	}
 
@@ -541,12 +552,15 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 }
 
-func getPoliciesVersions(rs *rules.RuleSet) []string {
+func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []string {
 	var versions []string
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		version := rule.Definition.Policy.Version
+		if rule.Policy.IsInternal && !includeInternalPolicies {
+			continue
+		}
+		version := rule.Policy.Def.Version
 		if _, exists := cache[version]; !exists {
 			cache[version] = true
 

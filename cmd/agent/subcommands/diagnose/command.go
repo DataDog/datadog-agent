@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -54,6 +54,9 @@ type cliParams struct {
 
 	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
 	runLocal bool
+
+	// JSONOutput will output the diagnosis in JSON format, value of the --json flag
+	JSONOutput bool
 
 	// run diagnose on other processes, value of --list flag
 	listSuites bool
@@ -86,21 +89,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot("CORE", "off", true),
 				}),
 				core.Bundle(),
 				// workloadmeta setup
-				collectors.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.runLocal,
-					}
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.runLocal,
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmetafx.Module(),
 				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
@@ -117,6 +117,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
 	// options are specified
 	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "t", false, "list diagnose suites")
+
+	// Output the diagnose in JSON format
+	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.JSONOutput, "json", "j", false, "output the diagnose in JSON format")
 
 	// Normally internal diagnose functions will run in the context of agent and other services. It can be
 	// overridden via --local options and if specified diagnose functions will be executed in context
@@ -286,21 +289,38 @@ func cmdDiagnose(cliParams *cliParams,
 	_ log.Component,
 ) error {
 	diagCfg := diagnosis.Config{
-		Verbose:  cliParams.verbose,
-		RunLocal: cliParams.runLocal,
-		Include:  cliParams.include,
-		Exclude:  cliParams.exclude,
+		Verbose:    cliParams.verbose,
+		RunLocal:   cliParams.runLocal,
+		JSONOutput: cliParams.JSONOutput,
+		Include:    cliParams.include,
+		Exclude:    cliParams.exclude,
 	}
+	w := color.Output
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(w, diagCfg)
 		return nil
 	}
 
 	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
-	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
+
+	// Get the diagnose result
+	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+		diagCfg.RunLocal = true
+		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		if err != nil {
+			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+			return err
+		}
+	}
+
+	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

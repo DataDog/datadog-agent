@@ -13,13 +13,16 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/api/v1/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
-	"github.com/sethvargo/go-retry"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 )
 
@@ -27,6 +30,7 @@ const (
 	// bitmap of actions to take for an error
 	retryStack = 0x1 // 0b01
 	emitMetric = 0x2 // 0b10
+	changeAZ   = 0x4 // 0b100
 
 	aria2cMissingStatusErrorStr = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 
@@ -66,7 +70,7 @@ var handledErrorsLs = []handledError{
 		errorType:   insufficientCapacityError,
 		errorString: "InsufficientInstanceCapacity",
 		metric:      "insufficient-capacity",
-		action:      retryStack | emitMetric,
+		action:      retryStack | emitMetric | changeAZ,
 	},
 	// Retry when ssh thinks aria2c exited without status. This may happen
 	// due to network connectivity issues if ssh keepalive mecahnism fails.
@@ -80,7 +84,7 @@ var handledErrorsLs = []handledError{
 		errorType:   ec2StateChangeTimeoutError,
 		errorString: "timeout while waiting for state to become 'running'",
 		metric:      "ec2-timeout-state-change",
-		action:      retryStack | emitMetric,
+		action:      retryStack | emitMetric | changeAZ,
 	},
 	{
 		errorType:   ioTimeout,
@@ -100,6 +104,15 @@ var handledErrorsLs = []handledError{
 		metric:      "ssh-connection-refused",
 		action:      retryStack | emitMetric,
 	},
+}
+
+type retryHandler struct {
+	currentAZ  int
+	maxRetries int
+	retryDelay time.Duration
+	allErrors  []error
+	configMap  runner.ConfigMap
+	infraEnv   string
 }
 
 func errorMetric(errType string) datadogV2.MetricPayload {
@@ -123,15 +136,29 @@ func errorMetric(errType string) datadogV2.MetricPayload {
 	}
 }
 
-func handleScenarioFailure(err error, changeRetryState func(handledError)) error {
+func (r *retryHandler) HandleError(err error, retryCount int) (infra.RetryType, []infra.GetStackOption) {
+	r.allErrors = append(r.allErrors, err)
+
+	if retryCount > r.maxRetries {
+		log.Printf("environment setup error: %v. Maximum number of retries (%d) exceeded, failing setup.\n", err, r.maxRetries)
+		return infra.NoRetry, nil
+	}
+
+	var newOpts []infra.GetStackOption
+	retry := infra.NoRetry
 	errStr := err.Error()
 	for _, e := range handledErrorsLs {
 		if !strings.Contains(errStr, e.errorString) {
 			continue
 		}
 
-		// modify any state within the retry block
-		changeRetryState(e)
+		if (e.action & changeAZ) != 0 {
+			r.currentAZ++
+			if az := getAvailabilityZone(r.infraEnv, r.currentAZ); az != "" {
+				r.configMap["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
+				newOpts = append(newOpts, infra.WithConfigMap(r.configMap))
+			}
+		}
 
 		if (e.action & emitMetric) != 0 {
 			submitError := metric.SubmitExecutionMetric(errorMetric(e.metric))
@@ -145,15 +172,19 @@ func handleScenarioFailure(err error, changeRetryState func(handledError)) error
 		}
 
 		if (e.action & retryStack) != 0 {
-			log.Printf("environment setup error: %v. Retrying stack.\n", err)
-			return retry.RetryableError(err)
+			retry = infra.ReUp
 		}
 
 		break
 	}
 
-	log.Printf("environment setup error: %v. Failing stack.\n", err)
-	return err
+	log.Printf("environment setup error. Retry strategy: %s.\n", retry)
+	if retry != infra.NoRetry {
+		log.Printf("waiting %s before retrying...\n", r.retryDelay)
+		time.Sleep(r.retryDelay)
+	}
+
+	return retry, newOpts
 }
 
 func storeErrorReasonForCITags(reason string) error {
@@ -176,4 +207,70 @@ func storeNumberOfRetriesForCITags(retries int) error {
 
 	_, err = f.WriteString(fmt.Sprintf("%d", retries))
 	return err
+}
+
+type pulumiError struct {
+	command      string
+	arch         string
+	vmCommand    string
+	errorMessage string
+	vmName       string
+}
+
+var commandRegex = regexp.MustCompile(`^  command:remote:Command \(([^\)]+)\):$`)
+
+func parsePulumiDiagnostics(message string) *pulumiError {
+	var perr pulumiError
+	lines := strings.Split(message, "\n")
+	inDiagnostics := false
+	for _, line := range lines {
+		if !inDiagnostics {
+			if line == "Diagnostics:" {
+				// skip until next line
+				inDiagnostics = true
+			}
+			continue
+		}
+
+		if len(line) == 0 || line[0] != ' ' {
+			// Finished reading diagnostics, break out of the loop
+			return &perr
+		}
+
+		if perr.command == "" {
+			commandMatch := commandRegex.FindStringSubmatch(line)
+			if commandMatch != nil {
+				perr.command = commandMatch[1]
+
+				perr.arch, perr.vmCommand, perr.vmName = parsePulumiComand(perr.command)
+			}
+		} else {
+			perr.errorMessage += strings.Trim(line, " ") + "\n"
+		}
+	}
+
+	return nil
+}
+
+var archRegex = regexp.MustCompile(`distro_(arm64|x86_64)`)
+var vmCmdRegex = regexp.MustCompile(`-cmd-.+-(?:ddvm-\d+-\d+|distro_(?:x86_64|arm64))-(.+)$`)
+var vmNameRegex = regexp.MustCompile(`-(?:conn|cmd)-(?:arm64|x86_64)-([^-]+)-`)
+
+func parsePulumiComand(command string) (arch, vmCommand, vmName string) {
+	archMatch := archRegex.FindStringSubmatch(command)
+	if archMatch != nil {
+		arch = archMatch[1]
+	}
+
+	vmCmdMatch := vmCmdRegex.FindStringSubmatch(command)
+	if vmCmdMatch != nil {
+		vmCommand = vmCmdMatch[1]
+	}
+
+	vmNameMatch := vmNameRegex.FindStringSubmatch(command)
+	if vmNameMatch != nil {
+		vmName = vmNameMatch[1]
+	}
+
+	return
 }

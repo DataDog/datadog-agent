@@ -15,17 +15,15 @@ import (
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Requires declares the input types to the logger component constructor
 type Requires struct {
-	Lc                 compdef.Lifecycle
-	Params             logdef.Params
-	Config             config.Component
-	TelemetryCollector telemetry.TelemetryCollector
+	Lc     compdef.Lifecycle
+	Params logdef.Params
+	Config config.Component
 }
 
 // Provides defines the output of the log component
@@ -49,7 +47,6 @@ func NewComponent(deps Requires) (Provides, error) {
 		deps.Params.LogFormatJSONFn(deps.Config),
 		deps.Config)
 	if err != nil {
-		deps.TelemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
 		return Provides{}, fmt.Errorf("Cannot create logger: %v", err)
 	}
 

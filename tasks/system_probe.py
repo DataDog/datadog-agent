@@ -52,7 +52,9 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
+    "./pkg/dynamicinstrumentation/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -140,10 +142,10 @@ def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     )
 
 
-def ninja_define_exe_compiler(nw: NinjaWriter):
+def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
     nw.rule(
-        name="execlang",
-        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
+        name="exe" + compiler,
+        command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 
@@ -385,6 +387,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
+        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
     }
 
     nw.rule(
@@ -463,7 +466,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
-            "pkg/network/protocols/postgres/types.go": [
+            "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
             ],
             "pkg/network/protocols/redis/types.go": [
@@ -493,6 +496,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
+            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
         }
         nw.rule(
             name="godefs",
@@ -512,7 +516,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
             rule="godefs",
-            implicit=headers,
+            implicit=headers + [script_path],
             variables={
                 "in_dir": in_dir,
                 "in_file": in_file,
@@ -946,6 +950,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "gotls_server",
             "grpc_external_server",
             "prefetch_file",
+            "fake_server",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):

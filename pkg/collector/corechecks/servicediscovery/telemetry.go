@@ -7,6 +7,7 @@ package servicediscovery
 
 import (
 	"errors"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -48,7 +49,7 @@ func telemetryFromError(err error) {
 	var codeErr errWithCode
 	if errors.As(err, &codeErr) {
 		log.Debugf("sending telemetry for error: %v", err)
-		svc := serviceMetadata{}
+		svc := ServiceMetadata{}
 		if codeErr.svc != nil {
 			svc = *codeErr.svc
 		}

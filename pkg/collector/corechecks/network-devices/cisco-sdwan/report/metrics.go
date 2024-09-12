@@ -8,6 +8,7 @@ package report
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 
 const ciscoSDWANMetricPrefix = "cisco_sdwan."
 const timestampExpiration = 6 * time.Hour
+
+const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface_user_tags"
 
 // SDWanSender implements methods for sending Cisco SD-Wan metrics and metadata
 type SDWanSender struct {
@@ -73,12 +76,14 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 
 	for _, entry := range interfaceStats {
 		deviceTags := ms.getDeviceTags(entry.VmanageSystemIP)
+
+		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
+
 		interfaceTags := []string{
 			"interface:" + entry.Interface,
 			fmt.Sprintf("vpn_id:%d", int(entry.VpnID)),
 		}
 
-		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
 		itf, foundInterface := interfacesMap[itfID]
 
 		tags := append(deviceTags, interfaceTags...)
@@ -87,6 +92,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			index, err := itf.Index()
 			if err == nil {
 				tags = append(tags, fmt.Sprintf("interface_index:%d", index))
+				tags = append(tags, fmt.Sprintf("%s:%s:%s:%d", interfaceUserTagResourcePrefix, ms.namespace, entry.VmanageSystemIP, index))
 			}
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
@@ -250,6 +256,51 @@ func (ms *SDWanSender) SendHardwareMetrics(hardwareEnvironments []client.Hardwar
 	}
 }
 
+// SendCloudApplicationMetrics sends cloud applications metrics
+func (ms *SDWanSender) SendCloudApplicationMetrics(cloudApplications []client.CloudXStatistics) {
+	newTimestamps := make(map[string]float64)
+
+	for _, entry := range cloudApplications {
+		tags := ms.getDeviceTags(entry.VmanageSystemIP)
+		gatewayTags := ms.getPrefixedDeviceTags("gateway_", entry.GatewaySystemIP)
+
+		tags = append(tags, gatewayTags...)
+		tags = append(tags, "local_color:"+entry.LocalColor, "remote_color:"+entry.RemoteColor, "interface:"+entry.Interface, "exit_type:"+entry.ExitType, "application_group:"+entry.NbarAppGroupName, "application:"+entry.Application, "best_path:"+entry.BestPath, "vpn_id:"+fmt.Sprintf("%d", int(entry.VpnID)))
+		key := ms.getMetricKey("application_metrics", tags)
+
+		if !ms.shouldSendEntry(key, entry.EntryTime) {
+			// If the timestamp is before the max timestamp already sent, do not re-send
+			continue
+		}
+		setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
+
+		ts := entry.EntryTime / 1000
+
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"application.latency", entry.Latency, tags, ts)
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"application.loss", entry.Loss, tags, ts)
+
+		qoe, err := strconv.ParseFloat(entry.VqeScore, 64)
+		if err == nil {
+			ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"application.qoe", qoe, tags, ts)
+		}
+	}
+
+	ms.updateTimestamps(newTimestamps)
+}
+
+// SendBGPNeighborMetrics sends hardware metrics
+func (ms *SDWanSender) SendBGPNeighborMetrics(bgpNeighbors []client.BGPNeighbor) {
+	for _, entry := range bgpNeighbors {
+		as := fmt.Sprintf("%d", int(entry.AS))
+		vpnID := fmt.Sprintf("%d", int(entry.VpnID))
+
+		tags := ms.getDeviceTags(entry.VmanageSystemIP)
+		tags = append(tags, "peer_state:"+entry.State, "remote_as:"+as, "neighbor:"+entry.PeerAddr, "vpn_id:"+vpnID, "afi:"+entry.Afi)
+
+		ms.sender.Gauge(ciscoSDWANMetricPrefix+"bgp.neighbor", float64(1), "", tags)
+	}
+}
+
 // Commit commits to the sender
 func (ms *SDWanSender) Commit() {
 	ms.sender.Commit()
@@ -321,17 +372,21 @@ func (ms *SDWanSender) getDeviceTags(systemIP string) []string {
 	return tags
 }
 
-func (ms *SDWanSender) getRemoteDeviceTags(systemIP string) []string {
+func (ms *SDWanSender) getPrefixedDeviceTags(prefix string, systemIP string) []string {
 	tags := ms.getDeviceTags(systemIP)
 
 	var remoteTags []string
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, "device_namespace") {
-			// No need to tag remote devices by namespace
+		if strings.HasPrefix(tag, "device_namespace") || strings.HasPrefix(tag, payload.DeviceUserTagResourcePrefix) || strings.HasPrefix(tag, interfaceUserTagResourcePrefix) {
+			// No need to tag remote devices by namespace or user tags
 			continue
 		}
-		remoteTags = append(remoteTags, "remote_"+tag)
+		remoteTags = append(remoteTags, prefix+tag)
 	}
 
 	return remoteTags
+}
+
+func (ms *SDWanSender) getRemoteDeviceTags(systemIP string) []string {
+	return ms.getPrefixedDeviceTags("remote_", systemIP)
 }

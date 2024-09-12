@@ -5,8 +5,6 @@
 
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP_BUFFER_SIZE (8 * 26)
-// This controls the number of HTTP transactions read from userspace at a time
-#define HTTP_BATCH_SIZE 14
 
 // HTTP/1.1 XXX
 // _________^

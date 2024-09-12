@@ -19,8 +19,8 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -128,6 +128,7 @@ type TailerOptions struct {
 	Decoder       *decoder.Decoder      // Required
 	Info          *status.InfoRegistry  // Required
 	Rotated       bool                  // Optional
+	TagAdder      tag.EntityTagAdder    // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -142,7 +143,7 @@ type TailerOptions struct {
 func NewTailer(opts *TailerOptions) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier))
+		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier).String(), opts.TagAdder)
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
@@ -198,7 +199,7 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry) *Tailer {
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
 		OutputChan:    t.outputChan,
 		File:          file,
@@ -206,6 +207,7 @@ func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *st
 		Decoder:       decoder,
 		Info:          info,
 		Rotated:       true,
+		TagAdder:      tagAdder,
 	}
 
 	return NewTailer(options)
@@ -344,7 +346,12 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, output.ParsingExtra.Tags...)
+		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue

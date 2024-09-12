@@ -19,6 +19,12 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
+// TruncatedTag is added to truncated log messages (if enabled).
+const TruncatedTag = "truncated"
+
+// AutoMultiLineTag is added to multiline log messages (if enabled).
+const AutoMultiLineTag = "auto_multiline"
+
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
 // New line character needs to be escaped because they are used
@@ -46,8 +52,7 @@ type Message struct {
 	IngestionTimestamp int64
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`.
-	RawDataLen  int
-	IsMultiLine bool
+	RawDataLen int
 	// Tags added on processing
 	ProcessingTags []string
 	// Extra information from the parsers
@@ -166,8 +171,11 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp string
-	IsPartial bool
+	Timestamp   string
+	IsPartial   bool
+	IsTruncated bool
+	IsMultiLine bool
+	Tags        []string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
@@ -217,26 +225,9 @@ func NewRawMessage(content []byte, status string, rawDataLen int, readTimestamp 
 		RawDataLen:         rawDataLen,
 		IngestionTimestamp: time.Now().UnixNano(),
 		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
+			Timestamp:   readTimestamp,
+			IsMultiLine: false,
 		},
-		IsMultiLine: false,
-	}
-}
-
-// NewRawMultiLineMessage returns a new encoded message.
-func NewRawMultiLineMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			content: content,
-			State:   StateUnstructured,
-		},
-		Status:             status,
-		RawDataLen:         rawDataLen,
-		IngestionTimestamp: time.Now().UnixNano(),
-		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
-		},
-		IsMultiLine: true,
 	}
 }
 
