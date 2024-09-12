@@ -454,14 +454,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-        match_precision = 0
-        best_module_path = None
-
-        # Since several modules can match the path we take only the most precise one
-        for module_path in DEFAULT_MODULES:
-            if module_path in modified_file and len(module_path) > match_precision:
-                match_precision = len(module_path)
-                best_module_path = module_path
+        best_module_path = get_go_module(modified_file)
 
         # Check if the package is in the target list of the module we want to test
         targeted = False

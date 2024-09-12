@@ -143,3 +143,32 @@ func TestGetNetworkData(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Nil(t, networkData)
 }
+
+func TestGetFileDescriptorMaxData(t *testing.T) {
+	path := "./testData/file-descriptor/valid"
+	fileDescriptorMaxData, err := getFileDescriptorMaxData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(1024), fileDescriptorMaxData.MaximumFileHandles)
+
+	path = "./testData/file-descriptor/invalid_malformed"
+	fileDescriptorMaxData, err = getFileDescriptorMaxData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, fileDescriptorMaxData)
+
+	path = "./testData/file-descriptor/invalid_missing"
+	fileDescriptorMaxData, err = getFileDescriptorMaxData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, fileDescriptorMaxData)
+}
+
+func TestGetFileDescriptorUseData(t *testing.T) {
+	path := "./testData/file-descriptor/valid"
+	fileDescriptorUseData, err := getFileDescriptorUseData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(5), fileDescriptorUseData.UseFileHandles)
+
+	path = "./testData/file-descriptor/invalid_missing"
+	fileDescriptorUseData, err = getFileDescriptorUseData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, fileDescriptorUseData)
+}
