@@ -1134,20 +1134,16 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
-	}
-
 	for _, tt := range tests {
 		if tt.onlyTLS && !tls {
 			continue
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-			})
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+			if tls {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+			}
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 			var msgs []Message
@@ -1201,9 +1197,10 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
-				t.Cleanup(func() {
-					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-				})
+				monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+				if tls {
+					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+				}
 
 				can.runClient(group.msgs)
 
@@ -1359,16 +1356,12 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
-	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-			})
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+			if tls {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+			}
 			req := tt.buildRequest(tt.topic)
 			var msgs []Message
 			resp := tt.buildResponse(tt.topic)
@@ -1392,9 +1385,10 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
 			t.Run(name, func(t *testing.T) {
-				t.Cleanup(func() {
-					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-				})
+				monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+				if tls {
+					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
+				}
 
 				can.runClient(group.msgs)
 
