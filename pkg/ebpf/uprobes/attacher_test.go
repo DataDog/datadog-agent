@@ -240,8 +240,8 @@ func TestRuleMatches(t *testing.T) {
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToSharedLibraries,
 		}
-		require.True(tt, rule.matchesLibrary("pkg/network/usm/testdata/libmmap/libssl.so.arm64"))
-		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/libmmap/libssl.so.arm64", nil))
+		require.True(tt, rule.matchesLibrary("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64"))
+		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/site-packages/dd-trace/libssl.so.arm64", nil))
 	})
 
 	t.Run("Executable", func(tt *testing.T) {

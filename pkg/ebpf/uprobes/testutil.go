@@ -144,7 +144,7 @@ func getLibSSLPath(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
+	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
 	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 }
 
