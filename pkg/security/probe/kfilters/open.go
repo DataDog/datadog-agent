@@ -30,7 +30,7 @@ var openCapabilities = rules.FieldCapabilities{
 	{
 		Field:        "open.file.name",
 		TypeBitmask:  eval.ScalarValueType,
-		FilterWeight: 10,
+		FilterWeight: 300,
 	},
 	processCapabilities,
 }

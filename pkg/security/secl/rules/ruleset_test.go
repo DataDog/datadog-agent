@@ -911,6 +911,17 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 		}
 	})
 
+	/*t.Run("not-equal-unset", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid != AUDIT_AUID_UNSET`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 0 {
+			t.Fatalf("shouldn't get an approver`: %v", approvers)
+		}
+	})*/
+
 	t.Run("lesser-equal-than", func(t *testing.T) {
 		exprs := []string{
 			`open.file.path != "" && process.auid <= 1000`,

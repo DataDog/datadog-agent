@@ -288,7 +288,7 @@ static __attribute__((always_inline)) int is_discarded_by_pid() {
 }
 
 int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
-    if (syscall->policy.mode == NO_FILTER || syscall->state == ACCEPTED) {
+    if (syscall->state == ACCEPTED) {
         return 0;
     }
 
