@@ -33,7 +33,7 @@ import (
 var podLogsBasePath = "/var/log/pods"
 var dockerLogsBasePathNix = "/var/lib/docker"
 var dockerLogsBasePathWin = "c:\\programdata\\docker"
-var podmanLogsBasePath = "/var/lib/containers"
+var podmanRootfullLogsBasePath = "/var/lib/containers"
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
@@ -161,6 +161,13 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
 		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
+			// Default path for podman rootfull containers
+			podmanLogsBasePath := podmanRootfullLogsBasePath
+			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
+			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
+			if len(podmanDBPath) > 0 {
+				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)
+			}
 			return filepath.Join(
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
 				"userdata/ctr.log")
