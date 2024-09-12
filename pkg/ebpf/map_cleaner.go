@@ -135,6 +135,10 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 		keysToDelete = append(keysToDelete, key)
 	}
 
+	if err := it.Err(); err != nil {
+		log.Errorf("error iterating map=%s: %s", mc.emap, err)
+	}
+
 	var deletionError error
 	if len(keysToDelete) > 0 {
 		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
@@ -177,6 +181,10 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 			continue
 		}
 		keysToDelete = append(keysToDelete, key)
+	}
+
+	if err := entries.Err(); err != nil {
+		log.Errorf("error iterating map=%s: %s", mc.emap, err)
 	}
 
 	for _, k := range keysToDelete {
