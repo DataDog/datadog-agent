@@ -5,7 +5,7 @@ go 1.22.0
 replace github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.57.0
+	github.com/DataDog/datadog-agent/pkg/proto v0.57.1-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	go.opentelemetry.io/collector/pdata v1.9.0
 )
