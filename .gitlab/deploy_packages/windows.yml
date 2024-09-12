@@ -84,4 +84,5 @@ deploy_installer_packages_windows-x64:
       --include "datadog-installer-*-1-x86_64.msi"
       --include "datadog-installer-*-1-x86_64.debug.zip"
       --include "datadog-installer-*-1-x86_64.zip"
+      --include "datadog-installer-*-1-x86_64.exe"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_INSTALLER_ARTIFACTS_URI/msi/x86_64/

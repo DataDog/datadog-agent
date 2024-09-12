@@ -36,19 +36,18 @@ pip3 install -r requirements.txt
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
 inv -e msi.build-installer || exit /b 2
 
-Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 datadog-installer"
+Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 --package datadog-installer"
 
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
-
+dir C:\opt\datadog-installer\
 dir %REPO_ROOT%\omnibus\pkg\
 
 REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
 copy %REPO_ROOT%\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
-
-REM show output binary directories (for debugging)
-dir C:\opt\datadog-installer\
+REM Save the installer.exe for bootstrapping
+copy C:\opt\datadog-installer\datadog-installer.exe c:\mnt\omnibus\pkg\datadog-installer-%RELEASE_VERSION%-1-x86_64.exe || exit /b 7
 
 goto :EOF
 
