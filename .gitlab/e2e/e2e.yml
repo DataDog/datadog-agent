@@ -103,8 +103,6 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
-      - EXTRA_PARAMS: --run TestEKSSuite
-        E2E_PRE_INITIALIZED: "true"
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
@@ -121,6 +119,33 @@ new-e2e-containers-eks-init:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
+
+# This job does not do anything. This is a workaround to be able to run new-e2e-containers-eks even if the init job fails. Any better solution would be appreciated
+new-e2e-containers-eks-sync:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  stage: e2e
+  script:
+    - exit 0
+  needs:
+    - new-e2e-containers-eks-init
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  when: always
+
+new-e2e-containers-eks:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-containers-eks-sync
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -240,14 +265,26 @@ new-e2e-npm-eks-init:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
 
+new-e2e-npm-eks-sync:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  stage: e2e
+  script:
+    - exit 0
+  needs:
+    - new-e2e-npm-eks-init
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  when: always
+
 new-e2e-npm-eks:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - new-e2e-npm-eks-sync
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
