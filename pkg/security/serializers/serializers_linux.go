@@ -945,13 +945,13 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
 			Path:    e.GetMountRootPath(),
-			MountID: &e.Mount.ParentPathKey.MountID,
-			Inode:   &e.Mount.ParentPathKey.Inode,
+			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
+			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
 			Path:    e.GetMountMountpointPath(),
-			MountID: &e.Mount.RootPathKey.MountID,
-			Inode:   &e.Mount.RootPathKey.Inode,
+			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
+			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
 		MountID:         e.Mount.MountID,
 		ParentMountID:   e.Mount.ParentPathKey.MountID,
