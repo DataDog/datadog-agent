@@ -1430,6 +1430,9 @@ func (err QueuedNetworkDeviceError) Error() string {
 
 func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
 	select {
+	case <-p.ctx.Done():
+		// the probe is stopping, do not push the new tc classifier request
+		return
 	case p.newTCNetDevices <- device:
 		// do nothing
 	default:
