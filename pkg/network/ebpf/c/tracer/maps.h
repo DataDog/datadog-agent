@@ -24,7 +24,7 @@ BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
 /* Will hold the PIDs initiating TCP connections keyed by socket + tuple. PIDs have a timestamp attached so they can age out */
-BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, pid_ts_t, 0)
+BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, pid_ts_t, 0)
 
 /* Will hold a flag to indicate that closed connections have already been flushed */
 BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 8192)

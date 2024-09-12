@@ -239,10 +239,10 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-    skp_conn.tup.pid = 0;
+    // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    // skp_conn.tup.pid = 0;
 
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
     cleanup_conn(ctx, &t, sk);
     return 0;
@@ -458,9 +458,9 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
         return 0;
     }
 
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_ts, BPF_ANY);
 
     return 0;
 }
@@ -473,8 +473,8 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
         increment_telemetry_count(tcp_finish_connect_failed_tuple);
         return 0;
     }
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (!pid_tgid_p) {
         return 0;
     }
@@ -512,9 +512,9 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
 
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    // skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
 }
