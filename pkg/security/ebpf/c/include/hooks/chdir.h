@@ -8,6 +8,10 @@
 #include "helpers/syscalls.h"
 
 long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_CHDIR);
     struct syscall_cache_t syscall = {
         .type = EVENT_CHDIR,
