@@ -6,10 +6,14 @@ on:
   pull_request_target:
     types: [opened, reopened]
 
+permissions: {}
+
 jobs:
   external-contributor-prs:
     name: Handle Fork PRs
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout repository
@@ -18,7 +22,7 @@ jobs:
           ref: main
           fetch-depth: 0
       - name: Setup python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           python-version: 3.11
           cache: 'pip'

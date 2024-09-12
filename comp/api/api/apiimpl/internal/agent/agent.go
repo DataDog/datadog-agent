@@ -137,18 +137,18 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	// Indicate that we are already running in Agent process (and flip RunLocal)
 	diagCfg.RunLocal = true
 
-	var diagnoses []diagnosis.Diagnoses
+	var diagnoseResult *diagnosis.DiagnoseResult
 	var err error
 
 	// Get diagnoses via API
 	// TODO: Once API component will be refactored, clean these dependencies
 	collector, ok := diagnoseDeps.Collector.Get()
 	if ok {
-		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+		diagnoseResult, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 	} else {
 		ac, ok := diagnoseDeps.AC.Get()
 		if ok {
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
+			diagnoseResult, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
 		} else {
 			err = errors.New("collector or autoDiscovery not found")
 		}
@@ -160,7 +160,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 
 	// Serizalize diagnoses (and implicitly write result to the response)
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(diagnoses)
+	err = json.NewEncoder(w).Encode(diagnoseResult)
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}

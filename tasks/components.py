@@ -169,19 +169,6 @@ components_missing_implementation_folder = [
     "comp/core/tagger",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
-    "comp/core/hostname/remotehostnameimpl",
-]
-
-ignore_package_name = [
-    "comp/trace/agent",
-    "comp/trace/compression",
-    "comp/core/agenttelemetry",
-    "comp/core/log",
-    "comp/core/healthprobe",
-    "comp/core/workloadmeta",
-    "comp/logs/integrations",
-    "comp/otelcol/collector",
-    "comp/otelcol/collector-contrib",
 ]
 
 ignore_fx_import = [
@@ -192,7 +179,6 @@ ignore_fx_import = [
 
 ignore_provide_component_constructor_missing = [
     "comp/core/workloadmeta",
-    "comp/otelcol/collector-contrib",
     "comp/trace/agent",
 ]
 
@@ -249,8 +235,7 @@ def check_component_contents_and_file_hiearchy(comp):
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'impl'
             if pkgname != expectname:
-                if comp.path not in ignore_package_name:
-                    return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
+                return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
             if comp.path in ignore_fx_import:
                 continue
             src_content = read_file_content(src_file)
@@ -265,8 +250,7 @@ def check_component_contents_and_file_hiearchy(comp):
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'fx'
             if pkgname != 'fx' and pkgname != expectname:
-                if comp.path not in ignore_package_name:
-                    return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
+                return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
             if comp.path in ignore_provide_component_constructor_missing:
                 continue
             src_content = read_file_content(src_file)

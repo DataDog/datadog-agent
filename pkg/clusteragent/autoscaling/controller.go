@@ -46,6 +46,7 @@ func NewController(
 	gvr schema.GroupVersionResource,
 	isLeader func() bool,
 	observable Observable,
+	workqueue workqueue.RateLimitingInterface,
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
 	c := &Controller{
@@ -54,7 +55,7 @@ func NewController(
 		Client:    client,
 		Lister:    mainInformer.Lister(),
 		synced:    mainInformer.Informer().HasSynced,
-		Workqueue: workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		Workqueue: workqueue,
 		IsLeader:  isLeader,
 	}
 
@@ -91,10 +92,16 @@ func (c *Controller) Run(ctx context.Context) {
 		log.Errorf("Failed to wait for caches to sync for controller id: %s", c.ID)
 		return
 	}
+	log.Infof("Started controller: %s (cache sync finished)", c.ID)
 
+	if preStart, ok := c.processor.(ProcessorPreStart); ok {
+		preStart.PreStart(c.context)
+		log.Debugf("PreStart done for controller id: %s", c.ID)
+	}
+
+	log.Debugf("Starting workers for controller id: %s", c.ID)
 	go wait.Until(c.worker, time.Second, ctx.Done())
 
-	log.Infof("Started controller: %s (cache sync finished)", c.ID)
 	<-ctx.Done()
 	log.Infof("Stopping controller id: %s", c.ID)
 }

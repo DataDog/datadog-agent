@@ -10,8 +10,11 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"unicode"
+	"unicode/utf8"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"go.uber.org/fx"
 )
 
@@ -225,6 +228,10 @@ func ensureFieldsNotAllowed(typ reflect.Type, badEmbeds []reflect.Type) error {
 		if slices.Contains(badEmbeds, field.Type) {
 			return fmt.Errorf("invalid embedded field: %v", field.Type)
 		}
+		firstRune, _ := utf8.DecodeRuneInString(field.Name)
+		if unicode.IsLower(firstRune) {
+			return fmt.Errorf("field is not exported: %v", field.Name)
+		}
 	}
 	return nil
 }
@@ -245,9 +252,9 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 			continue
 		}
 		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && hasEmbed {
-			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false)}
+			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false), Tag: field.Tag}
 		}
-		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type})
+		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type, Tag: field.Tag})
 	}
 
 	if hasEmbed && newEmbed != nil {
@@ -295,12 +302,13 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 }
 
 // FxAgentBase returns all of our adapters from compdef types to fx types
-func FxAgentBase() fx.Option {
-	return fx.Options(
-		FxLoggingOption(),
-		fx.Provide(newFxLifecycleAdapter),
-		fx.Provide(newFxShutdownerAdapter),
-	)
+func FxAgentBase(logFxEvents bool) fx.Option {
+	options := []fx.Option{fx.Provide(newFxLifecycleAdapter),
+		fx.Provide(newFxShutdownerAdapter)}
+	if logFxEvents {
+		options = append(options, logging.FxLoggingOption())
+	}
+	return fx.Options(options...)
 }
 
 // Lifecycle is a compdef interface compatible with fx.Lifecycle, to provide start/stop hooks

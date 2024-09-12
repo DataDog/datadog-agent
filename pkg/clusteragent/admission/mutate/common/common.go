@@ -11,7 +11,9 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// K8sAutoscalerSafeToEvictVolumesAnnotation is the annotation used by the
+// Kubernetes cluster-autoscaler to mark a volume as safe to evict
+const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
 // MutationFunc is a function that mutates a pod
 type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
@@ -64,43 +70,51 @@ func contains(envs []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// EnvIndex returns the index of env var in an env var list
-// returns -1 if not found
-func EnvIndex(envs []corev1.EnvVar, name string) int {
-	for i := range envs {
-		if envs[i].Name == name {
-			return i
-		}
-	}
+// InjectEnv injects an env var into a pod template.
+func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) (injected bool) {
+	log.Debugf("Injecting env var '%s' into pod %s", env.Name, PodString(pod))
 
-	return -1
+	return InjectDynamicEnv(pod, func(_ *corev1.Container, _ bool) (corev1.EnvVar, error) {
+		return env, nil
+	})
 }
 
-// InjectEnv injects an env var into a pod template if it doesn't exist
-func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
-	injected := false
-	podStr := PodString(pod)
-	log.Debugf("Injecting env var '%s' into pod %s", env.Name, podStr)
-	for i, ctr := range pod.Spec.Containers {
-		if contains(ctr.Env, env.Name) {
-			log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
+// injectEnvInContainer injects an env var into a container if it doesn't exist.
+func injectEnvInContainer(container *corev1.Container, env corev1.EnvVar) (injected bool) {
+	if contains(container.Env, env.Name) {
+		log.Debugf("Ignoring container '%s': env var '%s' already exist", container.Name, env.Name)
+		return
+	}
+
+	// Prepend rather than append the new variables so that they precede the previous ones in the final list,
+	// allowing them to be referenced in other environment variables downstream.
+	// (See: https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables)
+	container.Env = append([]corev1.EnvVar{env}, container.Env...)
+	return true
+}
+
+// BuildEnvVarFunc is a function that builds a dynamic env var.
+type BuildEnvVarFunc func(container *corev1.Container, init bool) (corev1.EnvVar, error)
+
+// InjectDynamicEnv injects a dynamic env var into a pod template.
+func InjectDynamicEnv(pod *corev1.Pod, fn BuildEnvVarFunc) (injected bool) {
+	log.Debugf("Injecting env var into pod %s", PodString(pod))
+	injected = injectDynamicEnvInContainers(pod.Spec.Containers, fn, false)
+	injected = injectDynamicEnvInContainers(pod.Spec.InitContainers, fn, true) || injected
+	return
+}
+
+// injectDynamicEnvInContainers injects a dynamic env var into a list of containers.
+func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarFunc, init bool) (injected bool) {
+	for i := range containers {
+		env, err := fn(&containers[i], init)
+		if err != nil {
+			_ = log.Errorf("Error building env var: %v", err)
 			continue
 		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.Containers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.Containers[i].Env...)
-		injected = true
+		injected = injectEnvInContainer(&containers[i], env) || injected
 	}
-	for i, ctr := range pod.Spec.InitContainers {
-		if contains(ctr.Env, env.Name) {
-			log.Debugf("Ignoring init container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
-			continue
-		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.InitContainers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.InitContainers[i].Env...)
-		injected = true
-	}
+
 	return injected
 }
 
@@ -172,4 +186,30 @@ func ContainerRegistry(specificConfigOpt string) string {
 	}
 
 	return config.Datadog().GetString("admission_controller.container_registry")
+}
+
+// MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler
+// annotation to the given pod, marking the specified local volume as safe to
+// evict. This annotation allows the cluster-autoscaler to evict pods with the
+// local volume mounted, enabling the node to scale down if necessary.
+// This function will not add the volume to the annotation if it is already
+// there.
+// Ref: https://github.com/kubernetes/autoscaler/blob/cluster-autoscaler-release-1.31/cluster-autoscaler/FAQ.md#what-types-of-pods-can-prevent-ca-from-removing-a-node
+func MarkVolumeAsSafeToEvictForAutoscaler(pod *corev1.Pod, volumeNameToAdd string) {
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	currentVolumes := pod.Annotations[K8sAutoscalerSafeToEvictVolumesAnnotation]
+	var volumeList []string
+	if currentVolumes != "" {
+		volumeList = strings.Split(currentVolumes, ",")
+	}
+
+	if slices.Contains(volumeList, volumeNameToAdd) {
+		return // Volume already in the list, no need to add
+	}
+
+	volumeList = append(volumeList, volumeNameToAdd)
+	pod.Annotations[K8sAutoscalerSafeToEvictVolumesAnnotation] = strings.Join(volumeList, ",")
 }

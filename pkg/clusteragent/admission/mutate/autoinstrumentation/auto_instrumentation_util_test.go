@@ -42,15 +42,23 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			wantFound:    false,
 		},
 		{
-			name:         "Pod with replicaset parent, and no deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs"),
+			name: "Pod with replicaset parent, and no deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "ReplicaSet",
 			wantFound:    true,
 		},
 		{
-			name:         "Pod with replicaset parent, and deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs-12344"),
+			name: "Pod with replicaset parent, and deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs-12344",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "Deployment",
 			wantFound:    true,
@@ -63,7 +71,6 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			require.Equal(t, found, tt.wantFound)
 			require.Equal(t, name, tt.expectedName)
 			require.Equal(t, kind, tt.expectedKind)
-
 		})
 	}
 }
@@ -89,8 +96,7 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	//java, js, python, dotnet, ruby

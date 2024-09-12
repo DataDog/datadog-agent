@@ -12,9 +12,10 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
@@ -91,7 +92,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		}
 
 		// Unfortunately we don't have access to Pulumi raw data
-		marshalled, err := json.Marshal(value.Value)
+		marshalled, err := json.MarshalIndent(value.Value, "", "\t")
 		if err != nil {
 			return nil, fmt.Errorf("unable to marshal output key: %s, err: %w", key, err)
 		}
@@ -99,7 +100,21 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		resources[key] = marshalled
 	}
 
+	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources))))
+	if err != nil {
+		// Log the error but don't fail the provisioning
+		fmt.Printf("Failed to write log: %v\n", err)
+	}
+
 	return resources, nil
+}
+
+func dumpRawResources(resources RawResources) string {
+	var res string
+	for key, value := range resources {
+		res += fmt.Sprintf("%s: %s\n", key, value)
+	}
+	return res
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc

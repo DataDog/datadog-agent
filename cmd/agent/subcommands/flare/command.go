@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -96,17 +96,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true),
-				config.WithExtraConfFiles(globalParams.ExtraConfFilePath))
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+			)
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config,
 					SecretParams:         secrets.NewEnabledParams(),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
-				fx.Supply(flare.NewLocalParams(
+				flare.Module(flare.NewLocalParams(
 					commonpath.GetDistPath(),
 					commonpath.PyChecksPath,
 					commonpath.DefaultLogFile,
@@ -115,18 +117,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.DefaultStreamlogsLogFile,
 				)),
 				// workloadmeta setup
-				collectors.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
-					}
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
-				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
-				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
@@ -246,8 +244,8 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
 	}
 
-	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	if pkgconfig.SystemProbe().GetBool("system_probe_config.enabled") {
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
 			sysProbeGet := func() pprofGetter {

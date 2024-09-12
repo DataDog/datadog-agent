@@ -26,16 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	integrationsLogs "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -56,15 +58,15 @@ type AgentTestSuite struct {
 
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
+	tagger          tagger.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config           configComponent.Component
-	Log              log.Component
-	InventoryAgent   inventoryagent.Component
-	IntegrationsLogs integrationsLogs.Component
+	Config         configComponent.Component
+	Log            log.Component
+	InventoryAgent inventoryagent.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -92,6 +94,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
+
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	suite.tagger = fakeTagger
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
@@ -101,6 +106,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
+	suite.tagger.(tagger.Mock).ResetTagger()
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -118,20 +124,23 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		integrations.MockModule(),
 	))
+
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	defer fakeTagger.ResetTagger()
 
 	agent := &logAgent{
 		log:              deps.Log,
 		config:           deps.Config,
 		inventoryAgent:   deps.InventoryAgent,
-		started:          atomic.NewBool(false),
-		integrationsLogs: deps.IntegrationsLogs,
+		started:          atomic.NewUint32(0),
+		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
 		sources:   sources,
 		services:  services,
 		tracker:   tailers.NewTailerTracker(),
 		endpoints: endpoints,
+		tagger:    fakeTagger,
 	}
 
 	agent.setupAgent()
@@ -140,7 +149,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 }
 
 func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
-	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
+	coreConfig.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
 
 	agent, sources, _ := createAgent(suite, endpoints)
 
@@ -187,7 +196,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	endpoint := config.NewEndpoint("", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
-	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
+	coreConfig.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
 
 	agent, sources, _ := createAgent(suite, endpoints)
 
@@ -397,9 +406,10 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		integrations.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() tagger.Component {
+			return suite.tagger
+		}),
 	))
 }
 

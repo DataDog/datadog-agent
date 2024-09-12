@@ -15,6 +15,7 @@ import (
 
 const (
 	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	networkIDURL         = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	statsURL             = "http://localhost:3333/debug/stats"
@@ -22,6 +23,8 @@ const (
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	netType              = "tcp"
 
+	// discovery* is not used on Windows, the value is added to avoid a compilation error
+	discoveryServicesURL = "http://localhost:3333/" + string(sysconfig.DiscoveryModule) + "/services"
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows

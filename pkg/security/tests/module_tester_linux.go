@@ -34,9 +34,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -59,7 +60,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -105,6 +105,10 @@ runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
     enabled: true
+{{ if gt .EventServerRetention 0 }}
+  event_server:
+    retention: {{ .EventServerRetention }}
+{{ end }}
   remote_configuration:
     enabled: false
   on_demand:
@@ -188,6 +192,20 @@ runtime_security_config:
     enabled: {{.EBPFLessEnabled}}
   hash_resolver:
     enabled: true
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
+    disarmer:
+      container:
+        enabled: {{.EnforcementDisarmerContainerEnabled}}
+        max_allowed: {{.EnforcementDisarmerContainerMaxAllowed}}
+        period: {{.EnforcementDisarmerContainerPeriod}}
+      executable:
+        enabled: {{.EnforcementDisarmerExecutableEnabled}}
+        max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
+        period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
 const testPolicy = `---
@@ -676,7 +694,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 
 	if opts.dynamicOpts.disableBundledRules {
 		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
-			ID:       events.NeedRefreshSBOMRuleID,
+			ID:       bundled.NeedRefreshSBOMRuleID,
 			Disabled: true,
 			Combine:  rules.OverridePolicy,
 		})
@@ -788,8 +806,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
+
+	fxDeps := fxutil.Test[testModuleFxDeps](
+		t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -799,7 +822,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

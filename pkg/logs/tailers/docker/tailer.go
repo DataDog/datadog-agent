@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
@@ -23,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -79,13 +80,13 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration) *Tailer {
+func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
-		tagProvider:        tag.NewProvider(containers.BuildTaggerEntityName(containerID)),
+		tagProvider:        tag.NewProvider(types.NewEntityID(types.ContainerID, containerID).String(), tagger),
 		dockerutil:         cli,
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,
@@ -316,7 +317,10 @@ func (t *Tailer) forwardMessages() {
 			origin.Offset = output.ParsingExtra.Timestamp
 			t.setLastSince(output.ParsingExtra.Timestamp)
 			origin.Identifier = t.Identifier()
-			origin.SetTags(t.tagProvider.GetTags())
+			tags := []string{}
+			tags = append(tags, output.ParsingExtra.Tags...)
+			tags = append(tags, t.tagProvider.GetTags()...)
+			origin.SetTags(tags)
 			// XXX(remy): is it OK recreating a message here?
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}

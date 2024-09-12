@@ -27,13 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
 
 var errIsEmpty = errors.New("entity is empty") //nolint:revive
 
-type startFunc func(ControllerContext, chan error)
+type startFunc func(*ControllerContext, chan error)
 
 type controllerFuncs struct {
 	enabled func() bool
@@ -64,6 +65,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
 	informers              map[apiserver.InformerName]cache.SharedInformer
+	informersMutex         sync.Mutex
 	InformerFactory        informers.SharedInformerFactory
 	DynamicClient          dynamic.Interface
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
@@ -71,13 +73,13 @@ type ControllerContext struct {
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
 	WorkloadMeta           workloadmeta.Component
-	DatadogClient          datadogclient.Component
+	DatadogClient          optional.Option[datadogclient.Component]
 	StopCh                 chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartControllers(ctx ControllerContext) k8serrors.Aggregate {
+func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 	ctx.informers = make(map[apiserver.InformerName]cache.SharedInformer)
 
 	var wg sync.WaitGroup
@@ -126,9 +128,7 @@ func StartControllers(ctx ControllerContext) k8serrors.Aggregate {
 
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func startMetadataController(ctx ControllerContext, c chan error) {
+func startMetadataController(ctx *ControllerContext, _ chan error) {
 	metaController := newMetadataController(
 		ctx.InformerFactory.Core().V1().Endpoints(),
 		ctx.WorkloadMeta,
@@ -138,17 +138,18 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
-func startAutoscalersController(ctx ControllerContext, c chan error) {
+func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	var err error
-	if ctx.DatadogClient == nil {
-		c <- fmt.Errorf("datadog client is nil")
+	dc, ok := ctx.DatadogClient.Get()
+	if !ok {
+		c <- fmt.Errorf("datadog client is not initialized")
 		return
 	}
 	autoscalersController, err := newAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
 		ctx.IsLeaderFunc,
-		ctx.DatadogClient,
+		dc,
 	)
 	if err != nil {
 		c <- err
@@ -166,15 +167,19 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 }
 
 // registerServicesInformer registers the services informer.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func registerServicesInformer(ctx ControllerContext, c chan error) {
-	ctx.informers[servicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
+func registerServicesInformer(ctx *ControllerContext, _ chan error) {
+	informer := ctx.InformerFactory.Core().V1().Services().Informer()
+
+	ctx.informersMutex.Lock()
+	ctx.informers[servicesInformer] = informer
+	ctx.informersMutex.Unlock()
 }
 
 // registerEndpointsInformer registers the endpoints informer.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func registerEndpointsInformer(ctx ControllerContext, c chan error) {
-	ctx.informers[endpointsInformer] = ctx.InformerFactory.Core().V1().Endpoints().Informer()
+func registerEndpointsInformer(ctx *ControllerContext, _ chan error) {
+	informer := ctx.InformerFactory.Core().V1().Endpoints().Informer()
+
+	ctx.informersMutex.Lock()
+	ctx.informers[endpointsInformer] = informer
+	ctx.informersMutex.Unlock()
 }

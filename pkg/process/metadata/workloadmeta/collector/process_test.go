@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,9 @@ import (
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
+	proccontainersmock "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,11 +41,12 @@ import (
 const testCid = "containersAreAwesome"
 
 type collectorTest struct {
-	probe     *mocks.Probe
-	clock     *clock.Mock
-	collector *Collector
-	store     workloadmetamock.Mock
-	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
+	probe        *mocks.Probe
+	clock        *clock.Mock
+	collector    *Collector
+	store        workloadmetamock.Mock
+	stream       pbgo.ProcessEntityStream_StreamEntitiesClient
+	mockProvider *proccontainersmock.MockContainerProvider
 }
 
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
@@ -86,8 +90,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	// pass actual config component
@@ -99,24 +102,29 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	mockClock := clock.NewMock()
 
+	mockCtrl := gomock.NewController(t)
+	mockProvider := proccontainersmock.NewMockContainerProvider(mockCtrl)
+
 	c := &Collector{
-		ddConfig:        store.GetConfig(),
-		processData:     mockProcessData,
-		wlmExtractor:    wlmExtractor,
-		grpcServer:      grpcServer,
-		pidToCid:        make(map[int]string),
-		collectionClock: mockClock,
+		ddConfig:          store.GetConfig(),
+		processData:       mockProcessData,
+		wlmExtractor:      wlmExtractor,
+		grpcServer:        grpcServer,
+		pidToCid:          make(map[int]string),
+		collectionClock:   mockClock,
+		containerProvider: mockProvider,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	require.NoError(t, c.Start(ctx, store))
 	t.Cleanup(cancel)
 
 	return &collectorTest{
-		collector: c,
-		probe:     probe,
-		clock:     mockClock,
-		store:     store,
-		stream:    acquireStream(t, port),
+		collector:    c,
+		probe:        probe,
+		clock:        mockClock,
+		store:        store,
+		stream:       acquireStream(t, port),
+		mockProvider: mockProvider,
 	}
 }
 
@@ -128,15 +136,6 @@ func (c *collectorTest) setupProcs() {
 			Stats:   &procutil.Stats{CreateTime: 1},
 		},
 	}, nil).Maybe()
-}
-
-func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.Container) {
-	t.Helper()
-
-	c.store.Set(cont)
-	require.EventuallyWithT(t, func(_ *assert.CollectT) {
-		assert.Contains(t, c.collector.pidToCid, cont.PID)
-	}, 15*time.Second, 1*time.Second)
 }
 
 // Tick sets up the collector to collect processes by advancing the clock
@@ -153,6 +152,9 @@ func TestProcessCollector(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Printf("1: %v\n", resp.String())
 
+	// Testing container id enrichment
+	c.mockProvider.EXPECT().GetPidToCid(2 * time.Second).Return(map[int]string{1: testCid}).MinTimes(1)
+
 	c.tick()
 	resp, err = c.stream.Recv()
 	assert.NoError(t, err)
@@ -160,25 +162,6 @@ func TestProcessCollector(t *testing.T) {
 
 	require.Len(t, resp.SetEvents, 1)
 	evt := resp.SetEvents[0]
-	assert.EqualValues(t, 1, evt.Pid)
-	assert.EqualValues(t, 1, evt.CreationTime)
-
-	// Now test that this process updates with container id when the store is changed
-	c.waitForContainerUpdate(t, &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   testCid,
-		},
-		PID: 1,
-	})
-
-	c.tick()
-	resp, err = c.stream.Recv()
-	assert.NoError(t, err)
-	fmt.Printf("3: %v\n", resp.String())
-
-	require.Len(t, resp.SetEvents, 1)
-	evt = resp.SetEvents[0]
 	assert.EqualValues(t, 1, evt.Pid)
 	assert.EqualValues(t, 1, evt.CreationTime)
 	assert.Equal(t, testCid, evt.ContainerID)

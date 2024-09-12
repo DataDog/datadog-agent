@@ -8,9 +8,10 @@ package util
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
+	"time"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -35,8 +36,18 @@ type ReqOptions struct {
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
 func GetClient(verify bool) *http.Client {
+	return GetClientWithTimeout(0, verify)
+}
+
+// GetClientWithTimeout is a convenience function returning an http client
+// Arguments correspond to the request timeout duration, and a boolean to
+// verify the server TLS client (false should only be used on localhost
+// trusted endpoints).
+func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
 	if verify {
-		return &http.Client{}
+		return &http.Client{
+			Timeout: to,
+		}
 	}
 
 	tr := &http.Transport{
@@ -81,7 +92,7 @@ func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []b
 		return body, e
 	}
 	if r.StatusCode >= 400 {
-		return body, fmt.Errorf("%s", body)
+		return body, errors.New(string(body))
 	}
 	return body, nil
 }
@@ -105,7 +116,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 	if r.StatusCode >= 400 {
-		return resp, fmt.Errorf("%s", resp)
+		return resp, errors.New(string(resp))
 	}
 	return resp, nil
 }

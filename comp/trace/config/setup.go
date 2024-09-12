@@ -17,14 +17,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component/componenttest"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -50,7 +52,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
@@ -120,7 +122,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, types.HighCardinality)
+	return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -220,15 +222,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
-	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerServiceAggregation {
+
+	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerTagsAggregation {
 		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
-	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
+	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
+
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -328,7 +333,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if core.IsSet("apm_config.apm_non_local_traffic") && core.GetBool("apm_config.apm_non_local_traffic") {
 			c.ReceiverHost = "0.0.0.0"
 		}
-	} else if coreconfig.IsContainerized() {
+	} else if env.IsContainerized() {
 		// Automatically activate non local traffic in containerized environment if no explicit config set
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"

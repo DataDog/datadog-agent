@@ -51,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -134,28 +134,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
-				forwarder.Bundle(),
-				fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
-					params := defaultforwarder.NewParamsWithResolvers(config, log)
-					params.Options.DisableAPIKeyChecking = true
-					return params
-				}),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDisabledParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// setup workloadmeta
-				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.Params{
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				fx.Supply(
@@ -218,7 +211,7 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	dc datadogclient.Component,
+	dc optional.Option[datadogclient.Component],
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
@@ -324,7 +317,7 @@ func start(log log.Component,
 		DatadogClient:          dc,
 	}
 
-	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}
@@ -347,22 +340,25 @@ func start(log log.Component,
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
-		// TODO: Is APM Tracing always required? I am not sure
-		products := []string{state.ProductAPMTracing}
-
+		var products []string
+		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+			products = append(products, state.ProductAPMTracing)
+		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
 		}
 
-		var err error
-		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-		if err != nil {
-			log.Errorf("Failed to start remote-configuration: %v", err)
-		} else {
-			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
+		if len(products) > 0 {
+			var err error
+			rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+			if err != nil {
+				log.Errorf("Failed to start remote-configuration: %v", err)
+			} else {
+				rcClient.Start()
+				defer func() {
+					rcClient.Close()
+				}()
+			}
 		}
 	}
 
@@ -421,7 +417,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient, wmeta); err != nil {
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, clusterID, apiCl, rcClient, wmeta, demultiplexer); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
 		} else {
 			pa = adapter

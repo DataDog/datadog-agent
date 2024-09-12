@@ -64,6 +64,23 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 		{
 			InvolvedObject: v1.ObjectReference{
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "squirtle-8fff95dbb-tsc7v",
+				UID:       "43b7e0d3-9212-4355-a957-4ac15ce3a263",
+			},
+			Type:    "Normal",
+			Reason:  "Scheduled",
+			Message: "Successfully assigned default/squirtle-8fff95dbb-tsc7v to test-host",
+			Source: v1.EventSource{
+				Host: "test-host",
+			},
+			ReportingController: "default-scheduler",
+			EventTime:           metav1.NewMicroTime(ts.Time),
+			Count:               1,
+		},
+		{
+			InvolvedObject: v1.ObjectReference{
 				Kind:      "ReplicaSet",
 				Namespace: "default",
 				Name:      "blastoise-759fd559f7",
@@ -214,6 +231,30 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					EventType:      "kubernetes_apiserver",
 				},
 				{
+					Title:    "Pod default/squirtle-8fff95dbb-tsc7v: Scheduled",
+					Text:     "Successfully assigned default/squirtle-8fff95dbb-tsc7v to test-host",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Scheduled",
+						"kube_kind:Pod",
+						"kube_name:squirtle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:squirtle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:squirtle-8fff95dbb-tsc7v",
+						"reporting_controller:default-scheduler",
+						"orchestrator:kubernetes",
+						"source_component:",
+					},
+					AlertType:      event.AlertTypeInfo,
+					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a263",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
 					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Failed",
 					Text:     "All containers terminated",
 					Ts:       ts.Time.Unix(),
@@ -268,6 +309,30 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					},
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
+					Title:    "Pod default/squirtle-8fff95dbb-tsc7v: Scheduled",
+					Text:     "Successfully assigned default/squirtle-8fff95dbb-tsc7v to test-host",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Scheduled",
+						"kube_kind:Pod",
+						"kube_name:squirtle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:squirtle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:squirtle-8fff95dbb-tsc7v",
+						"reporting_controller:default-scheduler",
+						"orchestrator:kubernetes",
+						"source_component:",
+					},
+					AlertType:      event.AlertTypeInfo,
+					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a263",
 					SourceTypeName: "kubernetes",
 					EventType:      "kubernetes_apiserver",
 				},
@@ -330,6 +395,34 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					Host:           "test-host-test-cluster",
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
+					Title: "Events from the Pod default/squirtle-8fff95dbb-tsc7v",
+					Text: fmt.Sprintf(`%%%%%%%[1]s
+1 **Scheduled**: Successfully assigned default/squirtle-8fff95dbb-tsc7v to test-host
+%[1]s
+ _Events emitted by the  seen at %[2]s since %[2]s_%[1]s
+
+ %%%%%%`, " ", ts.String()),
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Tags: []string{
+						"kube_kind:Pod",
+						"kube_name:squirtle-8fff95dbb-tsc7v",
+						"kubernetes_kind:Pod",
+						"name:squirtle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"namespace:default",
+						"pod_name:squirtle-8fff95dbb-tsc7v",
+						"source_component:",
+						"orchestrator:kubernetes",
+						"reporting_controller:default-scheduler",
+					},
+					Host:           "test-host-test-cluster",
+					AlertType:      event.AlertTypeInfo,
+					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a263",
 					SourceTypeName: "kubernetes",
 					EventType:      "kubernetes_apiserver",
 				},
@@ -442,9 +535,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 
 			events, errors := transformer.Transform(incomingEvents)
 
-			// Sort events by title for easier comparison
-			sort.Slice(events, func(i, j int) bool {
-				return events[i].Title < events[j].Title
+			// Sort events by title and description for easier comparison
+			sort.SliceStable(events, func(i, j int) bool {
+				return events[i].Title+events[i].Text < events[j].Title+events[j].Text
 			})
 
 			assert.Empty(t, errors)
@@ -567,6 +660,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 		name                   string
 		bundleUnspecifedEvents bool
 		filteringEnabled       bool
+		customFilter           []collectedEventType
 		expected               []event.Event
 	}{
 		{
@@ -596,6 +690,68 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
 					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+			},
+		},
+		{
+			name:                   "default filtering enabled with custom filter, bundle unspecified events disabled",
+			bundleUnspecifedEvents: false,
+			filteringEnabled:       true,
+			customFilter: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Source:  "kubelet",
+					Reasons: []string{"Pulled"},
+				},
+			},
+			expected: []event.Event{
+				{
+					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Failed",
+					Text:     "All containers terminated",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Failed",
+						"kube_kind:Pod",
+						"kube_name:wartortle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:wartortle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeWarning,
+					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
+					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Pulled",
+					Text:     "Successfully pulled image \"pokemon/squirtle:latest\" in 1.263s (1.263s including waiting)",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Pulled",
+						"kube_kind:Pod",
+						"kube_name:wartortle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:wartortle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeWarning,
+					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
+					SourceTypeName: "kubernetes_custom",
 					EventType:      "kubernetes_apiserver",
 				},
 			},
@@ -745,7 +901,6 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 
 func TestGetTagsFromTagger(t *testing.T) {
 	taggerInstance := taggerimpl.SetupFakeTagger(t)
-	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
 	tests := []struct {
@@ -754,7 +909,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 		expectedTags *tagset.HashlessTagsAccumulator
 	}{
 		{
-			name: "accumulates basic pod tags",
+			name: "accumulates global tags",
 			obj: v1.ObjectReference{
 				UID:       "redis",
 				Kind:      "Pod",
@@ -762,16 +917,6 @@ func TestGetTagsFromTagger(t *testing.T) {
 				Name:      "redis",
 			},
 			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
-		},
-		{
-			name: "add tagger pod tags",
-			obj: v1.ObjectReference{
-				UID:       "nginx",
-				Kind:      "Pod",
-				Namespace: "default",
-				Name:      "nginx",
-			},
-			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "pod_name:nginx"}),
 		},
 	}
 
@@ -782,7 +927,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 			}
 			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false, false)
 			accumulator := tagset.NewHashlessTagsAccumulator()
-			transformer.(*unbundledTransformer).getTagsFromTagger(tt.obj, accumulator)
+			transformer.(*unbundledTransformer).getTagsFromTagger(accumulator)
 			assert.Equal(t, tt.expectedTags, accumulator)
 		})
 	}

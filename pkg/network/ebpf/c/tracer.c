@@ -187,7 +187,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
         return 0;
     }
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, skp);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, skp);
 }
 
 SEC("kprobe/tcp_done")
@@ -234,8 +234,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
 
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
+    // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST) == 0) {
+    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
@@ -278,8 +279,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
+    // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
-    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST) == 0)) {
+    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
         cleanup_conn(ctx, &t, sk);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
@@ -418,7 +420,7 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %llu, size: %zu", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -595,9 +597,7 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
 
     log_debug("kprobe/ip_make_skb: pid_tgid: %llu, size: %zu", pid_tgid, size);
 
-    // segment count is not currently enabled on prebuilt.
-    // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -765,9 +765,7 @@ static __always_inline int handle_ret_udp_recvmsg_pre_4_7_0(int copied, void *ud
     bpf_map_delete_elem(udp_sock_map, &pid_tgid);
 
     log_debug("kretprobe/udp_recvmsg: pid_tgid: %llu, return: %d", pid_tgid, copied);
-    // segment count is not currently enabled on prebuilt.
-    // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_NONE, st->sk);
+    handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, st->sk);
 
     return 0;
 }

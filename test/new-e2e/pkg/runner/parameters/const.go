@@ -9,45 +9,45 @@ package parameters
 type StoreKey string
 
 const (
-	// APIKey config file parameter name
+	// APIKey Datadog api key
 	APIKey StoreKey = "api_key"
-	// APPKey config file parameter name
+	// APPKey Datadog app key
 	APPKey StoreKey = "app_key"
-	// Environments config file parameter name
+	// Environments space-separated cloud environments
 	Environments StoreKey = "env"
-	// ExtraResourcesTags config file parameter name
+	// ExtraResourcesTags extra tags to label resources
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
-	// KeyPairName config file parameter name
+	// KeyPairName aws keypairname, used to access EC2 instances
 	KeyPairName StoreKey = "key_pair_name"
-	// PrivateKeyPassword config file parameter name
+	// PrivateKeyPassword private ssh key password
 	PrivateKeyPassword StoreKey = "private_key_password"
-	// PrivateKeyPath config file parameter name
+	// PrivateKeyPath private ssh key path
 	PrivateKeyPath StoreKey = "private_key_path"
-	// Profile config file parameter name
+	// Profile aws profile name
 	Profile StoreKey = "profile"
-	// PublicKeyPath config file parameter name
+	// PublicKeyPath public ssh key path
 	PublicKeyPath StoreKey = "public_key_path"
 	// PulumiPassword config file parameter name
 	PulumiPassword StoreKey = "pulumi_password"
-	// SkipDeleteOnFailure config file parameter name
+	// SkipDeleteOnFailure keep the stack on test failure
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
-	// StackParameters config file parameter name
+	// StackParameters configuration map for the stack, in a json formatted string
 	StackParameters StoreKey = "stack_params"
-	// PipelineID config file parameter name
+	// PipelineID  used to deploy agent artifacts from a Gitlab pipeline
 	PipelineID StoreKey = "pipeline_id"
-	// CommitSHA config file parameter name
+	// CommitSHA is used to deploy agent artifacts from a specific commit, needed for docker images
 	CommitSHA StoreKey = "commit_sha"
-	// VerifyCodeSignature config file parameter name
+	// VerifyCodeSignature of the agent
 	VerifyCodeSignature StoreKey = "verify_code_signature"
-	// OutputDir config file parameter name
+	// OutputDir path to store test artifacts
 	OutputDir StoreKey = "output_dir"
-	// PulumiLogLevel config file parameter name
+	// PulumiLogLevel sets the log level for pulumi. Pulumi emits logs at log levels between 1 and 11, with 11 being the most verbose.
 	PulumiLogLevel StoreKey = "pulumi_log_level"
-	// PulumiLogToStdErr config file parameter name
+	// PulumiLogToStdErr specifies that all logs should be sent directly to stderr - making it more accessible and avoiding OS level buffering.
 	PulumiLogToStdErr StoreKey = "pulumi_log_to_stderr"
-	// PulumiVerboseProgressStreams config file parameter name
+	// PulumiVerboseProgressStreams allows specifying one or more io.Writers to redirect incremental update stdout
 	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
-	// DevMode config flag parameter name
+	// DevMode allows to keep the stack after the test completes
 	DevMode StoreKey = "dev_mode"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"

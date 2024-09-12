@@ -272,6 +272,9 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
 		suite.Contains(stdout, "Instance ID: container [OK]")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent status --json", func() {
@@ -283,6 +286,9 @@ func (suite *k8sSuite) testAgentCLI() {
 			err := json.Unmarshal([]byte(stdout), &blob)
 			suite.NoError(err)
 		}
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent checkconfig", func() {
@@ -291,11 +297,15 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Empty(stderr, "Standard error of `agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== container check ===")
 		suite.Contains(stdout, "Config for instance ID: container:")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent check -r container", func() {
+		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
-			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
+			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return
@@ -305,11 +315,15 @@ func (suite *k8sSuite) testAgentCLI() {
 				assert.Truef(c, matched, "Output of `agent check -r container` doesn’t contain the expected metric")
 			}
 		}, 2*time.Minute, 1*time.Second)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent check -r container --json", func() {
+		var stdout string
 		suite.EventuallyWithT(func(c *assert.CollectT) {
-			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
+			stdout, _, err = suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
 			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoError(c, err) {
 				return
@@ -320,6 +334,9 @@ func (suite *k8sSuite) testAgentCLI() {
 				assert.NoError(c, err)
 			}
 		}, 2*time.Minute, 1*time.Second)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent workload-list", func() {
@@ -328,6 +345,9 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
 		suite.Contains(stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
 		suite.Contains(stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("agent tagger-list", func() {
@@ -336,6 +356,9 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
 		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 }
 
@@ -356,6 +379,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
 		suite.Contains(stdout, "kubernetes_state_core")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("cluster-agent status --json", func() {
@@ -367,6 +393,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			err := json.Unmarshal([]byte(stdout), &blob)
 			suite.NoError(err)
 		}
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
@@ -375,6 +404,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
 		suite.Contains(stdout, "=== kubernetes_state_core check ===")
 		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 
 	suite.Run("cluster-agent clusterchecks", func() {
@@ -384,6 +416,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "agents reporting ===")
 		suite.Contains(stdout, "===== Checks on ")
 		suite.Contains(stdout, "=== helm check ===")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
 	})
 }
 
@@ -948,17 +983,22 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}
 	}
 
+	volumesMarkedAsSafeToEvict := strings.Split(
+		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
+	)
+
 	if suite.Contains(hostPathVolumes, "datadog") {
 		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
-	volumeMounts := make(map[string]string)
+	volumeMounts := make(map[string][]string)
 	for _, volumeMount := range pod.Spec.Containers[0].VolumeMounts {
-		volumeMounts[volumeMount.Name] = volumeMount.MountPath
+		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
 	if suite.Contains(volumeMounts, "datadog") {
-		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
+		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 
 	switch language {
@@ -971,12 +1011,19 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}
 		}
 
-		if suite.Contains(env, "PYTHONPATH") {
-			suite.Equal("/datadog-lib/", env["PYTHONPATH"])
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
 		}
-		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
+
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
+		}
+
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
+			suite.ElementsMatch([]string{
+				"/opt/datadog-packages/datadog-apm-inject",
+				"/opt/datadog/apm/library",
+			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
 

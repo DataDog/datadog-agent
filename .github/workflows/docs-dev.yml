@@ -14,6 +14,8 @@ on:
     - docs/**
     - .github/workflows/docs-dev.yml
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && true || false }}
@@ -29,7 +31,7 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+      uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
       with:
         python-version: '3.12'
 
@@ -47,13 +49,15 @@ jobs:
     - name: Build documentation
       run: invoke docs.build
 
-    - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+    - uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
       with:
         name: documentation
         path: site
 
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:

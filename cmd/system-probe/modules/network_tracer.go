@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -23,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -38,7 +37,6 @@ import (
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -49,7 +47,7 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetryComponent telemetryComponent.Component) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -64,7 +62,7 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[wor
 		log.Info("enabling universal service monitoring (USM)")
 	}
 
-	t, err := tracer.NewTracer(ncfg, telemetryComponent)
+	t, err := tracer.NewTracer(ncfg, deps.Telemetry)
 
 	done := make(chan struct{})
 	if err == nil {
@@ -111,6 +109,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		logRequests(id, count, len(cs.Conns), start)
 	}))
 
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id, err := nt.tracer.GetNetworkID(req.Context())
+		if err != nil {
+			log.Errorf("unable to retrieve network_id: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		io.WriteString(w, id)
+	}))
+
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
 		id := getClientID(req)
 		err := nt.tracer.RegisterClient(id)
@@ -148,7 +156,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http_monitoring") {
 			writeDisabledProtocolMessage("http", w)
 			return
 		}
@@ -164,7 +172,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_kafka_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_kafka_monitoring") {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
@@ -180,7 +188,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_postgres_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
@@ -196,7 +204,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_redis_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
@@ -212,7 +220,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http2_monitoring") {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}

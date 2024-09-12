@@ -26,7 +26,6 @@ import (
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -84,7 +83,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -111,7 +110,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 			continue
 		}
 
-		entityID := containers.BuildTaggerEntityName(containerID)
+		entityID := types.NewEntityID(types.ContainerID, containerID).String()
 		var tags []string
 		if entityID != "" {
 			tags, err = tagger.Tag(entityID, types.HighCardinality)

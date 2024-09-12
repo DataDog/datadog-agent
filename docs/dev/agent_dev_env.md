@@ -52,10 +52,10 @@ To install `deva`, you'll need to:
 The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
 
 ```shell
-$ cd datadog-agent
-$ curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
-$ chmod +x deva
-$ ./deva linter.go
+cd datadog-agent
+curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
+chmod +x deva
+./deva linter.go
 ```
 
 Below a live demo of how the tool works:
@@ -138,7 +138,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.22.5` or
+You must [install Golang](https://golang.org/doc/install) version `1.22.6` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -287,5 +287,3 @@ To configure the vscode editor to use a container as remote development environm
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
 Building on Windows requires multiple 3rd-party software to be installed. To avoid the complexity, Datadog recommends to make the code change in VS Code, and then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
-
-

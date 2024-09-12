@@ -2987,6 +2987,15 @@ api_key:
     #
     # trace_agent_socket: unix:///var/run/datadog/apm.socket
 
+    ## @param type_socket_volumes - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
+    ## When enabled, injected volumes are of type "Socket". This means that
+    ## injected pods will not start until the Agent creates the dogstatsd and
+    ## trace-agent sockets. This ensures no lost traces or dogstatsd metrics but
+    ## can cause the pod to wait if the agent has issues creating the sockets.
+    #
+    # type_socket_volumes: false
+
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
   #
@@ -3195,6 +3204,13 @@ api_key:
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
 # ecs_metadata_timeout: 500
+
+## @param ecs_task_collection_enabled - boolean - optional - default: false
+## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
+## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
+## which is used for the orchestrator ECS check.
+#
+# ecs_task_collection_enabled: false
 
 {{ end -}}
 {{- if .CRI }}
@@ -4058,6 +4074,83 @@ api_key:
     #
     # stop_timeout: 5
 
+    ## @param reverse_dns_enrichment_enabled - boolean - optional - default: false
+    ## Set to true to enable reverse DNS enrichment of private source and destination IP addresses in NetFlow records.
+    # reverse_dns_enrichment_enabled: false
+
+## @param reverse_dns_enrichment - custom object - optional
+## This section configures the reverse DNS enrichment component that can be used by other components in the Datadog Agent.
+# reverse_dns_enrichment:
+
+  ## @param workers - integer - optional - default: 10
+  ## The number of concurrent workers used to perform reverse DNS lookups.
+  # workers: 10
+
+  ## @param chan_size - integer - optional - default: 5000
+  ## The size of the channel used to send reverse DNS lookup requests to the workers.
+  # chan_size: 5000
+
+  ## @param cache - custom object - optional
+  ## This section configures the cache used by the reverse DNS enrichment component.
+  # cache:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable reverse DNS enrichment caching.
+    #
+    # enabled: true
+
+    ## @param entry_ttl - duration - optional - default: 24h
+    ## The amount of time that a cache entry remains valid before it is expired and removed from the cache.
+    # entry_ttl: 24h
+
+    ## @param clean_interval - duration - optional - default: 2h
+    ## An interval that specifies how often expired entries are removed from the cache to free space.
+    # clean_interval: 2h
+
+    ## @param persist_interval - duration - optional - default: 2h
+    ## An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the Agent is upgraded or restarted.
+    # persist_interval: 2h
+
+    ## @param max_retries - integer - optional - default: 10
+    ## The maximum number of retries to perform when a DNS lookup operation fails, after which the hostname "" is returned and cached for the IP address.
+    # max_retries: 10
+
+    ## @param max_size - integer - optional - default: 1000000
+    ## The maximum size in entries of the cache, above which additional entries will not be cached.
+    #
+    # max_size: 1000000
+
+  ## @param rate_limiter - custom object - optional
+  ## This section configures the rate limiter used by the reverse DNS enrichment component.
+  # rate_limiter:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable the reverse DNS enrichment rate limiter.
+    #
+    # enabled: true
+
+    ## @param limit_per_sec - integer - optional - default: 1000
+    ## The maximum number of reverse DNS lookups allowed per second by the rate limiter.
+    # limit_per_sec: 1000
+
+    ## @param limit_throttled_per_sec - integer - optional - default: 1
+    ## The maximum number of reverse DNS lookups allowed per second when the rate limiter is throttled due to errors exceeding the threshold.
+    # limit_throttled_per_sec: 1
+
+    ## @param throttle_error_threshold - integer - optional - default: 10
+    ## The number of consecutive errors that will trigger the rate limiter to throttle down to limit_throttled_per_sec.
+    # throttle_error_threshold: 10
+
+    ## @param recovery_intervals - integer - optional - default: 5
+    ## The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    # recovery_intervals: 5
+
+    ## @param recovery_interval - duration - optional - default: 5s
+    ## The interval between incrementally increasing the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    ## The rate limit will be increased by (limit_per_sec - limit_throttled_per_sec) / recovery_intervals every recovery_interval, until it reaches
+    ## limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
+    ## be increased by 200 every 5 seconds until reaching 1000.
+    # recovery_interval: 5s
 
 {{end -}}
 {{- if .OTLP }}
@@ -4302,22 +4395,13 @@ api_key:
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
-  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
   #
   # debug:
-
-    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
-    ## @param loglevel - string - optional - default: none
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
-    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are disabled, debug, info, error, warn.
-    #
-    # loglevel: info
-
     ## @param verbosity - string - optional - default: normal
     ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
     ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are basic, normal, detailed.
+    ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
 {{- if (eq .OS "windows")}}
