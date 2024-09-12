@@ -3,34 +3,44 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package dynamicinstrumentation
+//go:build !linux_bpf
+
+// Package module provides the dynamic instrumentaiton module. This is a stub meaning
+// this empty file is used if the target platform does not support features required
+// by dynamic instrumentation.
+package module
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 )
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
-type Module struct{}
+type Config struct{}
+
+//nolint:revive // TODO(DEBUG) Fix revive linter
+func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
+	return &Config{}, nil
+}
+
+//nolint:revive // TODO(DEBUG) Fix revive linter
+type Module struct {
+}
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func NewModule(config *Config) (*Module, error) {
-	return &Module{}, nil
+	return nil, nil
 }
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
-func (m *Module) Close() {
-	log.Info("Closing user tracer module")
-}
+func (m *Module) Close() {}
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) GetStats() map[string]interface{} {
-	debug := map[string]interface{}{}
-	return debug
+	return nil
 }
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) Register(_ *module.Router) error {
-	log.Info("Registering dynamic instrumentation module")
 	return nil
 }

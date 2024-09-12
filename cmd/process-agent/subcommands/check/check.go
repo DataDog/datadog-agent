@@ -182,10 +182,12 @@ func RunCheckCmd(deps Dependencies) error {
 		names = append(names, ch.Name())
 
 		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.NetworkTracerModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
-			ProcessModuleEnabled: processModuleEnabled,
+			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,
+			ProcessModuleEnabled:       processModuleEnabled,
+			NetworkTracerModuleEnabled: networkTracerModuleEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {

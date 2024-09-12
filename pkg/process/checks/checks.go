@@ -35,6 +35,8 @@ type SysProbeConfig struct {
 	SystemProbeAddress string
 	// System probe process module on/off configuration
 	ProcessModuleEnabled bool
+	// System probe network_tracer module on/off configuration
+	NetworkTracerModuleEnabled bool
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns

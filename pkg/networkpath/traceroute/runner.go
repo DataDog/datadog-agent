@@ -42,8 +42,6 @@ const (
 	DefaultNumPaths = 1
 	// DefaultMinTTL defines the default minimum TTL
 	DefaultMinTTL = 1
-	// DefaultMaxTTL defines the default maximum TTL
-	DefaultMaxTTL = 30
 	// DefaultDelay defines the default delay
 	DefaultDelay = 50 //msec
 	// DefaultOutputFormat defines the default output format
@@ -117,12 +115,12 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = DefaultMaxTTL
+		maxTTL = setup.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
 	if cfg.Timeout == 0 {
-		timeout = setup.DefaultNetworkPathTimeout * time.Millisecond
+		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
 		timeout = cfg.Timeout
 	}

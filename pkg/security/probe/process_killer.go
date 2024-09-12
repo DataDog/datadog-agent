@@ -417,10 +417,6 @@ func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], typ disarmerTy
 	kd.Lock()
 	defer kd.Unlock()
 
-	if kd.disarmed {
-		return false
-	}
-
 	if cache == nil {
 		return true
 	}

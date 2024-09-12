@@ -7,6 +7,10 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *file, const char *buf, size_t count, enum selinux_source_event_t source_event) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct syscall_cache_t syscall = {
         .type = EVENT_SELINUX,
         .policy = fetch_policy(EVENT_SELINUX),
