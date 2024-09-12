@@ -75,7 +75,7 @@ generate_windows_embedded_python:
       -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       Powershell
-      -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.11.10 -OutDir c:\mnt\artifacts"
+      -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.12.6 -OutDir c:\mnt\artifacts"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 deploy_windows_embedded_python:
