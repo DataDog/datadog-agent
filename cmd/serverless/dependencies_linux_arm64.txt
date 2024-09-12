@@ -438,6 +438,7 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
