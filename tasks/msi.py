@@ -178,7 +178,7 @@ def _build(
     # back to the mount.
     try:
         ctx.run(
-            f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF cabcache packages embedded2.COMPRESSED embedded3.COMPRESSED',
+            f'robocopy {SOURCE_ROOT_DIR} {BUILD_SOURCE_DIR} /MIR /XF *.COMPRESSED *.g.wxs *.msi *.exe /XD bin obj .vs cab cabcache packages',
             hide=True,
         )
     except UnexpectedExit as e:
