@@ -126,69 +126,6 @@ jobs:
           no_output_timeout: 20m
           command: inv -e linter.go
 
-  licenses_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run license linting
-          command: inv -e lint-licenses
-
-  copyrights_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run copyrights linting
-          command: inv -e linter.copyrights
-
-  filename_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run filename linting
-          command: inv -e linter.filenames
-
-  shell_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: Install shellcheck
-          command: inv -e install-shellcheck
-      - run:
-          name: Print shellcheck version
-          command: shellcheck --version
-      - run:
-          name: Run shellcheck
-          #Excludes:
-          #SC2028: echo may not expand escape sequences. Use printf.
-          #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-          command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
-
-  component_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run component linting
-          command: inv -e lint-components lint-fxutil-oneshot-test
-
-  codeowner_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run CODEOWNER linting
-          command: inv -e github.lint-codeowner
-
   docker_tests:
     <<: *job_template
     steps:
