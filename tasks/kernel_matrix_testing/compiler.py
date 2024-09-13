@@ -221,7 +221,7 @@ class CompilerImage:
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
         # with dpkg-deb not respecting symlinks.
         self.exec(f"dpkg-deb --fsys-tarfile {header_package_path} > {header_package_path}.tar", user="root")
-        self.exec(f"tar -h -xvf {header_package_path}.tar -C /", user="root")
+        self.exec(f"tar -h -xf {header_package_path}.tar -C /", user="root")
 
         # Install the corresponding arch compilers
         self.exec(f"apt update && apt install -y gcc-{target.gcc_arch.replace('_', '-')}-linux-gnu", user="root")
