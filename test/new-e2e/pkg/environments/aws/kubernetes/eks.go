@@ -329,6 +329,14 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
+			helmValues := fmt.Sprintf(`
+datadog:
+  env:
+    - name: DD_EXPECTED_TAGS_DURATION
+      value: 30m
+`)
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
 			paramsAgent, err := kubernetesagentparams.NewParams(params.agentOptions...)
 			if err != nil {
 				return err
