@@ -773,9 +773,9 @@ func TestAttacherSharedLibrary(t *testing.T) {
 			launchProcessMonitor(ttt, false)
 			suite.Run(ttt, new(SharedLibrarySuite))
 		})
-		tt.Run("event stream", func(ttt *testing.T) {
 
-			launchProcessMonitor(t, true)
+		tt.Run("event stream", func(ttt *testing.T) {
+			launchProcessMonitor(ttt, true)
 			suite.Run(ttt, new(SharedLibrarySuite))
 		})
 	})
