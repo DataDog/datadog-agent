@@ -681,7 +681,6 @@ def prepare(
     ci=False,
     compile_only=False,
 ):
-
     arch_obj = Arch.from_str(arch)
     if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
         raise Exit(
