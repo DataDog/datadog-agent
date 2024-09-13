@@ -681,18 +681,18 @@ def prepare(
     ci=False,
     compile_only=False,
 ):
+    arch_obj = Arch.from_str(arch)
+    if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
+        raise Exit(
+            f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
+        )
+
     if not ci:
         stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
         domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     else:
         domains = None
         stack = "ci"
-
-    arch_obj = Arch.from_str(arch)
-    if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
-        raise Exit(
-            f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
-        )
 
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
@@ -713,7 +713,7 @@ def _prepare(
     verbose=True,
     ci=False,
     compile_only=False,
-    domains: list[LibvirtDomain] | None = None
+    domains: list[LibvirtDomain] | None = None,
 ):
     if not ci:
         cc = get_compiler(ctx)
