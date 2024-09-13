@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -385,3 +386,17 @@ def manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+@task
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, dry_run=False):
+    for file in glob.iglob(f"{install_path}/**/*", recursive=True):
+        ext = os.path.splitext(file)[1]
+        if (ext not "" and "so" not in ext) or "json" in ext or not os.path.isfile(file):
+            continue
+        toedit_fd = ctx.run(f"objdump -x {file} | grep \"RPATH\" || true", hide=True)
+        if install_path in toedit_fd.stdout:
+            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
+            if not dry_run:
+                patch_fd = ctx.run(f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}")
+            else:
+                print(f"Changing RPATH for {file} to $ORIGIN/{new_rpath}/embedded/lib")

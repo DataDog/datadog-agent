@@ -235,8 +235,10 @@ build do
 
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
+  # final package 
+  # Change RPATH from the install_dir to relative RPATH
   unless windows_target?
     delete "#{install_dir}/uselessfile"
+    command "inv omnibus.rpath-edit #{install_dir} #{install_dir}"
   end
 end
