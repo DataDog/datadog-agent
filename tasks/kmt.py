@@ -1298,7 +1298,7 @@ def ssh_config(
     # Ensure correct permissions of the ddvm_rsa file if we're using
     # it to connect to VMs. This attribute change doesn't seem to be tracked
     # in git correctly
-    ctx.run(f"chmod 600 {ddvm_rsa}")
+    ctx.run(f"chmod 600 {ddvm_rsa}", echo=False)
 
     for stack_dir in stacks_dir.iterdir():
         if not stack_dir.is_dir():
