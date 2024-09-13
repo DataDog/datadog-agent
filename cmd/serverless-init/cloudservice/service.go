@@ -51,6 +51,9 @@ func (l *LocalService) Init() error {
 //nolint:revive // TODO(SERV) Fix revive linter
 func GetCloudServiceType() CloudService {
 	if isCloudRunService() {
+		if isCloudFunction() {
+			return &CloudRun{cloudRunFunctionMode: true}
+		}
 		return &CloudRun{}
 	}
 

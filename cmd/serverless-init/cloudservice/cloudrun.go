@@ -11,10 +11,10 @@ import (
 	"os"
 )
 
-var cloudRunFunctionMode bool
-
 // CloudRun has helper functions for getting Google Cloud Run data
-type CloudRun struct{}
+type CloudRun struct {
+	cloudRunFunctionMode bool
+}
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
@@ -24,7 +24,7 @@ func (c *CloudRun) GetTags() map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
-	if cloudRunFunctionMode {
+	if c.cloudRunFunctionMode {
 		_ = log.Warn("WE ARE IN CLOUD FUNCTION MODE")
 		return "cloudfunction"
 	}
@@ -35,7 +35,7 @@ func (c *CloudRun) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
-	if cloudRunFunctionMode {
+	if c.cloudRunFunctionMode {
 		_ = log.Warn("WE ARE IN CLOUD FUNCTION MODE")
 		return "gcp.cloudfunction"
 	}
@@ -50,6 +50,10 @@ func (c *CloudRun) Init() error {
 
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(traceutil.RunServiceNameEnvVar)
-	_, cloudRunFunctionMode = os.LookupEnv(traceutil.FunctionTargetEnvVar)
 	return exists
+}
+
+func isCloudFunction() bool {
+	_, cloudRunFunctionMode := os.LookupEnv(traceutil.FunctionTargetEnvVar)
+	return cloudRunFunctionMode
 }
