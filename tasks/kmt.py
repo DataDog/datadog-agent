@@ -701,7 +701,7 @@ def prepare(
 
     assert len(domains) > 0, err_msg
 
-    _prepare(ctx, component, stack, arch, packages, verbose, ci, compile_only, domains=domains)
+    _prepare(ctx, stack, component, arch, packages, verbose, ci, compile_only, domains=domains)
 
 
 def _prepare(
