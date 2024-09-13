@@ -77,7 +77,6 @@ go_e2e_deps:
   extends: .cache
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
     - inv -e new-e2e-tests.deps
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
   artifacts:

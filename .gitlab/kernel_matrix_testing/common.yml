@@ -326,7 +326,6 @@ notify_ebpf_complexity_changes:
             TEST_SET: no_usm
   allow_failure: true
   before_script:
-    - source /root/.bashrc
     - python3 -m pip install tabulate # Required for printing the tables
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |

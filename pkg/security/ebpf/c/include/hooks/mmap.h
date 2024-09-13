@@ -9,6 +9,10 @@
 
 HOOK_ENTRY("vm_mmap_pgoff")
 int hook_vm_mmap_pgoff(ctx_t *ctx) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     u64 len = CTX_PARM3(ctx);
     u64 prot = CTX_PARM4(ctx);
     u64 flags = CTX_PARM5(ctx);
