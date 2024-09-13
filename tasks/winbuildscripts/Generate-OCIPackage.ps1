@@ -1,6 +1,5 @@
 Param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("datadog-agent", "datadog-installer")]
     [string] $package,
     [string] $version
 )
