@@ -88,6 +88,8 @@ datadog-agent-6-x64:
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_7_build]
+  script:
+    - exit 1
 
 # build Agent 6 binaries for arm64
 datadog-agent-6-arm64:
