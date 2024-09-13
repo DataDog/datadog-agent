@@ -454,14 +454,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-        match_precision = 0
-        best_module_path = None
-
-        # Since several modules can match the path we take only the most precise one
-        for module_path in DEFAULT_MODULES:
-            if module_path in modified_file and len(module_path) > match_precision:
-                match_precision = len(module_path)
-                best_module_path = module_path
+        best_module_path = get_go_module(modified_file)
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
@@ -748,7 +741,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     modules_to_test = {}
 
     for package in packages:
-        module_path = get_go_module(package).replace("./", "")
+        module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
         if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
@@ -821,7 +814,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return path
+            return os.path.relpath(path)
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 

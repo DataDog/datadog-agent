@@ -6,7 +6,8 @@
 package infraattributesprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -29,5 +30,15 @@ func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]strin
 
 // GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
-	return t.tagMap[common.GetGlobalEntityID().String()], nil
+	return t.tagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
+}
+
+type testGenerateIDClient struct{}
+
+func newTestGenerateIDClient() *testGenerateIDClient {
+	return &testGenerateIDClient{}
+}
+
+func (t *testGenerateIDClient) generateID(group, resource, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name)
 }

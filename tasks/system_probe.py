@@ -516,7 +516,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
             rule="godefs",
-            implicit=headers,
+            implicit=headers + [script_path],
             variables={
                 "in_dir": in_dir,
                 "in_file": in_file,

@@ -77,12 +77,12 @@ type PIDFD struct {
 	Fd  uint32
 }
 type UDPRecvSock struct {
-	Sk  *_Ctype_struct_sock
-	Msg *_Ctype_struct_msghdr
+	Sk  uint64
+	Msg uint64
 }
 type BindSyscallArgs struct {
-	Addr *_Ctype_struct_sockaddr
-	Sk   *_Ctype_struct_sock
+	Addr uint64
+	Sk   uint64
 }
 type ProtocolStack struct {
 	Api         uint8
