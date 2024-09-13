@@ -78,7 +78,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Debug("a context has been found, sending the context to the tracer")
 		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().TraceID))
 		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().SamplingPriority))
-		w.Header().Set(invocationlifecycle.TraceTagsHeader, fmt.Sprintf("%s=%s", invocationlifecycle.Upper64BitsTag, s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex))
+		if s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex != "" {
+			w.Header().Set(invocationlifecycle.TraceTagsHeader, fmt.Sprintf("%s=%s", invocationlifecycle.Upper64BitsTag, s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex))
+		}
 	}
 }
 
