@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"os"
 	"testing"
 
@@ -18,11 +19,11 @@ func TestGetCloudServiceType(t *testing.T) {
 	t.Setenv(ContainerAppNameEnvVar, "test-name")
 	assert.Equal(t, "containerapp", GetCloudServiceType().GetOrigin())
 
-	t.Setenv(ServiceNameEnvVar, "test-name")
+	t.Setenv(traceutil.RunServiceNameEnvVar, "test-name")
 	assert.Equal(t, "cloudrun", GetCloudServiceType().GetOrigin())
 
 	os.Unsetenv(ContainerAppNameEnvVar)
-	os.Unsetenv(ServiceNameEnvVar)
+	os.Unsetenv(traceutil.RunServiceNameEnvVar)
 	t.Setenv(WebsiteStack, "false")
 	assert.Equal(t, "appservice", GetCloudServiceType().GetOrigin())
 }

@@ -8,14 +8,13 @@ package config
 import (
 	"crypto/tls"
 	"errors"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"time"
-
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -536,6 +535,8 @@ func New() *AgentConfig {
 func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
+	} else if inGCPCloudRun() {
+		return traceutil.GetCloudRunTags()
 	}
 	return make(map[string]string)
 }
@@ -618,4 +619,10 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func inGCPCloudRun() bool {
+	_, serviceExists := os.LookupEnv("K_SERVICE")
+	_, cloudRunFunctionExist := os.LookupEnv("FUNCTION_TARGET")
+	return serviceExists || cloudRunFunctionExist
 }

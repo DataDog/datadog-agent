@@ -9,6 +9,7 @@ package trace
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"os"
 	"sync"
 	"testing"
@@ -203,7 +204,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 
 	// Test with and without the span modifier between different cloud services
 	cloudServiceToEnvVar := map[string]string{
-		"cloudrun":     cloudservice.ServiceNameEnvVar,
+		"cloudrun":     traceutil.RunServiceNameEnvVar,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
 		"appservice":   cloudservice.WebsiteStack,
 		"lambda":       functionNameEnvVar}

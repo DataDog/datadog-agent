@@ -6,39 +6,43 @@
 package cloudservice
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetCloudRunTags(t *testing.T) {
 	service := &CloudRun{}
 
-	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
-		return &helper.GCPMetadata{
-			ContainerID: &helper.Info{
-				TagName: "container_id",
-				Value:   "test_container",
-			},
-			Region: &helper.Info{
-				TagName: "region",
-				Value:   "test_region",
-			},
-			ProjectID: &helper.Info{
-				TagName: "project_id",
-				Value:   "test_project",
-			},
-		}
+	metadataHelperFunc := &traceutil.GCPMetadata{
+		ContainerID: &traceutil.Info{
+			TagName: "container_id",
+			Value:   "test_container",
+		},
+		Region: &traceutil.Info{
+			TagName: "region",
+			Value:   "test_region",
+		},
+		ProjectID: &traceutil.Info{
+			TagName: "project_id",
+			Value:   "test_project",
+		},
 	}
-
-	tags := service.GetTags()
-
+	tags := metadataHelperFunc.TagMap()
 	assert.Equal(t, map[string]string{
 		"container_id": "test_container",
 		"region":       "test_region",
-		"origin":       "cloudrun",
 		"project_id":   "test_project",
+	}, tags)
+
+	tags = service.GetTags()
+
+	assert.Equal(t, map[string]string{
+		"container_id": "unknown",
+		"location":     "unknown",
+		"origin":       "cloudrun",
+		"project_id":   "unknown",
 		"_dd.origin":   "cloudrun",
 	}, tags)
 }
@@ -46,33 +50,37 @@ func TestGetCloudRunTags(t *testing.T) {
 func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{}
 
-	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
-		return &helper.GCPMetadata{
-			ContainerID: &helper.Info{
-				TagName: "container_id",
-				Value:   "test_container",
-			},
-			Region: &helper.Info{
-				TagName: "region",
-				Value:   "test_region",
-			},
-			ProjectID: &helper.Info{
-				TagName: "project_id",
-				Value:   "test_project",
-			},
-		}
+	metadataHelperFunc := &traceutil.GCPMetadata{
+		ContainerID: &traceutil.Info{
+			TagName: "container_id",
+			Value:   "test_container",
+		},
+		Region: &traceutil.Info{
+			TagName: "region",
+			Value:   "test_region",
+		},
+		ProjectID: &traceutil.Info{
+			TagName: "project_id",
+			Value:   "test_project",
+		},
 	}
+
+	tags := metadataHelperFunc.TagMap()
+	assert.Equal(t, map[string]string{
+		"container_id": "test_container",
+		"region":       "test_region",
+		"project_id":   "test_project",
+	}, tags)
 
 	t.Setenv("K_SERVICE", "test_service")
 	t.Setenv("K_REVISION", "test_revision")
 
-	tags := service.GetTags()
-
+	tags = service.GetTags()
 	assert.Equal(t, map[string]string{
-		"container_id":  "test_container",
-		"region":        "test_region",
+		"container_id":  "unknown",
+		"location":      "unknown",
 		"origin":        "cloudrun",
-		"project_id":    "test_project",
+		"project_id":    "unknown",
 		"service_name":  "test_service",
 		"revision_name": "test_revision",
 		"_dd.origin":    "cloudrun",
@@ -82,22 +90,27 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{}
 
-	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
-		return &helper.GCPMetadata{
-			ContainerID: &helper.Info{
-				TagName: "container_id",
-				Value:   "test_container",
-			},
-			Region: &helper.Info{
-				TagName: "region",
-				Value:   "test_region",
-			},
-			ProjectID: &helper.Info{
-				TagName: "project_id",
-				Value:   "test_project",
-			},
-		}
+	metadataHelperFunc := &traceutil.GCPMetadata{
+		ContainerID: &traceutil.Info{
+			TagName: "container_id",
+			Value:   "test_container",
+		},
+		Region: &traceutil.Info{
+			TagName: "region",
+			Value:   "test_region",
+		},
+		ProjectID: &traceutil.Info{
+			TagName: "project_id",
+			Value:   "test_project",
+		},
 	}
+
+	tags := metadataHelperFunc.TagMap()
+	assert.Equal(t, map[string]string{
+		"container_id": "test_container",
+		"region":       "test_region",
+		"project_id":   "test_project",
+	}, tags)
 
 	t.Setenv("K_SERVICE", "test_service")
 	t.Setenv("K_REVISION", "test_revision")
@@ -105,13 +118,13 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	t.Setenv("FUNCTION_SIGNATURE_TYPE", "test_signature")
 	t.Setenv("FUNCTION_TARGET", "test_target")
 
-	tags := service.GetTags()
+	tags = service.GetTags()
 
 	assert.Equal(t, map[string]string{
-		"container_id":            "test_container",
-		"region":                  "test_region",
+		"container_id":            "unknown",
+		"location":                "unknown",
+		"project_id":              "unknown",
 		"origin":                  "cloudfunction",
-		"project_id":              "test_project",
 		"service_name":            "test_service",
 		"revision_name":           "test_revision",
 		"configuration_name":      "test_config",

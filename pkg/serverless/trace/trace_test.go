@@ -9,6 +9,7 @@ package trace
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"os"
 	"strconv"
 	"testing"
@@ -185,7 +186,7 @@ func TestFilterServerlessSpanFromTracer(t *testing.T) {
 
 func TestGetDDOriginCloudServices(t *testing.T) {
 	serviceToEnvVar := map[string]string{
-		"cloudrun":     cloudservice.ServiceNameEnvVar,
+		"cloudrun":     traceutil.RunServiceNameEnvVar,
 		"appservice":   cloudservice.WebsiteStack,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
 		"lambda":       functionNameEnvVar,

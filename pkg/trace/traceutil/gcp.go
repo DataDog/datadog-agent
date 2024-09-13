@@ -3,25 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SERV) Fix revive linter
-package helper
+package traceutil
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultBaseURL = "http://metadata.google.internal/computeMetadata/v1"
-const defaultContainerIDURL = "/instance/id"
-const defaultRegionURL = "/instance/region"
-const defaultProjectID = "/project/project-id"
-const defaultTimeout = 300 * time.Millisecond
+const (
+	//nolint:revive // TODO(SERV) Fix revive linter
+	revisionNameEnvVar      = "K_REVISION"
+	RunServiceNameEnvVar    = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
+	configurationNameEnvVar = "K_CONFIGURATION"
+	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
+	FunctionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
+
+	defaultBaseURL        = "http://metadata.google.internal/computeMetadata/v1"
+	defaultContainerIDURL = "/instance/id"
+	defaultRegionURL      = "/instance/region"
+	defaultProjectID      = "/project/project-id"
+	defaultTimeout        = 300 * time.Millisecond
+)
 
 // GCPConfig holds the metadata configuration
 type GCPConfig struct {
@@ -134,5 +142,50 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 		log.Error("unable to read metadata body, defaulting to unknown")
 		return "unknown"
 	}
+	GetCloudRunTags()
 	return strings.ToLower(string(data))
+}
+
+// GetCloudRunTags returns the cloud run tags
+func GetCloudRunTags() map[string]string {
+	tags := GetMetaData(GetDefaultConfig()).TagMap()
+
+	revisionName := os.Getenv(revisionNameEnvVar)
+	serviceName := os.Getenv(RunServiceNameEnvVar)
+	configName := os.Getenv(configurationNameEnvVar)
+	functionTarget := os.Getenv(FunctionTargetEnvVar)
+
+	if revisionName != "" {
+		tags["revision_name"] = revisionName
+	}
+
+	if serviceName != "" {
+		tags["service_name"] = serviceName
+	}
+
+	if configName != "" {
+		tags["configuration_name"] = configName
+	}
+
+	if functionTarget != "" {
+		_ = log.Warn("SETTING TAGGSSSS: WE ARE IN CLOUD FUNCTION MODE ")
+		tags["function_target"] = functionTarget
+		tags = getFunctionTags(tags)
+	} else {
+		tags["origin"] = "cloudrun"
+		tags["_dd.origin"] = "cloudrun"
+	}
+
+	return tags
+}
+
+func getFunctionTags(tags map[string]string) map[string]string {
+	tags["origin"] = "cloudfunction"
+	tags["_dd.origin"] = "cloudfunction"
+
+	functionSignatureType := os.Getenv(functionTypeEnvVar)
+	if functionSignatureType != "" {
+		tags["function_signature_type"] = functionSignatureType
+	}
+	return tags
 }

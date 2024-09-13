@@ -36,6 +36,7 @@ const (
 	awsLambda                     cloudResourceType = "AWSLambda"
 	awsFargate                    cloudResourceType = "AWSFargate"
 	cloudRun                      cloudResourceType = "GCPCloudRun"
+	cloudFunction                 cloudResourceType = "GCPCloudFunction"
 	azureAppService               cloudResourceType = "AzureAppService"
 	azureContainerApp             cloudResourceType = "AzureContainerApp"
 	aws                           cloudProvider     = "AWS"
@@ -280,6 +281,12 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		case "cloudrun":
 			req.Header.Set(cloudProviderHeader, string(gcp))
 			req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
+				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+			}
+		case "cloudfunction":
+			req.Header.Set(cloudProviderHeader, string(gcp))
+			req.Header.Set(cloudResourceTypeHeader, string(cloudFunction))
 			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
 				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
 			}
