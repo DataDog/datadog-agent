@@ -30,6 +30,8 @@ type EventWrapper struct {
 	operation    Operation
 	tableNameSet bool
 	tableName    string
+	opPayloadSet bool
+	opPayload    string
 	normalizer   *sqllexer.Normalizer
 }
 
@@ -73,6 +75,31 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
+func filterNonNulls(inSlices [][]byte) [][]byte {
+	var outSlices [][]byte
+	for _, inSlice := range inSlices {
+		var outSlice []byte
+		for _, b := range inSlice {
+			if b > 0 {
+				outSlice = append(outSlice, b)
+			}
+		}
+		outSlices = append(outSlices, outSlice)
+	}
+	return outSlices
+}
+
+// OperationPayload returns the string following the command
+func (e *EventWrapper) OperationPayload() string {
+	if !e.opPayloadSet {
+		slices := bytes.SplitN(getFragment(&e.Tx), []byte(" "), 4)
+		slices = filterNonNulls(slices)
+		e.opPayload = string(bytes.Join(slices[1:], []byte(" ")))
+		e.opPayloadSet = true
+	}
+	return e.opPayload
+}
+
 var re = regexp.MustCompile(`(?i)if\s+exists`)
 
 // extractTableName extracts the table name from the query.
@@ -100,7 +127,12 @@ func (e *EventWrapper) extractTableName() string {
 // TableName returns the name of the table the query is operating on.
 func (e *EventWrapper) TableName() string {
 	if !e.tableNameSet {
-		e.tableName = e.extractTableName()
+		if e.operation == ShowOP {
+			// do not search table name for command SHOW, save payload as table name
+			e.tableName = e.OperationPayload()
+		} else {
+			e.tableName = e.extractTableName()
+		}
 		e.tableNameSet = true
 	}
 

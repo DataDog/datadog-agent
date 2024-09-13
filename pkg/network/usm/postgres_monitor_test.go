@@ -497,8 +497,8 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"UNKNOWN": {
-						postgres.UnknownOP: adjustCount(1),
+					"search_path": {
+						postgres.ShowOP: adjustCount(1),
 					},
 				}, isTLS)
 			},

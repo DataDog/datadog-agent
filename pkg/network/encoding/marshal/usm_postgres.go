@@ -106,6 +106,8 @@ func toPostgresModelOperation(op postgres.Operation) model.PostgresOperation {
 		return model.PostgresOperation_PostgresAlterOp
 	case postgres.TruncateTableOP:
 		return model.PostgresOperation_PostgresTruncateOp
+	case postgres.ShowOP:
+		return model.PostgresOperation_PostgresShowOp
 	default:
 		return model.PostgresOperation_PostgresUnknownOp
 	}
