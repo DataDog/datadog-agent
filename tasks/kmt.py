@@ -683,7 +683,9 @@ def prepare(
 ):
     if not ci:
         stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+        domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
     else:
+        domains = None
         stack = "ci"
 
     arch_obj = Arch.from_str(arch)
@@ -692,8 +694,6 @@ def prepare(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
 
-    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
-
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
     else:
@@ -701,19 +701,19 @@ def prepare(
 
     assert len(domains) > 0, err_msg
 
-    _prepare(ctx, component, domains, stack, arch, packages, verbose, ci, compile_only)
+    _prepare(ctx, component, stack, arch, packages, verbose, ci, compile_only, domains=domains)
 
 
 def _prepare(
     ctx: Context,
     stack: str,
     component: Component,
-    domains: list[LibvirtDomain],
     arch_obj: Arch,
     packages=None,
     verbose=True,
     ci=False,
     compile_only=False,
+    domains: list[LibvirtDomain] | None = None
 ):
     if not ci:
         cc = get_compiler(ctx)
@@ -1139,7 +1139,7 @@ def test(
     if not quick:
         for arch in used_archs:
             info(f"[+] Preparing {component} for {arch}")
-            _prepare(ctx, stack, component, domains, arch, packages=packages, verbose=verbose)
+            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
