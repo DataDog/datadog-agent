@@ -416,7 +416,7 @@ This will show several tables, skipping the cases where all jobs/tests passed to
 - For each job that failed due to infra reasons, it will show a summary with quick detection of possible boot causes (e.g., it will show if the VM did not reach the login prompt, or if it didn't get an IP address, etc).
 
 ## Alien VMs
-The KMT tasks provided here allow developers to run the system-probe build process, and tests setup exactly as in the CI. As such it can be useful to use these tasks to package system-probe and target VMs outside the purview of KMT. For this we can provide a profile representing these "alien" vms, and the invoke tasks will
+The KMT tasks provided here allow developers to run the system-probe build process, and test setup exactly as in the CI. As such it can be useful to use these tasks to package system-probe and target VMs outside the purview of KMT. For this we can provide a profile representing these "alien" vms, and the invoke tasks will
 correctly package system-probe and share with the provided VMs as if they were launch by KMT. This can be useful when a developer wants to use these tasks with local VMs launch with VMware, parallels, etc, or remote VMs launch in ec2 or gcp.
 
 The format of the profile is a json list of objects representing a vm. For each VM the following information is required:
