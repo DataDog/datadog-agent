@@ -135,13 +135,15 @@ new-e2e-containers-eks-sync:
   when: always
 
 new-e2e-containers-eks:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
     - new-e2e-containers-eks-sync
+    - qa_agent
+    - qa_dca
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -280,13 +282,15 @@ new-e2e-npm-eks-sync:
   when: always
 
 new-e2e-npm-eks:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
     - new-e2e-npm-eks-sync
+    - qa_agent
+    - qa_dca
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
