@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	// InstallerPackage is the name of the Datadog Installer OCI package
 	InstallerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
 )
