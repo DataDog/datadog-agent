@@ -588,11 +588,12 @@ trigger-flakes-finder:
   allow_failure: true
 
 new-e2e-eks-cleanup-on-failure:
-  extends:
-    - .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template
   needs:
     - new-e2e-containers-eks-sync
     - new-e2e-npm-eks-sync
+    - qa_agent
+    - qa_dogstatsd
   script:
     - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
   when: on_failure
