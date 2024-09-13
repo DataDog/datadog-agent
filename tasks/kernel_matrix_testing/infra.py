@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -217,10 +217,12 @@ class AlienVMInfo(TypedDict):
     name: str
     arch: str
 
+
 AlienInfrastructure = list[AlienVMInfo]
 
+
 def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, HostInstance]:
-    with open(alien_vms, 'r') as f:
+    with open(alien_vms) as f:
         profile: AlienInfrastructure = json.load(f)
 
     # lets pretend all VMs are present locally even if they are not, because we just
@@ -229,11 +231,18 @@ def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, Host
     for vm in profile:
         instance.add_microvm(
             LibvirtDomain(
-                vm["ip"], "", "", [], vm["ssh_key_path"], vm["arch"], instance,
+                vm["ip"],
+                "",
+                "",
+                [],
+                vm["ssh_key_path"],
+                vm["arch"],
+                instance,
             )
         )
 
     return {"local": instance}
+
 
 def get_ssh_key_name(pubkey: Path) -> str | None:
     parts = pubkey.read_text().split()

@@ -30,8 +30,8 @@ from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
     LibvirtDomain,
-    build_infrastructure,
     build_alien_infrastructure,
+    build_infrastructure,
     ensure_key_in_ec2,
     get_ssh_agent_key_names,
     get_ssh_key_name,
@@ -693,7 +693,6 @@ def prepare(
         )
 
     domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
-    used_archs = get_archs_in_domains(domains)
 
     if alien_vms is not None:
         err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
@@ -710,7 +709,7 @@ def _prepare(
     stack: str,
     component: Component,
     domains: list[LibvirtDomain],
-    arch_obj:  Arch,
+    arch_obj: Arch,
     packages=None,
     verbose=True,
     ci=False,
@@ -1061,6 +1060,7 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
 
     return len(not_matches) == 0
 
+
 def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
     def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
         if alien_vms:
@@ -1088,6 +1088,7 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             return
     return domains
+
 
 @task(
     help={
@@ -1220,6 +1221,7 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
     return stack
+
 
 @task(
     help={
