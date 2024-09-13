@@ -1076,9 +1076,6 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
         ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
         return build_infrastructure(stack, ssh_key_obj)
 
-    if vms is not None and alien_vms is not None:
-        raise Exit("target VMs can be either KMT VMs or alien VMs, not both")
-
     infra = _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms)
     if alien_vms is not None:
         return infra["local"].microvms
@@ -1210,6 +1207,8 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 
 
 def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
+    assert vms is not None and alien_vms is not None, "target VMs can be either KMT VMs or alien VMs, not both"
+
     if alien_vms is not None and vms is None:
         stack = check_and_get_stack("alien-stack")
         if not stacks.stack_exists(stack):
