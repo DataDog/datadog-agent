@@ -4,7 +4,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from invoke.context import Context
 
@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import Arch, KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -100,6 +100,7 @@ class LibvirtDomain:
         tag: str,
         vmset_tags: list[str],
         ssh_key_path: str | None,
+        arch: KMTArchNameOrLocal | None,
         instance: HostInstance,
     ):
         self.ip = ip
@@ -108,6 +109,7 @@ class LibvirtDomain:
         self.vmset_tags = vmset_tags
         self.ssh_key = ssh_key_path
         self.instance = instance
+        self.arch = arch
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
         if timeout_sec is not None:
@@ -200,7 +202,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
             # location in the local machine.
             instance.add_microvm(
                 LibvirtDomain(
-                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), instance
+                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), arch, instance
                 )
             )
 
@@ -208,6 +210,30 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
 
     return infra
 
+
+class AlienVMInfo(TypedDict):
+    ip: str
+    ssh_key_path: str
+    name: str
+    arch: str
+
+AlienInfrastructure = list[AlienVMInfo]
+
+def build_alien_infrastructure(alien_vms: Path) -> dict[KMTArchNameOrLocal, HostInstance]:
+    with open(alien_vms, 'r') as f:
+        profile: AlienInfrastructure = json.load(f)
+
+    # lets pretend all VMs are present locally even if they are not, because we just
+    # want to bypass the ssh proxying stuff when running commands and copying things
+    instance = HostInstance("local", "local", None)
+    for vm in profile:
+        instance.add_microvm(
+            LibvirtDomain(
+                vm["ip"], "", "", [], vm["ssh_key_path"], vm["arch"], instance,
+            )
+        )
+
+    return {"local": instance}
 
 def get_ssh_key_name(pubkey: Path) -> str | None:
     parts = pubkey.read_text().split()
