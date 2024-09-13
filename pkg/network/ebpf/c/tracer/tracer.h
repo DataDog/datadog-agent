@@ -161,4 +161,10 @@ typedef struct {
     __u64 timestamp;
 } pid_ts_t;
 
+struct trace_event_raw_tcp_connect_fail {
+    __u64 __do_not_use__;
+    const void *skaddr;
+    int error;
+};
+
 #endif

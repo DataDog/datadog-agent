@@ -1167,4 +1167,55 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     return 0;
 }
 
+// tracepoint for tcp_destroy_sock
+SEC("tracepoint/tcp/tcp_destroy_sock")
+int tracepoint__tcp_destroy_sock(struct trace_event_raw_tcp_event_sk *ctx) {
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    conn_tuple_t t = {};
+
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        // increment_telemetry_count(tcp_destroy_sock_failed_tuple);
+        return 0;
+    }
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+
+    // Clean up tcp_ongoing_connect_pid map
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    return 0;
+}
+
+// tracepoint for tcp_connect_fail
+SEC("tracepoint/tcp/tcp_connect_fail")
+int tracepoint__tcp_connect_fail(struct trace_event_raw_tcp_connect_fail *ctx) {
+    struct sock *sk = (struct sock *)ctx->skaddr;
+    int error = ctx->error;
+    conn_tuple_t t = {};
+
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        // increment_telemetry_count(tcp_connect_fail_failed_tuple);
+        return 0;
+    }
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+
+    pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (!pid_tgid_p) {
+        // increment_telemetry_count(tcp_connect_fail_missing_pid);
+        return 0;
+    }
+
+    t.pid = pid_tgid_p->pid_tgid >> 32;
+
+    // Clean up tcp_ongoing_connect_pid map
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    // Handle the connection failure
+    flush_tcp_failure(ctx, &t, error);
+
+    return 0;
+}
+
+
 char _license[] SEC("license") = "GPL";
