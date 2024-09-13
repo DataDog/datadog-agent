@@ -133,7 +133,7 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 	req.Header.Add("Metadata-Flavor", "Google")
 	res, err := httpClient.Do(req)
 	if err != nil {
-		log.Info("unable to get the requested metadata, defaulting to unknown")
+		log.Info(fmt.Sprintf("unable to get the requested metadata, defaulting to unknown with url %s", url))
 		return "unknown"
 	}
 	defer res.Body.Close()
