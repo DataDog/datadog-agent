@@ -82,20 +82,8 @@ func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 // If the URL is a local file, it will be uploaded to the VM.
 // If the URL is a remote file, it will be downloaded from the VM
 func PutOrDownloadFile(host *components.RemoteHost, url string, destination string) error {
-	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-		return DownloadFile(host, url, destination)
-	}
-
-	if strings.HasPrefix(url, "file://") {
-		// URL is a local file
-		localPath := strings.TrimPrefix(url, "file://")
-		host.CopyFile(localPath, destination)
-		return nil
-	}
-
-	// just assume it's a local file
-	host.CopyFile(url, destination)
-	return nil
+	// no retry
+	return PutOrDownloadFileWithRetry(host, url, destination, &backoff.StopBackOff{})
 }
 
 // PutOrDownloadFileWithRetry is similar to PutOrDownloadFile but retries on download failure,
