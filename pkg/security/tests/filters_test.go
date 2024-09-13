@@ -398,7 +398,7 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("equal-set", func(t *testing.T) {
+	t.Run("equal-fixed-value", func(t *testing.T) {
 		runAUIDTest(t, test, goSyscallTester, "1005", "6000")
 	})
 
@@ -406,7 +406,7 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 		runAUIDTest(t, test, goSyscallTester, "0", "6000")
 	})
 
-	t.Run("equal-notset", func(t *testing.T) {
+	t.Run("equal-unset", func(t *testing.T) {
 		runAUIDTest(t, test, goSyscallTester, "-1", "6000")
 	})
 }
@@ -473,6 +473,38 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	}
 
 	runAUIDTest(t, test, goSyscallTester, "1500", "605")
+}
+
+func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_equal_4",
+			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid != AUDIT_AUID_UNSET`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runAUIDTest(t, test, goSyscallTester, "6000", "-1")
 }
 
 func TestFilterDiscarderMask(t *testing.T) {

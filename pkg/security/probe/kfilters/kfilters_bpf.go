@@ -21,6 +21,7 @@ type activeKFilter interface {
 	Apply(*manager.Manager) error
 	Key() interface{}
 	GetTableName() string
+	GetApproverType() string
 }
 
 // ActiveKFilters defines kfilter map
@@ -84,10 +85,11 @@ func makeEntryKey(tableName string, tableKey interface{}) entryKey {
 }
 
 type arrayEntry struct {
-	tableName string
-	index     interface{}
-	value     interface{}
-	zeroValue interface{}
+	approverType string
+	tableName    string
+	index        interface{}
+	value        interface{}
+	zeroValue    interface{}
 }
 
 func (e *arrayEntry) Key() interface{} {
@@ -96,6 +98,10 @@ func (e *arrayEntry) Key() interface{} {
 
 func (e *arrayEntry) GetTableName() string {
 	return e.tableName
+}
+
+func (e *arrayEntry) GetApproverType() string {
+	return e.approverType
 }
 
 func (e *arrayEntry) Remove(manager *manager.Manager) error {
@@ -115,9 +121,10 @@ func (e *arrayEntry) Apply(manager *manager.Manager) error {
 }
 
 type eventMaskEntry struct {
-	tableName string
-	tableKey  interface{}
-	eventMask uint64
+	approverType string
+	tableName    string
+	tableKey     interface{}
+	eventMask    uint64
 }
 
 func (e *eventMaskEntry) Key() interface{} {
@@ -126,6 +133,10 @@ func (e *eventMaskEntry) Key() interface{} {
 
 func (e *eventMaskEntry) GetTableName() string {
 	return e.tableName
+}
+
+func (e *eventMaskEntry) GetApproverType() string {
+	return e.approverType
 }
 
 func (e *eventMaskEntry) Remove(manager *manager.Manager) error {
@@ -157,9 +168,10 @@ func (e *eventMaskEntry) Apply(manager *manager.Manager) error {
 }
 
 type hashEntry struct {
-	tableName string
-	tableKey  interface{}
-	value     interface{}
+	approverType string
+	tableName    string
+	tableKey     interface{}
+	value        interface{}
 }
 
 func (e *hashEntry) Key() interface{} {
@@ -168,6 +180,10 @@ func (e *hashEntry) Key() interface{} {
 
 func (e *hashEntry) GetTableName() string {
 	return e.tableName
+}
+
+func (e *hashEntry) GetApproverType() string {
+	return e.approverType
 }
 
 func (e *hashEntry) Remove(manager *manager.Manager) error {

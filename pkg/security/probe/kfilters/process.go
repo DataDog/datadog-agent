@@ -29,12 +29,17 @@ var processCapabilities = rules.FieldCapability{
 	FilterMode:       rules.ApproverOnlyMode,
 	RangeFilterValue: &rules.RangeFilterValue{Min: 0, Max: maxAUID},
 	FilterWeight:     100,
-	// convert a != model.AuditUIDUnset to the max range
-	HandleNotApproverValue: func(value interface{}) (interface{}, bool) {
-		if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
-			return rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+	// convert  `!= model.AuditUIDUnset`` to the max range
+	HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
+		if fieldValueType != eval.ScalarValueType {
+			return fieldValueType, value, false
 		}
-		return value, false
+
+		if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+			return eval.RangeValueType, rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+		}
+
+		return fieldValueType, value, false
 	},
 }
 
@@ -60,7 +65,6 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 			})
 		case eval.RangeValueType:
 			min, max := value.Value.(rules.RangeFilterValue).Min, value.Value.(rules.RangeFilterValue).Max
-
 			if !auidRangeSet || auidRange.Min > min {
 				auidRange.Min = min
 			}
@@ -73,11 +77,12 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 		}
 	}
 
-	if auidRange.Min != 0 || auidRange.Max != maxAUID {
+	if auidRangeSet {
 		kfilters = append(kfilters, &hashEntry{
-			tableName: auidRangeApproversTable,
-			tableKey:  eventType,
-			value:     ebpf.NewUInt32RangeMapItem(uint32(auidRange.Min), uint32(auidRange.Max)),
+			approverType: "auid",
+			tableName:    auidRangeApproversTable,
+			tableKey:     eventType,
+			value:        ebpf.NewUInt32RangeMapItem(uint32(auidRange.Min), uint32(auidRange.Max)),
 		})
 	}
 

@@ -173,17 +173,17 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 	}
 
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000 && process.auid < 2000`}, 0, 1999)
+	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
 	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid > 1000`}, 1001, maxAUID)
 	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid < 1000`}, 0, 999)
-	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, 2000)
+	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
 	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid >= 1000`}, 1000, maxAUID)
 	assert(t, []string{`open.file.path =~ "/tmp/*" && process.auid <= 1000`}, 0, 1000)
 
 	assert(t, []string{
 		`open.file.path =~ "/tmp/*" && process.auid > 1000`,
 		`open.file.path =~ "/tmp/*" && process.auid < 500`,
-	}, 0, 0)
+	}, 0, maxAUID)
 	assert(t, []string{
 		`open.file.path =~ "/tmp/*" && process.auid >= 1000`,
 		`open.file.path =~ "/tmp/*" && process.auid > 1500`,
@@ -192,4 +192,7 @@ func TestApproverAUIDRange(t *testing.T) {
 		`open.file.path =~ "/tmp/*" && process.auid < 1000`,
 		`open.file.path =~ "/tmp/*" && process.auid < 500`,
 	}, 0, 999)
+	assert(t, []string{
+		`open.file.path =~ "/tmp/*" && process.auid != AUDIT_AUID_UNSET`,
+	}, 0, maxAUID)
 }

@@ -27,9 +27,10 @@ var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
 func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (activeKFilter, error) {
 	return &eventMaskEntry{
-		tableName: tableName,
-		tableKey:  ebpf.NewStringMapItem(basename, BasenameFilterSize),
-		eventMask: uint64(1 << (eventType - 1)),
+		approverType: "basename",
+		tableName:    tableName,
+		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
 
@@ -59,10 +60,11 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter
 	}
 
 	return &arrayEntry{
-		tableName: tableName,
-		index:     uint32(0),
-		value:     ebpf.NewUint32FlagsMapItem(bitmask),
-		zeroValue: ebpf.Uint32FlagsZeroMapItem,
+		approverType: "flag",
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        ebpf.NewUint32FlagsMapItem(bitmask),
+		zeroValue:    ebpf.Uint32FlagsZeroMapItem,
 	}, nil
 }
 
@@ -73,10 +75,11 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter
 	}
 
 	return &arrayEntry{
-		tableName: tableName,
-		index:     uint32(0),
-		value:     ebpf.NewUint64FlagsMapItem(bitmask),
-		zeroValue: ebpf.Uint64FlagsZeroMapItem,
+		approverType: "flag",
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        ebpf.NewUint64FlagsMapItem(bitmask),
+		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
 	}, nil
 }
 

@@ -856,6 +856,28 @@ func TestRuleSetApprovers25(t *testing.T) {
 	}
 }
 
+func TestRuleSetApprovers26(t *testing.T) {
+	exprs := []string{
+		`open.file.path in [~"/proc/*/mem"] && open.file.path not in ["/proc/${process.pid}/mem", "/proc/self/mem"]`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
 func TestRuleSetAUDApprovers(t *testing.T) {
 	caps := FieldCapabilities{
 		{
@@ -872,11 +894,16 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 			FilterMode:       ApproverOnlyMode,
 			RangeFilterValue: &RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1},
 			FilterWeight:     10,
-			HandleNotApproverValue: func(value interface{}) (interface{}, bool) {
-				if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
-					return RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+			HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
+				if fieldValueType != eval.ScalarValueType {
+					return fieldValueType, value, false
 				}
-				return value, false
+
+				if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+					return eval.RangeValueType, RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+				}
+
+				return fieldValueType, value, false
 			},
 		},
 	}

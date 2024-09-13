@@ -31,7 +31,7 @@ type FieldCapability struct {
 	FilterWeight           int
 	FilterMode             FilterMode
 	RangeFilterValue       *RangeFilterValue
-	HandleNotApproverValue func(value interface{}) (interface{}, bool)
+	HandleNotApproverValue func(valueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool)
 }
 
 // TypeMatches return if a type is supported

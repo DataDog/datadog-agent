@@ -100,23 +100,23 @@ func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule,
 }
 
 // isAnApprover returns whether the given value is an approver for the given rule
-func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, fieldValueType eval.FieldValueType, value interface{}) (bool, interface{}, error) {
+func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap FieldCapability, fieldValueType eval.FieldValueType, value interface{}) (bool, eval.FieldValueType, interface{}, error) {
 	if fieldValueType == eval.RangeValueType {
 		isAnApprover, approverValue, err := isAnIntLesserEqualThanApprover(event, ctx, rule, fieldCap, value)
 		if isAnApprover || err != nil {
-			return isAnApprover, approverValue, err
+			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
 		isAnApprover, approverValue, err = isAnIntLesserThanApprover(event, ctx, rule, fieldCap, value)
 		if isAnApprover || err != nil {
-			return isAnApprover, approverValue, err
+			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
 		isAnApprover, approverValue, err = isAnIntGreaterEqualThanApprover(event, ctx, rule, fieldCap, value)
 		if isAnApprover || err != nil {
-			return isAnApprover, approverValue, err
+			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
 		isAnApprover, approverValue, err = isAnIntGreaterThanApprover(event, ctx, rule, fieldCap, value)
 		if isAnApprover || err != nil {
-			return isAnApprover, approverValue, err
+			return isAnApprover, eval.RangeValueType, approverValue, err
 		}
 	}
 
@@ -138,27 +138,27 @@ func isAnApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap Fiel
 
 	notValue, err := eval.NotOfValue(value)
 	if err != nil {
-		return false, value, err
+		return false, fieldValueType, value, err
 	}
 
 	result, err := isaaFnc(value, notValue)
 	if result || err != nil {
-		return result, value, err
+		return result, fieldValueType, value, err
 	}
 
 	if fieldCap.HandleNotApproverValue == nil {
-		return false, value, err
+		return false, fieldValueType, value, err
 	}
 
 	result, err = isaaFnc(notValue, value)
 	if result {
-		value, ok := fieldCap.HandleNotApproverValue(value)
+		fieldValueType, value, ok := fieldCap.HandleNotApproverValue(fieldValueType, value)
 		if ok {
-			return true, value, nil
+			return true, fieldValueType, value, nil
 		}
 	}
 
-	return false, value, err
+	return false, fieldValueType, value, err
 }
 
 func bitmaskCombinations(bitmasks []int) []int {
@@ -236,12 +236,12 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 				switch value.Type {
 				case eval.ScalarValueType, eval.PatternValueType, eval.GlobValueType, eval.RangeValueType:
-					isAnApprover, approverValue, err := isAnApprover(event, ctx, rule, fieldCap, value.Type, value.Value)
+					isAnApprover, approverValueType, approverValue, err := isAnApprover(event, ctx, rule, fieldCap, value.Type, value.Value)
 					if err != nil {
 						return nil, err
 					}
 					if isAnApprover {
-						filterValue := FilterValue{Field: field, Value: approverValue, Type: value.Type, Mode: fieldCap.FilterMode}
+						filterValue := FilterValue{Field: field, Value: approverValue, Type: approverValueType, Mode: fieldCap.FilterMode}
 						if !fieldCap.Validate(filterValue) {
 							continue LOOP
 						}
@@ -253,7 +253,7 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			}
 
 			for _, bitmask := range bitmaskCombinations(bitmasks) {
-				isAnApprover, _, err := isAnApprover(event, ctx, rule, fieldCap, eval.BitmaskValueType, bitmask)
+				isAnApprover, _, _, err := isAnApprover(event, ctx, rule, fieldCap, eval.BitmaskValueType, bitmask)
 				if err != nil {
 					return nil, err
 				}
