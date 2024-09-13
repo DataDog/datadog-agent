@@ -171,12 +171,11 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 // CheckLogsNotExpected verifies the absence of unexpected logs.
 func CheckLogsNotExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string) {
 	t.Helper()
-
 	t.Logf("Checking for logs from service: '%s' with content: '%s' are not collected", service, content)
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		logs, err := FetchAndFilterLogs(fakeIntake, service, content)
-		intakeLog := logsToString(logs)
 		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			intakeLog := logsToString(logs)
 			if assert.Empty(c, logs, "Unexpected logs with content: '%s' found. Instead, found: %s", content, intakeLog) {
 				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", service, content)
 			}
