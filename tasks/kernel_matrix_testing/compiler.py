@@ -118,7 +118,7 @@ class CompilerImage:
         self.ensure_running()
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
-        self.ctx.run(
+        return self.ctx.run(
             f"docker exec -u {user} -i -e FORCE_COLOR=1 {self.name} bash -c \"{cmd}\"",
             hide=(not verbose),
             warn=allow_fail,
