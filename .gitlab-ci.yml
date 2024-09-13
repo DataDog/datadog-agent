@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/.pre/linters.yml
   - .gitlab/.pre/test_gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
