@@ -5,6 +5,7 @@ Running E2E Tests with infra based on Pulumi
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import os.path
 import shutil
@@ -22,6 +23,7 @@ from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
+from tools.e2e_stacks import destroy_remote_stack
 
 
 @task(
@@ -192,6 +194,49 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
 
     if output:
         _clean_output()
+
+
+@task
+def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
+    """
+    Clean up remote stacks created by the pipeline
+    """
+    # if not running_in_ci():
+    #     raise Exit("This task should be run in CI only", 1)
+    print(f"Running aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci/ci-{pipeline_id}")
+    res = ctx.run(
+        f"aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci/ci-{pipeline_id}",
+        hide=True,
+        warn=True,
+    )
+    if res.exited != 0:
+        print(f"Failed to list stacks in bucket {pulumi_backend}:", res.stdout, res.stderr)
+        return
+    eks_stacks = set()
+    stacks = json.loads(res.stdout)
+    if "Contents" in stacks:
+        for stack in stacks["Contents"]:
+            if "Key" in stack:
+                stack_id = stack["Key"].split("/")[-1].replace(".json.bak", "").replace(".json", "")
+                if "eks" in stack_id:
+                    eks_stacks.add(f"organization/e2eci/{stack_id}")
+
+    pool = multiprocessing.Pool(len(eks_stacks))
+    res = pool.map(destroy_remote_stack, eks_stacks)
+    destroyed_stack = set()
+    failed_stack = set()
+    for r, stack in res:
+        if r.returncode != 0:
+            failed_stack.add(stack)
+        else:
+            destroyed_stack.add(stack)
+        print(f"Stack {stack}: {r.stdout} {r.stderr}")
+    pool.close()
+
+    for stack in destroyed_stack:
+        print(f"Stack {stack} destroyed successfully")
+    for stack in failed_stack:
+        print(f"Failed to destroy stack {stack}")
 
 
 @task

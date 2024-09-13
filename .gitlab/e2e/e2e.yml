@@ -124,6 +124,7 @@ new-e2e-containers-eks-init:
 new-e2e-containers-eks-sync:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   stage: e2e
+  tags: ["arch:amd64"]
   script:
     - exit 0
   needs:
@@ -570,3 +571,15 @@ trigger-flakes-finder:
       - artifact: flake-finder-gitlab-ci.yml
         job: generate-flakes-finder-pipeline
   allow_failure: true
+
+new-e2e-eks-cleanup-on-failure:
+  extends:
+    - .new_e2e_template_needs_container_deploy
+  needs:
+    - new-e2e-containers-eks-sync
+    - new-e2e-npm-eks-sync
+  script:
+    - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
+  when: on_failure
+  allow_failure: true
+
