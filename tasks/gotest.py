@@ -741,7 +741,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     modules_to_test = {}
 
     for package in packages:
-        module_path = get_go_module(package).replace("./", "")
+        module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
         if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
@@ -814,7 +814,7 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return path
+            return os.path.relpath(path)
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 
