@@ -148,7 +148,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	logSize := int64(len(log.Log)) + 1
 	if fileToUpdate.size+logSize > s.fileSizeMax {
 		s.combinedUsageSize -= fileToUpdate.size
-		err := s.deleteAndRemakeFile(fileToUpdate.filename)
+		err := s.makeFile(fileToUpdate.filename)
 		if err != nil {
 			ddLog.Warn("Failed to delete and remake oversize file", err)
 			return
@@ -157,9 +157,22 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 		fileToUpdate.size = 0
 	}
 
-	// Ensure combined logs usage doesn't exceed integrations_logs_total_usage
+	// Ensure combined logs usage doesn't exceed integrations_logs_total_usage by
+	// deleting files until total usage falls below the set maximum
 	for s.combinedUsageSize+logSize > s.combinedUsageMax {
-		s.deleteLeastRecentlyModified()
+		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+		err := s.deleteFile(leastRecentlyModifiedFile)
+		if err != nil {
+			ddLog.Warn("Error deleting log file:", err)
+			continue
+		}
+
+		err = s.makeFile(leastRecentlyModifiedFile.filename)
+		if err != nil {
+			ddLog.Warn("Error creating log file:", err)
+			continue
+		}
 	}
 
 	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
@@ -173,18 +186,20 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	fileToUpdate.size += logSize
 }
 
-// deleteLeastRecentlyModified deletes and remakes the least recently log file
-func (s *Launcher) deleteLeastRecentlyModified() {
-	leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
-
-	s.combinedUsageSize -= leastRecentlyModifiedFile.size
-	err := s.deleteAndRemakeFile(filepath.Join(s.runPath, leastRecentlyModifiedFile.filename))
+// deleteFile deletes the given file
+func (s *Launcher) deleteFile(file *FileInfo) error {
+	err := os.Remove(filepath.Join(s.runPath, file.filename))
 	if err != nil {
-		ddLog.Warn("Unable to delete and remake least recently modified file: ", err)
+		return err
 	}
+	ddLog.Info("Successfully deleted log file.")
 
-	leastRecentlyModifiedFile.size = 0
-	leastRecentlyModifiedFile.lastModified = time.Now()
+	s.combinedUsageSize -= file.size
+
+	file.size = 0
+	file.lastModified = time.Now()
+
+	return nil
 }
 
 // getLeastRecentlyModifiedFile returns the least recently modified file among
@@ -272,20 +287,9 @@ func (s *Launcher) integrationLogFilePath(id string) string {
 	return logFilePath
 }
 
-// deleteAndRemakeFile deletes log files and creates a new empty file with the
+// makeFile deletes log files and creates a new empty file with the
 // same name
-func (s *Launcher) deleteAndRemakeFile(filepath string) error {
-	err := os.Remove(filepath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			ddLog.Warn("File does not exist, creating new one: ", err)
-		} else {
-			ddLog.Warn("Error deleting file: ", err)
-		}
-	} else {
-		ddLog.Info("Successfully deleted oversize log file, creating new one.")
-	}
-
+func (s *Launcher) makeFile(filepath string) error {
 	file, err := os.Create(filepath)
 	if err != nil {
 		return err
@@ -329,7 +333,13 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 			s.integrationToFile[integrationID] = fileInfo
 
 			for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
-				s.deleteLeastRecentlyModified()
+				leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+				err := s.deleteFile(leastRecentlyModifiedFile)
+				if err != nil {
+					ddLog.Warn("Error deleting log file:", err)
+					break
+				}
 			}
 
 			s.combinedUsageSize += info.Size()

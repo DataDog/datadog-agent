@@ -131,13 +131,15 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 // TestEnsureFileSize tests that ensureFileSize enforces the correct file sizes for launcher files
 func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	filename := "testfile.log"
-	file, err := os.Create(filename)
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
+	fileinfo := &FileInfo{filename: filename, size: int64(0)}
 	assert.Nil(suite.T(), err)
 
-	defer os.Remove(filename)
+	defer os.Remove(filepath)
 	defer file.Close()
 
-	info, err := os.Stat(filename)
+	info, err := os.Stat(filepath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
 
@@ -152,7 +154,9 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 
-	err = suite.s.deleteAndRemakeFile(filename)
+	err = suite.s.deleteFile(fileinfo)
+	assert.Nil(suite.T(), err)
+	err = suite.s.makeFile(filename)
 	assert.Nil(suite.T(), err)
 
 	info, err = os.Stat(filename)
@@ -343,6 +347,52 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 
 	assert.Equal(suite.T(), int64(0), suite.s.combinedUsageSize)
 	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
+}
+
+// TestScanInitialFilesDeletesProperly ensures the scanInitialFiles function
+// properly deletes log files once the sum of sizes for the scanned files is too
+// large
+func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
+	err := os.RemoveAll(suite.s.runPath)
+	assert.Nil(suite.T(), err)
+	os.MkdirAll(suite.s.runPath, 0755)
+	assert.Nil(suite.T(), err)
+
+	oneMB := int64(1 * 1024 * 1024)
+	suite.s.combinedUsageMax = oneMB
+
+	filename1 := "sample_integration1_123.log"
+	filename2 := "sample_integration2_123.log"
+
+	name := filepath.Join(suite.s.runPath, filename1)
+	file1, err := os.Create(name)
+	assert.Nil(suite.T(), err)
+	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
+	assert.Nil(suite.T(), err)
+
+	defer file1.Close()
+	defer file2.Close()
+	defer os.Remove(filename1)
+	defer os.Remove(filename2)
+
+	dataOneMB := make([]byte, oneMB)
+	file1.Write(dataOneMB)
+	file2.Write(dataOneMB)
+
+	suite.s.scanInitialFiles(suite.s.runPath)
+
+	// make sure there is only one file in the directory
+	files, err := os.ReadDir(suite.s.runPath)
+	assert.Nil(suite.T(), err)
+
+	fileCount := 0
+	for _, file := range files {
+		if !file.IsDir() {
+			fileCount++
+		}
+	}
+
+	assert.Equal(suite.T(), 1, fileCount)
 }
 
 func TestLauncherTestSuite(t *testing.T) {
