@@ -640,7 +640,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v2",
+			image: "registry/dd-lib-dotnet-init:v3",
 		},
 		{
 			lang:  "ruby",
@@ -1358,7 +1358,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		"java":   "v1",
 		"python": "v2",
 		"ruby":   "v2",
-		"dotnet": "v2",
+		"dotnet": "v3",
 		"js":     "v5",
 	}
 
