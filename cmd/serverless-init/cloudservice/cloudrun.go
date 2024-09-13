@@ -32,7 +32,7 @@ func (c *CloudRun) GetOrigin() string {
 		_ = log.Warn(fmt.Sprintf("WE ARE IN CLOUD FUNCTION MODE but %s", os.Environ()))
 		return "cloudfunction"
 	}
-	_ = log.Warn("WE NOT IN CLOUD FUNCTION MODE")
+	_ = log.Warn(fmt.Sprintf("WE NOT IN CLOUD FUNCTION MODE", os.Environ()))
 	return "cloudrun"
 }
 
