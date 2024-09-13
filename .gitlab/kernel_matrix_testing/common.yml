@@ -227,6 +227,7 @@
 .kmt_run_tests:
   retry:
     max: 2
+    exit_codes: 42
     when:
       - job_execution_timeout
       - runner_system_failure
