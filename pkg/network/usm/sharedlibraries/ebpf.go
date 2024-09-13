@@ -76,8 +76,8 @@ func IsSupported(cfg *ddebpf.Config) bool {
 	return kversion >= kernel.VersionCode(4, 14, 0)
 }
 
-// NewEBPFProgram returns an instance of the shared libraries eBPF program singleton
-func NewEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
+// GetEBPFProgram returns an instance of the shared libraries eBPF program singleton
+func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
 	progSingletonOnce.Do(func() {
 		progSingleton = newEBPFProgram(cfg)
 	})
@@ -185,7 +185,7 @@ func (e *EbpfProgram) start() error {
 				if !ok {
 					return
 				}
-				e.handleEvent(event)
+				e.handleEvent(&event)
 			case <-lostChan:
 				// Nothing to do in this case
 				break

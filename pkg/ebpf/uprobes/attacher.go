@@ -380,6 +380,8 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
+	var cleanupSharedLibs func()
+
 	procMonitor := monitor.GetProcessMonitor()
 	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
 	if err != nil {
@@ -397,16 +399,14 @@ func (ua *UprobeAttacher) Start() error {
 			return errors.New("shared libraries tracing not supported for this platform")
 		}
 
-		ua.soWatcher = sharedlibraries.NewEBPFProgram(ua.config.EbpfConfig)
+		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
 		err := ua.soWatcher.Init()
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
-		err = ua.soWatcher.Start()
-		if err != nil {
-			return fmt.Errorf("error starting shared library program: %w", err)
-		}
+
+		cleanupSharedLibs = ua.soWatcher.Subscribe(ua.handleLibraryOpen)
 	}
 
 	if ua.config.PerformInitialScan {
@@ -433,17 +433,12 @@ func (ua *UprobeAttacher) Start() error {
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()
 			}
+			if cleanupSharedLibs != nil {
+				cleanupSharedLibs()
+			}
 			ua.wg.Done()
 			log.Infof("uprobe attacher %s stopped", ua.name)
 		}()
-
-		var sharedLibDataChan <-chan ebpf.DataEvent
-		var sharedLibLostChan <-chan uint64
-
-		if ua.soWatcher != nil {
-			sharedLibDataChan = ua.soWatcher.GetPerfHandler().DataChannel()
-			sharedLibLostChan = ua.soWatcher.GetPerfHandler().LostChannel()
-		}
 
 		for {
 			select {
@@ -452,14 +447,6 @@ func (ua *UprobeAttacher) Start() error {
 			case <-processSync.C:
 				// We always track process deletions in the scan, to avoid memory leaks.
 				_ = ua.Sync(ua.config.EnablePeriodicScanNewProcesses, true)
-			case event, ok := <-sharedLibDataChan:
-				if !ok {
-					return
-				}
-				_ = ua.handleLibraryOpen(&event)
-			case <-sharedLibLostChan:
-				// Nothing to do in this case
-				break
 			}
 		}
 	}()
@@ -533,13 +520,13 @@ func (ua *UprobeAttacher) handleProcessExit(pid uint32) {
 	_ = ua.DetachPID(pid)
 }
 
-func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
-	defer event.Done()
-
-	libpath := sharedlibraries.ToLibPath(event.Data)
+func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 	path := sharedlibraries.ToBytes(&libpath)
 
-	return ua.AttachLibrary(string(path), libpath.Pid)
+	err := ua.AttachLibrary(string(path), libpath.Pid)
+	if err != nil {
+		log.Errorf("error attaching to library %s (PID %d): %v", path, libpath.Pid, err)
+	}
 }
 
 func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, procInfo *ProcInfo) (func(utils.FilePath) error, func(utils.FilePath) error) {
