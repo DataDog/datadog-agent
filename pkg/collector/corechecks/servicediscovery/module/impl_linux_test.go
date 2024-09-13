@@ -666,40 +666,55 @@ func TestNodeDocker(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestAPMInstrumentationProvidedPython(t *testing.T) {
+func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	fmapper := fileopener.BuildFmapper(t)
-	fakePython := makeAlias(t, "python", fmapper)
+	for _, test := range []struct {
+		alias    string
+		lib      string
+		language language.Language
+	}{
+		{
+			alias: "python",
+			// We need the process to map something in a directory called
+			// "site-packages/ddtrace". The actual mapped file does not matter.
+			lib: filepath.Join(curDir,
+				"..", "..", "..", "..",
+				"network", "usm", "testdata",
+				"site-packages", "ddtrace",
+				fmt.Sprintf("libssl.so.%s", runtime.GOARCH)),
+			language: language.Python,
+		},
+	} {
+		t.Run(test.alias, func(t *testing.T) {
+			fmapper := fileopener.BuildFmapper(t)
+			fake := makeAlias(t, test.alias, fmapper)
 
-	// We need the process to map something in a directory called
-	// "site-packages/ddtrace". The actual mapped file does not matter.
-	ddtrace := filepath.Join(curDir, "..", "..", "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(ddtrace, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+			// Give the process a listening socket
+			listener, err := net.Listen("tcp", "")
+			require.NoError(t, err)
+			f, err := listener.(*net.TCPListener).File()
+			listener.Close()
+			require.NoError(t, err)
+			t.Cleanup(func() { f.Close() })
+			disableCloseOnExec(t, f)
 
-	// Give the process a listening socket
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	f, err := listener.(*net.TCPListener).File()
-	listener.Close()
-	require.NoError(t, err)
-	t.Cleanup(func() { f.Close() })
-	disableCloseOnExec(t, f)
+			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
+			require.NoError(t, err)
 
-	cmd, err := fileopener.OpenFromProcess(t, fakePython, lib)
-	require.NoError(t, err)
+			url := setupDiscoveryModule(t)
 
-	url := setupDiscoveryModule(t)
-
-	pid := cmd.Process.Pid
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(t, url)
-		assert.Contains(collect, portMap, pid)
-		assert.Equal(collect, string(language.Python), portMap[pid].Language)
-		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-		assertStat(collect, portMap[pid])
-	}, 30*time.Second, 100*time.Millisecond)
+			pid := cmd.Process.Pid
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(test.language), portMap[pid].Language)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertStat(collect, portMap[pid])
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 // Check that we can get listening processes in other namespaces.
