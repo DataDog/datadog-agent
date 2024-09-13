@@ -118,12 +118,14 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
+    def _get_rsync_base(self, exclude: PathOrStr | None, verbose=False) -> str:
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
 
-        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'} | SSH_MULTIPLEX_OPTIONS)} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+        verbose_arg = "-vP" if verbose else ""
+
+        return f"rsync {verbose_arg} -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'} | SSH_MULTIPLEX_OPTIONS)} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
 
     def copy(
         self,
@@ -136,10 +138,12 @@ class LibvirtDomain:
         # Always ensure that the parent directory exists, rsync creates the rest
         self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
 
-        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
+        info(f"[+] Copying (HOST: {source}) => (VM: {target})...")
+
+        run = self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {source} root@{self.ip}:{target}"
         res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
         if res:
-            info(f"[+] (HOST: {source}) => (VM: {target})")
+            info(f"[+] Copied (HOST: {source}) => (VM: {target})")
 
         return res
 
@@ -151,7 +155,7 @@ class LibvirtDomain:
         exclude: PathOrStr | None = None,
         verbose: bool = False,
     ):
-        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
+        run = self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" root@{self.ip}:{source} {target}"
         res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
         if res:
             info(f"[+] (VM: {source}) => (HOST: {target})")
