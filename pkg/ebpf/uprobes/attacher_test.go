@@ -823,8 +823,10 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 
 	require.Eventually(t, func() bool {
 		// Other processes might have finished and forced the Unregister call to the registry
-		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", 1)
-	}, time.Second*10, 100*time.Millisecond, "received calls %v", mockRegistry.Calls)
+		return methodHasBeenCalledWithPredicate(mockRegistry, "Unregister", func(call mock.Call) bool {
+			return call.Arguments[0].(uint32) == uint32(cmd.Process.Pid)
+		})
+	}, time.Second*10, 200*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Unregister", uint32(cmd.Process.Pid))
 }
@@ -921,4 +923,13 @@ func methodHasBeenCalledAtLeastTimes(registry *MockFileRegistry, methodName stri
 		}
 	}
 	return calls >= times
+}
+
+func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName string, predicate func(mock.Call) bool) bool {
+	for _, call := range registry.Calls {
+		if call.Method == methodName && predicate(call) {
+			return true
+		}
+	}
+	return false
 }
