@@ -19,10 +19,10 @@ import (
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	revisionNameEnvVar      = "K_REVISION"
-	RunServiceNameEnvVar    = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
+	RunServiceNameEnvVar    = "K_SERVICE" // RunServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
 	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
-	FunctionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
+	FunctionTargetEnvVar    = "FUNCTION_TARGET" // FunctionTargetEnvVar exists as a cloudrunfunction env var for all runtimes except Go
 
 	defaultBaseURL        = "http://metadata.google.internal/computeMetadata/v1"
 	defaultContainerIDURL = "/instance/id"
