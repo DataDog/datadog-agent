@@ -10,6 +10,7 @@ package service
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	"os/exec"
 	"path/filepath"
@@ -84,6 +85,7 @@ func processKey(rootPath, key, name string) (*Product, error) {
 // reflect the installed version, and using those installers can lead to undefined behavior (either failure to uninstall,
 // or weird bugs from uninstalling a product with an installer from a different version).
 func removeProduct(productName string) error {
+	log.Debugf("Removing product %s", productName)
 	product, err := findProductCode(productName)
 	if err != nil {
 		return fmt.Errorf("error trying to find product %s: %w", productName, err)
@@ -93,4 +95,12 @@ func removeProduct(productName string) error {
 		return cmd.Run()
 	}
 	return fmt.Errorf("product %s not found", productName)
+}
+
+func isProductInstalled(productName string) bool {
+	product, err := findProductCode(productName)
+	if err != nil {
+		return false
+	}
+	return product != nil
 }
