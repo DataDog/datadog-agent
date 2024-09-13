@@ -7,6 +7,7 @@
 lint_licenses:
   extends: .lint
   script:
+    - inv -e install-tools
     - inv -e lint-licenses
 
 lint_shell:
