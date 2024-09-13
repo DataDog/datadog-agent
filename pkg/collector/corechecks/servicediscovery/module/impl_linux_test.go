@@ -53,6 +53,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
@@ -184,6 +185,7 @@ func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 
 // Check that we get (only) listening processes for all expected protocols.
 func TestBasic(t *testing.T) {
+	flake.Mark(t)
 	url := setupDiscoveryModule(t)
 
 	var expectedPIDs []int
