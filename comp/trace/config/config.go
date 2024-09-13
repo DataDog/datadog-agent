@@ -28,7 +28,9 @@ import (
 
 // team: agent-apm
 
-type dependencies struct {
+// Dependencies defines the trace config component deps.
+// These include the core config configuration and component config params.
+type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
@@ -47,7 +49,9 @@ type cfg struct {
 	warnings *pkgconfig.Warnings
 }
 
-func newConfig(deps dependencies) (Component, error) {
+// NewConfig is the default constructor for the component, it returns
+// a component instance and an error.
+func NewConfig(deps Dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {

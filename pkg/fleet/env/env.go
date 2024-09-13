@@ -109,6 +109,7 @@ func FromConfig(config config.Reader) *Env {
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
+		RemotePolicies:       config.GetBool("remote_policies"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 	}
@@ -125,6 +126,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
+	}
+	if e.RemotePolicies {
+		env = append(env, envRemotePolicies+"=true")
 	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)

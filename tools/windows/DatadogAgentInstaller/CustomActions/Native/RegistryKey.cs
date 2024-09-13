@@ -1,6 +1,6 @@
-using System.Security.AccessControl;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Win32;
+using System.Security.AccessControl;
 
 namespace Datadog.CustomActions.Native
 {

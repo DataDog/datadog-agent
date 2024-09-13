@@ -11,7 +11,6 @@ tests_macos:
   variables:
     PYTHON_RUNTIMES: "3"
   script:
-    - source /root/.bashrc
     - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
@@ -43,7 +42,6 @@ lint_macos:
     PYTHON_RUNTIMES: "3"
   timeout: 6h
   script:
-    - source /root/.bashrc
     - !reference [.setup_macos_github_app]
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
@@ -58,6 +56,7 @@ lint_macos:
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
+      export GOPATH=$GOROOT
       echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
       du -sh $HOME/.gimme/versions/*
     # Remove the Python cache and env if the Python version changed

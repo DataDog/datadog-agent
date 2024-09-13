@@ -292,9 +292,8 @@ func createDemuxDepsWithOrchestratorFwd(
 		core.MockBundle(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorParams),
-		eventplatformimpl.Module(),
+		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
-		fx.Supply(eventPlatformParams),
 		compressionimpl.MockModule(),
 	)
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)

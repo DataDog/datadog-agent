@@ -51,7 +51,7 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 	}
 	// Try to load in the ELF symbols.
 	// This might fail if the binary was stripped.
-	symbols, err := GetAllSymbolsByName(elfFile, symbolsSet)
+	symbols, err := GetAllSymbolsInSetByName(elfFile, symbolsSet)
 	if err != nil {
 		return nil, err
 	}
