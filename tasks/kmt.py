@@ -1283,7 +1283,7 @@ def build(
     for d in domains:
         if override_agent:
             d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
-            d.copy(ctx, f"./bin/{component}/{component}", "/opt/datadog-agent/embedded/bin/{component}")
+            d.copy(ctx, f"./bin/{component}/{component}", f"/opt/datadog-agent/embedded/bin/{component}")
         else:
             d.copy(ctx, f"./bin/{component}", "/root/")
 
@@ -2111,6 +2111,7 @@ def install_ddagent(
     ctx: Context,
     api_key: str,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
@@ -2119,24 +2120,20 @@ def install_ddagent(
     datadog_yaml: str | None = None,
     layout: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
 
     if arch is None:
         arch = "local"
 
     arch_obj = Arch.from_str(arch)
 
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
-
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     if version is not None:
         check_version(version)
