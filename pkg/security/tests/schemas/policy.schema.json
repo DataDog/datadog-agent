@@ -133,6 +133,9 @@
             "process",
             "container"
           ]
+        },
+        "disarmer": {
+          "$ref": "#/$defs/KillDisarmerDefinition"
         }
       },
       "additionalProperties": false,
@@ -141,6 +144,47 @@
         "signal"
       ],
       "description": "KillDefinition describes the 'kill' section of a rule action"
+    },
+    "KillDisarmerDefinition": {
+      "properties": {
+        "container": {
+          "$ref": "#/$defs/KillDisarmerParamsDefinition"
+        },
+        "executable": {
+          "$ref": "#/$defs/KillDisarmerParamsDefinition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "KillDisarmerDefinition describes the 'disarmer' section of a kill action"
+    },
+    "KillDisarmerParamsDefinition": {
+      "properties": {
+        "max_allowed": {
+          "type": "integer",
+          "description": "The maximum number of allowed kill actions within the period",
+          "examples": [
+            5
+          ]
+        },
+        "period": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "duration",
+              "description": "Duration in Go format (e.g. 1h30m, see https://pkg.go.dev/time#ParseDuration)"
+            },
+            {
+              "type": "integer",
+              "description": "Duration in nanoseconds"
+            }
+          ],
+          "description": "The period of time during which the maximum number of allowed kill actions is calculated"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "KillDisarmerParamsDefinition describes the parameters of a kill action disarmer"
     },
     "MacroDefinition": {
       "oneOf": [
