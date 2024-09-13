@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
@@ -21,22 +22,28 @@ func (c *CloudRun) GetTags() map[string]string {
 	return traceutil.GetCloudRunTags()
 }
 
-// GetOrigin returns the `origin` attribute type for the given
-// cloud service.
+// GetOrigin returns the `origin` attribute type for the given cloud service.
 func (c *CloudRun) GetOrigin() string {
 	if c.cloudRunFunctionMode {
 		_ = log.Warn("WE ARE IN CLOUD FUNCTION MODE")
+		return "cloudfunction"
+	}
+	if isCloudFunction() {
+		_ = log.Warn(fmt.Sprintf("WE ARE IN CLOUD FUNCTION MODE but %s", os.Environ()))
 		return "cloudfunction"
 	}
 	_ = log.Warn("WE NOT IN CLOUD FUNCTION MODE")
 	return "cloudrun"
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
+// GetPrefix returns the prefix that we're prefixing all metrics with.
 func (c *CloudRun) GetPrefix() string {
 	if c.cloudRunFunctionMode {
 		_ = log.Warn("WE ARE IN CLOUD FUNCTION MODE")
+		return "gcp.cloudfunction"
+	}
+	if isCloudFunction() {
+		_ = log.Warn("WE ARE IN CLOUD FUNCTION MODE but i had to triple check")
 		return "gcp.cloudfunction"
 	}
 	_ = log.Warn("Wow we ain't in cloud function mode")
@@ -55,5 +62,6 @@ func isCloudRunService() bool {
 
 func isCloudFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(traceutil.FunctionTargetEnvVar)
+	_ = log.Warn(fmt.Sprintf("cloud function mode SET TO: %s", cloudRunFunctionMode))
 	return cloudRunFunctionMode
 }

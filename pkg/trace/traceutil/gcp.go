@@ -172,6 +172,7 @@ func GetCloudRunTags() map[string]string {
 		tags["function_target"] = functionTarget
 		tags = getFunctionTags(tags)
 	} else {
+		_ = log.Warn(fmt.Sprintf("SETTING TAGGSSSS: WE ARE NOT IN CLOUD FUNCTION MODE (%s)", functionTarget))
 		tags["origin"] = "cloudrun"
 		tags["_dd.origin"] = "cloudrun"
 	}
