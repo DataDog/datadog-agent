@@ -147,6 +147,7 @@ DEFAULT_MODULES = {
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/core/tagger/types": GoModule("comp/core/tagger/types", independent=True, used_by_otel=True),
     "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
     "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
@@ -187,6 +188,9 @@ DEFAULT_MODULES = {
     ),
     "comp/otelcol/otlp/components/metricsclient": GoModule(
         "comp/otelcol/otlp/components/metricsclient", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/processor/infraattributesprocessor": GoModule(
+        "comp/otelcol/otlp/components/processor/infraattributesprocessor", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
@@ -256,6 +260,7 @@ DEFAULT_MODULES = {
         "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
     ),
     "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
+    "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True, used_by_otel=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
@@ -274,6 +279,7 @@ DEFAULT_MODULES = {
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True, used_by_otel=True),
     "pkg/util/system": GoModule("pkg/util/system", independent=True, used_by_otel=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True, used_by_otel=True),
+    "pkg/util/tagger": GoModule("pkg/util/tagger", independent=True, used_by_otel=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True, used_by_otel=True),
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),

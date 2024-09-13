@@ -29,7 +29,7 @@ from tasks.libs.common.git import (
     clone,
     get_current_branch,
     get_last_commit,
-    get_last_tag,
+    get_last_release_tag,
     try_git_command,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -403,7 +403,9 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
+    ok = try_git_command(
+        ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+    )
     if not ok:
         raise Exit(
             color_message(
@@ -414,7 +416,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
     if res.exited is None or res.exited > 0:
         raise Exit(
             color_message(
@@ -596,6 +598,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     current = current_version(ctx, max(list_major_versions))
     next = current.next_version(bump_minor=True)
     current.rc = False
+    current.devel = False
     next.devel = False
 
     # Strings with proper branch/tag names
@@ -1006,7 +1009,7 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
     changes = 'false'
     for repo_name, repo in repo_data.items():
         head_commit = get_last_commit(ctx, repo_name, repo['branch'])
-        last_tag_commit, last_tag_name = get_last_tag(ctx, repo_name, next_version.tag_pattern())
+        last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
         if last_tag_commit != "" and last_tag_commit != head_commit:
             changes = 'true'
             print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)

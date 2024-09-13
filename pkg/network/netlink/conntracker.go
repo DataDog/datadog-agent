@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"sync"
 	"time"
@@ -194,8 +193,8 @@ func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *n
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
+		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
 		transport: c.Type,
 	}
 
@@ -226,8 +225,8 @@ func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionStats) {
 	defer ctr.Unlock()
 
 	k := connKey{
-		src:       netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
-		dst:       netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
+		src:       netip.AddrPortFrom(c.Source.Addr, c.SPort),
+		dst:       netip.AddrPortFrom(c.Dest.Addr, c.DPort),
 		transport: c.Type,
 	}
 
@@ -453,27 +452,11 @@ func IsNAT(c Con) bool {
 
 func formatIPTranslation(tuple *ConTuple) *network.IPTranslation {
 	return &network.IPTranslation{
-		ReplSrcIP:   addrFromIP(tuple.Src.Addr()),
-		ReplDstIP:   addrFromIP(tuple.Dst.Addr()),
+		ReplSrcIP:   util.Address{Addr: tuple.Src.Addr().Unmap()},
+		ReplDstIP:   util.Address{Addr: tuple.Dst.Addr().Unmap()},
 		ReplSrcPort: tuple.Src.Port(),
 		ReplDstPort: tuple.Dst.Port(),
 	}
-}
-
-func addrFromIP(ip netip.Addr) util.Address {
-	if ip.Is6() && !ip.Is4In6() {
-		b := ip.As16()
-		return util.V6AddressFromBytes(b[:])
-	}
-	b := ip.As4()
-	return util.V4AddressFromBytes(b[:])
-}
-
-func ipFromAddr(a util.Address) netip.Addr {
-	if a.Len() == net.IPv6len {
-		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
-	}
-	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
 }
 
 func formatKey(tuple *ConTuple) (k connKey, ok bool) {

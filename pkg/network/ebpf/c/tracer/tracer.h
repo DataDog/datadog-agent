@@ -114,7 +114,11 @@ typedef struct {
     __u64 double_flush_attempts_close;
     __u64 double_flush_attempts_done;
     __u64 unsupported_tcp_failures;
-    __u64 tcp_done_pid_mismatch;
+    __u64 tcp_done_missing_pid;
+    __u64 tcp_connect_failed_tuple;
+    __u64 tcp_done_failed_tuple;
+    __u64 tcp_finish_connect_failed_tuple;
+    __u64 tcp_close_target_failures;
 } telemetry_t;
 
 typedef struct {
@@ -146,5 +150,15 @@ typedef struct {
         struct flowi6 *fl6;
     };
 } ip_make_skb_args_t;
+
+typedef struct {
+    struct sock *sk;
+    conn_tuple_t tup;
+} skp_conn_tuple_t;
+
+typedef struct {
+    __u64 pid_tgid;
+    __u64 timestamp;
+} pid_ts_t;
 
 #endif

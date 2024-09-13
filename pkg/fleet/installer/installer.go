@@ -46,8 +46,11 @@ var (
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
+
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
+	ConfigState(pkg string) (repository.State, error)
+	ConfigStates() (map[string]repository.State, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
@@ -103,12 +106,22 @@ func NewInstaller(env *env.Env) (Installer, error) {
 
 // State returns the state of a package.
 func (i *installerImpl) State(pkg string) (repository.State, error) {
-	return i.packages.GetPackageState(pkg)
+	return i.packages.GetState(pkg)
 }
 
 // States returns the states of all packages.
 func (i *installerImpl) States() (map[string]repository.State, error) {
-	return i.packages.GetState()
+	return i.packages.GetStates()
+}
+
+// ConfigState returns the state of a package.
+func (i *installerImpl) ConfigState(pkg string) (repository.State, error) {
+	return i.configs.GetState(pkg)
+}
+
+// ConfigStates returns the states of all packages.
+func (i *installerImpl) ConfigStates() (map[string]repository.State, error) {
+	return i.configs.GetStates()
 }
 
 // IsInstalled checks if a package is installed.
@@ -410,7 +423,7 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	case packageDatadogAgent:
 		return service.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StopInstallerExperiment(ctx)
+		return service.PromoteInstallerExperiment(ctx)
 	default:
 		return nil
 	}

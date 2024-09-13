@@ -3,12 +3,12 @@
 
 package sharedlibraries
 
-type libPath struct {
+type LibPath struct {
 	Pid uint32
 	Len uint32
 	Buf [120]byte
 }
 
 const (
-	libPathMaxSize = 0x78
+	LibPathMaxSize = 0x78
 )

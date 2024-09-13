@@ -29,7 +29,7 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_SSM_NAME > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -47,7 +47,7 @@
 
 .kmt_new_profile:
   - mkdir -p ~/.aws
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
@@ -60,7 +60,7 @@
   - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
 
 .collect_outcomes_kmt:
-  - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+  - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
   - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
   # Collect setup-ddvm systemd service logs
   - mkdir -p $CI_PROJECT_DIR/logs
@@ -114,7 +114,7 @@
         scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
       fi
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -143,7 +143,7 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -157,7 +157,7 @@
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq
@@ -169,6 +169,19 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
+    # build vm-metrics collector
+    - |
+      GO_ARCH=$ARCH
+      if [ "${ARCH}" == "x86_64" ]; then
+        GO_ARCH=amd64
+      fi
+    - cd test/new-e2e && GOOS=linux GOARCH="${GO_ARCH}" go build system-probe/vm-metrics/vm-metrics.go
+    # The vm-metrics collector is uploaded and executed in the same job because we need to execute it after the datadog-agent
+    # is launched in the metal instance, and before the tests are executed. This place naturally satisfies these constraints.
+    # upload vm-metrics collector to metal instance
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $CI_PROJECT_DIR/test/new-e2e/vm-metrics "ubuntu@$INSTANCE_IP:/home/ubuntu/vm-metrics"
+    # run vm-metrics collector
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "/home/ubuntu/vm-metrics -statsd-host=127.0.0.1 -statsd-port=8125 -libvirt-uri=/var/run/libvirt/libvirt-sock-ro --tag \"arch:${ARCH}\" --tag \"test-component:${TEST_COMPONENT}\" --tag \"ci-pipeline-id:${CI_PIPELINE_ID}\" --daemon -log-file /home/ubuntu/daemon.log"
     - !reference [.tag_kmt_ci_job]
   artifacts:
     when: always
@@ -182,7 +195,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN)
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
@@ -199,7 +212,7 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
     - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
@@ -228,7 +241,7 @@
     RETRY: 2
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
@@ -256,6 +269,7 @@
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
+    - '[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log'
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -265,6 +279,7 @@
       - $DD_AGENT_TESTING_DIR/verifier-complexity-$ARCH-$TAG-${TEST_COMPONENT}.tar.gz
       - $CI_PROJECT_DIR/logs
       - $CI_PROJECT_DIR/pcaps
+      - $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
@@ -311,13 +326,12 @@ notify_ebpf_complexity_changes:
             TEST_SET: no_usm
   allow_failure: true
   before_script:
-    - source /root/.bashrc
     - python3 -m pip install tabulate # Required for printing the tables
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME | base64)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
-      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64)
+      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID)
+      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID)
+      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN)
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr

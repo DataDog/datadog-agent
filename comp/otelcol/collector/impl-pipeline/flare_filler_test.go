@@ -11,7 +11,6 @@ package collectorimpl
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,11 +40,13 @@ func createFakeOTelExtensionHTTPServer() (string, func()) {
 			io.WriteString(w, "data-source-2")
 			return
 		} else if r.URL.Path == "/three" {
-			pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
-			io.WriteString(w, fmt.Sprintf(pageTmpl, testServerURL))
+			io.WriteString(w, "data-source-3")
 			return
 		} else if r.URL.Path == "/four" {
 			io.WriteString(w, "data-source-4")
+			return
+		} else if r.URL.Path == "/five/six" {
+			io.WriteString(w, "data-source-5-6")
 			return
 		}
 		http.NotFound(w, r)
@@ -88,20 +89,25 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	"full_configuration": "",
 	"sources": {
 		"prometheus": {
-			"url": "{{.url}}/one",
-			"crawl": false
+			"url": [
+				"{{.url}}/one"
+			]
 		},
 		"health_check": {
-			"url": "{{.url}}/two",
-			"crawl": false
+			"url": [
+				"{{.url}}/two"
+			]
 		},
 		"zpages": {
-			"url": "{{.url}}/three",
-			"crawl": true
+			"url": [
+			"{{.url}}/three"
+			]
 		},
 		"pprof": {
-			"url": "{{.url}}/four",
-			"crawl": false
+			"url": [
+				"{{.url}}/four",
+				"{{.url}}/five/six"
+			]
 		}
 	},
 	"environment": {{.environment}}
@@ -138,13 +144,11 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	f.AssertFileExists("otel", "otel-response.json")
 
-	// Template for the crawable page
-	pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
-
-	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
-	f.AssertFileContent("data-source-2", "otel/otel-flare/health_check.dat")
-	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/zpages.dat")
-	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
+	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus_one.dat")
+	f.AssertFileContent("data-source-2", "otel/otel-flare/health_check_two.dat")
+	f.AssertFileContent("data-source-3", "otel/otel-flare/zpages_three.dat")
+	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof_four.dat")
+	f.AssertFileContent("data-source-5-6", "otel/otel-flare/pprof_five_six.dat")
 
 	f.AssertFileContent(strconv.Quote(toJSON(customerConfig)), "otel/otel-flare/customer.cfg")
 	f.AssertFileContent(strconv.Quote(toJSON(overrideConfig)), "otel/otel-flare/runtime_override.cfg")

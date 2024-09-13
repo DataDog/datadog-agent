@@ -14,16 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
-
-// topLevelKey is a special metric, it's 1 if the span is top-level, 0 if not.
-const topLevelKey = "_top_level"
-
-// measuredKey is a special metric flag that marks a span for trace metrics calculation.
-const measuredKey = "_dd.measured"
-
-// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
-const partialVersionKey = "_dd.partial_version"
 
 // SpanConcentratorConfig exposes configuration options for a SpanConcentrator
 type SpanConcentratorConfig struct {
@@ -141,12 +133,12 @@ func (sc *SpanConcentrator) NewStatSpan(
 	if metrics == nil {
 		metrics = make(map[string]float64)
 	}
-	partialVersion, hasPartialVersion := metrics[partialVersionKey]
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(meta["span.kind"])
-	if !(metrics[topLevelKey] == 1 || metrics[measuredKey] == 1 || eligibleSpanKind) {
+	isTopLevel := traceutil.HasTopLevelMetrics(metrics)
+	if !(isTopLevel || traceutil.IsMeasuredMetrics(metrics) || eligibleSpanKind) {
 		return nil, false
 	}
-	if hasPartialVersion && partialVersion >= 0 {
+	if traceutil.IsPartialSnapshotMetrics(metrics) {
 		return nil, false
 	}
 	return &StatSpan{
@@ -160,7 +152,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 		duration:         duration,
 		spanKind:         meta[tagSpanKind],
 		statusCode:       getStatusCode(meta, metrics),
-		isTopLevel:       metrics[topLevelKey] == 1,
+		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(meta, peerTags),
 	}, true
 }

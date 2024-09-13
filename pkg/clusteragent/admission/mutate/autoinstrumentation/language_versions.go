@@ -113,7 +113,7 @@ func (l language) isSupported() bool {
 // If this language does not appear in supportedLanguages, it will not be injected.
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: "v2", // https://datadoghq.atlassian.net/browse/APMON-1067
+	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
