@@ -419,7 +419,7 @@ func buildFakeServer(t *testing.T) string {
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	for _, alias := range []string{"java", "node", "sshd"} {
+	for _, alias := range []string{"java", "node", "sshd", "dotnet"} {
 		makeAlias(t, alias, serverBin)
 	}
 
@@ -493,7 +493,15 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	testCases := map[string]struct {
 		commandline []string // The command line of the fake server
 		language    language.Language
+		env         []string
 	}{
+		"dotnet": {
+			commandline: []string{"dotnet", "foo.dll"},
+			language:    language.DotNet,
+			env: []string{
+				"CORECLR_ENABLE_PROFILING=1",
+			},
+		},
 		"java": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
@@ -514,6 +522,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 
 			bin := filepath.Join(serverDir, test.commandline[0])
 			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Env = append(cmd.Env, test.env...)
 			err := cmd.Start()
 			require.NoError(t, err)
 
@@ -685,6 +694,11 @@ func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				"site-packages", "ddtrace",
 				fmt.Sprintf("libssl.so.%s", runtime.GOARCH)),
 			language: language.Python,
+		},
+		{
+			alias:    "dotnet",
+			lib:      filepath.Join(curDir, "testdata", "Datadog.Trace.dll"),
+			language: language.DotNet,
 		},
 	} {
 		t.Run(test.alias, func(t *testing.T) {

@@ -173,6 +173,62 @@ func Test_pythonDetector(t *testing.T) {
 	}
 }
 
+func TestNodeDetector(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		env    map[string]string
+		maps   string
+		result Instrumentation
+	}{
+		{
+			name:   "no env, no maps",
+			result: None,
+		},
+		{
+			name: "profiling disabled",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			result: None,
+		},
+		{
+			name: "profiling enabled",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "1",
+			},
+			result: Provided,
+		},
+		{
+			name: "not in maps",
+			maps: `
+785c8ab24000-785c8ab2c000 r--s 00000000 fc:06 12762114                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Diagnostics.StackTrace.dll
+785c8ab2c000-785c8acce000 r--s 00000000 fc:06 12762148                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Net.Http.dll
+			`,
+			result: None,
+		},
+		{
+			name: "in maps",
+			maps: `
+785c89c00000-785c8a400000 rw-p 00000000 00:00 0
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
+785c8aaec000-785c8ab0d000 rw-p 00000000 00:00 0
+785c8ab0d000-785c8ab24000 r--s 00000000 fc:06 12761829                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Collections.Specialized.dll
+			`,
+			result: Provided,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var result Instrumentation
+			if test.maps == "" {
+				result = dotNetDetector(0, nil, test.env, nil)
+			} else {
+				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
+			}
+			assert.Equal(t, test.result, result)
+		})
+	}
+}
+
 func TestGoDetector(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
