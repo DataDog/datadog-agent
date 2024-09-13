@@ -1112,7 +1112,7 @@ def test(
 
     pkgs = []
     if packages is not None:
-        pkgs = [os.path.relpath(p) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
+        pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
 
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
