@@ -268,13 +268,14 @@ new-e2e-npm-eks-init:
 
 new-e2e-npm-eks-sync:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
   stage: e2e
   script:
     - exit 0
   needs:
     - new-e2e-npm-eks-init
   rules:
-    - !reference [.on_container_or_e2e_changes]
+    - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   when: always
 
