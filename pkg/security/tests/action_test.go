@@ -567,6 +567,10 @@ func TestActionKillDisarm(t *testing.T) {
 func TestActionHash(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping in docker, not  sharing the same pid ns and doesn't have a container ID")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "hash_action",
