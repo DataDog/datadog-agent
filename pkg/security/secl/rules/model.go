@@ -89,8 +89,14 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 type ActionName = string
 
 const (
-	// KillAction name a the kill action
+	// KillAction name of the kill action
 	KillAction ActionName = "kill"
+	// SetAction name of the set action
+	SetAction ActionName = "set"
+	// CoreDumpAction name of the core dump action
+	CoreDumpAction ActionName = "coredump"
+	// HashAction name of the hash action
+	HashAction ActionName = "hash"
 )
 
 // ActionDefinition describes a rule action section
@@ -100,6 +106,22 @@ type ActionDefinition struct {
 	Kill     *KillDefinition     `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
 	CoreDump *CoreDumpDefinition `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash     *HashDefinition     `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+}
+
+// Name returns the name of the action
+func (a *ActionDefinition) Name() ActionName {
+	switch {
+	case a.Set != nil:
+		return SetAction
+	case a.Kill != nil:
+		return KillAction
+	case a.CoreDump != nil:
+		return CoreDumpAction
+	case a.Hash != nil:
+		return HashAction
+	default:
+		return ""
+	}
 }
 
 // Scope describes the scope variables
