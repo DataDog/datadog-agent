@@ -432,7 +432,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	defer adm.Unlock()
 
 	if len(event.ContainerContext.ContainerID) == 0 {
-		seclog.Errorf("received a cgroup tracing event with an empty container ID")
+		seclog.Warnf("received a cgroup tracing event with an empty container ID")
 		return
 	}
 
