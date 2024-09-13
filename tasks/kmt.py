@@ -700,7 +700,7 @@ def prepare(
     else:
         err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     _prepare(ctx, component, domains, stack, arch, packages, verbose, ci, compile_only)
 
@@ -1131,7 +1131,7 @@ def test(
     else:
         err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     info("[+] Detected architectures in target VMs: " + ", ".join(map(str, used_archs)))
 
