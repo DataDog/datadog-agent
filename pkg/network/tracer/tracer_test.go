@@ -1341,6 +1341,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 		if tcpConn, ok := c.(*net.TCPConn); ok {
 			tcpConn.SetLinger(0)
 		}
+		time.Sleep(10 * time.Millisecond)
 		// Close the connection immediately to trigger a reset
 		c.Close()
 	})
