@@ -391,7 +391,7 @@ def manifest(
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, dry_run=False):
     for file in glob.iglob(f"{install_path}/**/*", recursive=True):
         ext = os.path.splitext(file)[1]
-        if (ext not "" and "so" not in ext) or "json" in ext or not os.path.isfile(file):
+        if (ext != "" and "so" not in ext) or "json" in ext or not os.path.isfile(file):
             continue
         toedit_fd = ctx.run(f"objdump -x {file} | grep \"RPATH\" || true", hide=True)
         if install_path in toedit_fd.stdout:
