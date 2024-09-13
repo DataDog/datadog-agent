@@ -29,7 +29,7 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY > $AWS_EC2_SSH_KEY_FILE || exit $?
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE

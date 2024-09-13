@@ -29,8 +29,8 @@ upload_dependencies_sysprobe_arm64:
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN) || exit $?
-    - DOCKER_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD) || exit $?
-    - crane auth login --username "$DOCKER_LOGIN" --password "$DOCKER_PWD" "$DOCKER_REGISTRY_URL"
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # Pull base images
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
