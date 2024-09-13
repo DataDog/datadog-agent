@@ -113,7 +113,7 @@ build do
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
   unless windows_target?
-    copy 'bin/agent', "#{install_dir}/embedded/bin/"
+    copy 'bin/agent', "#{install_dir}/bin/"
     mkdir "#{install_dir}/bin/agent/"
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
