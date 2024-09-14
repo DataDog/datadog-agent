@@ -88,6 +88,7 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
 	for _, containerNetwork := range pn.ungroupedContainerNetwork {
 		pn.generateNetworkMetrics(containerNetwork.tags, containerNetwork.stats)
 	}
+	pn.ungroupedContainerNetwork = nil
 
 	for _, containerNetworks := range pn.groupedContainerNetwork {
 		// If we have multiple containers, tagging with container tag is incorrect as the metrics refer to whole isolation group.
