@@ -761,7 +761,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		core.MockBundle(),
 		wmmock.MockModule(workloadmeta.NewParams()),
 	)
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.Telemetry)
 	if err != nil {
 		return nil, err
 	}
