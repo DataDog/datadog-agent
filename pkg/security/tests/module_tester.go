@@ -26,12 +26,9 @@ import (
 	"time"
 	"unsafe"
 
-	"go.uber.org/fx"
 	"gopkg.in/yaml.v3"
 
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -887,11 +884,4 @@ func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *test
 	}
 
 	fnc(testMod, obj)
-}
-
-type testModuleFxDeps struct {
-	fx.In
-
-	Telemetry telemetry.Component
-	WMeta     workloadmeta.Component
 }
