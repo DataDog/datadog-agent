@@ -32,7 +32,7 @@ func (c *CloudRun) GetOrigin() string {
 		_ = log.Warn(fmt.Sprintf("WE ARE IN CLOUD FUNCTION MODE but %s", os.Environ()))
 		return "cloudfunction"
 	}
-	_ = log.Warn(fmt.Sprintf("WE NOT IN CLOUD FUNCTION MODE", os.Environ()))
+	_ = log.Warn(fmt.Sprintf("WE NOT IN CLOUD FUNCTION MODE %s", os.Environ()))
 	return "cloudrun"
 }
 
@@ -62,6 +62,6 @@ func isCloudRunService() bool {
 
 func isCloudFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(traceutil.FunctionTargetEnvVar)
-	_ = log.Warn(fmt.Sprintf("cloud function mode SET TO: %B", cloudRunFunctionMode))
+	_ = log.Warn(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
 	return cloudRunFunctionMode
 }

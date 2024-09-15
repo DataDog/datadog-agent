@@ -127,7 +127,7 @@ func getProjectID(httpClient *http.Client, config *GCPConfig) *Info {
 func getSingleMetadata(httpClient *http.Client, url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Error("unable to build the metadata request, defaulting to unknown")
+		log.Error("unable to build the metadata request, defaulting to unknown", err)
 		return "unknown"
 	}
 	req.Header.Add("Metadata-Flavor", "Google")
