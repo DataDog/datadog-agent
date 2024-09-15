@@ -244,6 +244,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 

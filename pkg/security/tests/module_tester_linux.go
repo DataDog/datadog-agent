@@ -766,6 +766,9 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		// disable containers telemetry
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
