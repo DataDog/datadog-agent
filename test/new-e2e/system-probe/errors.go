@@ -218,9 +218,6 @@ type pulumiError struct {
 }
 
 var commandRegex = regexp.MustCompile(`^  command:remote:Command \(([^\)]+)\):$`)
-var archRegex = regexp.MustCompile(`distro_(arm64|x86_64)`)
-var vmCmdRegex = regexp.MustCompile(`-cmd-.+-ddvm-\d+-\d+-(.+)$`)
-var vmNameRegex = regexp.MustCompile(`-([^-]+)-distro`)
 
 func parsePulumiDiagnostics(message string) *pulumiError {
 	var perr pulumiError
@@ -245,20 +242,7 @@ func parsePulumiDiagnostics(message string) *pulumiError {
 			if commandMatch != nil {
 				perr.command = commandMatch[1]
 
-				archMatch := archRegex.FindStringSubmatch(perr.command)
-				if archMatch != nil {
-					perr.arch = archMatch[1]
-				}
-
-				vmCmdMatch := vmCmdRegex.FindStringSubmatch(perr.command)
-				if vmCmdMatch != nil {
-					perr.vmCommand = vmCmdMatch[1]
-				}
-
-				vmNameMatch := vmNameRegex.FindStringSubmatch(perr.command)
-				if vmNameMatch != nil {
-					perr.vmName = vmNameMatch[1]
-				}
+				perr.arch, perr.vmCommand, perr.vmName = parsePulumiComand(perr.command)
 			}
 		} else {
 			perr.errorMessage += strings.Trim(line, " ") + "\n"
@@ -266,4 +250,27 @@ func parsePulumiDiagnostics(message string) *pulumiError {
 	}
 
 	return nil
+}
+
+var archRegex = regexp.MustCompile(`distro_(arm64|x86_64)`)
+var vmCmdRegex = regexp.MustCompile(`-cmd-.+-(?:ddvm-\d+-\d+|distro_(?:x86_64|arm64))-(.+)$`)
+var vmNameRegex = regexp.MustCompile(`-(?:conn|cmd)-(?:arm64|x86_64)-([^-]+)-`)
+
+func parsePulumiComand(command string) (arch, vmCommand, vmName string) {
+	archMatch := archRegex.FindStringSubmatch(command)
+	if archMatch != nil {
+		arch = archMatch[1]
+	}
+
+	vmCmdMatch := vmCmdRegex.FindStringSubmatch(command)
+	if vmCmdMatch != nil {
+		vmCommand = vmCmdMatch[1]
+	}
+
+	vmNameMatch := vmNameRegex.FindStringSubmatch(command)
+	if vmNameMatch != nil {
+		vmName = vmNameMatch[1]
+	}
+
+	return
 }

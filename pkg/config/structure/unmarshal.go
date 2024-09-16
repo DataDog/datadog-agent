@@ -9,6 +9,7 @@ package structure
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -183,6 +184,8 @@ func (n *innerMapNodeImpl) ChildrenKeys() ([]string, error) {
 			return nil, fmt.Errorf("map node has invalid non-string key: %v", kv)
 		}
 	}
+	// map keys are iterated non-deterministically, sort them
+	slices.Sort(keys)
 	return keys, nil
 }
 
