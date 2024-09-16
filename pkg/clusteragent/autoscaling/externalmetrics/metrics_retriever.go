@@ -97,12 +97,10 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 		})
 
 		// First split then query because store state is shared and query mutates it
-		mr.retrieveMetricsValuesSlice(datadogMetrics)
+		mr.retrieveMetricsValuesSlice(append(datadogMetrics, datadogMetricsRateLimitErr...))
 
-		if len(datadogMetricsRateLimitErr) > 0 {
-			//Some sort of backoff logic?
-			mr.retrieveMetricsValuesSlice(datadogMetricsOtherErr)
-		}
+		// Might want to backoff if we hit a rate limit error
+		// mr.retrieveMetricsValuesSlice(datadogMetricsRateLimitErr)
 
 		// Now test each metric query separately respecting its backoff retry duration elapse value.
 		for _, metrics := range datadogMetricsOtherErr {
