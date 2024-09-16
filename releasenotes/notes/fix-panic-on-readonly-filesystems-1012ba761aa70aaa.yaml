@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fixes a panic caused by running the agent on readonly filesystems. The
+    Fixes a panic caused by running the Agent on readonly filesystems. The
     Agent will now return integration launchers and handle memory gracefully.
