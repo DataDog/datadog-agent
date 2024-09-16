@@ -138,7 +138,6 @@ variables:
   BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -271,12 +270,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
@@ -416,10 +409,8 @@ workflow:
   - when: manual
     allow_failure: true
 
-.except_no_a6_or_no_a7:
+.except_no_a7:
   - !reference [.except_mergequeue]
-  - <<: *if_not_version_6
-    when: never
   - <<: *if_not_version_7
     when: never
 

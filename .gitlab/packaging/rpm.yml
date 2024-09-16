@@ -41,11 +41,6 @@
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
 
-.package_rpm_agent_6:
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
-
 .package_rpm_agent_7:
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7
@@ -63,22 +58,10 @@
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
 
-agent_rpm-x64-a6:
-  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
-  needs: ["datadog-agent-6-x64"]
-  variables:
-    DD_PROJECT: agent
-
 agent_rpm-x64-a7:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   tags: ["arch:amd64"]
   needs: ["datadog-agent-7-x64"]
-  variables:
-    DD_PROJECT: agent
-
-agent_rpm-arm64-a6:
-  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_arm64]
-  needs: ["datadog-agent-6-arm64"]
   variables:
     DD_PROJECT: agent
 
@@ -87,12 +70,6 @@ agent_rpm-arm64-a7:
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
-
-agent_suse-x64-a6:
-  extends: [.package_suse_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
-  needs: ["datadog-agent-6-x64"]
-  variables:
-    DD_PRODUCT: agent
 
 agent_suse-x64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]

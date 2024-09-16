@@ -11,29 +11,17 @@ send_pkg_size:
     - when: always
       allow_failure: true
   needs:
-    - job: agent_deb-arm64-a6
-      optional: true
     - job: agent_deb-arm64-a7
-      optional: true
-    - job: agent_deb-x64-a6
       optional: true
     - job: agent_deb-x64-a7
       optional: true
-    - job: agent_heroku_deb-x64-a6
-      optional: true
     - job: agent_heroku_deb-x64-a7
       optional: true
-    - job: agent_rpm-arm64-a6
-      optional: true
     - job: agent_rpm-arm64-a7
-      optional: true
-    - job: agent_rpm-x64-a6
       optional: true
     - job: agent_rpm-x64-a7
       optional: true
     - job: agent_suse-arm64-a7
-      optional: true
-    - job: agent_suse-x64-a6
       optional: true
     - job: agent_suse-x64-a7
       optional: true
@@ -64,18 +52,6 @@ send_pkg_size:
 
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
-
-    # Agent 6
-    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-    - inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_6*_amd64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-
-    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_arm64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-
-    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
-
-    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-
-    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
     # Agent 7
     - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
@@ -148,45 +124,6 @@ send_pkg_size:
 
     # Make the job fail if at least one package is above threshold
     - if [ "${failures}" -ne "0" ]; then false; fi
-
-check_pkg_size-amd64-a6:
-  extends: .check_pkg_size
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs:
-    - agent_deb-x64-a6
-    - agent_rpm-x64-a6
-    - agent_suse-x64-a6
-  variables:
-    MAJOR_VERSION: 6
-    FLAVORS: "datadog-agent"
-    ARCH: "amd64"
-  before_script:
-    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
-    # "140000000" is needed as of now because of multiple large additions in 7.45
-    - |
-      declare -Ar max_sizes=(
-          ["datadog-agent"]="140000000"
-      )
-
-check_pkg_size-arm64-a6:
-  extends: .check_pkg_size
-  rules: !reference [.on_all_builds]
-  needs:
-    - agent_deb-arm64-a6
-    - agent_rpm-arm64-a6
-  variables:
-    MAJOR_VERSION: 6
-    FLAVORS: "datadog-agent"
-    ARCH: "arm64"
-  before_script:
-    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
-    # "140000000" is needed as of now because of multiple large additions in 7.45
-    - |
-      declare -Ar max_sizes=(
-          ["datadog-agent"]="140000000"
-      )
 
 check_pkg_size-amd64-a7:
   extends: .check_pkg_size
