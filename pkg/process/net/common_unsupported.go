@@ -9,6 +9,8 @@
 package net
 
 import (
+	"net"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -72,4 +74,9 @@ func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language,
 // GetPprof is not supported
 func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
 	return nil, ErrNotImplemented
+}
+
+// DialSystemProbe connects to the system-probe service endpoint
+func DialSystemProbe(netType string, path string) (net.Conn, error) {
+	return net.Dial(netType, path)
 }

@@ -162,7 +162,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	uptimeOffset, uptimeOffsetErr := proc.GetUptime()
 	networkOffsetData, networkOffsetErr := proc.GetNetworkData()
 	sendFdMetrics := make(chan bool)
-	go metrics.SendFdEnhancedMetrics(sendFdMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
+	go metrics.SendProcessEnhancedMetrics(sendFdMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
 	sendTmpMetrics := make(chan bool)
 	go metrics.SendTmpEnhancedMetrics(sendTmpMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
 
