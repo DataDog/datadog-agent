@@ -29,13 +29,25 @@ func TestProcessKillerExclusion(t *testing.T) {
 			},
 		},
 	)
-
 	assert.Nil(t, err)
-	assert.True(t, p.isKillAllowed([]uint32{utils.Getpid() + 1}, []string{"/usr/bin/date"}))
-	assert.False(t, p.isKillAllowed([]uint32{utils.Getpid() + 1}, []string{"/usr/bin/dd"}))
-	assert.False(t, p.isKillAllowed([]uint32{utils.Getpid() + 1}, []string{"/usr/sbin/sudo"}))
-	assert.False(t, p.isKillAllowed([]uint32{utils.Getpid()}, []string{"/usr/bin/date"}))
-	assert.False(t, p.isKillAllowed([]uint32{1}, []string{"/usr/bin/date"}))
-	assert.False(t, p.isKillAllowed([]uint32{utils.Getpid() + 1}, []string{"/opt/datadog-agent/bin/agent/agent"}))
-	assert.False(t, p.isKillAllowed([]uint32{utils.Getpid() + 1}, []string{"/opt/datadog-packages/datadog-agent/v1.0.0/bin/agent/agent"}))
+
+	pid := utils.Getpid()
+	tests := []struct {
+		pids           []uint32
+		paths          []string
+		expectedResult bool
+	}{
+		{[]uint32{pid + 1}, []string{"/usr/bin/date"}, true},
+		{[]uint32{pid + 1}, []string{"/usr/bin/dd"}, false},
+		{[]uint32{pid + 1}, []string{"/usr/sbin/sudo"}, false},
+		{[]uint32{pid}, []string{"/usr/bin/date"}, false},
+		{[]uint32{1}, []string{"/usr/bin/date"}, false},
+		{[]uint32{pid + 1}, []string{"/opt/datadog-agent/bin/agent/agent"}, false},
+		{[]uint32{pid + 1}, []string{"/opt/datadog-packages/datadog-agent/v1.0.0/bin/agent/agent"}, false},
+	}
+
+	for _, test := range tests {
+		isKilledAllowed, _ := p.isKillAllowed(test.pids, test.paths)
+		assert.Equal(t, test.expectedResult, isKilledAllowed)
+	}
 }

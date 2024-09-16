@@ -9,10 +9,11 @@ package builder
 
 import (
 	"context"
+	"slices"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -83,83 +84,140 @@ func (m *MockStore) Resync() error {
 	return nil
 }
 
-func TestUpdateStore_AddPodToStore(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
-
-	kubeletPod := &kubelet.Pod{
-		Metadata: kubelet.PodMetadata{
-			Name:      "test-pod",
-			Namespace: "default",
-			UID:       "12345",
+func TestUpdateStores_AddPods(t *testing.T) {
+	tests := []struct {
+		name                string
+		reflectorNamespaces []string
+		addedPodNamespace   string
+		podShouldBeAdded    bool
+	}{
+		{
+			name:                "add pod in watched namespace",
+			reflectorNamespaces: []string{"default"},
+			addedPodNamespace:   "default",
+			podShouldBeAdded:    true,
+		},
+		{
+			name:                "add pod in non-watched namespace",
+			reflectorNamespaces: []string{"default"},
+			addedPodNamespace:   "other-namespace",
+			podShouldBeAdded:    false,
+		},
+		{
+			name:                "reflector watches all pods",
+			reflectorNamespaces: []string{corev1.NamespaceAll},
+			addedPodNamespace:   "default",
+			podShouldBeAdded:    true,
 		},
 	}
 
-	kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stores := []*MockStore{
+				new(MockStore),
+				new(MockStore),
+			}
+			for _, store := range stores {
+				store.On("Add", mock.Anything).Return(nil)
+			}
 
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
-	podWatcher.On("Expire").Return([]string{}, nil)
-	store.On("Add", kubernetesPod).Return(nil)
+			watcher := new(MockPodWatcher)
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
-	assert.NoError(t, err)
+			kubeletPod := &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Namespace: test.addedPodNamespace,
+					Name:      "test-pod",
+					UID:       "12345",
+				},
+			}
 
-	store.AssertCalled(t, "Add", kubernetesPod)
+			kubernetesPod := kubelet.ConvertKubeletPodToK8sPod(kubeletPod)
+
+			watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
+			watcher.On("Expire").Return([]string{}, nil)
+
+			reflector := kubeletReflector{
+				namespaces:         test.reflectorNamespaces,
+				watchAllNamespaces: slices.Contains(test.reflectorNamespaces, corev1.NamespaceAll),
+				podWatcher:         watcher,
+			}
+
+			for _, store := range stores {
+				err := reflector.addStore(store)
+				require.NoError(t, err)
+			}
+
+			err := reflector.updateStores(context.TODO())
+			require.NoError(t, err)
+
+			if test.podShouldBeAdded {
+				for _, store := range stores {
+					store.AssertCalled(t, "Add", kubernetesPod)
+				}
+			} else {
+				for _, store := range stores {
+					store.AssertNotCalled(t, "Add", mock.Anything)
+				}
+			}
+		})
+	}
 }
 
-func TestUpdateStore_FilterPodsByNamespace(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
-
-	kubeletPod := &kubelet.Pod{
-		Metadata: kubelet.PodMetadata{
-			Name:      "test-pod",
-			Namespace: "other-namespace",
-			UID:       "12345",
+func TestUpdateStores_HandleExpired(t *testing.T) {
+	tests := []struct {
+		name                   string
+		expiredUID             string
+		expectedPodToBeDeleted *corev1.Pod
+	}{
+		{
+			name:       "expired pod",
+			expiredUID: "kubernetes_pod://pod-12345",
+			expectedPodToBeDeleted: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID: types.UID("pod-12345"),
+				},
+			},
+		},
+		{
+			name:                   "expired container",
+			expiredUID:             "container-12345",
+			expectedPodToBeDeleted: nil,
 		},
 	}
 
-	store.On("Add", mock.Anything).Return(nil)
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{kubeletPod}, nil)
-	podWatcher.On("Expire").Return([]string{}, nil)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stores := []*MockStore{
+				new(MockStore),
+				new(MockStore),
+			}
+			for _, store := range stores {
+				store.On("Delete", mock.Anything).Return(nil)
+			}
 
-	err := updateStore(context.TODO(), store, podWatcher, "default")
-	assert.NoError(t, err)
+			watcher := new(MockPodWatcher)
+			watcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
+			watcher.On("Expire").Return([]string{test.expiredUID}, nil)
 
-	// Add() shouldn't be called because the pod is in a different namespace
-	store.AssertNotCalled(t, "Add", mock.Anything)
-}
+			reflector := kubeletReflector{
+				namespaces: []string{"default"},
+				podWatcher: watcher,
+			}
+			for _, store := range stores {
+				err := reflector.addStore(store)
+				require.NoError(t, err)
+			}
 
-func TestUpdateStore_HandleExpiredPods(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
-	podUID := "kubernetes_pod://pod-12345"
-	kubernetesPod := corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			UID: types.UID("pod-12345"),
-		},
+			err := reflector.updateStores(context.TODO())
+			require.NoError(t, err)
+
+			for _, store := range stores {
+				if test.expectedPodToBeDeleted != nil {
+					store.AssertCalled(t, "Delete", test.expectedPodToBeDeleted)
+				} else {
+					store.AssertNotCalled(t, "Delete", mock.Anything)
+				}
+			}
+		})
 	}
-
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
-	podWatcher.On("Expire").Return([]string{podUID}, nil)
-	store.On("Delete", &kubernetesPod).Return(nil)
-
-	err := updateStore(context.TODO(), store, podWatcher, "default")
-	assert.NoError(t, err)
-
-	store.AssertCalled(t, "Delete", &kubernetesPod)
-}
-
-func TestUpdateStore_HandleExpiredContainers(t *testing.T) {
-	store := new(MockStore)
-	podWatcher := new(MockPodWatcher)
-
-	podWatcher.On("PullChanges", mock.Anything).Return([]*kubelet.Pod{}, nil)
-	podWatcher.On("Expire").Return([]string{"container-12345"}, nil)
-
-	err := updateStore(context.TODO(), store, podWatcher, "default")
-	assert.NoError(t, err)
-
-	// Delete() shouldn't be called because the expired entity is not a pod
-	store.AssertNotCalled(t, "Delete", mock.Anything)
 }
