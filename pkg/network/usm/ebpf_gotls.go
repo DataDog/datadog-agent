@@ -46,7 +46,7 @@ const (
 	connCloseProbe    = "uprobe__crypto_tls_Conn_Close"
 
 	// UsmGoTLSAttacherName holds the name used for the uprobe attacher of go-tls programs. Used for tests.
-	UsmGoTLSAttacherName = "usm_gotls"
+	UsmGoTLSAttacherName = "go-tls"
 )
 
 type uprobesInfo struct {
