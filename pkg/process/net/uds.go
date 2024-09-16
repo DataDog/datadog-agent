@@ -22,8 +22,8 @@ type UDSListener struct {
 	socketPath string
 }
 
-// newSocketListener creates a Unix Domain Socket Listener
-func newSocketListener(socketAddr string) (*UDSListener, error) {
+// NewListener returns an idle UDSListener
+func NewListener(socketAddr string) (*UDSListener, error) {
 	if len(socketAddr) == 0 {
 		return nil, fmt.Errorf("uds: empty socket path provided")
 	}
@@ -71,16 +71,6 @@ func newSocketListener(socketAddr string) (*UDSListener, error) {
 
 	log.Debugf("uds: %s successfully initialized", conn.Addr())
 	return listener, nil
-}
-
-// NewSystemProbeListener returns an idle UDSListener
-func NewSystemProbeListener(socketAddr string) (*UDSListener, error) {
-	var listener, err = newSocketListener(socketAddr)
-	if err != nil {
-		return nil, fmt.Errorf("error creating IPC socket: %s", err)
-	}
-
-	return listener, err
 }
 
 // GetListener will return the underlying Conn's net.Listener

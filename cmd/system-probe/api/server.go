@@ -27,9 +27,9 @@ import (
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta workloadmeta.Component, settings settings.Component) error {
-	conn, err := net.NewSystemProbeListener(cfg.SocketAddress)
+	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating IPC socket: %s", err)
 	}
 
 	mux := gorilla.NewRouter()

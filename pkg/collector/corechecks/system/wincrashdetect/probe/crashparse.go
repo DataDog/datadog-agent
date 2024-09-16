@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package probe parses Windows crash dumps.
 package probe
 
 /*
