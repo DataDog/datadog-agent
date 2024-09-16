@@ -22,39 +22,39 @@ import (
 
 const systemdPath = "/etc/systemd/system"
 
-func stopUnit(ctx context.Context, unit string, args ...string) error {
+func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"stop", unit}, args...)
 	return newCommandRunner(ctx, "systemctl", args...).runWithError()
 }
 
-func startUnit(ctx context.Context, unit string, args ...string) error {
+func startUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
 	return newCommandRunner(ctx, "systemctl", args...).runWithError()
 }
 
-func enableUnit(ctx context.Context, unit string) error {
+func enableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	return newCommandRunner(ctx, "systemctl", "enable", unit).runWithError()
 }
 
-func disableUnit(ctx context.Context, unit string) error {
+func disableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	return newCommandRunner(ctx, "systemctl", "disable", unit).runWithError()
 }
 
-func loadUnit(ctx context.Context, unit string) error {
+func loadUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	content, err := embedded.FS.ReadFile(unit)
 	if err != nil {
@@ -64,16 +64,16 @@ func loadUnit(ctx context.Context, unit string) error {
 	return os.WriteFile(unitPath, content, 0644)
 }
 
-func removeUnit(ctx context.Context, unit string) error {
+func removeUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	return os.Remove(path.Join(systemdPath, unit))
 }
 
-func systemdReload(ctx context.Context) error {
+func systemdReload(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	return newCommandRunner(ctx, "systemctl", "daemon-reload").runWithError()
 }
 
