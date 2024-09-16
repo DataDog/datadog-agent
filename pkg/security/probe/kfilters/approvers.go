@@ -17,8 +17,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// BasenameApproverKernelMapName defines the basename approver kernel map name
-const BasenameApproverKernelMapName = "basename_approvers"
+const (
+	// BasenameApproverKernelMapName defines the basename approver kernel map name
+	BasenameApproverKernelMapName = "basename_approvers"
+
+	// BasenameApproverType is the type of basename approver
+	BasenameApproverType = "basename"
+	// FlagApproverType is the type of flags approver
+	FlagApproverType = "flag"
+	// AUIDApproverType is the type of auid approver
+	AUIDApproverType = "auid"
+)
 
 type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, error)
 
@@ -27,7 +36,7 @@ var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
 func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (activeKFilter, error) {
 	return &eventMaskEntry{
-		approverType: "basename",
+		approverType: BasenameApproverType,
 		tableName:    tableName,
 		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
 		eventMask:    uint64(1 << (eventType - 1)),
@@ -60,7 +69,7 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter
 	}
 
 	return &arrayEntry{
-		approverType: "flag",
+		approverType: FlagApproverType,
 		tableName:    tableName,
 		index:        uint32(0),
 		value:        ebpf.NewUint32FlagsMapItem(bitmask),
@@ -75,7 +84,7 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter
 	}
 
 	return &arrayEntry{
-		approverType: "flag",
+		approverType: FlagApproverType,
 		tableName:    tableName,
 		index:        uint32(0),
 		value:        ebpf.NewUint64FlagsMapItem(bitmask),

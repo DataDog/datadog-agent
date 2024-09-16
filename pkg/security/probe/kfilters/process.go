@@ -79,7 +79,7 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 
 	if auidRangeSet {
 		kfilters = append(kfilters, &hashEntry{
-			approverType: "auid",
+			approverType: AUIDApproverType,
 			tableName:    auidRangeApproversTable,
 			tableKey:     eventType,
 			value:        ebpf.NewUInt32RangeMapItem(uint32(auidRange.Min), uint32(auidRange.Max)),
