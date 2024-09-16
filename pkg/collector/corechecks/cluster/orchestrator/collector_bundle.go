@@ -215,11 +215,14 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	crdCollectors := cb.check.instance.CRDCollectors
 
 	// Check if our crd collectors list changed and cache results for next run
+	log.Info("Josh Checking if CRD collectors list changed\n")
 	if reflect.DeepEqual(crdCollectors, cb.crdCollectors) {
+		log.Infof("Josh CRD collectors list did not change len:%d\n", len(crdCollectors))
 		// No change in collectors skip updating config
 		return true
 	}
 	cb.crdCollectors = crdCollectors
+	log.Infof("Josh CRD collectors: %s\n", crdCollectors)
 
 	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
 		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
