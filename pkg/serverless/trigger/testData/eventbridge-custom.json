@@ -4,7 +4,7 @@
   "detail-type": "testdetail",
   "source": "eventbridge.custom.event.sender",
   "account": "425362996713",
-  "time": "2024-09-16T16:58:45Z",
+  "time": "2021-11-04T01:37:45Z",
   "region": "sa-east-1",
   "resources": [],
   "detail": {
