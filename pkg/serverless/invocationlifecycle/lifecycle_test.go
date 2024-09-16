@@ -1162,6 +1162,90 @@ func TestTriggerTypesLifecycleEventForEventBridge(t *testing.T) {
 	}, testProcessor.GetTags())
 }
 
+func TestTriggerTypesLifecycleEventForEventBridgeSQS(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("eventbridgesqs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	eventBridgeSpan, sqsSpan := spans[1], spans[2]
+	assert.Equal(t, "eventbridge", eventBridgeSpan.Service)
+	assert.Equal(t, "test-bus", eventBridgeSpan.Resource)
+	assert.Equal(t, "sqs", sqsSpan.Service)
+	assert.Equal(t, "test-queue", sqsSpan.Resource)
+}
+
+func TestTriggerTypesLifecycleEventForEventBridgeSNS(t *testing.T) {
+
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+
+	var tracePayload *api.Payload
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("eventbridgesns.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				TraceID:          123,
+				SamplingPriority: 1,
+			},
+		},
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(&InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+		IsError:   false,
+	})
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	eventBridgeSpan, snsSpan := spans[1], spans[2]
+	assert.Equal(t, "eventbridge", eventBridgeSpan.Service)
+	assert.Equal(t, "test-bus", eventBridgeSpan.Resource)
+	assert.Equal(t, "sns", snsSpan.Service)
+	assert.Equal(t, "test-notifier", snsSpan.Resource)
+}
+
 // Helper function for reading test file
 func getEventFromFile(filename string) []byte {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)

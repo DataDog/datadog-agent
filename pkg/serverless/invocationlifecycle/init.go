@@ -144,6 +144,10 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 	lp.addTag(tagFunctionTriggerEventSource, sns)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSNSEventArn(event))
 
+	if out, err := json.Marshal(event); err == nil {
+		log.Debugf("[nhulston agent] SQS: %s", out)
+	}
+
 	// Check for EventBridge event wrapped by the SNS message
 	var eventBridgeEvent events.EventBridgeEvent
 	if err := json.Unmarshal([]byte(event.Records[0].SNS.Message), &eventBridgeEvent); err == nil {
@@ -161,6 +165,10 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, sqs)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSQSEventARN(event))
+
+	if out, err := json.Marshal(event); err == nil {
+		log.Debugf("[nhulston agent] SQS: %s", out)
+	}
 
 	// Check for SNS event wrapped by the SQS body
 	var snsEntity events.SNSEntity

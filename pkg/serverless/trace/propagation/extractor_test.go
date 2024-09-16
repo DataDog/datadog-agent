@@ -407,6 +407,44 @@ func TestExtractorExtract(t *testing.T) {
 			expNoErr: true,
 		},
 
+		// events.EventBridgeEvent
+		{
+			name: "eventbridge-event-empty",
+			events: []interface{}{
+				events.EventBridgeEvent{},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "eventbridge-event-with-trace-context",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: map[string]interface{}{
+						"_datadog": map[string]interface{}{
+							"x-datadog-trace-id":          "123456789",
+							"x-datadog-parent-id":         "987654321",
+							"x-datadog-sampling-priority": "1",
+						},
+					},
+				},
+			},
+			expCtx:   &TraceContext{TraceID: 123456789, ParentID: 987654321, SamplingPriority: 1},
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-without-trace-context",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: map[string]interface{}{
+						"foo": "bar",
+					},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+
 		// events.APIGatewayProxyRequest:
 		{
 			name: "APIGatewayProxyRequest",
