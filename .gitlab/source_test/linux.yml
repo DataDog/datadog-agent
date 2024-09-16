@@ -50,7 +50,6 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
-  - source /root/.bashrc
   - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN)
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
