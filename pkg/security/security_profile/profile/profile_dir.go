@@ -101,6 +101,9 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 	dp.workloadSelectorDebouncer.Start()
 	dp.newFilesDebouncer.Start()
 
+	var childContext context.Context
+	childContext, dp.cancelFnc = context.WithCancel(ctx)
+
 	// add watches
 	if dp.watcherEnabled {
 		var err error
@@ -113,10 +116,10 @@ func (dp *DirectoryProvider) Start(ctx context.Context) error {
 			return err
 		}
 
-		var childContext context.Context
-		childContext, dp.cancelFnc = context.WithCancel(ctx)
 		go dp.watch(childContext)
 	}
+
+	go dp.cleanupLoop(childContext)
 
 	// start by loading the profiles in the configured directory
 	if err := dp.loadProfiles(); err != nil {
@@ -213,25 +216,35 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 	return output, nil
 }
 
-func (dp *DirectoryProvider) loadProfile(profilePath string) error {
+func readProfile(profilePath string) (*proto.SecurityProfile, cgroupModel.WorkloadSelector, error) {
 	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
-		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
 
 	if len(profile.ProfileContexts) == 0 {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
 	}
 
 	imageName, imageTag := profile.Selector.GetImageName(), profile.Selector.GetImageTag()
 	if imageTag == "" || imageName == "" {
-		return fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
+		return nil, cgroupModel.WorkloadSelector{}, fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
 	}
 
 	workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 	if err != nil {
+		return nil, cgroupModel.WorkloadSelector{}, err
+	}
+
+	return profile, workloadSelector, nil
+}
+
+func (dp *DirectoryProvider) loadProfile(profilePath string) error {
+	profile, workloadSelector, err := readProfile(profilePath)
+	if err != nil {
 		return err
 	}
+
 	profileManagerSelector := workloadSelector
 	profileManagerSelector.Tag = "*"
 
@@ -428,6 +441,74 @@ func (dp *DirectoryProvider) SendStats(client statsd.ClientInterface) error {
 	if value := len(dp.profileMapping); value > 0 {
 		if err := client.Gauge(metrics.MetricSecurityProfileDirectoryProviderCount, float64(value), []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricSecurityProfileDirectoryProviderCount, err)
+		}
+	}
+
+	return nil
+}
+
+func (dp *DirectoryProvider) cleanupLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := dp.cleanup(); err != nil {
+				seclog.Errorf("couldn't cleanup profiles: %v", err)
+			}
+		}
+	}
+}
+
+func (dp *DirectoryProvider) cleanup() error {
+	paths, err := dp.listProfiles()
+	if err != nil {
+		return err
+	}
+
+	// read workload selectors from all directory profiles
+	workloadSelectors := make([]profileFSEntry, 0)
+	for _, path := range paths {
+		_, workloadSelector, err := readProfile(path)
+		if err != nil {
+			return err
+		}
+
+		workloadSelectors = append(workloadSelectors, profileFSEntry{
+			selector: workloadSelector,
+			path:     path,
+		})
+	}
+
+	// understand all images with actual security profiles
+	imagesWithProfiles := make(map[string]struct{})
+	for _, entry := range workloadSelectors {
+		if entry.selector.Tag == "*" {
+			imagesWithProfiles[entry.selector.Image] = struct{}{}
+		}
+	}
+
+	// list dump files for image that have profiles
+	toRemovePaths := make([]string, 0)
+	for _, entry := range workloadSelectors {
+		if entry.selector.Tag == "*" {
+			continue
+		}
+
+		if _, ok := imagesWithProfiles[entry.selector.Image]; ok {
+			toRemovePaths = append(toRemovePaths, entry.path)
+		}
+	}
+
+	seclog.Debugf("directory provider: removing paths: %v\n", toRemovePaths)
+
+	for _, path := range toRemovePaths {
+		if err := os.Remove(path); err != nil {
+			// let's return in case of error, worse case scenario we will retry during next iteration
+			return err
 		}
 	}
 
