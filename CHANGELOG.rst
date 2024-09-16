@@ -22,7 +22,7 @@ Release on: 2024-09-09
 Upgrade Notes
 -------------
 
-- Update cURL to 8.7.1.
+- Update cURL to 8.9.1.
 
 - Update OpenSSL from 3.0.14 to 3.3.1 (on Linux and macOS).
 
@@ -82,12 +82,12 @@ Enhancement Notes
   These are used in the Single Step APM Instrumentation, improving
   the onboarding experience and minimizing the agent configuration.
 
-- For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes, `out.host` and `dns.hostname`. This will improve coverage of inferred services because some tracer integrations only place the peer hostname in one of those attributes. 
+- For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes, `out.host` and `dns.hostname`. This will improve coverage of inferred services because some tracer integrations only place the peer hostname in one of those attributes.
 
 - APM stats for internal service overrides are now aggregated by the `_dd.base_service` tag only, enhancing visibility into specific base services.
 
-- Include spans with `span.kind=consumer` for aggregation of 
-  stats on peer tags. 
+- Include spans with `span.kind=consumer` for aggregation of
+  stats on peer tags.
 
 - IP address quantization on all peer tags is done the backend during ingestion. This change updates the Agent to apply the same IP address quantization. This reduces unnecessary aggregation that is currently done on raw IP addresses. And therefore, improves the aggregation performance of stats on peer tags.
 
@@ -126,7 +126,7 @@ Enhancement Notes
   ``PROJECTLOCATION`` is misconfigured to an existing directory.
 
 - Adds a default upper limit of 10000 to the number of network traffic
-  paths that are captured at a single time. The user can increase or 
+  paths that are captured at a single time. The user can increase or
   decrease this limit as needed.
 
 - Language detection can run on the core Agent without needing a gRPC server.
@@ -168,11 +168,11 @@ Bug Fixes
 
 - Fix duplicate logging in Process Agent component's Enabled() method.
 
-- Fixed bug in kubelet check when running in core agent that 
-  was causing `kubernetes.kubelet.container.log_filesystem.used_bytes` 
-  to be reported by the check for excluded/non-existing containers. 
-  The metric was being reported in this case without tags. 
-  This bug does not exist in the python integration version of the 
+- Fixed bug in kubelet check when running in core agent that
+  was causing `kubernetes.kubelet.container.log_filesystem.used_bytes`
+  to be reported by the check for excluded/non-existing containers.
+  The metric was being reported in this case without tags.
+  This bug does not exist in the python integration version of the
   kubelet check.
 
 - Fixes a bug on Windows in the driver installation custom actions that could prevent rollback from working properly if an installation failed or was canceled.
@@ -281,7 +281,7 @@ Upgrade Notes
 New Features
 ------------
 
-- The core Agent now supports multiple configuration files in addition to the main ``datadog.yaml`` file. 
+- The core Agent now supports multiple configuration files in addition to the main ``datadog.yaml`` file.
   The -E flag can be used to specify additional configuration files to be loaded sequentially after the main ``datadog.yaml``.
 
 - When ``DD_SERVERLESS_STREAM_LOGS`` is enabled, DD_EXTENSION
@@ -305,10 +305,10 @@ Enhancement Notes
 - APM: Add obfuscation support for OpenSearch statements within span metadata. This feature works in the same way as the existing Elasticsearch one, and is enabled by default. It is configured by binding ``apm_config.obfuscation.opensearch.*`` parameters to new obfuscation environment variables. In particular, bind:
   ``apm_config.obfuscation.opensearch.enabled`` to ``DD_APM_OBFUSCATION_OPENSEARCH_ENABLED``:
   It accepts a boolean value with default value true.
-  
+
   ``apm_config.obfuscation.opensearch.keep_values`` to ``DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES``
   It accepts a list of strings of the form ``["id1", "id2"]``.
-  
+
   ``apm_config.obfuscation.opensearch.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES``
   It accepts a list of strings of the form ``["key1", "key2"]``.
 
@@ -348,7 +348,7 @@ Enhancement Notes
   to better support users with multi-byte character sets, for example, Korean, Arabic, etc. This should
   alleviate crashes caused by long queries using these characters.
 
-- The OTLP ingestion endpoint now supports the same settings and protocol as 
+- The OTLP ingestion endpoint now supports the same settings and protocol as
   the OpenTelemetry Collector OTLP receiver v0.103.0.
 
 - APM: Probabilistic Sampler now only looks at the lower 64 bits of a trace ID by default to improve compatibility in distributed systems where some apps may truncate the trace ID. To maintain the previous behavior use the feature flag `probabilistic_sampler_full_trace_id`.
@@ -407,7 +407,7 @@ Bug Fixes
 
 - Re-enable printing of checks metadata in the ``datadog-agent status`` collector section.
 
-- Fix OTLP status output not being displayed in the GUI. 
+- Fix OTLP status output not being displayed in the GUI.
 
 - Fix issue where init config for ping took priority over instance config.
 
