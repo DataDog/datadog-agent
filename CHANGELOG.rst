@@ -391,7 +391,7 @@ Deprecation Notes
 Security Notes
 --------------
 
-- Updating OpenSSL to 3.0.14 to address CVE-2024-4741.
+- Updating OpenSSL to 3.0.14 to address CVE-2024-4741 (on Linux and macOS).
 
 
 .. _Release Notes_7.56.0_Bug Fixes:
