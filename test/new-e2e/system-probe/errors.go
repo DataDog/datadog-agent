@@ -116,7 +116,7 @@ var handledErrorsLs = []handledError{
 		errorType:   ddAgentRepoFailure,
 		errorString: "Failed to update the sources after adding the Datadog repository.",
 		metric:      "apt-dd-agent-repo-failure",
-		action:      retryStack | emitMetric,
+		action:      emitMetric,
 	},
 }
 
