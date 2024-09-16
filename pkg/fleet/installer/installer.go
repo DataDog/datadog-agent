@@ -423,7 +423,7 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	case packageDatadogAgent:
 		return service.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StopInstallerExperiment(ctx)
+		return service.PromoteInstallerExperiment(ctx)
 	default:
 		return nil
 	}

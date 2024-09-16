@@ -8,13 +8,18 @@
 package apm
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	"github.com/stretchr/testify/assert"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 func TestInjected(t *testing.T) {
@@ -166,4 +171,34 @@ func Test_pythonDetector(t *testing.T) {
 			assert.Equal(t, d.result, result)
 		})
 	}
+}
+
+func TestGoDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+
+	cmdWithSymbols := exec.Command(serverBinWithSymbols)
+	require.NoError(t, cmdWithSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithSymbols.Process.Kill()
+	})
+
+	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
+	require.NoError(t, cmdWithoutSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithoutSymbols.Process.Kill()
+	})
+
+	result := goDetector(os.Getpid(), nil, nil, nil)
+	require.Equal(t, None, result)
+
+	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
+	require.Equal(t, Provided, result)
+
+	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
+	require.Equal(t, Provided, result)
 }

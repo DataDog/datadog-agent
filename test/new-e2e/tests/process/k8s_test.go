@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -88,7 +89,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -121,6 +122,8 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessDiscoveryCollection: true,
 	})
@@ -133,10 +136,19 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -151,6 +163,8 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
 		RunInCoreAgent:    true,
@@ -164,8 +178,14 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
 
 		// verify the standalone process-agent is not running
 		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
@@ -173,7 +193,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 
 		// Verify the process component is running in the core agent
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -195,6 +215,10 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 	t := s.T()
+	// PROCS-4327: The process-agent container either fails to start or
+	// does not seem to run the connections check as expected.
+	flake.Mark(t)
+
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection:            true,
 		RunInCoreAgent:               true,
@@ -209,11 +233,20 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

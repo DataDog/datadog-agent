@@ -2,6 +2,255 @@
 Release Notes
 =============
 
+.. _Release Notes_7.57.0:
+
+7.57.0
+======
+
+.. _Release Notes_7.57.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-09
+
+- Please refer to the `7.57.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7570>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.57.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Update cURL to 8.7.1.
+
+- Update OpenSSL from 3.0.14 to 3.3.1 (on Linux and macOS).
+
+
+.. _Release Notes_7.57.0_New Features:
+
+New Features
+------------
+
+- The `agent diagnose` command now includes a ``--json`` option to output the results in JSON format.
+
+- Add `integration` value for device metadata.
+
+- APM: In order to allow for automatic instrumentation to work in Kubernetes
+  clusters that enforce a ``Restricted`` `Pod Security Standard <https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted>`_,
+  which require all containers to explicitly set a ``securityContext``,
+  an option to configure a `securityContext` to be used for all ``initContainers``
+  created by the auto instrumentation has been added.
+  | This can be done through the ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT``
+  environment value, or ``admission_controller.auto_instrumentation.init_security_context`` configuration -
+  in both cases a ``json`` string should be supplied.
+
+- Adds a `kube_runtime_class` tag to metrics associated with Kubernetes
+  pods and their containers.
+
+- Expose the Agent's get host tags function to python checks using the new `datadog_agent.get_host_tags` method.
+
+- Implement static allowlist of Kubernetes events to send by default.
+  This feature is only enabled when ``filtering_enabled`` is set to
+  ``true`` in the ``kubernetes_apiserver`` integration configuration.
+
+- Adds a new launcher to handle incoming logs from integtrations.
+
+- Add optional reverse DNS enrichment of private IP addresses to NDM NetFlow.
+
+- On Windows, the default value for the service inference feature is now enabled.
+
+
+.. _Release Notes_7.57.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Turn on Orchestrator Explorer by default in the core agent
+
+- Added new source_host tag to TCP/UDP logs to help users understand where their logs came from.
+
+- Added support to handling UDP/TCP Logs when running the containerized agent.
+
+- APM: Allow custom HTTP client to be provided when instantiating the
+  trace-agent configuration. This feature is primarily intended for the
+  OpenTelemetry exporter.
+
+- APM: Add default UDS listeners for traces (trace-agent) and
+  dogstatsd (core-agent) on /var/run/datadog/apm.socket and
+  /var/run/datadog/dsd.socket, respectively.
+  These are used in the Single Step APM Instrumentation, improving
+  the onboarding experience and minimizing the agent configuration.
+
+- For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes, `out.host` and `dns.hostname`. This will improve coverage of inferred services because some tracer integrations only place the peer hostname in one of those attributes. 
+
+- APM stats for internal service overrides are now aggregated by the `_dd.base_service` tag only, enhancing visibility into specific base services.
+
+- Include spans with `span.kind=consumer` for aggregation of 
+  stats on peer tags. 
+
+- IP address quantization on all peer tags is done the backend during ingestion. This change updates the Agent to apply the same IP address quantization. This reduces unnecessary aggregation that is currently done on raw IP addresses. And therefore, improves the aggregation performance of stats on peer tags.
+
+- APM: Add new setting to disable the HTTP receiver in the
+  trace-agent. This setting should almost never be disabled and
+  is only a convenience parameter for OpenTelemetry extensions.
+  Disabling the receiver is semantically equivalent to setting the
+  receiver_port to 0 and receiver_socket to "".
+
+- Agents are now built with Go ``1.22.6``.
+
+- [NDM] Adds the option to collect BGP neighbors metrics from Cisco SD-WAN.
+
+- [NDM] Add option to collect cloud application metrics from Cisco SD-WAN.
+
+- [Cisco SD-WAN] Allow enabling/disabling metrics collection.
+
+- Report the hostname of Kubernetes events based on the associated
+  pod that the event relates to.
+
+- Introduces a parser to extract tags from integration logs and attach them to outgoing logs.
+
+- Implement External Data environment variable injection in the Admission Controller.
+  Format for this new environment variable is `it-INIT_CONTAINER,cn-CONTAINER_NAME,pu-POD_UID`.
+  This new variable is needed for the New Origin Detection spec. It is used for Origin Detection
+  in case Local Data are unavailable, for example with Kata Containers and CGroups v2.
+
+- Upgraded JMXFetch to `0.49.3 <https://github.com/DataDog/jmxfetch/releases/0.49.3>`_ which adds support for jsr77 j2ee statistics
+  and custom ConnectionFactory. See `0.49.3  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.3>`_ for more details.
+
+- Windows Agent Installer gives a better error message when a gMSA
+  account is provided for ``ddagentuser`` that Windows does not recognize.
+
+- Uninstalling the Windows Agent MSI Installer removes specific
+  subdirectories of the install path to help prevent data loss when
+  ``PROJECTLOCATION`` is misconfigured to an existing directory.
+
+- Adds a default upper limit of 10000 to the number of network traffic
+  paths that are captured at a single time. The user can increase or 
+  decrease this limit as needed.
+
+- Language detection can run on the core Agent without needing a gRPC server.
+
+- Add Hostname and ExtraTags to `CollectorECSTask`.
+
+- Collect SystemInfo for Pods and ECS Tasks.
+
+- Implement API that allows Python checks to send logs for
+  eventual submission.
+
+- Users can use ``DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS`` to remove sensitive annotations and labels.
+  For example: ``DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS="sensitive-key-1 sensitive-key-2"``.
+  Keys should be separated by spaces. The agent removes any annotations and labels matching these keys.
+
+- Add the ability to tag interface metrics with user-defined tags.
+
+
+.. _Release Notes_7.57.0_Security Notes:
+
+Security Notes
+--------------
+
+- Fix CVE-2024-41110.
+
+
+.. _Release Notes_7.57.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Results of `agent config` did not reflect the actual runtime config for the other services.  This will have other Datadog Agent services (e.g. trace-agent) running as a systemd service read the same environment variables from a text file `/etc/datadog-agent/environment` as the core Agent process.
+
+- [DBM] Bump go-sqllexer to 0.0.13 to fix a bug where the table name is incorrectly collected on PostgreSQL SELECT ONLY statement.
+
+- [Cisco SD-WAN] Do not collect unspecified IP addresses.
+
+- Fix `container.net.*` metrics accuracy on Linux. Currently `container.net.*` metrics are always emitted with high cardinality tags while the values may not represent actual container-level values but POD-level values (multiple containers in a pod) or host-level values (containers running in host network). With this bug fix, the `container.net.*` metrics aren't emitted for containers running in host network and a single timeseries is emitted by pods when running multiple containers. Finally, in non-Kubernetes environments, if multiple containers share the same network namespace, `container.net.*` metrics won't be emitted.
+
+- Fix duplicate logging in Process Agent component's Enabled() method.
+
+- Fixed bug in kubelet check when running in core agent that 
+  was causing `kubernetes.kubelet.container.log_filesystem.used_bytes` 
+  to be reported by the check for excluded/non-existing containers. 
+  The metric was being reported in this case without tags. 
+  This bug does not exist in the python integration version of the 
+  kubelet check.
+
+- Fixes a bug on Windows in the driver installation custom actions that could prevent rollback from working properly if an installation failed or was canceled.
+
+- Update pro-bing library to include fix for a Windows specific issue with large ICMP packets
+
+- [oracle] Fix wrong durations for cloud databases.
+
+- Stop chunking outputs in manual checks for container, process, and process_discovery checks to allow JSON unmarshaler to parse output.
+
+- Remove the original pod annotation on consul
+
+- Fix pod status for pods using native sidecars.
+
+- Fix a regression where the Agent would fail to start on systems with SysVinit.
+
+- APM: Fixes issue where the number of HTTP decoders was incorrectly set if setting GOMAXPROCS to milli-cpu values.
+
+
+.. _Release Notes_7.57.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metrics origins for vLLM integration.
+
+- Add deprecation warnings when running process checks on the Process Agent in Linux.
+  This change prepares for the deprecation of processes and container collection in the Process Agent, occurring in a future release.
+
+- Add metric origin for the AWS Neuron integration
+
+
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-02
+
+- Please refer to the `7.56.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7562>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix issue causing GUI to fail when opening with Internet Explorer on Windows.
+
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-08-29
+
+- Please refer to the `7.56.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7561>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a nil pointer dereference issue in the `Tailer.DidRotate` function that was causing the Agent to panic.
+
+
 .. _Release Notes_7.56.0:
 
 7.56.0

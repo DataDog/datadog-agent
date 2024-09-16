@@ -17,7 +17,6 @@ cws_instrumentation-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
 
 cws_instrumentation-build_arm64:
@@ -30,5 +29,4 @@ cws_instrumentation-build_arm64:
   variables:
     ARCH: arm64
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

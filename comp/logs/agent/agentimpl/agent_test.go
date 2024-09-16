@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -56,6 +58,7 @@ type AgentTestSuite struct {
 
 	source          *sources.LogSource
 	configOverrides map[string]interface{}
+	tagger          tagger.Component
 }
 
 type testDeps struct {
@@ -91,6 +94,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
+
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	suite.tagger = fakeTagger
 }
 
 func (suite *AgentTestSuite) TearDownTest() {
@@ -100,6 +106,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
+	suite.tagger.(tagger.Mock).ResetTagger()
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -119,6 +126,9 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryagentimpl.MockModule(),
 	))
 
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
+	defer fakeTagger.ResetTagger()
+
 	agent := &logAgent{
 		log:              deps.Log,
 		config:           deps.Config,
@@ -130,6 +140,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		services:  services,
 		tracker:   tailers.NewTailerTracker(),
 		endpoints: endpoints,
+		tagger:    fakeTagger,
 	}
 
 	agent.setupAgent()
@@ -396,6 +407,9 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() tagger.Component {
+			return suite.tagger
+		}),
 	))
 }
 
