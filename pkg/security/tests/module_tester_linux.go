@@ -34,9 +34,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -57,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -756,12 +752,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.DontDiscardRuntime = false
 	}
 
-	fxDeps := fxutil.Test[testModuleFxDeps](
-		t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -771,10 +762,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		// disable containers telemetry
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
