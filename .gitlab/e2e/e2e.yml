@@ -592,7 +592,6 @@ trigger-flakes-finder:
 new-e2e-eks-cleanup-on-failure:
   stage: e2e_cleanup
   extends: .new_e2e_template
-  dependencies: [go_e2e_deps]
   script:
     - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
   when: always
