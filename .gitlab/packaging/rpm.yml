@@ -8,9 +8,9 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE)
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
@@ -137,9 +137,9 @@ installer_suse_rpm-arm64:
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE)
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]

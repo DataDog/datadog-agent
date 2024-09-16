@@ -156,8 +156,6 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCacheSize int
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
 	SecurityProfileMaxCount int
-	// SecurityProfileRCEnabled defines if remote-configuration is enabled
-	SecurityProfileRCEnabled bool
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
 
@@ -410,7 +408,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileWatchDir:         coreconfig.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize:        coreconfig.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
 		SecurityProfileMaxCount:         coreconfig.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled:        coreconfig.SystemProbe().GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
 		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// auto suppression
@@ -518,6 +515,8 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
 	}
+
+	c.sanitizePlatform()
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }

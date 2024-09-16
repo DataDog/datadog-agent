@@ -50,8 +50,7 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
-  - source /root/.bashrc
-  - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN)
+  - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN) || exit $?; export CODECOV_TOKEN
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_lint:
@@ -267,7 +266,7 @@ new-e2e-unit-tests:
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"

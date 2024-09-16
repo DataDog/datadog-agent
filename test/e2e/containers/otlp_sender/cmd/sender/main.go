@@ -11,7 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
@@ -40,7 +40,7 @@ func components() (
 	exporters, err := exporter.MakeFactoryMap(
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
-		loggingexporter.NewFactory(),
+		debugexporter.NewFactory(),
 	)
 	errs = multierr.Append(errs, err)
 

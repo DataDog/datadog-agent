@@ -59,6 +59,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOpen",
 			"~TestUnlink",
 			"~TestActionKill",
+			"~TestActionHash",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
