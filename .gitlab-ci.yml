@@ -95,7 +95,9 @@ stages:
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test
+  - e2e_init
   - e2e
+  - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
   - kitchen_cleanup

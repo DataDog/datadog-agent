@@ -108,6 +108,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
 
 new-e2e-containers-eks-init:
+  stage: e2e_init
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
@@ -123,7 +124,7 @@ new-e2e-containers-eks-init:
 # This job does not do anything. This is a workaround to be able to run new-e2e-containers-eks even if the init job fails. Any better solution would be appreciated
 new-e2e-containers-eks-sync:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  stage: e2e
+  stage: e2e_init
   tags: ["arch:amd64"]
   script:
     - exit 0
@@ -256,6 +257,7 @@ new-e2e-npm-docker:
 
 
 new-e2e-npm-eks-init:
+  stage: e2e_init
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
@@ -269,6 +271,7 @@ new-e2e-npm-eks-init:
     E2E_INIT_ONLY: "true"
 
 new-e2e-npm-eks-sync:
+  stage: e2e_init
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: e2e
@@ -588,6 +591,7 @@ trigger-flakes-finder:
   allow_failure: true
 
 new-e2e-eks-cleanup-on-failure:
+  stage: e2e_cleanup
   extends: .new_e2e_template
   needs:
     - new-e2e-containers-eks-sync
@@ -596,6 +600,6 @@ new-e2e-eks-cleanup-on-failure:
     - qa_dogstatsd
   script:
     - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
-  when: on_failure
+  when: always
   allow_failure: true
 
