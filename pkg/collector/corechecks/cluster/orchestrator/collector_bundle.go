@@ -10,6 +10,7 @@ package orchestrator
 
 import (
 	"expvar"
+	"reflect"
 	"strings"
 	"time"
 
@@ -50,6 +51,7 @@ type CollectorBundle struct {
 	manifestBuffer      *ManifestBuffer
 	collectorDiscovery  *discovery.DiscoveryCollector
 	activatedCollectors map[string]struct{}
+	crdCollectors       []string
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -176,6 +178,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	// this is to stop multiple crds and/or people setting resources as custom resources which we already collect
 	// I am using the fullName for now on purpose in case we have the same resource across 2 different groups setup
 	if _, ok := cb.activatedCollectors[collector.Metadata().FullName()]; ok {
+		// TODO: This could fire during RC changes. Consider removing warning
 		_ = cb.check.Warnf("collector %s has already been added", collectorName) // Before using unstable info
 		return
 	}
@@ -210,6 +213,14 @@ func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
 	}
 
 	crdCollectors := cb.check.instance.CRDCollectors
+
+	// Check if our crd collectors list changed and cache results for next run
+	if reflect.DeepEqual(crdCollectors, cb.crdCollectors) {
+		// No change in collectors skip updating config
+		return true
+	}
+	cb.crdCollectors = crdCollectors
+
 	if len(cb.check.instance.CRDCollectors) > defaultMaximumCRDs {
 		crdCollectors = cb.check.instance.CRDCollectors[:defaultMaximumCRDs]
 		cb.check.Warnf("Too many crd collectors are configured, will only collect the first %d collectors", defaultMaximumCRDs)
@@ -320,6 +331,13 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender sender.Sender) {
+
+	// Each run check for new CRD collectors
+	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
+		if cb.skipImportingDefaultCollectors() {
+			return
+		}
+	}
 
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
