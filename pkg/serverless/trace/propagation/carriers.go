@@ -218,12 +218,12 @@ func handleRegularSNSMessage(msgAttrs interface{}) (tracer.TextMapReader, error)
 func handleEventBridgeThroughSNS(eventBridgeEvent map[string]interface{}) (tracer.TextMapReader, error) {
 	detail, ok := eventBridgeEvent["detail"].(map[string]interface{})
 	if !ok {
-		return nil, errorUnsupportedTypeType
+		return nil, errorUnsupportedPayloadType
 	}
 
 	datadogInfo, ok := detail["_datadog"].(map[string]interface{})
 	if !ok {
-		return nil, errorUnsupportedTypeType
+		return nil, errorNoDDContextFound
 	}
 
 	carrier := make(tracer.TextMapCarrier)

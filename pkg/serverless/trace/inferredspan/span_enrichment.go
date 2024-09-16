@@ -319,10 +319,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 		resourceNames: source,
 		detailType:    eventPayload.DetailType,
 	}
-
-	for key, value := range eventPayload.Detail {
-		inferredSpan.Span.Meta["detail."+key] = fmt.Sprintf("%v", value)
-	}
 }
 
 // EnrichInferredSpanWithKinesisEvent uses the parsed event

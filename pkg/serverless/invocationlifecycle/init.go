@@ -171,7 +171,7 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 		}
 	}
 
-	// Check for EventBridge event wrapped bythe SQS body
+	// Check for EventBridge event wrapped by the SQS body
 	var eventBridgeEvent events.EventBridgeEvent
 	if err := json.Unmarshal([]byte(event.Records[0].Body), &eventBridgeEvent); err == nil {
 		if eventBridgeEvent.DetailType != "" && eventBridgeEvent.Detail != nil {
