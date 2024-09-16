@@ -16,7 +16,7 @@
     KITCHEN_OSVERS: "win2016,win2019,win2019cn,win2022"
     DEFAULT_KITCHEN_OSVERS: "win2022"
   before_script:
-    - if [ $AGENT_MAJOR_VERSION == "7" ]; then export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7; else export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A6; fi
+    - export WINDOWS_TESTING_S3_BUCKET=$WINDOWS_TESTING_S3_BUCKET_A7
     - cd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   # Windows kitchen tests are slower and more fragile (lots of WinRM::WinRMAuthorizationError and/or execution expired errors)
