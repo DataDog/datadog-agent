@@ -9,4 +9,4 @@
 fixes:
   - |
     Fixes a panic caused by running the agent on readonly filesystems. The
-    agent will now return integration launchers and handle memory gracefully.
+    Agent will now return integration launchers and handle memory gracefully.
