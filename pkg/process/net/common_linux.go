@@ -9,6 +9,7 @@ package net
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -18,6 +19,7 @@ const (
 	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
 	tracerouteURL        = "http://unix/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	networkIDURL         = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
@@ -38,4 +40,9 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// DialSystemProbe connects to the system-probe service endpoint
+func DialSystemProbe(netType string, path string) (net.Conn, error) {
+	return net.Dial(netType, path)
 }

@@ -6,14 +6,15 @@
 package installer
 
 import (
-	"fmt"
+	"os"
+	"strings"
+
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
-	"os"
-	"strings"
+	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
+	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
 // PackageVersion is a helper type to store both the version and the package version of a binary.
@@ -86,6 +87,10 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
+	if instlr.GetInstallMethodFromEnv() != instlr.InstallMethodWindows {
+		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
+	}
+
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
@@ -113,7 +118,7 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
 	s.Require().NoError(err, "should get output dir")
 	s.T().Logf("Output dir: %s", outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), fmt.Sprintf("%s/install.log", outputDir))
+	s.installer = NewDatadogInstaller(s.Env(), outputDir)
 }
 
 // Require instantiates a suiteAssertions for the current suite.

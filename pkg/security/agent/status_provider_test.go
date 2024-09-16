@@ -18,7 +18,6 @@ func TestStatus(t *testing.T) {
 		agent: &RuntimeSecurityAgent{
 			client:               nil,
 			hostname:             "test",
-			telemetry:            nil,
 			storage:              nil,
 			running:              atomic.NewBool(false),
 			connected:            atomic.NewBool(false),

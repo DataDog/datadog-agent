@@ -217,7 +217,7 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 	testRoot := path.Join("c:", "users", "administrator")
 
 	clientJSONFile := path.Join(testRoot, "datadog.json")
-	clientAppConfig := path.Join(testRoot, "app.config")
+	clientAppConfig := path.Join(testRoot, "littleget.exe.config")
 
 	removeIfExists(vm, clientJSONFile)
 	removeIfExists(vm, clientAppConfig)
@@ -294,6 +294,9 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
 	vm.CopyFile("usmtest/littleget.exe", testExe)
+
+	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
+	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
 
 	pscommand := "%s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 

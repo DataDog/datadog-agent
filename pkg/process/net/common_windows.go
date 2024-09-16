@@ -15,6 +15,7 @@ import (
 
 const (
 	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	networkIDURL         = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	statsURL             = "http://localhost:3333/debug/stats"
@@ -28,6 +29,9 @@ const (
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows
 	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
+
+	// SystemProbePipeName is the production named pipe for system probe
+	SystemProbePipeName = `\\.\pipe\dd_system_probe`
 )
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect

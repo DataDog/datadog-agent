@@ -135,9 +135,9 @@ func generateKafkaTransaction(source util.Address, dest util.Address, sourcePort
 	event.Transaction.Records_count = recordsCount
 	event.Transaction.Topic_name_size = uint8(len(topicName))
 	event.Transaction.Topic_name = topicNameFromString([]byte(topicName))
-	event.Tup.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Bytes()))
+	event.Tup.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Unmap().AsSlice()))
 	event.Tup.Sport = uint16(sourcePort)
-	event.Tup.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Bytes()))
+	event.Tup.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Unmap().AsSlice()))
 	event.Tup.Dport = uint16(destPort)
 	event.Tup.Metadata = 1
 

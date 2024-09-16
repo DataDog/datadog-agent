@@ -259,6 +259,9 @@ rules:
           signal: {{$Action.Kill.Signal}}
           {{- end}}
 {{- end}}
+{{- if $Action.Hash}}
+      - hash: {}
+{{- end}}
 {{- end}}
 {{end}}
 `
@@ -807,6 +810,10 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
 
+	if opts.staticOpts.discardRuntime {
+		emopts.ProbeOpts.DontDiscardRuntime = false
+	}
+
 	fxDeps := fxutil.Test[testModuleFxDeps](
 		t,
 		core.MockBundle(),
@@ -822,7 +829,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
