@@ -299,7 +299,7 @@ func TestIsRateLimitError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, isRateLimitError(test.err), test.isRateLimit)
+			require.Equal(t, IsRateLimitError(test.err), test.isRateLimit)
 		})
 	}
 }

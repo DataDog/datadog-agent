@@ -84,8 +84,8 @@ func getMinRemainingRequestsTracker() *minTracker {
 	return minRemainingRequestsTracker
 }
 
-// isRateLimitError is a helper function that checks if the received error is a rate limit error
-func isRateLimitError(err error) bool {
+// IsRateLimitError is a helper function that checks if the received error is a rate limit error
+func IsRateLimitError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -106,7 +106,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	currentTimeUnix := time.Now().Unix()
 	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
 	if err != nil {
-		if isRateLimitError(err) {
+		if IsRateLimitError(err) {
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
 		} else {
 			ddRequests.Inc("error", le.JoinLeaderValue)
