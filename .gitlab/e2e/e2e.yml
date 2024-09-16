@@ -274,7 +274,6 @@ new-e2e-npm-eks-sync:
   stage: e2e_init
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
-  stage: e2e
   script:
     - exit 0
   needs:
@@ -593,11 +592,7 @@ trigger-flakes-finder:
 new-e2e-eks-cleanup-on-failure:
   stage: e2e_cleanup
   extends: .new_e2e_template
-  needs:
-    - new-e2e-containers-eks-sync
-    - new-e2e-npm-eks-sync
-    - qa_agent
-    - qa_dogstatsd
+  dependencies: [go_e2e_deps]
   script:
     - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
   when: always
