@@ -352,7 +352,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 	}
 	for k, v := range defaultRepoEnv {
 		environments = append(environments, fmt.Sprintf("%s: %s", k, v))
-		}
+	}
 
 	if defaultRepoEnv["TESTING_APT_REPO_VERSION"] != "" && defaultRepoEnv["TESTING_APT_URL"] != "" {
 		playbookStringSuffix += fmt.Sprintf("    datadog_apt_repo: \"deb [signed-by=%s] https://%s/ %s\"\n", defaultRepoEnv["TESTING_APT_KEY"], defaultRepoEnv["TESTING_APT_URL"], defaultRepoEnv["TESTING_APT_REPO_VERSION"])
