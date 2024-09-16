@@ -10,8 +10,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 
@@ -27,7 +29,17 @@ func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"stop", unit}, args...)
-	return newCommandRunner(ctx, "systemctl", args...).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	if exitErr.ExitCode() == 5 {
+		// exit code 5 means the unit is not loaded, we can continue
+		return nil
+	}
+	return errors.New(string(exitErr.Stderr))
 }
 
 func startUnit(ctx context.Context, unit string, args ...string) (err error) {
@@ -35,21 +47,43 @@ func startUnit(ctx context.Context, unit string, args ...string) (err error) {
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
-	return newCommandRunner(ctx, "systemctl", args...).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
 func enableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
-	return newCommandRunner(ctx, "systemctl", "enable", unit).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
 func disableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
-	return newCommandRunner(ctx, "systemctl", "disable", unit).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	if exitErr.ExitCode() == 5 {
+		// exit code 5 means the unit is not loaded, we can continue
+		return nil
+	}
+	return errors.New(string(exitErr.Stderr))
 }
 
 func loadUnit(ctx context.Context, unit string) (err error) {
@@ -74,7 +108,13 @@ func removeUnit(ctx context.Context, unit string) (err error) {
 func systemdReload(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	return newCommandRunner(ctx, "systemctl", "daemon-reload").runWithError()
+	err = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
 // isSystemdRunning checks if systemd is running using the documented way
