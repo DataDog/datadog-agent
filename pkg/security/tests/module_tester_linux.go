@@ -208,64 +208,6 @@ runtime_security_config:
         period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
-const testPolicy = `---
-version: 1.2.3
-
-hooks:
-{{range $OnDemandProbe := .OnDemandProbes}}
-  - name: {{$OnDemandProbe.Name}}
-    syscall: {{$OnDemandProbe.IsSyscall}}
-    args:
-{{range $Arg := $OnDemandProbe.Args}}
-      - n: {{$Arg.N}}
-        kind: {{$Arg.Kind}}
-{{end}}
-{{end}}
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    disabled: {{$Rule.Disabled}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- if $Action.Hash}}
-      - hash: {}
-{{- end}}
-{{- end}}
-{{end}}
-`
-
 const (
 	// HostEnvironment for the Host environment
 	HostEnvironment = "host"

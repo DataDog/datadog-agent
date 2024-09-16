@@ -40,49 +40,6 @@ var (
 	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
 
-const testPolicy = `---
-version: 1.2.3
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
-{{end}}
-`
-
 const testConfig = `---
 log_level: DEBUG
 
