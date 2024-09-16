@@ -1,7 +1,0 @@
-other:
-  - |
-    On Windows, the TCP socket transport mechanism for system probe
-    communications has been replaced with a named pipe.
-    This entails that the system_probe_config.sysprobe_socket configuration
-    entry for Windows is deprecated.
-    The new fixed named pipe path is \\.\pipe\dd_system_probe.
