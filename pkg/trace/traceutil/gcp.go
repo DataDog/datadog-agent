@@ -142,7 +142,6 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 		log.Error("unable to read metadata body, defaulting to unknown")
 		return "unknown"
 	}
-	GetCloudRunTags()
 	return strings.ToLower(string(data))
 }
 

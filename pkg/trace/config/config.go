@@ -535,8 +535,6 @@ func New() *AgentConfig {
 func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
-	} else if inGCPCloudRun() {
-		return traceutil.GetCloudRunTags()
 	}
 	return make(map[string]string)
 }
@@ -619,10 +617,4 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
-}
-
-func inGCPCloudRun() bool {
-	_, serviceExists := os.LookupEnv("K_SERVICE")
-	_, cloudRunFunctionExist := os.LookupEnv("FUNCTION_TARGET")
-	return serviceExists || cloudRunFunctionExist
 }
