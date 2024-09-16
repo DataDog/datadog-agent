@@ -41,11 +41,8 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
-		fx.Supply(server.Params{
-			Serverless: false,
-		}),
 		demultiplexerimpl.MockModule(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(server.Params{Serverless: false}),
 		defaultforwarder.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

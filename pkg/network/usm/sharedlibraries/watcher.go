@@ -32,11 +32,13 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
-func toLibPath(data []byte) libPath {
-	return *(*libPath)(unsafe.Pointer(&data[0]))
+// ToLibPath casts the perf event data to the LibPath structure
+func ToLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func toBytes(l *libPath) []byte {
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
@@ -56,7 +58,7 @@ type Watcher struct {
 	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *utils.FileRegistry
-	ebpfProgram    *ebpfProgram
+	ebpfProgram    *EbpfProgram
 
 	// telemetry
 	libHits    *telemetry.Counter
@@ -68,7 +70,7 @@ var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg)
+	ebpfProgram := NewEBPFProgram(&cfg.Config)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -255,7 +257,7 @@ func (w *Watcher) Start() {
 					return
 				}
 
-				lib := toLibPath(event.Data)
+				lib := ToLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself
 					event.Done()
@@ -263,7 +265,7 @@ func (w *Watcher) Start() {
 				}
 
 				w.libHits.Add(1)
-				path := toBytes(&lib)
+				path := ToBytes(&lib)
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)

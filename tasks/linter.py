@@ -349,11 +349,11 @@ def ssm_parameters(ctx, mode="all", folders=None):
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
-    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for secret parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
         """
         Initialize an SSMParameterCall instance.
 
@@ -362,18 +362,16 @@ class SSMParameterCall:
             line_nb (int): The line number in the file where the SSM parameter call is located.
             with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
             with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
-            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
         """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
-        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper or not self.standard:
-            message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
+        if not self.with_wrapper:
+            message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
         return f"{self.file}:{self.line_nb + 1}. {message}"
@@ -383,29 +381,24 @@ class SSMParameterCall:
 
 
 def list_get_parameter_calls(file):
-    ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
-    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    # remove the first letter of the script name because '\f' is badly interpreted for windows paths
+    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
-                is_ssm_get = ssm_get.match(line.strip())
-                if is_ssm_get:
-                    m = aws_ssm_call.match(line.strip())
-                    if m:
-                        # Remove possible quotes
-                        param = m["param"].replace('"', '').replace("'", "")
-                        calls.append(
-                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
-                        )
-                    m = ssm_wrapper_call.match(line.strip())
-                    param = m["param"].replace('"', '').replace("'", "") if m else None
-                    if m and not (param.startswith("$") or "os.environ" in param):
-                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
-                    if not m:
-                        calls.append(SSMParameterCall(file, nb, standard=False))
+                m = aws_ssm_call.match(line.strip())
+                if m:
+                    # Remove possible quotes
+                    param = m["param"].replace('"', '').replace("'", "")
+                    calls.append(
+                        SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
+                    )
+                m = wrapper_call.match(line.strip())
+                param = m["param"].replace('"', '').replace("'", "") if m else None
+                if m and not (param.startswith("$") or "os.environ" in param):
+                    calls.append(SSMParameterCall(file, nb, with_wrapper=True))
         except UnicodeDecodeError:
             pass
     return calls
@@ -563,9 +556,6 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
-        'new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64',
-        'new-e2e-agent-platform-package-signing-debian-a7-x86_64',
-        'new-e2e-agent-platform-package-signing-suse-a7-x86_64',
         'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
@@ -590,11 +580,14 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-npm-docker',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
+        'new-e2e-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-package-signing-debian-a7-x86_64',
+        'new-e2e-package-signing-suse-a7-x86_64',
         'new-e2e_windows_powershell_module_test',
         'trigger-flakes-finder',
     }
 
-    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
     # Read and parse gitlab config
     # The config is filtered to only include jobs

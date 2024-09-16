@@ -52,7 +52,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
@@ -122,7 +122,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 }
 
 func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, types.HighCardinality)
+	return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.

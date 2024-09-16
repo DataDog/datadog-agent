@@ -60,6 +60,13 @@ typedef enum {
     KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END,
     KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS,
     KAFKA_FETCH_RESPONSE_PARTITION_END,
+
+    KAFKA_PRODUCE_RESPONSE_START,
+    KAFKA_PRODUCE_RESPONSE_NUM_TOPICS,
+    KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE,
+    KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS,
+    KAFKA_PRODUCE_RESPONSE_PARTITION_START,
+    KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START,
 } __attribute__ ((packed)) kafka_response_state;
 
 typedef struct kafka_fetch_response_record_batches_array_t {
@@ -113,6 +120,7 @@ typedef struct kafka_info_t {
 typedef struct {
     // The array topic_name_size_buckets maps a bucket index to the number of occurrences observed for topic name lengths
     __u64 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS];
+    __u64 produce_no_required_acks;
 } kafka_telemetry_t;
 
 #endif

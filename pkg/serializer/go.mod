@@ -65,8 +65,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
@@ -75,7 +75,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.20.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
@@ -94,7 +94,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3 // indirect
