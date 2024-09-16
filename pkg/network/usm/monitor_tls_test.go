@@ -575,27 +575,27 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
+		t.Run("new process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(tt, cfg, true)
 		})
-		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
+		t.Run("already running process", func(tt *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(tt, cfg, true)
 		})
 	})
 }
 
 func TestHTTP2GoTLSAttachProbes(t *testing.T) {
 	t.Run("netlink",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = false
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 	t.Run("event stream",
-		func(t *testing.T) {
+		func(tt *testing.T) {
 			cfg := config.New()
 			cfg.EnableUSMEventStream = true
-			testHTTP2GoTLSAttachProbes(t, cfg)
+			testHTTP2GoTLSAttachProbes(tt, cfg)
 		})
 }
 
