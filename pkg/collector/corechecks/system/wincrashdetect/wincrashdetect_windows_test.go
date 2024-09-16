@@ -8,7 +8,6 @@
 package wincrashdetect
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 
@@ -24,18 +23,19 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 
-	//process_net "github.com/DataDog/datadog-agent/pkg/process/net"
+	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 
 	"golang.org/x/sys/windows/registry"
 )
 
 func createSystemProbeListener() (l net.Listener, close func()) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	// No socket address. Windows uses a fixed name pipe
+	conn, err := process_net.NewSystemProbeListener("")
 	if err != nil {
 		panic(err)
 	}
-	return l, func() {
-		_ = l.Close()
+	return conn.GetListener(), func() {
+		_ = conn.GetListener().Close()
 	}
 }
 
@@ -69,8 +69,8 @@ func TestWinCrashReporting(t *testing.T) {
 	}
 	defer server.Close()
 
-	sock := fmt.Sprintf("localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-	pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.sysprobe_socket", sock)
+	// no socket address is set in config for Windows since system probe
+	// utilizes a fixed named pipe.
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different

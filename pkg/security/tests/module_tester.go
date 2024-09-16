@@ -26,10 +26,12 @@ import (
 	"time"
 	"unsafe"
 
+	"go.uber.org/fx"
+	"gopkg.in/yaml.v3"
+
 	spconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"go.uber.org/fx"
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -643,7 +645,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -654,21 +656,19 @@ func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros 
 		return err
 	}
 
-	tmpl, err := template.New("test-policy").Parse(testPolicy)
+	policyDef := &rules.PolicyDef{
+		Version:            "1.2.3",
+		Macros:             macroDefs,
+		Rules:              ruleDefs,
+		OnDemandHookPoints: onDemandProbes,
+	}
+
+	testPolicy, err := yaml.Marshal(policyDef)
 	if err != nil {
 		return "", fail(err)
 	}
 
-	buffer := new(bytes.Buffer)
-	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"OnDemandProbes": onDemandProbes,
-		"Rules":          rules,
-		"Macros":         macros,
-	}); err != nil {
-		return "", fail(err)
-	}
-
-	_, err = testPolicyFile.Write(buffer.Bytes())
+	_, err = testPolicyFile.Write(testPolicy)
 	if err != nil {
 		return "", fail(err)
 	}

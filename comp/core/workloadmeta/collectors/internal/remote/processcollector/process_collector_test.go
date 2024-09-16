@@ -296,18 +296,25 @@ func TestCollection(t *testing.T) {
 			require.NoError(t, err)
 
 			// Number of events expected. Each response can hold multiple events, either Set or Unset
-			numberOfEvents := len(test.preEvents)
+			expectedNumberOfEvents := len(test.preEvents)
 			for _, ev := range test.serverResponses {
-				numberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
+				expectedNumberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
 			}
 
 			// Keep listening to workloadmeta until enough events are received. It is possible that the
 			// first bundle does not hold any events. Thus, it is required to look at the number of events
 			// in the bundle.
-			for i := 0; i < numberOfEvents; {
+			// Also, when a problem occurs and a re-sync is triggered, we might
+			// receive duplicate events, so we need to keep a map of received
+			// events to account for duplicates.
+			eventsReceived := make(map[workloadmeta.Event]struct{})
+			for len(eventsReceived) < expectedNumberOfEvents {
 				bundle := <-ch
-				close(bundle.Ch)
-				i += len(bundle.Events)
+				bundle.Acknowledge()
+
+				for _, ev := range bundle.Events {
+					eventsReceived[ev] = struct{}{}
+				}
 			}
 
 			mockStore.Unsubscribe(ch)

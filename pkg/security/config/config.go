@@ -157,8 +157,6 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCacheSize int
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
 	SecurityProfileMaxCount int
-	// SecurityProfileRCEnabled defines if remote-configuration is enabled
-	SecurityProfileRCEnabled bool
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
 
@@ -411,7 +409,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileWatchDir:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
 		SecurityProfileMaxCount:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
 		SecurityProfileDNSMatchMaxDepth: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// auto suppression

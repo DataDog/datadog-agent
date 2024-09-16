@@ -107,7 +107,6 @@ notify_gitlab_ci_changes:
     - git checkout main
     - git checkout -
   script:
-    - source /root/.bashrc
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
       export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64)

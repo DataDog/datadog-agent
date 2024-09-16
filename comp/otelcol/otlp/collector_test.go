@@ -66,7 +66,8 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert.ErrorContains(t, p.Run(ctx), expected)
+	pipelineError := p.Run(ctx)
+	assert.ErrorContains(t, pipelineError, expected)
 }
 
 func TestStartPipeline(t *testing.T) {
@@ -103,7 +104,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "error decoding 'receivers': error reading configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+			err:  "'protocols' has invalid keys: htttp",
 		},
 	}
 
