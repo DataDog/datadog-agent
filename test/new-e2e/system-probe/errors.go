@@ -47,6 +47,8 @@ const (
 	ec2StateChangeTimeoutError
 	ioTimeout
 	tcp22ConnectionRefused
+	ec2InstanceCreateTimeout
+	ddAgentRepoFailure
 )
 
 type handledError struct {
@@ -102,6 +104,18 @@ var handledErrorsLs = []handledError{
 		errorType:   tcp22ConnectionRefused,
 		errorString: "failed attempts: ssh: rejected: connect failed",
 		metric:      "ssh-connection-refused",
+		action:      retryStack | emitMetric,
+	},
+	{
+		errorType:   ec2InstanceCreateTimeout,
+		errorString: "creating EC2 Instance: operation error",
+		metric:      "ec2-instance-create-timeout",
+		action:      retryStack | emitMetric,
+	},
+	{
+		errorType:   ddAgentRepoFailure,
+		errorString: "Failed to update the sources after adding the Datadog repository.",
+		metric:      "apt-dd-agent-repo-failure",
 		action:      retryStack | emitMetric,
 	},
 }
