@@ -321,7 +321,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return DialSystemProbe(netType, path)
+					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
 				ResponseHeaderTimeout: 5 * time.Second,
@@ -331,7 +331,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 		pprofClient: http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return DialSystemProbe(netType, path)
+					return net.Dial(netType, path)
 				},
 			},
 		},
@@ -340,7 +340,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			// is that the caller will set a timeout on each request
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return DialSystemProbe(netType, path)
+					return net.Dial(netType, path)
 				},
 			},
 		},
