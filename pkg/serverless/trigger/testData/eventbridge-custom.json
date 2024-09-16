@@ -9,6 +9,8 @@
   "resources": [],
   "detail": {
     "foo": "bar",
+    "BusName": "testBus",
+    "SentTimestamp": "100",
     "_datadog": {
       "x-datadog-trace-id": "12345",
       "x-datadog-parent-id": "67890",
