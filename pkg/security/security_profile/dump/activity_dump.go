@@ -894,22 +894,22 @@ func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
 
 	fileInfo, err := os.Stat(path)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("The path %s does not exist.\n", path)
+		return nil, fmt.Errorf("the path %s does not exist", path)
 	} else if err != nil {
-		return nil, fmt.Errorf("Error checking the path: %s\n", err)
+		return nil, fmt.Errorf("error checking the path: %s", err)
 	}
 
 	if fileInfo.IsDir() {
 		dir, err := os.Open(path)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to open directory: %s", err)
+			return nil, fmt.Errorf("failed to open directory: %s", err)
 		}
 		defer dir.Close()
 
 		// Read the directory contents
 		files, err := dir.Readdir(-1)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to read directory: %s", err)
+			return nil, fmt.Errorf("failed to read directory: %s", err)
 		}
 
 		ads := []*ActivityDump{}
@@ -920,26 +920,32 @@ func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
 			}
 			defer f.Close()
 			ad := NewEmptyActivityDump(nil)
-			ad.DecodeProtobuf(f)
+			err = ad.DecodeProtobuf(f)
+			if err != nil {
+				return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+			}
 
 			ads = append(ads, ad)
 		}
 		return ads, nil
 
-	} else { // it's a file
-		f, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't open secdump: %w", err)
-		}
-		defer f.Close()
-		ad := NewEmptyActivityDump(nil)
-		ad.DecodeProtobuf(f)
-		return ad, nil
-
 	}
+	// It's a file otherwise
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open secdump: %w", err)
+	}
+	defer f.Close()
+	ad := NewEmptyActivityDump(nil)
+	ad.DecodeProtobuf(f)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+	}
+	return ad, nil
+
 }
 
-// ToSECL return SECL rules matching the activity of the given tree
+// ToSECLRules return SECL rules matching the activity of the given tree
 func (ad *ActivityDump) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
 	return ad.ActivityTree.ToSECLRules(opts)
 }

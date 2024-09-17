@@ -227,6 +227,7 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	return "", false
 }
 
+// BuildPatterns find and build patterns for the path in the ruleset
 func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
 	for _, rule := range ruleset {
 		findAndReplacePatterns(&rule.Expression)

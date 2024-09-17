@@ -620,6 +620,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
+// ActivityDumpToWorkloadPolicyCliParams params of the workload-list command
 type ActivityDumpToWorkloadPolicyCliParams struct {
 	*command.GlobalParams
 
@@ -634,6 +635,7 @@ type ActivityDumpToWorkloadPolicyCliParams struct {
 	fim       bool
 }
 
+// ActivityDumpToWorkloadPolicyCommands
 func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &ActivityDumpToWorkloadPolicyCliParams{
 		GlobalParams: globalParams,
@@ -642,7 +644,7 @@ func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []
 	ActivityDumpWorkloadPolicyCmd := &cobra.Command{
 		Use:   "workload-policy",
 		Short: "convert an activity dump to a workload policy",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return fxutil.OneShot(ActivityDumpToWorkloadPolicy,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -720,6 +722,7 @@ func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []
 	return []*cobra.Command{ActivityDumpWorkloadPolicyCmd}
 }
 
+// ActivityDumpToWorkloadPolicy return a workload policy from an activity-dump or a directory of activity-dump
 func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *ActivityDumpToWorkloadPolicyCliParams) error {
 
 	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
@@ -727,7 +730,7 @@ func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 		return err
 	}
 	var mergedRules []*rules.RuleDefinition
-	switch ads.(type) {
+	switch ads := ads.(type) {
 	case *dump.ActivityDump:
 		rules, err := generateRules(ads, args)
 		if err != nil {
@@ -736,7 +739,7 @@ func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 		mergedRules = rules
 	case []*dump.ActivityDump: // the provided path is a directory containing several activity dumps
 
-		for _, ad := range ads.([]*dump.ActivityDump) {
+		for _, ad := range ads {
 
 			rules, err := generateRules(ad, args)
 			if err != nil {

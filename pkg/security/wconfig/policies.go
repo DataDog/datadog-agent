@@ -53,6 +53,7 @@ type WorkloadPolicy struct {
 	SECLPolicy  `yaml:",inline,omitempty"`
 }
 
+// nolint: unused
 func (p *SECLPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, error) {
 	// patch rules with the container ID
 	for i, ruleDef := range wp.SECLPolicy.Rules {
@@ -65,6 +66,7 @@ func (p *SECLPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, error
 	return wp.SECLPolicy.Rules, nil
 }
 
+// nolint: unused
 func (p *AllowPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, error) {
 	var processes []string
 	for _, allow := range p.Allow {
@@ -195,13 +197,13 @@ func (wp *WorkloadPolicyProvider) onCGroupDeletedEvent(workload *model.CacheEntr
 }
 
 // Start starts the Remote Config policy provider and subscribes to updates
-func (r *WorkloadPolicyProvider) Start() {
+func (wp *WorkloadPolicyProvider) Start() {
 	log.Info("workload policies provider started")
-	r.debouncer.Start()
+	wp.debouncer.Start()
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (wp *WorkloadPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (wp *WorkloadPolicyProvider) LoadPolicies(_ []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
 

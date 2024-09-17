@@ -967,7 +967,7 @@ func getGroupID(opts SECLRuleOpts) string {
 	return groupID
 }
 
-// ToSECL return SECL rules matching the activity of the given tree
+// ToSECLRules return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
 	groupID := getGroupID(opts)
 	type Paths struct {
