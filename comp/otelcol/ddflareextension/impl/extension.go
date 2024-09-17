@@ -42,7 +42,7 @@ type ddExtension struct {
 
 var _ extension.Extension = (*ddExtension)(nil)
 
-func (ext *ddExtension) NotifyConfig(ctx context.Context, conf *confmap.Conf) error {
+func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var cfg *configSettings
 	var err error
 

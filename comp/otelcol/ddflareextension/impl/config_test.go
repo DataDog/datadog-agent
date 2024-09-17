@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func getTestConfig(t *testing.T) *Config {
+func getTestConfig() *Config {
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
@@ -23,7 +23,7 @@ func getTestConfig(t *testing.T) *Config {
 }
 
 func TestValidate(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	err := cfg.Validate()
 	assert.NoError(t, err)
@@ -38,7 +38,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	endpoint := "localhost:1234"
 

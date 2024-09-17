@@ -24,11 +24,11 @@ import (
 )
 
 type configSettings struct {
-	Receivers  *Configs[receiver.Factory]  `mapstructure:"receivers"`
-	Processors *Configs[processor.Factory] `mapstructure:"processors"`
-	Exporters  *Configs[exporter.Factory]  `mapstructure:"exporters"`
-	Connectors *Configs[connector.Factory] `mapstructure:"connectors"`
-	Extensions *Configs[extension.Factory] `mapstructure:"extensions"`
+	Receivers  *configs[receiver.Factory]  `mapstructure:"receivers"`
+	Processors *configs[processor.Factory] `mapstructure:"processors"`
+	Exporters  *configs[exporter.Factory]  `mapstructure:"exporters"`
+	Connectors *configs[connector.Factory] `mapstructure:"connectors"`
+	Extensions *configs[extension.Factory] `mapstructure:"extensions"`
 	Service    service.Config              `mapstructure:"service"`
 }
 
@@ -41,11 +41,11 @@ func unmarshal(v *confmap.Conf, factories otelcol.Factories) (*configSettings, e
 
 	// Unmarshal top level sections and validate.
 	cfg := &configSettings{
-		Receivers:  NewConfigs(factories.Receivers),
-		Processors: NewConfigs(factories.Processors),
-		Exporters:  NewConfigs(factories.Exporters),
-		Connectors: NewConfigs(factories.Connectors),
-		Extensions: NewConfigs(factories.Extensions),
+		Receivers:  newConfigs(factories.Receivers),
+		Processors: newConfigs(factories.Processors),
+		Exporters:  newConfigs(factories.Exporters),
+		Connectors: newConfigs(factories.Connectors),
+		Extensions: newConfigs(factories.Extensions),
 		// TODO: Add a component.ServiceFactory to allow this to be defined by the Service.
 		Service: service.Config{
 			Telemetry: defaultTelConfig,
@@ -55,21 +55,21 @@ func unmarshal(v *confmap.Conf, factories otelcol.Factories) (*configSettings, e
 	return cfg, v.Unmarshal(&cfg)
 }
 
-type Configs[F component.Factory] struct {
+type configs[F component.Factory] struct {
 	cfgs map[component.ID]component.Config
 
 	factories map[component.Type]F
 }
 
-func NewConfigs[F component.Factory](factories map[component.Type]F) *Configs[F] {
-	return &Configs[F]{factories: factories}
+func newConfigs[F component.Factory](factories map[component.Type]F) *configs[F] {
+	return &configs[F]{factories: factories}
 }
 
-func (c *Configs[F]) Configs() map[component.ID]component.Config {
+func (c *configs[F]) Configs() map[component.ID]component.Config {
 	return c.cfgs
 }
 
-func (c *Configs[F]) Unmarshal(conf *confmap.Conf) error {
+func (c *configs[F]) Unmarshal(conf *confmap.Conf) error {
 	rawCfgs := make(map[component.ID]map[string]any)
 	if err := conf.Unmarshal(&rawCfgs); err != nil {
 		return err

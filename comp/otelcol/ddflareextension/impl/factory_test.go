@@ -16,12 +16,12 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 )
 
-func getTestFactory(t *testing.T) extension.Factory {
+func getTestFactory() extension.Factory {
 	return NewFactory(&otelcol.Factories{}, otelcol.ConfigProviderSettings{})
 }
 
 func TestNewFactory(t *testing.T) {
-	factory := getTestFactory(t)
+	factory := getTestFactory()
 	assert.NotNil(t, factory)
 
 	cfg := factory.CreateDefaultConfig()
@@ -36,7 +36,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestTypeStability(t *testing.T) {
-	factory := getTestFactory(t)
+	factory := getTestFactory()
 	assert.NotNil(t, factory)
 
 	typ := factory.Type()
