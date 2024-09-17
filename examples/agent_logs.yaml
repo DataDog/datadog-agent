@@ -16,7 +16,6 @@ tags:
   - example:changeme
 #  - <TAG_KEY>:<TAG_VALUE>
 
-
 logs_enabled: true
 
 apm_config:
