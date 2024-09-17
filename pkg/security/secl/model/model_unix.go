@@ -84,9 +84,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-
-	// used for ebpfless
-	NSID uint64 `field:"-"`
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -437,6 +434,8 @@ type PIDContext struct {
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	// used for ebpfless
+	NSID uint64 `field:"-"`
 }
 
 // RenameEvent represents a rename event

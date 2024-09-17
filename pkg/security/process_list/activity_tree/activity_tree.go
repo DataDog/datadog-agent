@@ -11,6 +11,7 @@ package activitytree
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -27,8 +28,8 @@ type Stats struct {
 
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
-	Stats        *Stats
-	pathsReducer *PathsReducer
+	Stats *Stats
+	// pathsReducer *PathsReducer
 
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
@@ -39,9 +40,9 @@ type ActivityTree struct {
 }
 
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree(pathsReducer *PathsReducer) *ActivityTree {
+func NewActivityTree( /* pathsReducer *PathsReducer */ ) *ActivityTree {
 	return &ActivityTree{
-		pathsReducer: pathsReducer,
+		// pathsReducer: pathsReducer,
 		Stats:        &Stats{},
 		DNSNames:     utils.NewStringKeys(nil),
 		SyscallsMask: make(map[int]int),
@@ -49,11 +50,18 @@ func NewActivityTree(pathsReducer *PathsReducer) *ActivityTree {
 }
 
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func IsValidRootNode(entry *model.Process) bool {}
+func IsValidRootNode(entry *model.Process) bool {
+	// TODO
+	return true
+}
 
-func (at *ActivityTree) Matches(p1, p2 *ExecNode) bool {}
+func (at *ActivityTree) Matches(p1, p2 *processlist.ExecNode) bool {
+	// TODO
+	return true
+}
 
 // SendStats sends the tree statistics
 func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
-	return at.Stats.SendStats(client, at.treeType)
+	return nil
+	// return at.Stats.SendStats(client, at.treeType)
 }

@@ -11,6 +11,7 @@ package processresolver
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -36,22 +37,47 @@ func NewProcessResolver() *ProcessResolver {
 	}
 }
 
-func (at *ProcessResolver) GetCacheKeyFromExec(exec *ExecNode) interface{} {
-	return exec.pid
+type processKey struct {
+	pid  uint32
+	nsid uint64
+}
+
+type execKey struct {
+	pid  uint32
+	tid  uint32
+	nsid uint64
 }
 
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (at *ProcessResolver) IsValidRootNode(entry *model.Process) bool {
-	// TODO
-	return true
+func (at *ProcessResolver) IsAValidRootNode(entry *model.Process) bool {
+	return entry.Pid == 1
 }
 
-func (at *ProcessResolver) Matches(p1, p2 *ExecNode) bool {
-	return p1.pid == p2.pid
+func (at *ProcessResolver) ExecMatches(e1, e2 *processlist.ExecNode) bool {
+	return e1.Pid == e2.Pid && e1.NSID == e2.NSID && e1.Tid == e2.Tid
+}
+
+func (at *ProcessResolver) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
+	return p1.CurrentExec.Pid == p2.CurrentExec.Pid && p1.CurrentExec.NSID == p2.CurrentExec.NSID
 }
 
 // SendStats sends the tree statistics
 func (at *ProcessResolver) SendStats(client statsd.ClientInterface) error {
 	// TODO
+	return nil
+}
+
+func (at *ProcessResolver) GetProcessCacheKey(process *model.Process) interface{} {
+	return processKey{pid: process.Pid, nsid: process.NSID}
+}
+
+func (at *ProcessResolver) GetExecCacheKey(process *model.Process) interface{} {
+	return execKey{pid: process.Pid, tid: process.Tid, nsid: process.NSID}
+}
+
+func (at *ProcessResolver) GetParentProcessCacheKey(event *model.Event) interface{} {
+	if event.ProcessContext.Pid != 1 {
+		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
+	}
 	return nil
 }
