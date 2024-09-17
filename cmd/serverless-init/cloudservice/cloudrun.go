@@ -6,6 +6,8 @@
 package cloudservice
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
@@ -21,10 +23,11 @@ const (
 )
 
 var metadataHelperFunc = helper.GetMetaData
-var cloudRunFunctionMode bool
 
 // CloudRun has helper functions for getting Google Cloud Run data
-type CloudRun struct{}
+type CloudRun struct {
+	cloudRunFunctionMode bool
+}
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
@@ -33,7 +36,6 @@ func (c *CloudRun) GetTags() map[string]string {
 	revisionName := os.Getenv(revisionNameEnvVar)
 	serviceName := os.Getenv(ServiceNameEnvVar)
 	configName := os.Getenv(configurationNameEnvVar)
-	functionTarget := os.Getenv(functionTargetEnvVar)
 
 	if revisionName != "" {
 		tags["revision_name"] = revisionName
@@ -47,12 +49,9 @@ func (c *CloudRun) GetTags() map[string]string {
 		tags["configuration_name"] = configName
 	}
 
-	if functionTarget != "" {
-		cloudRunFunctionMode = true
-		tags["function_target"] = functionTarget
+	if c.cloudRunFunctionMode {
 		tags = getFunctionTags(tags)
 	}
-
 	tags["origin"] = c.GetOrigin()
 	tags["_dd.origin"] = c.GetOrigin()
 
@@ -60,7 +59,13 @@ func (c *CloudRun) GetTags() map[string]string {
 }
 
 func getFunctionTags(tags map[string]string) map[string]string {
+	functionTarget := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
+
+	if functionTarget != "" {
+		tags["function_target"] = functionTarget
+	}
+
 	if functionSignatureType != "" {
 		tags["function_signature_type"] = functionSignatureType
 	}
@@ -70,8 +75,8 @@ func getFunctionTags(tags map[string]string) map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
-	if cloudRunFunctionMode {
-		return "cloudrunfunction"
+	if c.cloudRunFunctionMode {
+		return "cloudfunction"
 	}
 	return "cloudrun"
 }
@@ -79,8 +84,8 @@ func (c *CloudRun) GetOrigin() string {
 // GetPrefix returns the prefix that we're prefixing all
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
-	if cloudRunFunctionMode {
-		return "gcp.runfunction"
+	if c.cloudRunFunctionMode {
+		return "gcp.cloudfunction"
 	}
 	return "gcp.run"
 }
@@ -92,6 +97,11 @@ func (c *CloudRun) Init() error {
 
 func isCloudRunService() bool {
 	_, exists := os.LookupEnv(ServiceNameEnvVar)
-	_, cloudRunFunctionMode = os.LookupEnv(functionTargetEnvVar)
 	return exists
+}
+
+func isCloudRunFunction() bool {
+	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
+	_ = log.Warn(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
+	return cloudRunFunctionMode
 }

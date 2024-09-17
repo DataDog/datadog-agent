@@ -80,7 +80,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 }
 
 func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
-	service := &CloudRun{}
+	service := &CloudRun{cloudRunFunctionMode: true}
 
 	metadataHelperFunc = func(*helper.GCPConfig) *helper.GCPMetadata {
 		return &helper.GCPMetadata{
@@ -110,12 +110,12 @@ func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"container_id":            "test_container",
 		"region":                  "test_region",
-		"origin":                  "cloudrunfunction",
+		"origin":                  "cloudfunction",
 		"project_id":              "test_project",
 		"service_name":            "test_service",
 		"revision_name":           "test_revision",
 		"configuration_name":      "test_config",
-		"_dd.origin":              "cloudrunfunction",
+		"_dd.origin":              "cloudfunction",
 		"function_target":         "test_target",
 		"function_signature_type": "test_signature",
 	}, tags)
