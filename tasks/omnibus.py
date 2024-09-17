@@ -81,9 +81,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
-                        print(
-                            f"Fatal error while installing omnibus: {e.result.stdout}. Cannot continue."
-                        )
+                        print(f"Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.")
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
         raise Exit("Too many failures while installing omnibus, giving up")
@@ -288,9 +286,7 @@ def build(
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
                 bundle_path = (
-                    "/tmp/omnibus-git-cache-bundle"
-                    if sys.platform != "win32"
-                    else "C:\\TEMP\\omnibus-git-cache-bundle"
+                    "/tmp/omnibus-git-cache-bundle" if sys.platform != "win32" else "C:\\TEMP\\omnibus-git-cache-bundle"
                 )
                 with timed(quiet=True) as durations["Restoring omnibus cache"]:
                     # Allow failure in case the cache was evicted
@@ -300,17 +296,11 @@ def build(
                     ):
                         print(f"Successfully retrieved cache {cache_key}")
                         try:
-                            ctx.run(
-                                f"git clone --mirror {bundle_path} {omnibus_cache_dir}"
-                            )
+                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
                         except UnexpectedExit as exc:
-                            print(
-                                f"An error occurring while cloning the cache repo: {exc}"
-                            )
+                            print(f"An error occurring while cloning the cache repo: {exc}")
                         else:
-                            cache_state = ctx.run(
-                                f"git -C {omnibus_cache_dir} tag -l"
-                            ).stdout
+                            cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
                     else:
                         print(f"Failed to restore cache from key {cache_key}")
                         send_cache_miss_event(
@@ -338,9 +328,7 @@ def build(
     os.remove(pip_config_file)
 
     if use_omnibus_git_cache:
-        stale_tags = ctx.run(
-            f"git -C {omnibus_cache_dir} tag --no-merged", warn=True
-        ).stdout
+        stale_tags = ctx.run(f"git -C {omnibus_cache_dir} tag --no-merged", warn=True).stdout
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
         # Do this before checking for tag differences, in order to remove staled tags
@@ -348,16 +336,9 @@ def build(
         for _, tag in enumerate(stale_tags.split(os.linesep)):
             ctx.run(f"git -C {omnibus_cache_dir} tag -d {tag}")
         with timed(quiet=True) as durations["Updating omnibus cache"]:
-            if (
-                use_remote_cache
-                and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state
-            ):
-                ctx.run(
-                    f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags"
-                )
-                ctx.run(
-                    f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}"
-                )
+            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -438,20 +419,12 @@ def manifest(
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
     for file in glob.iglob(f"{install_path}/**/*", recursive=True):
         ext = os.path.splitext(file)[1]
-        if (
-            (ext != "" and "so" not in ext and "dylib" not in ext)
-            or "json" in ext
-            or not os.path.isfile(file)
-        ):
+        if (ext != "" and "so" not in ext and "dylib" not in ext) or "json" in ext or not os.path.isfile(file):
             continue
         if macos:
-            toedit_fd = ctx.run(
-                f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True
-            )
+            toedit_fd = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True)
         else:
-            toedit_fd = ctx.run(
-                f'objdump -x {file} | grep "RPATH"', warn=True, hide=True
-            )
+            toedit_fd = ctx.run(f'objdump -x {file} | grep "RPATH"', warn=True, hide=True)
         if install_path in toedit_fd.stdout:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             if macos:
@@ -463,6 +436,4 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
                         hide=True,
                     ).exited
             else:
-                patch_fd = ctx.run(
-                    f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}"
-                )
+                patch_fd = ctx.run(f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}")
