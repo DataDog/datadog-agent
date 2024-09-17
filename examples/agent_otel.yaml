@@ -13,7 +13,7 @@ site: datadoghq.com
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 tags:
   - example:changeme
-  - <TAG_KEY>:<TAG_VALUE>
+#  - <TAG_KEY>:<TAG_VALUE>
 
 oltp_config:
   receiver:
