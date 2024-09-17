@@ -70,8 +70,8 @@ github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3 h1:dLdkfKayl
 github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3/go.mod h1:XwtUqn5UJ5MqjmsZ4NvJ+eZIkTB35ZQLQS/1pQmvdb8=
 github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3 h1:IG/rw4De+THSrGYLickNl7BKLRhwt3vxboAMvEhiHZg=
 github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3/go.mod h1:Coyh0zcmY+SA7XBWSq/FBXrpV3obQ0AgnslbwHdhLSQ=
-github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3 h1:SLjofoE1H4tBuGtRNg7KCKXVpafPfN7n4ZggF7hO/es=
-github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3/go.mod h1:Vs3TdVeZHbz7XKSk2nwh+KPaxiX6R7K08+rl0Ib4kmE=
+github.com/DataDog/datadog-agent/comp/core/log v0.54.0 h1:wP3bJua8qmURqLXkmYxrbELMJQ2oO1MuVNfxHJT4wiQ=
+github.com/DataDog/datadog-agent/comp/core/log v0.54.0/go.mod h1:mtMxZiwg13b4bHgDf8xE6FHgTcadzI5Cc0lx2MSY1mE=
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.56.0-rc.3 h1:4JinxNkesELbkI8CeRt4osAbXiBmf15rjECDdOEdg4Q=
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.56.0-rc.3/go.mod h1:GX6SdWJJiuZKmSLufzofnlei2pKvbvGofoTCD4KlxIY=
 github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.56.0-rc.3 h1:DIOAGjWuW2D2KPE1FP1uPWKHYU0IGyOTgqZpbdMEcKs=
