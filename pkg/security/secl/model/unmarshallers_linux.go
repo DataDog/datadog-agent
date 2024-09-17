@@ -994,6 +994,16 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
+	if len(data)-read < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Pid = binary.NativeEndian.Uint32(data[read : read+4])
+	read += 4
+
+	e.CGroupFlags = binary.NativeEndian.Uint32(data[read : read+4])
+	read += 4
+
 	return read, nil
 }
 
