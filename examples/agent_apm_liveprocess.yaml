@@ -8,7 +8,6 @@ api_key:
 ## metric, event, log, trace, and service check emitted by this Agent.  
 env:
 
-
 ## The site of the Datadog intake to send Agent data to.
 site: datadoghq.com
     
