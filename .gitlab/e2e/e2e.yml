@@ -603,6 +603,7 @@ new-e2e-eks-cleanup-on-failure:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
+    - export PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSM_PULUMI_CONFIG_PASSPHRASE)
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     - inv new-e2e-tests.cleanup-remote-stacks --pipeline-id=$E2E_PIPELINE_ID --pulumi-backend=dd-pulumi-state
   variables:
