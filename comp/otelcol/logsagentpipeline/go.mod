@@ -20,6 +20,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
@@ -69,6 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3 // indirect

@@ -2,29 +2,42 @@ module github.com/DataDog/datadog-agent/pkg/config/structure
 
 go 1.22.0
 
-require (
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.57.0
-	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0
-	github.com/stretchr/testify v1.9.0
+replace (
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 )
 
-replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
-
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -47,6 +60,7 @@ require (
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/testify v1.9.0
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect

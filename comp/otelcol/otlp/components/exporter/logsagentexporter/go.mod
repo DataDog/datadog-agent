@@ -18,6 +18,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
+ 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
@@ -60,6 +61,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0 // indirect
@@ -161,3 +163,4 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
