@@ -11,8 +11,8 @@ package config
 import (
 	"testing"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // newMock exported mock builder to allow modifying mocks that might be
@@ -24,7 +24,7 @@ func newMock(deps Dependencies, _ testing.TB) (Component, error) {
 	}
 
 	c := cfg{
-		warnings:    &pkgconfig.Warnings{},
+		warnings:    &model.Warnings{},
 		coreConfig:  deps.Config,
 		AgentConfig: traceCfg,
 	}

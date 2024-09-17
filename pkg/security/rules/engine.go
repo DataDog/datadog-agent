@@ -519,7 +519,7 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
 	// don't eval event originating from myself
-	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext.Pid == e.pid {
+	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
 		return
 	}
 

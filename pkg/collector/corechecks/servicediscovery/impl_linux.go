@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -161,6 +161,6 @@ type systemProbeClient interface {
 
 func getSysProbeClient() (systemProbeClient, error) {
 	return processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 	)
 }

@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -149,6 +148,9 @@ type EBPFProbe struct {
 	// On demand
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
+
+	// hash action
+	fileHasher *FileHasher
 }
 
 // GetProfileManager returns the Profile Managers
@@ -856,8 +858,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// update mount pid mapping
 		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1038,8 +1041,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
 	}
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1645,7 +1649,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1901,10 +1905,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, wmeta, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {
@@ -2198,8 +2204,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.DispatchCustomEvent(rule, event)
 			}
 		case action.Def.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+			p.fileHasher.HashAndReport(rule, ev)
 		}
 	}
 }

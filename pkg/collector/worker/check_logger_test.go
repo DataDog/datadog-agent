@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type stubCheck struct {
@@ -36,7 +36,7 @@ func addExpvarsCheckStats(c check.Check) {
 }
 
 func setUp() {
-	config.Datadog().SetWithoutSource(loggingFrequencyConfigKey, "20")
+	pkgconfigsetup.Datadog().SetWithoutSource(loggingFrequencyConfigKey, "20")
 
 	expvars.Reset()
 }

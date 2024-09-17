@@ -11,7 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +23,7 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
+func NewRTContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
 	return &RTContainerCheck{
 		config: config,
 		wmeta:  wmeta,
@@ -36,7 +36,7 @@ type RTContainerCheck struct {
 	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
-	config            ddconfig.Reader
+	config            pkgconfigmodel.Reader
 	wmeta             workloadmeta.Component
 }
 

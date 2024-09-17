@@ -41,7 +41,7 @@ import (
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -147,9 +147,9 @@ type APIClient struct {
 
 func initAPIClient() {
 	globalAPIClient = &APIClient{
-		defaultClientTimeout:        time.Duration(config.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second,
-		defaultInformerTimeout:      time.Duration(config.Datadog().GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second,
-		defaultInformerResyncPeriod: time.Duration(config.Datadog().GetInt64("kubernetes_informers_resync_period")) * time.Second,
+		defaultClientTimeout:        time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second,
+		defaultInformerTimeout:      time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second,
+		defaultInformerResyncPeriod: time.Duration(pkgconfigsetup.Datadog().GetInt64("kubernetes_informers_resync_period")) * time.Second,
 	}
 	globalAPIClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 		Name:              "apiserver",
@@ -200,15 +200,15 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
-	cfgPath := config.Datadog().GetString("kubernetes_kubeconfig_path")
+	cfgPath := pkgconfigsetup.Datadog().GetString("kubernetes_kubeconfig_path")
 	if cfgPath == "" {
 		clientConfig, err = rest.InClusterConfig()
 
-		if !config.Datadog().GetBool("kubernetes_apiserver_tls_verify") {
+		if !pkgconfigsetup.Datadog().GetBool("kubernetes_apiserver_tls_verify") {
 			clientConfig.TLSClientConfig.Insecure = true
 		}
 
-		if customCAPath := config.Datadog().GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
+		if customCAPath := pkgconfigsetup.Datadog().GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
 			clientConfig.TLSClientConfig.CAFile = customCAPath
 		}
 
@@ -225,7 +225,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 		}
 	}
 
-	if config.Datadog().GetBool("kubernetes_apiserver_use_protobuf") {
+	if pkgconfigsetup.Datadog().GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
 
@@ -367,20 +367,20 @@ func (c *APIClient) connect() error {
 	// Creating informers
 	c.InformerFactory = c.GetInformerWithOptions(nil)
 
-	if config.Datadog().GetBool("admission_controller.enabled") ||
-		config.Datadog().GetBool("compliance_config.enabled") ||
-		config.Datadog().GetBool("orchestrator_explorer.enabled") ||
-		config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
-		config.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
-		config.Datadog().GetBool("cluster_checks.enabled") ||
-		config.Datadog().GetBool("autoscaling.workload.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
+		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
+		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
-	if config.Datadog().GetBool("admission_controller.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
 		nameFieldkey := "metadata.name"
 		optionsForService := func(options *metav1.ListOptions) {
-			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog().GetString("admission_controller.certificate.secret_name")).String()
+			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")).String()
 		}
 		c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
 			nil,
@@ -389,7 +389,7 @@ func (c *APIClient) connect() error {
 		)
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
-			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, config.Datadog().GetString("admission_controller.webhook_name")).String()
+			options.FieldSelector = fields.OneTermEqualSelector(nameFieldkey, pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")).String()
 		}
 		c.WebhookConfigInformerFactory = c.GetInformerWithOptions(
 			nil,
@@ -417,7 +417,7 @@ type MetadataMapperBundle struct {
 func NewMetadataMapperBundle() *MetadataMapperBundle {
 	return &MetadataMapperBundle{
 		Services: apiv1.NewNamespacesPodsStringsSet(),
-		mapOnIP:  config.Datadog().GetBool("kubernetes_map_services_on_ip"),
+		mapOnIP:  pkgconfigsetup.Datadog().GetBool("kubernetes_map_services_on_ip"),
 	}
 }
 
@@ -449,7 +449,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	namespace := common.GetResourcesNamespace()
 	nowTs := time.Now()
 
-	configMapDCAToken := config.Datadog().GetString("cluster_agent.token_name")
+	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
 	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		// we do not process event if we can't interact with the CM.
@@ -488,7 +488,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
 	namespace := common.GetResourcesNamespace()
-	configMapDCAToken := config.Datadog().GetString("cluster_agent.token_name")
+	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
 	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
 	if err != nil {
 		return err

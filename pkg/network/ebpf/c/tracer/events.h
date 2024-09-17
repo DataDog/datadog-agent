@@ -151,6 +151,7 @@ static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int 
         u32 cpu = bpf_get_smp_processor_id();
         bpf_perf_event_output(ctx, &conn_fail_event, cpu, &failure, sizeof(conn_failed_t));
     }
+    increment_telemetry_count(tcp_failed_connect);
 }
 
 static __always_inline void flush_conn_close_if_full(void *ctx) {
