@@ -4,7 +4,7 @@
   "detail-type": "testdetail",
   "source": "eventbridge.custom.event.sender",
   "account": "425362996713",
-  "time": "2021-11-04T01:37:45Z",
+  "time": "2024-09-16T16:58:45Z",
   "region": "sa-east-1",
   "resources": [],
   "detail": {
@@ -13,8 +13,7 @@
       "x-datadog-trace-id": "12345",
       "x-datadog-parent-id": "67890",
       "x-datadog-sampling-priority": "2",
-      "x-datadog-bus-name": "testBus",
-      "x-datadog-sent-timestamp": "100"
+      "x-datadog-bus-name": "testBus"
     }
   }
 }
