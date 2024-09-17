@@ -118,12 +118,16 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
-	if err != nil {
-		return None
+	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
 	}
 
-	return Provided
+	// We failed to find symbols in the regular symbols section, now we can try the pclntab
+	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
+	}
+	return None
+
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
@@ -165,15 +169,12 @@ func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorCont
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
 func isNodeInstrumented(f fs.File) bool {
-	// Don't try to read a non-regular file.
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+	reader, err := usm.SizeVerifiedReader(f)
+	if err != nil {
 		return false
 	}
 
-	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
-
-	limitReader := io.LimitReader(f, readLimit)
-	bufferedReader := bufio.NewReader(limitReader)
+	bufferedReader := bufio.NewReader(reader)
 
 	return nodeAPMCheckRegex.MatchReader(bufferedReader)
 }

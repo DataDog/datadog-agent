@@ -39,6 +39,7 @@ type PlatformProbe struct {
 // Probe represents the runtime security probe
 type Probe struct {
 	Config *config.Config
+	Opts   Opts
 }
 
 // Origin returns origin
@@ -107,6 +108,9 @@ func (p *Probe) RefreshUserCache(_ string) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(_ bool) {}
 
 func (p *Probe) PlaySnapshot() {
 	// TODO: Implement this method if needed.

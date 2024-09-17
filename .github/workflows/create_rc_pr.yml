@@ -9,6 +9,8 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+permissions: {}
+
 jobs:
     find_release_branches:
         runs-on: ubuntu-latest
@@ -48,6 +50,9 @@ jobs:
     create_rc_pr:
       runs-on: ubuntu-latest
       needs: find_release_branches
+      permissions:
+        contents: write
+        pull-requests: write
       strategy:
         matrix:
           value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
@@ -76,6 +81,7 @@ jobs:
               env:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
+                SLACK_API_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
               run: |
                 echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ needs.find_release_branches.outputs.warning }})" >> $GITHUB_OUTPUT
 

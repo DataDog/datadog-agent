@@ -112,16 +112,12 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 		return "", false
 	}
 	defer file.Close()
-	ok, err := canSafelyParse(file)
+	reader, err := SizeVerifiedReader(file)
 	if err != nil {
-		//file not accessible or don't exist. Continuing searching up
-		return "", false
-	}
-	if !ok {
-		log.Debugf("skipping package.js (%q) because too large", filename)
+		log.Debugf("skipping package.js (%q). Err: %v", filename, err)
 		return "", true // stops here
 	}
-	bytes, err := io.ReadAll(file)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		log.Debugf("unable to read a package.js file (%q). Err: %v", filename, err)
 		return "", true

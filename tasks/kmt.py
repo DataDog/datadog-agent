@@ -530,6 +530,19 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             inputs=[os.path.abspath(f)],
         )
 
+    vm_metrics_files = glob("test/new-e2e/system-probe/vm-metrics/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        outputs=[os.path.join(kmt_paths.dependencies, "vm-metrics")],
+        implicit=vm_metrics_files,
+        variables={
+            "go": go_path,
+            "chdir": "cd test/new-e2e/system-probe/vm-metrics",
+            "env": env_str,
+        },
+    )
+
     test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
     nw.build(
         rule="gobin",
@@ -816,6 +829,7 @@ def build_target_packages(filter_packages):
     if filter_packages == []:
         return all_packages
 
+    filter_packages = [os.path.relpath(p) for p in go_package_dirs(filter_packages, [NPM_TAG, BPF_TAG])]
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
@@ -878,7 +892,7 @@ def kmt_sysprobe_prepare(
 
     filter_pkgs = []
     if packages:
-        filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
+        filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
@@ -1098,7 +1112,7 @@ def test(
 
     pkgs = []
     if packages is not None:
-        pkgs = packages.split(",")
+        pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
 
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
@@ -1284,7 +1298,7 @@ def ssh_config(
     # Ensure correct permissions of the ddvm_rsa file if we're using
     # it to connect to VMs. This attribute change doesn't seem to be tracked
     # in git correctly
-    ctx.run(f"chmod 600 {ddvm_rsa}")
+    ctx.run(f"chmod 600 {ddvm_rsa}", echo=False)
 
     for stack_dir in stacks_dir.iterdir():
         if not stack_dir.is_dir():
@@ -1847,6 +1861,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     vm_list: list[str] = []
     total_by_vm: dict[str, tuple[int, int, int, int]] = defaultdict(lambda: (0, 0, 0, 0))
     sum_failures = 0
+    sum_tests = 0
 
     for vm_folder in paths.test_results.iterdir():
         if not vm_folder.is_dir():
@@ -1882,6 +1897,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
             for testresults in tests.values():
                 if len(testresults) == 1:
                     result = next(iter(testresults))
+                    sum_tests += 1
                     if result == "failed":
                         failures += 1
                         sum_failures += 1
@@ -1912,8 +1928,16 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
     table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
 
-    print(tabulate(table, headers=["Package"] + vm_list))
-    print("\nLegend: Successes/Successes on retry/Failures/Skipped")
+    print(tabulate(table, headers=["Package"] + vm_list) + "\n")
+
+    if sum_tests == 0:
+        warn("WARN: No test runs")
+    elif sum_failures > 0:
+        error("ERROR: Found failed tests")
+    else:
+        info("SUCCESS: All tests passed")
+
+    print("Legend: Successes/Successes on retry/Failures/Skipped")
 
     if sum_failures:
         sys.exit(1)

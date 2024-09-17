@@ -55,6 +55,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
+	EnableEnforcement(bool)
 	PlaySnapshot()
 }
 
@@ -397,6 +398,11 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 // IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(state bool) {
+	p.PlatformProbe.EnableEnforcement(state)
 }
 
 // PlaySnapshot plays the snapshot

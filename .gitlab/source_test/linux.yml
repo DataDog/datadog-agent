@@ -50,8 +50,7 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
-  - source /root/.bashrc
-  - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
+  - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN) || exit $?; export CODECOV_TOKEN
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_lint:
@@ -65,7 +64,6 @@
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - source /root/.bashrc && conda activate ddpy3
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
     - inv -e rtloader.install
     - inv -e install-tools
@@ -252,7 +250,6 @@ go_mod_tidy_check:
   extends: .linux_x64
   needs: ["go_deps"]
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
@@ -269,7 +266,7 @@ new-e2e-unit-tests:
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
@@ -282,3 +279,6 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    # Not using the entrypoint script for the e2e runner image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  timeout: 10m

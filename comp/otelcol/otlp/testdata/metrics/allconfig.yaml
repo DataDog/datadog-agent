@@ -17,4 +17,4 @@ otlp_config:
       send_count_sum_metrics: true
       send_aggregation_metrics: true
   debug:
-    loglevel: debug
+    verbosity: detailed

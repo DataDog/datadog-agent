@@ -30,6 +30,7 @@ import (
 
 var detectorsWithPrivilege = []languagemodels.Detector{
 	detectors.NewGoDetector(),
+	detectors.NewDotnetDetector(),
 }
 
 var (
@@ -53,6 +54,7 @@ func handleDetectorError(err error) {
 type LanguageDetector struct {
 	hostProc      string
 	binaryIDCache *simplelru.LRU[binaryID, languagemodels.Language]
+	mux           *sync.RWMutex
 	detectors     []languagemodels.Detector
 }
 
@@ -64,6 +66,7 @@ func NewLanguageDetector() LanguageDetector {
 		detectors:     detectorsWithPrivilege,
 		hostProc:      kernel.ProcFSRoot(),
 		binaryIDCache: lru,
+		mux:           &sync.RWMutex{},
 	}
 }
 
@@ -78,13 +81,15 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 			continue
 		}
 
-		if lang, ok := l.binaryIDCache.Get(bin); ok {
+		l.mux.RLock()
+		lang, ok := l.binaryIDCache.Get(bin)
+		l.mux.RUnlock()
+		if ok {
 			log.Tracef("Pid %v already detected as %v, skipping", proc.GetPid(), lang.Name)
 			languages[i] = lang
 			continue
 		}
 
-		var lang languagemodels.Language
 		for _, detector := range l.detectors {
 			var err error
 			lang, err = detector.DetectLanguage(proc)
@@ -93,8 +98,11 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 				continue
 			}
 			languages[i] = lang
+			break
 		}
+		l.mux.Lock()
 		l.binaryIDCache.Add(bin, lang)
+		l.mux.Unlock()
 	}
 	return languages
 }

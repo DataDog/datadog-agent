@@ -78,7 +78,8 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	return FilePath{HostPath: path, ID: pathID, PID: pid}, nil
 }
 
-type callback func(FilePath) error
+// Callback is a function that is executed when a file becomes active or inactive
+type Callback func(FilePath) error
 
 // IgnoreCB is just a dummy callback that doesn't do anything
 // Meant for testing purposes
@@ -122,7 +123,7 @@ var (
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered callback) error {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered Callback) error {
 	if activationCB == nil || deactivationCB == nil {
 		return errCallbackIsMissing
 	}
@@ -281,7 +282,7 @@ func (r *FileRegistry) Clear() {
 	r.stopped = true
 }
 
-func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB callback) *registration {
+func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB Callback) *registration {
 	return &registration{
 		deactivationCB:       deactivationCB,
 		uniqueProcessesCount: atomic.NewInt32(1),
@@ -292,7 +293,7 @@ func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB cal
 
 type registration struct {
 	uniqueProcessesCount *atomic.Int32
-	deactivationCB       callback
+	deactivationCB       Callback
 
 	// we are sharing the telemetry from FileRegistry
 	telemetry *registryTelemetry
