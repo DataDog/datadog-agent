@@ -37,6 +37,7 @@ import (
 // It uses the admissionregistration/v1beta1 API.
 type ControllerV1beta1 struct {
 	controllerBase
+	validatingWebhooksInformer cache.SharedIndexInformer
 	validatingWebhooksLister   admissionlisters.ValidatingWebhookConfigurationLister
 	validatingWebhookTemplates []admiv1beta1.ValidatingWebhook
 	mutatingWebhooksLister     admissionlisters.MutatingWebhookConfigurationLister
@@ -60,6 +61,7 @@ func NewControllerV1beta1(
 	controller.config = config
 	controller.secretsLister = secretInformer.Lister()
 	controller.secretsSynced = secretInformer.Informer().HasSynced
+	controller.validatingWebhooksInformer = validatingWebhookInformer.Informer()
 	controller.validatingWebhooksLister = validatingWebhookInformer.Lister()
 	controller.validatingWebhooksSynced = validatingWebhookInformer.Informer().HasSynced
 	controller.mutatingWebhooksLister = mutatingWebhookInformer.Lister()
@@ -76,15 +78,6 @@ func NewControllerV1beta1(
 		DeleteFunc: controller.handleSecret,
 	}); err != nil {
 		log.Errorf("cannot add event handler to secret informer: %v", err)
-	}
-
-	// Check if ValidatingWebhookConfiguration RBACs are enabled.
-	err := apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
-		apiserver.ValidatingWebhooksInformer: validatingWebhookInformer.Informer(),
-	}, 0)
-	if err != nil {
-		log.Warnf("Disabling validation webhook controller: %v", err)
-		controller.config.validationEnabled = false
 	}
 
 	if _, err := validatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -113,6 +106,13 @@ func (c *ControllerV1beta1) Run(stopCh <-chan struct{}) {
 
 	log.Infof("Starting webhook controller for secret %s/%s and webhook %s - Using admissionregistration/v1beta1", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 	defer log.Infof("Stopping webhook controller for secret %s/%s and webhook %s", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
+
+	// Check if ValidatingWebhookConfiguration RBACs are enabled.
+	err := apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{apiserver.ValidatingWebhooksInformer: c.validatingWebhooksInformer}, 0)
+	if err != nil {
+		log.Warnf("Validating Webhook Informer not synced: disabling validation webhook controller")
+		c.config.validationEnabled = false
+	}
 
 	syncedInformer := []cache.InformerSynced{
 		c.secretsSynced,

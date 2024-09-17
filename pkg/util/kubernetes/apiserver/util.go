@@ -35,7 +35,7 @@ func (e *SyncInformersError) Error() string {
 
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
-// An extra timeout duration can be provided depending on the informer
+// An extra timeout duration can be provided depending on the informer.
 func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) error {
 	var g errgroup.Group
 	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second

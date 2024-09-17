@@ -45,7 +45,8 @@ type Controller interface {
 func NewController(
 	client kubernetes.Interface,
 	secretInformer coreinformers.SecretInformer,
-	admissionInterface admissionregistration.Interface,
+	validatingInformers admissionregistration.Interface,
+	mutatingInformers admissionregistration.Interface,
 	isLeaderFunc func() bool,
 	isLeaderNotif <-chan struct{},
 	config Config,
@@ -53,9 +54,9 @@ func NewController(
 	pa workload.PodPatcher,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().ValidatingWebhookConfigurations(), admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
 	}
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().ValidatingWebhookConfigurations(), admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
 }
 
 // Webhook represents an admission webhook

@@ -221,6 +221,7 @@ func start(log log.Component,
 	settings settings.Component,
 ) error {
 	stopCh := make(chan struct{})
+	validatingStopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel()
@@ -464,9 +465,11 @@ func start(log log.Component,
 			IsLeaderFunc:        le.IsLeader,
 			LeaderSubscribeFunc: le.Subscribe,
 			SecretInformers:     apiCl.CertificateSecretInformerFactory,
-			WebhookInformers:    apiCl.WebhookConfigInformerFactory,
+			ValidatingInformers: apiCl.WebhookConfigInformerFactory,
+			MutatingInformers:   apiCl.WebhookConfigInformerFactory,
 			Client:              apiCl.Cl,
 			StopCh:              stopCh,
+			ValidatingStopCh:    validatingStopCh,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
@@ -477,6 +480,8 @@ func start(log log.Component,
 		} else {
 			if err != nil {
 				pkglog.Warnf("Admission controller started with errors: %v", err)
+				pkglog.Debugf("Closing ValidatingWebhooksInformer channel")
+				close(validatingStopCh)
 			}
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
@@ -523,6 +528,9 @@ func start(log log.Component,
 	wg.Wait()
 
 	close(stopCh)
+	if validatingStopCh != nil {
+		close(validatingStopCh)
+	}
 
 	if err := metricsServer.Shutdown(context.Background()); err != nil {
 		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)

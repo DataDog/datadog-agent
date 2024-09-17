@@ -954,7 +954,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
 	path := "/bar"
-	defaultTimeout := config.Datadog().GetInt32("admission_controller.timeout_seconds")
+	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)
