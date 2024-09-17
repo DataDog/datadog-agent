@@ -146,7 +146,9 @@ class LibvirtDomain:
 
         info(f"[+] Copying (HOST: {source}) => (VM: {target})...")
 
-        run = self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {source} {self.user}@{self.ip}:{target}"
+        run = (
+            self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {source} {self.user}@{self.ip}:{target}"
+        )
         res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
         if res:
             info(f"[+] Copied (HOST: {source}) => (VM: {target})")
@@ -161,7 +163,9 @@ class LibvirtDomain:
         exclude: PathOrStr | None = None,
         verbose: bool = False,
     ):
-        run = self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {self.user}@{self.ip}:{source} {target}"
+        run = (
+            self._get_rsync_base(exclude, verbose=ctx.config.run["echo"]) + f" {self.user}@{self.ip}:{source} {target}"
+        )
         res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
         if res:
             info(f"[+] (VM: {source}) => (HOST: {target})")
