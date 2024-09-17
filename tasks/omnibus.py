@@ -455,12 +455,10 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
         if install_path in toedit_fd.stdout:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             if macos:
-                print()
                 patch_exit = 0
                 while not patch_exit:
-                    print(f"{file} -> @executable_path/{new_rpath}/embedded/lib")
                     patch_exit = ctx.run(
-                        f"install_name_tool -rpath {install_path}/embedded/lib @executable_path/{new_rpath}/embedded/lib {file}",
+                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
                         warn=True,
                         hide=True,
                     ).exited
