@@ -25,7 +25,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -96,10 +96,10 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog().GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog().GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog().GetString("log_level")))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", pkgconfigsetup.Datadog().GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", pkgconfigsetup.Datadog().GetString("log_level")))
 	cmd.Env = env
 
 	// forward the standard output to the Agent logger
@@ -176,7 +176,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 		c.binPath = defaultBinPath
 	}
 
-	configFile := config.Datadog().ConfigFileUsed()
+	configFile := pkgconfigsetup.Datadog().ConfigFileUsed()
 
 	c.commandOpts = []string{}
 
@@ -186,7 +186,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog())
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", pkgconfigsetup.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

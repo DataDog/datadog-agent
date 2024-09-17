@@ -12,7 +12,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Provider provides the functionality to populate the status output
@@ -49,7 +49,7 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 }
 
 func populateStatus(stats map[string]interface{}) {
-	if config.Datadog().GetBool("cluster_checks.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		if cchecks, err := GetStats(); err == nil {
 			stats["clusterchecks"] = cchecks
 		}

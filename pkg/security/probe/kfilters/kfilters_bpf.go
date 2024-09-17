@@ -9,6 +9,9 @@
 package kfilters
 
 import (
+	"encoding"
+	"encoding/hex"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -58,7 +61,7 @@ func (ak ActiveKFilters) Remove(a activeKFilter) {
 	delete(ak, a.Key())
 }
 
-type mapHash struct {
+type entryKey struct {
 	tableName string
 	key       interface{}
 }
@@ -71,7 +74,7 @@ type arrayEntry struct {
 }
 
 func (e *arrayEntry) Key() interface{} {
-	return mapHash{
+	return entryKey{
 		tableName: e.tableName,
 		key:       e.index,
 	}
@@ -97,25 +100,34 @@ func (e *arrayEntry) Apply(manager *manager.Manager) error {
 	return table.Put(e.index, e.value)
 }
 
-type mapEventMask struct {
+type eventMaskEntry struct {
 	tableName string
 	tableKey  interface{}
-	key       interface{}
 	eventMask uint64
 }
 
-func (e *mapEventMask) Key() interface{} {
-	return mapHash{
+func (e *eventMaskEntry) Key() interface{} {
+	mb, ok := e.tableKey.(encoding.BinaryMarshaler)
+	if !ok {
+		return entryKey{
+			tableName: e.tableName,
+			key:       e.tableKey,
+		}
+	}
+
+	data, _ := mb.MarshalBinary()
+
+	return entryKey{
 		tableName: e.tableName,
-		key:       e.key,
+		key:       hex.EncodeToString(data),
 	}
 }
 
-func (e *mapEventMask) GetTableName() string {
+func (e *eventMaskEntry) GetTableName() string {
 	return e.tableName
 }
 
-func (e *mapEventMask) Remove(manager *manager.Manager) error {
+func (e *eventMaskEntry) Remove(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
@@ -130,7 +142,7 @@ func (e *mapEventMask) Remove(manager *manager.Manager) error {
 	return table.Put(e.tableKey, eventMask)
 }
 
-func (e *mapEventMask) Apply(manager *manager.Manager) error {
+func (e *eventMaskEntry) Apply(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err

@@ -19,8 +19,8 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -143,17 +143,14 @@ type TailerOptions struct {
 func NewTailer(opts *TailerOptions) *Tailer {
 	var tagProvider tag.Provider
 	if opts.File.Source.Config().Identifier != "" {
-		tagProvider = tag.NewProvider(
-			containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier),
-			opts.TagAdder,
-		)
+		tagProvider = tag.NewProvider(types.NewEntityID(types.ContainerID, opts.File.Source.Config().Identifier).String(), opts.TagAdder)
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog().GetDuration("logs_config.close_timeout") * time.Second
-	windowsOpenFileTimeout := coreConfig.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
+	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated

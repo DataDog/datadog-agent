@@ -7,7 +7,6 @@
 
 struct policy_t {
     char mode;
-    char flags;
 };
 
 // Approvers
@@ -23,6 +22,16 @@ struct basename_t {
 
 struct basename_filter_t {
     u64 event_mask;
+};
+
+struct u32_flags_filter_t {
+    u32 flags;
+    u8 is_set;
+};
+
+struct u64_flags_filter_t {
+    u64 flags;
+    u8 is_set;
 };
 
 // Discarders

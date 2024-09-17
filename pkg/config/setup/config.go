@@ -78,8 +78,10 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
-	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
-	DefaultZstdCompressionLevel = 5
+	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
+	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
+	// in situations where we have a high value for `GOMAXPROCS`.
+	DefaultZstdCompressionLevel = 1
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -103,6 +105,12 @@ const (
 	// DefaultMaxMessageSizeBytes is the default value for max_message_size_bytes
 	// If a log message is larger than this byte limit, the overflow bytes will be truncated.
 	DefaultMaxMessageSizeBytes = 256 * 1000
+
+	// DefaultNetworkPathTimeout defines the default timeout for a network path test
+	DefaultNetworkPathTimeout = 1000
+
+	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
+	DefaultNetworkPathMaxTTL = 30
 )
 
 // datadog is the global configuration object
@@ -433,6 +441,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
@@ -711,6 +721,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.trace_agent_socket", "unix:///var/run/datadog/apm.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
+	config.BindEnvAndSetDefault("admission_controller.inject_config.type_socket_volumes", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.pod_owners_cache_validity", 10) // in minutes
@@ -793,6 +804,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
+
+	// Tagger Component
+	// This is a temporary/transient flag used to slowly migrate to a new internal implementation of the tagger.
+	// If set to true, the tagger will store all entities in a 2-layered map, the first map is indexed by prefix, and the second one is indexed by id.
+	// If set to false, the tagger will use the default implementation by storing entities in a one-layer map from plain strings to Tag Entities.
+	// TODO: remove this config option when the migration is finalised.
+	config.BindEnvAndSetDefault("tagger.tagstore_use_composite_entity_id", false)
 
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
@@ -898,7 +916,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", filepath.Join(InstallPath, "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
-	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
@@ -955,6 +972,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnv("fleet_policies_dir")
@@ -1486,6 +1504,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
 	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)

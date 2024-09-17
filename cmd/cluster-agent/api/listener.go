@@ -14,10 +14,10 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // getListener returns a listening connection
 func getListener() (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", config.Datadog().GetInt("cluster_agent.cmd_port")))
+	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
 }

@@ -16,19 +16,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var mmapCapabilities = Capabilities{
-	"mmap.file.path": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:      validateBasenameFilter,
+var mmapCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "mmap.file.path",
+		TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc: validateBasenameFilter,
 	},
-	"mmap.file.name": {
-		ValueTypeBitmask: eval.ScalarValueType,
+	{
+		Field:       "mmap.file.name",
+		TypeBitmask: eval.ScalarValueType,
 	},
-	"mmap.protection": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mmap.protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"mmap.flags": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mmap.flags",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
@@ -42,13 +46,13 @@ func mmapKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "mmap.file.name", "mmap.file.path": // already handled by getBasenameKFilters
 		case "mmap.flags":
-			kfilter, err := getFlagsKFilters("mmap_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mmap_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
 			mmapKFilters = append(mmapKFilters, kfilter)
 		case "mmap.protection":
-			kfilter, err := getFlagsKFilters("mmap_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mmap_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}

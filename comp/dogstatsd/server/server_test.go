@@ -44,9 +44,9 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -96,13 +96,12 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 		}),
-		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(),
+		Module(Params{Serverless: false}),
 	))
 }
 
@@ -113,13 +112,12 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(),
+		Module(Params{Serverless: false}),
 	))
 }
 
@@ -745,7 +743,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	cw := deps.Config.(config.Writer)
+	cw := deps.Config.(model.Writer)
 	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}

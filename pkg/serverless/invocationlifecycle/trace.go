@@ -16,7 +16,7 @@ import (
 
 	json "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
@@ -112,9 +112,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
-	captureLambdaPayloadEnabled := config.Datadog().GetBool("capture_lambda_payload")
+	captureLambdaPayloadEnabled := pkgconfigsetup.Datadog().GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog().GetInt("capture_lambda_payload_max_depth")
+		capturePayloadMaxDepth := pkgconfigsetup.Datadog().GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)

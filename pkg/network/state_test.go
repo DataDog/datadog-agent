@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -2859,8 +2859,8 @@ func TestDNSPIDCollision(t *testing.T) {
 		},
 	}
 
-	config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
-	config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
+	pkgconfigsetup.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	pkgconfigsetup.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
 	state := newDefaultState()
 	state.RegisterClient("foo")

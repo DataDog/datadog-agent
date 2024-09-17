@@ -17,8 +17,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,12 +58,12 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 	var collectorMetadata provider.CollectorMetadata
 	var cf cgroups.ReaderFilter
 
-	procPath := config.Datadog().GetString("container_proc_root")
+	procPath := pkgconfigsetup.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}
 
-	if useTrie := config.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
+	if useTrie := pkgconfigsetup.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
 		var w workloadmeta.Component
 		unwrapped, ok := wlm.Get()
 		if ok {
@@ -80,7 +80,7 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cf),
-		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
+		cgroups.WithPIDMapper(pkgconfigsetup.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
