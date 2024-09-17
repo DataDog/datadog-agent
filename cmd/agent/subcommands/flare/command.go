@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -241,6 +242,24 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		}
 
 		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
+	}
+
+	if pkgconfig.SystemProbe().GetBool("system_probe_config.enabled") {
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+
+		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
+			sysProbeGet := func() pprofGetter {
+				return func(path string) ([]byte, error) {
+					if probeUtilErr != nil {
+						return nil, probeUtilErr
+					}
+
+					return probeUtil.GetPprof(path)
+				}
+			}
+
+			agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
+		}
 	}
 
 	var errs error
