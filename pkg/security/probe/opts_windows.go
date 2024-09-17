@@ -14,6 +14,9 @@ import (
 
 // Opts defines some probe options
 type Opts struct {
+	// DontDiscardRuntime do not discard the runtime. Mostly used by functional tests
+	DontDiscardRuntime bool
+
 	// StatsdClient to be used for probe stats
 	StatsdClient statsd.ClientInterface
 

@@ -38,6 +38,7 @@ type linuxTestSuite struct {
 var collectorConfig string
 
 func TestOTel(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 
@@ -153,7 +154,7 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	assert.True(s.T(), otelFlareFolder)
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
 	require.NoError(s.T(), err)
-	expectedContents := []string{"otel-agent", "datadog/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
+	expectedContents := []string{"otel-agent", "ddflare/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
 	for _, expected := range expectedContents {
 		assert.Contains(s.T(), otelResponseContent, expected)
 	}

@@ -30,6 +30,8 @@ var (
 	initialTokenURL    = tokenURL
 )
 
+const testIMDSToken = "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+
 func resetPackageVars() {
 	config.Datadog().SetWithoutSource("ec2_metadata_timeout", initialTimeout)
 	metadataURL = initialMetadataURL
@@ -301,12 +303,11 @@ func TestExtractClusterName(t *testing.T) {
 
 func TestGetToken(t *testing.T) {
 	ctx := context.Background()
-	originalToken := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
 		if h != "" && r.Method == http.MethodPut {
-			io.WriteString(w, originalToken)
+			io.WriteString(w, testIMDSToken)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -319,7 +320,7 @@ func TestGetToken(t *testing.T) {
 
 	token, err := token.Get(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, originalToken, token)
+	assert.Equal(t, testIMDSToken, token)
 }
 
 func TestMetedataRequestWithToken(t *testing.T) {
@@ -331,7 +332,6 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	ctx := context.Background()
 
 	ipv4 := "198.51.100.1"
-	tok := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -345,11 +345,11 @@ func TestMetedataRequestWithToken(t *testing.T) {
 			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 			seq++
 			requestForToken = r
-			io.WriteString(w, tok)
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet:
 			// Should be a metadata request
 			t := r.Header.Get("X-aws-ec2-metadata-token")
-			if t != tok {
+			if t != testIMDSToken {
 				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
 				seq++
 				requestWithoutToken = r
@@ -386,7 +386,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 	assert.Equal(t, fmt.Sprint(config.Datadog().GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 	assert.Equal(t, http.MethodPut, requestForToken.Method)
 	assert.Equal(t, "/", requestForToken.RequestURI)
-	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
+	assert.Equal(t, testIMDSToken, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
 	assert.Equal(t, "/public-ipv4", requestWithToken.RequestURI)
 	assert.Equal(t, http.MethodGet, requestWithToken.Method)
 
@@ -515,7 +515,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
 		case http.MethodPut: // token request
-			io.WriteString(w, "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw==")
+			io.WriteString(w, testIMDSToken)
 		case http.MethodGet: // metadata request
 			switch r.RequestURI {
 			case "/hostname":

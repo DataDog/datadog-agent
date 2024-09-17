@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && npm
+//go:build linux_bpf
 
 package connection
 
@@ -20,6 +20,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -113,7 +114,7 @@ func (t *ebpfLessTracer) Start(func(*network.ConnectionStats)) error {
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, ts time.Time) error {
+			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
@@ -213,7 +214,11 @@ func (t *ebpfLessTracer) processConnection(
 	}
 
 	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
-		conn.LastUpdateEpoch = uint64(time.Now().UnixNano())
+		var ts int64
+		if ts, err = ddebpf.NowNanoseconds(); err != nil {
+			return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
+		}
+		conn.LastUpdateEpoch = uint64(ts)
 		t.conns[key] = conn
 	}
 

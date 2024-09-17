@@ -103,8 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.Module(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
+				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 					catalog := workloadmeta.NodeAgent
 					if config.GetBool("security_agent.remote_workloadmeta") {
 						catalog = workloadmeta.Remote

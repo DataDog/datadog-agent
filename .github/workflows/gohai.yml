@@ -12,6 +12,8 @@ on:
     paths:
       - "pkg/gohai/**"
 
+permissions: {}
+
 jobs:
   gohai_test:
     strategy:

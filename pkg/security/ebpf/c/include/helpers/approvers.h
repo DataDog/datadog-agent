@@ -38,10 +38,7 @@ int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u6
 }
 
 int __attribute__((always_inline)) basename_approver(struct syscall_cache_t *syscall, struct dentry *dentry, u64 event_type) {
-    if ((syscall->policy.flags & BASENAME) > 0) {
-        return approve_by_basename(dentry, event_type);
-    }
-    return 0;
+    return approve_by_basename(dentry, event_type);
 }
 
 int __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *syscall) {
@@ -52,10 +49,26 @@ int __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->setattr.dentry, EVENT_CHOWN);
 }
 
-int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
+int __attribute__((always_inline)) lookup_u32_flags(void *map, u32 *flags) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&mmap_flags_approvers, &key);
-    if (flags != NULL && (syscall->mmap.flags & *flags) > 0) {
+    struct u32_flags_filter_t *filter = bpf_map_lookup_elem(map, &key);
+    if (filter == NULL || !filter->is_set) {
+        return 0;
+    }
+    *flags = filter->flags;
+
+    return 1;
+}
+
+int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&mmap_flags_approvers, &flags);
+    if (!exists) {
+        return 0;
+    }
+
+    if ((syscall->mmap.flags & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -63,12 +76,13 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
 }
 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags_ptr = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
-    if (flags_ptr == NULL) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&mmap_protection_approvers, &flags);
+    if (!exists) {
         return 0;
     }
-    u32 flags = *flags_ptr;
+
     if ((flags == 0 && syscall->mmap.protection == 0) || (syscall->mmap.protection & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
@@ -79,11 +93,11 @@ int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cac
 int __attribute__((always_inline)) mmap_approvers(struct syscall_cache_t *syscall) {
     int pass_to_userspace = 0;
 
-    if ((syscall->policy.flags & BASENAME) > 0 && syscall->mmap.dentry != NULL) {
+    if (syscall->mmap.dentry != NULL) {
         pass_to_userspace = approve_by_basename(syscall->mmap.dentry, EVENT_MMAP);
     }
 
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_mmap_by_protection(syscall);
         if (!pass_to_userspace) {
             pass_to_userspace = approve_mmap_by_flags(syscall);
@@ -107,9 +121,14 @@ int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *sysca
 }
 
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
-    if (flags != NULL && (syscall->mprotect.vm_protection & *flags) > 0) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&mprotect_vm_protection_approvers, &flags);
+    if (!exists) {
+        return 0;
+    }
+
+    if ((syscall->mprotect.vm_protection & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -117,9 +136,14 @@ int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct sysc
 }
 
 int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&mprotect_req_protection_approvers, &key);
-    if (flags != NULL && (syscall->mprotect.req_protection & *flags) > 0) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&mprotect_req_protection_approvers, &flags);
+    if (!exists) {
+        return 0;
+    }
+
+    if ((syscall->mprotect.req_protection & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -127,26 +151,22 @@ int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct sys
 }
 
 int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *syscall) {
-    int pass_to_userspace = 0;
-
-    if ((syscall->policy.flags & FLAGS) > 0) {
-        pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
-        if (!pass_to_userspace) {
-            pass_to_userspace = approve_mprotect_by_req_protection(syscall);
-        }
+    int pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
+    if (!pass_to_userspace) {
+        pass_to_userspace = approve_mprotect_by_req_protection(syscall);
     }
 
     return pass_to_userspace;
 }
 
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags_ptr = bpf_map_lookup_elem(&open_flags_approvers, &key);
-    if (flags_ptr == NULL) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&open_flags_approvers, &flags);
+    if (!exists) {
         return 0;
     }
 
-    u32 flags = *flags_ptr;
     if ((flags == 0 && syscall->open.flags == 0) || ((syscall->open.flags & flags) > 0)) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 
@@ -160,13 +180,8 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
 }
 
 int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
-    int pass_to_userspace = 0;
-
-    if ((syscall->policy.flags & BASENAME) > 0) {
-        pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
-    }
-
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    int pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_by_flags(syscall);
     }
 
@@ -183,9 +198,14 @@ int __attribute__((always_inline)) rmdir_approvers(struct syscall_cache_t *sysca
 }
 
 int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&splice_entry_flags_approvers, &key);
-    if (flags != NULL && (syscall->splice.pipe_entry_flag & *flags) > 0) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&splice_entry_flags_approvers, &flags);
+    if (!exists) {
+        return 0;
+    }
+
+    if ((syscall->splice.pipe_entry_flag & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -193,9 +213,14 @@ int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_
 }
 
 int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {
-    u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&splice_exit_flags_approvers, &key);
-    if (flags != NULL && (syscall->splice.pipe_exit_flag & *flags) > 0) {
+    u32 flags = 0;
+
+    int exists = lookup_u32_flags(&splice_exit_flags_approvers, &flags);
+    if (!exists) {
+        return 0;
+    }
+
+    if ((syscall->splice.pipe_exit_flag & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -205,11 +230,11 @@ int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_c
 int __attribute__((always_inline)) splice_approvers(struct syscall_cache_t *syscall) {
     int pass_to_userspace = 0;
 
-    if ((syscall->policy.flags & BASENAME) > 0 && syscall->splice.dentry != NULL) {
+    if (syscall->splice.dentry != NULL) {
         pass_to_userspace = approve_by_basename(syscall->splice.dentry, EVENT_SPLICE);
     }
 
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_splice_by_exit_flags(syscall);
         if (!pass_to_userspace) {
             pass_to_userspace = approve_splice_by_entry_flags(syscall);
@@ -228,18 +253,18 @@ int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *sysca
 }
 
 int __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
-    int pass_to_userspace = 0;
-
-    if ((syscall->policy.flags & FLAGS) > 0) {
-        u32 key = 0;
-        u64 *cmd_bitmask = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
-        if (cmd_bitmask != NULL && ((1 << syscall->bpf.cmd) & *cmd_bitmask) > 0) {
-            monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-            pass_to_userspace = 1;
-        }
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
+    if (filter == NULL || !filter->is_set) {
+        return 0;
     }
 
-    return pass_to_userspace;
+    if (((1 << syscall->bpf.cmd) & filter->flags) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        return 1;
+    }
+
+    return 0;
 }
 
 #endif

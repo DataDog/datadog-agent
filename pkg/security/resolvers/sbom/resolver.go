@@ -152,8 +152,8 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta optional.Option[workloadmeta.Component]) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe(), wmeta)
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe(), optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}

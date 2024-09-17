@@ -83,22 +83,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
-				forwarder.Bundle(),
-				fx.Provide(defaultforwarder.NewParamsWithResolvers),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDisabledParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
-				fx.Supply(workloadmeta.Params{
+				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				collectorimpl.Module(),

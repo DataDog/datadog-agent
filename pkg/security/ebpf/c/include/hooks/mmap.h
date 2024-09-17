@@ -9,15 +9,15 @@
 
 HOOK_ENTRY("vm_mmap_pgoff")
 int hook_vm_mmap_pgoff(ctx_t *ctx) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     u64 len = CTX_PARM3(ctx);
     u64 prot = CTX_PARM4(ctx);
     u64 flags = CTX_PARM5(ctx);
 
     struct policy_t policy = fetch_policy(EVENT_MMAP);
-    if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
