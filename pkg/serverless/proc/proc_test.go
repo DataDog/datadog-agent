@@ -15,12 +15,12 @@ import (
 )
 
 func TestGetPidListInvalid(t *testing.T) {
-	pids := getPidList("/incorrect/folder")
+	pids := GetPidList("/incorrect/folder")
 	assert.Equal(t, 0, len(pids))
 }
 
 func TestGetPidListValid(t *testing.T) {
-	pids := getPidList("./testData")
+	pids := GetPidList("./testData")
 	sort.Ints(pids)
 	assert.Equal(t, 2, len(pids))
 	assert.Equal(t, 13, pids[0])
@@ -145,30 +145,69 @@ func TestGetNetworkData(t *testing.T) {
 }
 
 func TestGetFileDescriptorMaxData(t *testing.T) {
-	path := "./testData/file-descriptor/valid"
-	fileDescriptorMaxData, err := getFileDescriptorMaxData(path)
+	path := "./testData/process/valid"
+	pids := GetPidList(path)
+	fileDescriptorMaxData, err := getFileDescriptorMaxData(path, pids)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(1024), fileDescriptorMaxData.MaximumFileHandles)
 
-	path = "./testData/file-descriptor/invalid_malformed"
-	fileDescriptorMaxData, err = getFileDescriptorMaxData(path)
+	path = "./testData/process/invalid_malformed"
+	pids = GetPidList(path)
+	fileDescriptorMaxData, err = getFileDescriptorMaxData(path, pids)
 	assert.NotNil(t, err)
 	assert.Nil(t, fileDescriptorMaxData)
 
-	path = "./testData/file-descriptor/invalid_missing"
-	fileDescriptorMaxData, err = getFileDescriptorMaxData(path)
+	path = "./testData/process/invalid_missing"
+	pids = GetPidList(path)
+	fileDescriptorMaxData, err = getFileDescriptorMaxData(path, pids)
 	assert.NotNil(t, err)
 	assert.Nil(t, fileDescriptorMaxData)
 }
 
 func TestGetFileDescriptorUseData(t *testing.T) {
-	path := "./testData/file-descriptor/valid"
-	fileDescriptorUseData, err := getFileDescriptorUseData(path)
+	path := "./testData/process/valid"
+	pids := GetPidList(path)
+	fileDescriptorUseData, err := getFileDescriptorUseData(path, pids)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(5), fileDescriptorUseData.UseFileHandles)
 
-	path = "./testData/file-descriptor/invalid_missing"
-	fileDescriptorUseData, err = getFileDescriptorUseData(path)
+	path = "./testData/process/invalid_missing"
+	pids = GetPidList(path)
+	fileDescriptorUseData, err = getFileDescriptorUseData(path, pids)
 	assert.NotNil(t, err)
 	assert.Nil(t, fileDescriptorUseData)
+}
+
+func TestGetThreadsMaxData(t *testing.T) {
+	path := "./testData/process/valid"
+	pids := GetPidList(path)
+	threadsMaxData, err := getThreadsMaxData(path, pids)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(1024), threadsMaxData.ThreadsMax)
+
+	path = "./testData/process/invalid_malformed"
+	pids = GetPidList(path)
+	threadsMaxData, err = getThreadsMaxData(path, pids)
+	assert.NotNil(t, err)
+	assert.Nil(t, threadsMaxData)
+
+	path = "./testData/process/invalid_missing"
+	pids = GetPidList(path)
+	threadsMaxData, err = getThreadsMaxData(path, pids)
+	assert.NotNil(t, err)
+	assert.Nil(t, threadsMaxData)
+}
+
+func TestGetThreadsUseData(t *testing.T) {
+	path := "./testData/process/valid"
+	pids := GetPidList(path)
+	threadsUseData, err := getThreadsUseData(path, pids)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(5), threadsUseData.ThreadsUse)
+
+	path = "./testData/process/invalid_missing"
+	pids = GetPidList(path)
+	threadsUseData, err = getThreadsUseData(path, pids)
+	assert.NotNil(t, err)
+	assert.Nil(t, threadsUseData)
 }

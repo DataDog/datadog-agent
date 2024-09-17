@@ -5,8 +5,6 @@ Max data size             unlimited            unlimited            bytes
 Max stack size            8388608              unlimited            bytes     
 Max core file size        unlimited            unlimited            bytes     
 Max resident set          unlimited            unlimited            bytes     
-Max processes             1024                 1024                 processes 
-Max open files            1024                 1024                      
 Max locked memory         65536                65536                bytes     
 Max address space         unlimited            unlimited            bytes     
 Max file locks            unlimited            unlimited            locks     
