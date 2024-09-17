@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// Context defines an interface that allows to get information about current test context
+// Context defines an interface th at allows to get information about current test context
 type Context interface {
 	T() *testing.T
 }
