@@ -6,7 +6,7 @@
   * Must update the test suite for the relevant functionality.
   * Should pass all status checks before being reviewed or merged.
 * Commit titles should be prefixed with general area of pull request's change.
-* Please fill below sections if possible with any relevant information or link.
+* Please fill the below sections if possible with relevant information or links.
 -->
 ### What does this PR do?
 
