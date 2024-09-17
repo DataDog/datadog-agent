@@ -13,15 +13,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/otelcol"
 )
 
-func getTestFactory() extension.Factory {
-	return NewFactory(&otelcol.Factories{}, otelcol.ConfigProviderSettings{})
+func getTestFactory(t *testing.T) extension.Factory {
+	factories, err := components()
+	assert.NoError(t, err)
+
+	return NewFactory(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
 }
 
 func TestNewFactory(t *testing.T) {
-	factory := getTestFactory()
+	factory := getTestFactory(t)
 	assert.NotNil(t, factory)
 
 	cfg := factory.CreateDefaultConfig()
@@ -36,7 +38,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestTypeStability(t *testing.T) {
-	factory := getTestFactory()
+	factory := getTestFactory(t)
 	assert.NotNil(t, factory)
 
 	typ := factory.Type()
