@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,7 +37,7 @@ func CreateServiceMapping(val string) map[string]string {
 }
 
 func init() {
-	serviceMappingStr := config.Datadog().GetString("serverless.service_mapping")
+	serviceMappingStr := pkgconfigsetup.Datadog().GetString("serverless.service_mapping")
 	serviceMapping = CreateServiceMapping(serviceMappingStr)
 }
 

@@ -78,8 +78,10 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
-	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
-	DefaultZstdCompressionLevel = 5
+	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
+	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
+	// in situations where we have a high value for `GOMAXPROCS`.
+	DefaultZstdCompressionLevel = 1
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -105,7 +107,10 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 10000
+	DefaultNetworkPathTimeout = 1000
+
+	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
+	DefaultNetworkPathMaxTTL = 30
 )
 
 // datadog is the global configuration object
@@ -437,7 +442,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
-	config.BindEnvAndSetDefault("network_path.collector.max_ttl", 30)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)

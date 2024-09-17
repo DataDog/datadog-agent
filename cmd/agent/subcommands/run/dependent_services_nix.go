@@ -6,12 +6,12 @@
 
 package run
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import "github.com/DataDog/datadog-agent/pkg/config/model"
 
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
-	configKeys map[string]config.Config
+	configKeys map[string]model.Config
 }
 
 var subservices []Servicedef

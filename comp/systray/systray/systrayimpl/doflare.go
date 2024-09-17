@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -171,14 +171,14 @@ func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string
 	s.log.Debug("Asking the agent to build the flare archive.")
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, config.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken(config.Datadog())
+	e = util.SetAuthToken(pkgconfigsetup.Datadog())
 	if e != nil {
 		return
 	}

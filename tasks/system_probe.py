@@ -54,6 +54,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/ebpf/...",
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
+    "./pkg/dynamicinstrumentation/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -332,7 +333,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
 
-    test_programs = ["logdebug-test", "error_telemetry"]
+    test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
 
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
@@ -386,6 +387,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
+        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
     }
 
     nw.rule(
@@ -494,6 +496,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
+            "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
         }
         nw.rule(
             name="godefs",
@@ -513,7 +516,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
             rule="godefs",
-            implicit=headers,
+            implicit=headers + [script_path],
             variables={
                 "in_dir": in_dir,
                 "in_file": in_file,

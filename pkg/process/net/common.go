@@ -44,6 +44,7 @@ type Conn interface {
 
 const (
 	contentTypeProtobuf = "application/protobuf"
+	contentTypeJSON     = "application/json"
 )
 
 var (
@@ -166,6 +167,32 @@ func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections
 	return conns, nil
 }
 
+// GetNetworkID fetches the network_id (vpc_id) from system-probe
+func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
+	req, err := http.NewRequest("GET", networkIDURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "text/plain")
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("network_id request failed: url: %s, status code: %d", networkIDURL, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return string(body), nil
+}
+
 // GetPing returns the results of a ping to a host
 func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, interval time.Duration, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&count=%d&interval=%d&timeout=%d", pingURL, host, clientID, count, interval, timeout), nil)
@@ -173,7 +200,7 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -200,7 +227,9 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 
 // GetTraceroute returns the results of a traceroute to a host
 func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second) // allow extra time for the system probe communication overhead
+	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
+	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
@@ -208,7 +237,7 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 		return nil, err
 	}
 
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", contentTypeJSON)
 	resp, err := r.tracerouteClient.Do(req)
 	if err != nil {
 		return nil, err

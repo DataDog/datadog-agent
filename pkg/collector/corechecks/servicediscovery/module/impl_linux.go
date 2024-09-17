@@ -7,12 +7,14 @@ package module
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -230,7 +233,7 @@ func parseNetIPSocketLine(fields []string, expectedState uint64) (uint64, uint16
 
 // newNetIPSocket reads the content of the provided file and returns a map of socket inodes to ports.
 // Based on newNetIPSocket() in net_ip_socket.go from github.com/prometheus/procfs
-func newNetIPSocket(file string, expectedState uint64) (map[uint64]uint16, error) {
+func newNetIPSocket(file string, expectedState uint64, shouldIgnore func(uint16) bool) (map[uint64]uint16, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -248,6 +251,11 @@ func newNetIPSocket(file string, expectedState uint64) (map[uint64]uint16, error
 		if err != nil {
 			continue
 		}
+
+		if shouldIgnore != nil && shouldIgnore(port) {
+			continue
+		}
+
 		netIPSocket[inode] = port
 	}
 	if err := s.Err(); err != nil {
@@ -260,19 +268,31 @@ func newNetIPSocket(file string, expectedState uint64) (map[uint64]uint16, error
 // protocols for the provided namespace. Based on snapshotBoundSockets() in
 // pkg/security/security_profile/activity_tree/process_node_snapshot.go.
 func getNsInfo(pid int) (*namespaceInfo, error) {
-	tcp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid)), tcpListen)
+	// Don't ignore ephemeral ports on TCP, unlike on UDP (see below).
+	var noIgnore func(uint16) bool
+	tcp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid)), tcpListen, noIgnore)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP sockets: %v", err)
 	}
-	udp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp", pid)), udpListen)
+	udp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp", pid)), udpListen,
+		func(port uint16) bool {
+			// As in NPM (see initializePortBind() in
+			// pkg/network/tracer/connection): Ignore ephemeral port binds on
+			// UDP as they are more likely to be from clients calling bind with
+			// port 0.
+			return network.IsPortInEphemeralRange(network.AFINET, network.UDP, port) == network.EphemeralTrue
+		})
 	if err != nil {
 		log.Debugf("couldn't snapshot UDP sockets: %v", err)
 	}
-	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen)
+	tcpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid)), tcpListen, noIgnore)
 	if err != nil {
 		log.Debugf("couldn't snapshot TCP6 sockets: %v", err)
 	}
-	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen)
+	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
+		func(port uint16) bool {
+			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
+		})
 	if err != nil {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
@@ -372,6 +392,10 @@ var ignoreComms = map[string]struct{}{
 	"docker-proxy":     {},
 }
 
+// maxNumberOfPorts is the maximum number of listening ports which we report per
+// service.
+const maxNumberOfPorts = 50
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	proc, err := customNewProcess(pid)
@@ -431,6 +455,16 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 
 	if len(ports) == 0 {
 		return nil
+	}
+
+	if len(ports) > maxNumberOfPorts {
+		// Sort the list so that non-ephemeral ports are given preference when
+		// we trim the list.
+		portCmp := func(a, b uint16) int {
+			return cmp.Compare(a, b)
+		}
+		slices.SortFunc(ports, portCmp)
+		ports = ports[:maxNumberOfPorts]
 	}
 
 	rss, err := getRSS(proc)
