@@ -71,6 +71,9 @@ func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) 
 	if err != nil {
 		return output, err
 	}
+	if strings.HasPrefix(output, "error") || strings.HasPrefix(output, "Error") {
+		return output, fmt.Errorf("an error ocurred while executing the command")
+	}
 	return strings.TrimSpace(output), nil
 }
 
