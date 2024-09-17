@@ -8,4 +8,4 @@ tag to the `env:` key and any other required tags. If these parameters are set
 with environment variables, they can be commented out. 
 
 Add any other configuration settings needed, then you can copy the file to `/etc/datadog-agent/datadog.yaml` 
-for Linux systemsor `%ProgramData%\Datadog\datadog.yaml` for Windows and restart the Datadog Agent.  
+for Linux systems or `%ProgramData%\Datadog\datadog.yaml` for Windows and restart the Datadog Agent.  
