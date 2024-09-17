@@ -71,7 +71,7 @@ func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule,
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &rules)
 	} else {
-		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules)
+		err = structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.ConvertEmptyStringToNil)
 	}
 	if err != nil {
 		return nil, err

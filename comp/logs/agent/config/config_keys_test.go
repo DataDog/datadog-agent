@@ -67,15 +67,15 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 	// Test with a JSON directly set
 	jsonString := `[{
 			"api_key":     "apiKey2",
-			"Host":        "http://localhost1",
-			"Port":        1234,
+			"host":        "http://localhost1",
+			"port":        1234,
 			"is_reliable": true,
 			"use_ssl":     true
 		},
 		{
 			"api_key":     "apiKey3",
-			"Host":        "http://localhost2",
-			"Port":        5678,
+			"host":        "http://localhost2",
+			"port":        5678,
 			"is_reliable": false
 		}]`
 	configMock.SetWithoutSource("logs_config.additional_endpoints", jsonString)
@@ -89,15 +89,15 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 		[]map[string]interface{}{
 			{
 				"api_key":     "apiKey2",
-				"Host":        "http://localhost1",
-				"Port":        1234,
+				"host":        "http://localhost1",
+				"port":        1234,
 				"is_reliable": true,
 				"use_ssl":     true,
 			},
 			{
 				"api_key":     "apiKey3",
-				"Host":        "http://localhost2",
-				"Port":        5678,
+				"host":        "http://localhost2",
+				"port":        5678,
 				"is_reliable": false,
 			},
 		})

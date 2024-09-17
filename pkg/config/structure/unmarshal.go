@@ -43,6 +43,12 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		if arr, ok := source.(arrayNode); ok {
 			return copyList(outValue, arr, fs)
 		}
+		if isEmptyString(source) {
+			if fs.convertEmptyStrNil {
+				return nil
+			}
+			return fmt.Errorf("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
+		}
 		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list source: %T", source)
 	default:
 		return fmt.Errorf("can only UnmarshalKey to struct, map, or slice, got %v", outValue.Kind())
@@ -52,7 +58,8 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 // features allowed for handling edge-cases
 
 type featureSet struct {
-	allowSquash bool
+	allowSquash        bool
+	convertEmptyStrNil bool
 }
 
 // UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
@@ -62,6 +69,11 @@ type UnmarshalKeyOption func(*featureSet)
 // a squashed field hoists its fields up a level in the marshalled representation and directly embeds them
 var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 	fs.allowSquash = true
+}
+
+// ConvertEmptyStringtoNil allows UnmarshalKey to implicitly convert empty strings into nil slices
+var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertEmptyStrNil = true
 }
 
 var errNotFound = fmt.Errorf("not found")
@@ -155,7 +167,7 @@ func (n *innerNodeImpl) ChildrenKeys() ([]string, error) {
 		if unicode.IsLower(ch) {
 			continue
 		}
-		fieldKey, _, _ := fieldNameToKey(f)
+		fieldKey, _ := fieldNameToKey(f)
 		keys = append(keys, fieldKey)
 	}
 	return keys, nil
@@ -215,8 +227,8 @@ func (n *arrayNodeImpl) Index(k int) (node, error) {
 }
 
 // GetChild returns an error because a leaf has no children
-func (n *leafNodeImpl) GetChild(string) (node, error) {
-	return nil, fmt.Errorf("can't GetChild of a leaf node")
+func (n *leafNodeImpl) GetChild(key string) (node, error) {
+	return nil, fmt.Errorf("can't GetChild(%s) of a leaf node", key)
 }
 
 // ChildrenKeys returns an error because a leaf has no children
@@ -281,8 +293,7 @@ func convertToBool(text string) (bool, error) {
 
 type specifierSet map[string]struct{}
 
-func fieldNameToKey(field reflect.StructField) (string, string, specifierSet) {
-	original := field.Name
+func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 	name := strings.ToLower(field.Name)
 
 	tagtext := ""
@@ -298,9 +309,7 @@ func fieldNameToKey(field reflect.StructField) (string, string, specifierSet) {
 	// TODO: support multiple specifiers
 	var specifiers map[string]struct{}
 	if commaPos := strings.IndexRune(tagtext, ','); commaPos != -1 {
-		if specifiers == nil {
-			specifiers = make(map[string]struct{})
-		}
+		specifiers = make(map[string]struct{})
 		val := tagtext[:commaPos]
 		specifiers[tagtext[commaPos+1:]] = struct{}{}
 		if val != "" {
@@ -309,7 +318,7 @@ func fieldNameToKey(field reflect.StructField) (string, string, specifierSet) {
 	} else if tagtext != "" {
 		name = tagtext
 	}
-	return name, original, specifiers
+	return name, specifiers
 }
 
 func copyStruct(target reflect.Value, source node, fs *featureSet) error {
@@ -320,7 +329,7 @@ func copyStruct(target reflect.Value, source node, fs *featureSet) error {
 		if unicode.IsLower(ch) {
 			continue
 		}
-		fieldKey, originalName, specifiers := fieldNameToKey(f)
+		fieldKey, specifiers := fieldNameToKey(f)
 		if _, ok := specifiers["squash"]; ok {
 			if !fs.allowSquash {
 				return fmt.Errorf("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
@@ -333,10 +342,7 @@ func copyStruct(target reflect.Value, source node, fs *featureSet) error {
 		}
 		child, err := source.GetChild(fieldKey)
 		if err == errNotFound {
-			child, err = source.GetChild(originalName)
-			if err == errNotFound {
-				continue
-			}
+			continue
 		}
 		if err != nil {
 			return err
@@ -475,6 +481,15 @@ func copyAny(target reflect.Value, source node, fs *featureSet) error {
 	return fmt.Errorf("unknown value to copy: %v", target.Type())
 }
 
+func isEmptyString(source node) bool {
+	if leaf, ok := source.(leafNode); ok {
+		if str, err := leaf.GetString(); err == nil {
+			return str == ""
+		}
+	}
+	return false
+}
+
 func isScalarKind(v reflect.Value) bool {
 	k := v.Kind()
 	return (k >= reflect.Bool && k <= reflect.Float64) || k == reflect.String
@@ -483,7 +498,7 @@ func isScalarKind(v reflect.Value) bool {
 func findFieldMatch(val reflect.Value, key string) int {
 	schema := val.Type()
 	for i := 0; i < schema.NumField(); i++ {
-		fieldKey, _, _ := fieldNameToKey(schema.Field(i))
+		fieldKey, _ := fieldNameToKey(schema.Field(i))
 		if key == fieldKey {
 			return i
 		}
