@@ -3,6 +3,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
@@ -31,6 +33,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor => ../../otlp/components/processor/infraattributesprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../trace/agent/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
@@ -55,6 +58,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../../pkg/orchestrator/model
@@ -89,6 +93,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/tagger => ../../../../pkg/util/tagger
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
