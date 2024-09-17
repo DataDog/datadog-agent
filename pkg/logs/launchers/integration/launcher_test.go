@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -50,10 +50,10 @@ func (suite *LauncherTestSuite) SetupTest() {
 
 	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
 	// it will try and create `/opt/datadog` directory and fail
-	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
 
 	suite.s = NewLauncher(sources.NewLogSources(), suite.integrationsComp)
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
 }
 
@@ -152,7 +152,7 @@ func TestReadyOnlyFileSystem(t *testing.T) {
 	err := os.Mkdir(readOnlyDir, 0444)
 	assert.Nil(t, err, "Unable to make tempdir readonly")
 
-	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(sources.NewLogSources(), integrationsComp)
