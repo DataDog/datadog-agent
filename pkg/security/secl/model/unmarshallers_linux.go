@@ -979,7 +979,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor += read
 
-	if len(data)-cursor < 4 {
+	if len(data)-cursor < 8 {
 		return 0, ErrNotEnoughData
 	}
 
