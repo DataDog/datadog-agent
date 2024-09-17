@@ -144,3 +144,31 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
+
+// TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
+// file system. There will be errors but it should handle them gracefully.
+func TestReadyOnlyFileSystem(t *testing.T) {
+	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
+	err := os.Mkdir(readOnlyDir, 0444)
+	assert.Nil(t, err, "Unable to make tempdir readonly")
+
+	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+
+	// Check the launcher doesn't block on receiving channels
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
+	id := "123456789"
+
+	s.Start(nil, nil, nil, nil)
+	integrationsComp.RegisterIntegration(id, *mockConf)
+
+	logSample := "hello world"
+	integrationsComp.SendLog(logSample, id)
+
+	// send a second log to make sure the launcher isn't blocking
+	integrationsComp.SendLog(logSample, id)
+}
