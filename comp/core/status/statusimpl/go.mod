@@ -37,16 +37,16 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/comp/core/config v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/comp/core/status v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/flavor v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.57.1-rc.2
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/config v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/status v0.57.1
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.57.1
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.57.1
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1
+	github.com/DataDog/datadog-agent/pkg/version v0.57.1
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
@@ -54,23 +54,23 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.1-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.1 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
