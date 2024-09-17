@@ -221,7 +221,7 @@ func handleEventBridgeThroughSNS(eventBridgeEvent map[string]interface{}) (trace
 		return nil, errorUnsupportedPayloadType
 	}
 
-	datadogInfo, ok := detail["_datadog"].(map[string]interface{})
+	datadogInfo, ok := detail[datadogTraceHeader].(map[string]interface{})
 	if !ok {
 		return nil, errorNoDDContextFound
 	}
@@ -249,10 +249,6 @@ func eventBridgeCarrier(event events.EventBridgeEvent) (tracer.TextMapReader, er
 		if strValue, ok := value.(string); ok {
 			carrier[key] = strValue
 		}
-	}
-
-	if carrier["x-datadog-trace-id"] == "" || carrier["x-datadog-parent-id"] == "" {
-		return nil, errorNoDDContextFound
 	}
 
 	return carrier, nil

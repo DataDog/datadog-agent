@@ -500,18 +500,6 @@ func TestEventBridgeCarrier(t *testing.T) {
 			expMap: nil,
 			expErr: "No Datadog trace context found",
 		},
-		{
-			name: "missing_required_fields",
-			event: events.EventBridgeEvent{
-				Detail: map[string]interface{}{
-					datadogTraceHeader: map[string]interface{}{
-						"x-datadog-sampling-priority": "1",
-					},
-				},
-			},
-			expMap: nil,
-			expErr: "No Datadog trace context found",
-		},
 	}
 
 	for _, tc := range testcases {
