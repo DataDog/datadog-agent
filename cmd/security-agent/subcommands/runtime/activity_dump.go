@@ -60,7 +60,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
-	activityDumpCmd.AddCommand(ActivityDumpToWorkloadPolicyCommands(globalParams)...)
+	activityDumpCmd.AddCommand(activityDumpToWorkloadPolicyCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -620,8 +620,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
-// ActivityDumpToWorkloadPolicyCliParams params of the workload-list command
-type ActivityDumpToWorkloadPolicyCliParams struct {
+type activityDumpToWorkloadPolicyCliParams struct {
 	*command.GlobalParams
 
 	input     string
@@ -635,17 +634,16 @@ type ActivityDumpToWorkloadPolicyCliParams struct {
 	fim       bool
 }
 
-// ActivityDumpToWorkloadPolicyCommands
-func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &ActivityDumpToWorkloadPolicyCliParams{
+func activityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpToWorkloadPolicyCliParams{
 		GlobalParams: globalParams,
 	}
 
 	ActivityDumpWorkloadPolicyCmd := &cobra.Command{
 		Use:   "workload-policy",
 		Short: "convert an activity dump to a workload policy",
-		RunE: func(_ *cobra.Command, args []string) error {
-			return fxutil.OneShot(ActivityDumpToWorkloadPolicy,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(activityDumpToWorkloadPolicy,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
@@ -722,8 +720,7 @@ func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []
 	return []*cobra.Command{ActivityDumpWorkloadPolicyCmd}
 }
 
-// ActivityDumpToWorkloadPolicy return a workload policy from an activity-dump or a directory of activity-dump
-func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *ActivityDumpToWorkloadPolicyCliParams) error {
+func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpToWorkloadPolicyCliParams) error {
 
 	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
 	if err != nil {
@@ -779,7 +776,7 @@ func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	return nil
 }
 
-func generateRules(ad interface{}, args *ActivityDumpToWorkloadPolicyCliParams) ([]*rules.RuleDefinition, error) {
+func generateRules(ad interface{}, args *activityDumpToWorkloadPolicyCliParams) ([]*rules.RuleDefinition, error) {
 	opts := dump.SECLRuleOpts{
 		EnableKill: args.kill,
 		AllowList:  args.allowlist,

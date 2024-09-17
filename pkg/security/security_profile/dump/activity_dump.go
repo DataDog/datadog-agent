@@ -937,7 +937,7 @@ func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
 	}
 	defer f.Close()
 	ad := NewEmptyActivityDump(nil)
-	ad.DecodeProtobuf(f)
+	err = ad.DecodeProtobuf(f)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
 	}

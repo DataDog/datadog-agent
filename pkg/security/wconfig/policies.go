@@ -203,7 +203,7 @@ func (wp *WorkloadPolicyProvider) Start() {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (wp *WorkloadPolicyProvider) LoadPolicies(_ []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (wp *WorkloadPolicyProvider) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
 	var errs *multierror.Error
 
