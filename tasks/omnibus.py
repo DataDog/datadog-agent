@@ -1,6 +1,6 @@
+import glob
 import os
 import sys
-import glob
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -436,4 +436,4 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
                         hide=True,
                     ).exited
             else:
-                patch_fd = ctx.run(f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}")
+                ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
