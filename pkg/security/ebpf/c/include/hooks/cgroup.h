@@ -181,8 +181,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e')
     )) {
         container_flags = CGROUP_MANAGER_SYSTEMD;
+    } else if (container_flags != 0) {
+        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
     }
-    bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
     new_entry.container.cgroup_context.cgroup_flags = container_flags;
     new_entry.container.cgroup_context.cgroup_file = resolver->key;
