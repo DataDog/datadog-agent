@@ -152,7 +152,7 @@ func TestReadyOnlyFileSystem(t *testing.T) {
 	err := os.Mkdir(readOnlyDir, 0444)
 	assert.Nil(t, err, "Unable to make tempdir readonly")
 
-	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
 
 	integrationsComp := integrationsmock.Mock()
 	s := NewLauncher(sources.NewLogSources(), integrationsComp)
