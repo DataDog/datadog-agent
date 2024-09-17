@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -29,7 +28,7 @@ func TestChoose(t *testing.T) {
 		expected LogWhat,
 	) func(*testing.T) {
 		return func(t *testing.T) {
-			config.SetFeatures(t, features...)
+			env.SetFeatures(t, features...)
 
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("logs_config.k8s_container_use_file", k8sContainerUseFile)

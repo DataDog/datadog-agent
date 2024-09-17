@@ -20,7 +20,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -147,7 +147,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 func (tf *factory) findDockerLogPath(containerID string) string {
 	// if the user has set a custom docker data root, this will pick it up
 	// and set it in place of the usual docker base path
-	overridePath := coreConfig.Datadog().GetString("logs_config.docker_path_override")
+	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
 		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
 	}
@@ -160,10 +160,10 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
-		if coreConfig.Datadog().GetBool("logs_config.use_podman_logs") {
+		if pkgconfigsetup.Datadog().GetBool("logs_config.use_podman_logs") {
 			// Default path for podman rootfull containers
 			podmanLogsBasePath := podmanRootfullLogsBasePath
-			podmanDBPath := coreConfig.Datadog().GetString("podman_db_path")
+			podmanDBPath := pkgconfigsetup.Datadog().GetString("podman_db_path")
 			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
 			if len(podmanDBPath) > 0 {
 				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)

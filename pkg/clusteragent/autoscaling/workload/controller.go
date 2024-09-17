@@ -241,13 +241,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// and compare it with the one in the PodAutoscaler. If they differ, we should update the PodAutoscaler
 		// otherwise store the Generation
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
-			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec)
+			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
 				c.store.Unlock(key)
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
 			}
 
-			remoteHash, err := autoscaling.ObjectHash(podAutoscaler.Spec)
+			remoteHash, err := autoscaling.ObjectHash(&podAutoscaler.Spec)
 			if err != nil {
 				c.store.Unlock(key)
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
