@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
@@ -21,6 +22,7 @@ type telemetryResults struct {
 	queryLength               [bucketLength]int64
 	failedTableNameExtraction int64
 	failedOperationExtraction int64
+	counterState              counterStateEnum
 }
 
 func Test_getBucketIndex(t *testing.T) {
@@ -40,17 +42,24 @@ func Test_getBucketIndex(t *testing.T) {
 		{ebpf.BufferSize + 6*bucketLength + 1, ebpf.BufferSize + 7*bucketLength, 9},
 	}
 
+	cfg := config.New()
+	telemetry := NewTelemetry(cfg)
+
 	for _, tc := range testCases {
 		for i := tc.start; i <= tc.end; i++ {
-			require.Equal(t, tc.expected, getBucketIndex(i), "query length %d should be in bucket %d", i, tc.expected)
+			require.Equal(t, tc.expected, telemetry.getBucketIndex(i), "query length %d should be in bucket %d", i, tc.expected)
 		}
 	}
 }
+
+// telemetryTestBufferSize serves as example configuration for the telemetry buffer size.
+const telemetryTestBufferSize = 2 * ebpf.BufferSize
 
 func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
+		maxBufferSize     int
 		tx                []*ebpf.EbpfEvent
 		expectedTelemetry telemetryResults
 	}{
@@ -73,6 +82,53 @@ func TestTelemetry_Count(t *testing.T) {
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 				failedOperationExtraction: 10,
 				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
+			},
+		},
+		{
+			name: "exceeded query length bucket for each bucket ones with telemetry config",
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(telemetryTestBufferSize - 2*bucketLength),
+				createEbpfEvent(telemetryTestBufferSize - bucketLength),
+				createEbpfEvent(telemetryTestBufferSize),
+				createEbpfEvent(telemetryTestBufferSize + 1),
+				createEbpfEvent(telemetryTestBufferSize + bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 2*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 3*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 4*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 5*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 6*bucketLength + 1),
+			},
+			maxBufferSize: telemetryTestBufferSize,
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
+			},
+		},
+		{
+			name: "validating max buffer size which creates negative first bucket lower boundary",
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(ebpf.BufferSize - 2*bucketLength),
+				createEbpfEvent(ebpf.BufferSize - bucketLength),
+				createEbpfEvent(ebpf.BufferSize),
+				createEbpfEvent(ebpf.BufferSize + 1),
+				createEbpfEvent(ebpf.BufferSize + bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
+			},
+			maxBufferSize: 1,
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+				counterState:              tableAndOpNotFound,
 			},
 		},
 		{
@@ -82,6 +138,7 @@ func TestTelemetry_Count(t *testing.T) {
 			expectedTelemetry: telemetryResults{
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              operationNotFound,
 			},
 		},
 		{
@@ -91,6 +148,7 @@ func TestTelemetry_Count(t *testing.T) {
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableNameNotFound,
 			},
 		},
 		{
@@ -101,13 +159,19 @@ func TestTelemetry_Count(t *testing.T) {
 				failedTableNameExtraction: 1,
 				failedOperationExtraction: 1,
 				queryLength:               [bucketLength]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+				counterState:              tableAndOpNotFound,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetry.Clear()
-			tel := NewTelemetry()
+
+			cfg := config.New()
+			if tt.maxBufferSize > 0 {
+				cfg.MaxPostgresTelemetryBuffer = tt.maxBufferSize
+			}
+			tel := NewTelemetry(cfg)
 			if tt.query != "" {
 				tt.tx[0].Tx.Original_query_size = uint32(len(tt.query))
 				copy(tt.tx[0].Tx.Request_fragment[:], tt.query)
@@ -131,7 +195,15 @@ func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
 	for i := 0; i < len(tel.queryLengthBuckets); i++ {
-		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].Get(), "queryLength for bucket %d count is incorrect", i)
+		expState := expected.counterState
+		expCount := expected.queryLength[i]
+		curCount := tel.queryLengthBuckets[i].get(expState)
+
+		assert.Equal(t,
+			expCount,
+			curCount,
+			"queryLength bucket '%d': expected state '%v', expected counter '%d', actual counter '%d'",
+			i, expState, expCount, curCount)
 	}
 	assert.Equal(t, expected.failedTableNameExtraction, tel.failedTableNameExtraction.Get(), "failedTableNameExtraction count is incorrect")
 	assert.Equal(t, expected.failedOperationExtraction, tel.failedOperationExtraction.Get(), "failedOperationExtraction count is incorrect")

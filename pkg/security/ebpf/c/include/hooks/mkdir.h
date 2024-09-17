@@ -8,11 +8,11 @@
 #include "helpers/syscalls.h"
 
 long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
-    struct policy_t policy = fetch_policy(EVENT_MKDIR);
-    if (is_discarded_by_process(policy.mode, EVENT_MKDIR)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_MKDIR);
     struct syscall_cache_t syscall = {
         .type = EVENT_MKDIR,
         .policy = policy,

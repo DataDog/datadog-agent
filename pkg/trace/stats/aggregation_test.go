@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 func TestGetStatusCode(t *testing.T) {
@@ -48,7 +49,7 @@ func TestGetStatusCode(t *testing.T) {
 			0,
 		},
 	} {
-		if got := getStatusCode(tt.in); got != tt.out {
+		if got := getStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
 			t.Fatalf("Expected %d, got %d", tt.out, got)
 		}
 	}
@@ -159,36 +160,41 @@ func TestNewAggregation(t *testing.T) {
 			[]string{"peer.service:remote-service"},
 		},
 	} {
-		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.peerTags)
+		traceutil.SetMeasured(tt.in, true) // mark span as measured to ensure we calculate stats on it
+		sc := &SpanConcentrator{}
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, tt.peerTags)
+		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
-		assert.Equal(t, tt.resPeerTags, et, tt.name)
 	}
 }
 
-func TestSpanKindIsConsumerOrProducer(t *testing.T) {
+func TestPeerTagsToAggregateForSpan(t *testing.T) {
+	allPeerTags := []string{"server.addres", "_dd.base_service"}
 	type testCase struct {
-		input string
-		res   bool
+		input       string
+		peerTagKeys []string
 	}
 	for _, tc := range []testCase{
-		{"client", true},
-		{"producer", true},
-		{"CLIENT", true},
-		{"PRODUCER", true},
-		{"cLient", true},
-		{"pRoducer", true},
-		{"server", false},
-		{"consumer", true},
-		{"internal", false},
-		{"", false},
+		{"client", allPeerTags},
+		{"producer", allPeerTags},
+		{"CLIENT", allPeerTags},
+		{"PRODUCER", allPeerTags},
+		{"cLient", allPeerTags},
+		{"pRoducer", allPeerTags},
+		{"server", nil},
+		{"consumer", allPeerTags},
+		{"internal", nil},
+		{"", nil},
 	} {
-		assert.Equal(t, tc.res, shouldCalculateStatsOnPeerTags(tc.input))
+
+		assert.Equal(t, tc.peerTagKeys, peerTagKeysToAggregateForSpan(tc.input, "", allPeerTags))
 	}
 }
 
 func TestIsRootSpan(t *testing.T) {
+	sc := &SpanConcentrator{}
 	for _, tt := range []struct {
 		in          *pb.Span
 		isTraceRoot pb.Trilean
@@ -210,7 +216,9 @@ func TestIsRootSpan(t *testing.T) {
 			pb.Trilean_FALSE,
 		},
 	} {
-		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, []string{})
+		traceutil.SetMeasured(tt.in, true)
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, nil)
+		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
 }

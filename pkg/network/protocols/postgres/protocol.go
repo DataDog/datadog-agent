@@ -114,7 +114,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &protocol{
 		cfg:         cfg,
-		telemetry:   NewTelemetry(),
+		telemetry:   NewTelemetry(cfg),
 		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }

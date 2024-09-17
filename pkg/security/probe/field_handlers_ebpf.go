@@ -178,7 +178,10 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {
 		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(string(ev.ContainerContext.ContainerID)); containerContext != nil {
-			ev.ContainerContext = &containerContext.ContainerContext
+			if containerContext.CGroupFlags.IsContainer() {
+				ev.ContainerContext = &containerContext.ContainerContext
+			}
+
 			ev.ContainerContext.Resolved = true
 		}
 	}
@@ -538,10 +541,8 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 }
 
 // ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, e *model.CGroupContext) string {
+func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
 	if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-		cgroupID := fh.ResolveCGroupID(ev, e)
-		_ = cgroupID
 		if manager := containerutils.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
 			return manager.String()
 		}
@@ -554,7 +555,11 @@ func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, e *model.CGro
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
+			if entry.CGroup.CGroupFlags.IsContainer() {
+				e.ContainerID = containerutils.ContainerID(entry.ContainerID)
+			} else {
+				e.ContainerID = ""
+			}
 			return string(e.ContainerID)
 		}
 	}

@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +45,7 @@ type SysProbeListener struct {
 
 // NewListener returns a new SysProbeListener to listen for process events
 func NewListener(handler EventHandler) (*SysProbeListener, error) {
-	socketPath := ddconfig.SystemProbe.GetString("event_monitoring_config.socket")
+	socketPath := pkgconfigsetup.SystemProbe().GetString("event_monitoring_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("event_monitoring_config.socket must be set")
 	}

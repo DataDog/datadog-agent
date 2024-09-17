@@ -18,7 +18,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,9 +38,9 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
-		config.SetFeatures(t, config.Docker)
+		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -53,9 +53,9 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
-		config.SetFeatures(t, config.Docker)
+		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -67,7 +67,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -79,9 +79,9 @@ func TestContainerCheck(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
-		config.SetFeatures(t, config.Docker)
+		env.SetFeatures(t, env.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -91,11 +91,11 @@ func TestContainerCheck(t *testing.T) {
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
-		config.SetFeatures(t, config.Docker)
+		env.SetFeatures(t, env.Docker)
 
 		flavor.SetFlavor("process_agent")
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
@@ -134,9 +134,9 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
-			config.SetFeatures(t, config.Docker)
+			env.SetFeatures(t, env.Docker)
 
-			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+			enabledChecks := getEnabledChecks(t, mockConfig, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}
@@ -151,8 +151,7 @@ type deps struct {
 func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 	)
 }

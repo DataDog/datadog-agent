@@ -77,11 +77,13 @@ github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
+github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
+github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util
 github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
@@ -109,6 +111,7 @@ github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl
 github.com/DataDog/datadog-agent/comp/logs/agent/config
 github.com/DataDog/datadog-agent/comp/logs/agent/flare
 github.com/DataDog/datadog-agent/comp/logs/integrations/def
+github.com/DataDog/datadog-agent/comp/logs/integrations/impl
 github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags
 github.com/DataDog/datadog-agent/comp/metadata/inventoryagent
 github.com/DataDog/datadog-agent/comp/otelcol/otlp
@@ -122,7 +125,6 @@ github.com/DataDog/datadog-agent/comp/serializer/compression
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy
 github.com/DataDog/datadog-agent/comp/trace/compression/def
-github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip
 github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 github.com/DataDog/datadog-agent/comp/trace/config
 github.com/DataDog/datadog-agent/pkg/aggregator
@@ -137,7 +139,6 @@ github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults
 github.com/DataDog/datadog-agent/pkg/collector/check/id
 github.com/DataDog/datadog-agent/pkg/collector/check/stats
-github.com/DataDog/datadog-agent/pkg/config
 github.com/DataDog/datadog-agent/pkg/config/env
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
@@ -155,10 +156,12 @@ github.com/DataDog/datadog-agent/pkg/logs/client/tcp
 github.com/DataDog/datadog-agent/pkg/logs/diagnostic
 github.com/DataDog/datadog-agent/pkg/logs/internal/decoder
 github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection
+github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens
 github.com/DataDog/datadog-agent/pkg/logs/internal/framer
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext
+github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop
 github.com/DataDog/datadog-agent/pkg/logs/internal/tag
@@ -257,6 +260,7 @@ github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/clusteragent
 github.com/DataDog/datadog-agent/pkg/util/common
 github.com/DataDog/datadog-agent/pkg/util/containers
+github.com/DataDog/datadog-agent/pkg/util/containers/image
 github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider
 github.com/DataDog/datadog-agent/pkg/util/dmi
 github.com/DataDog/datadog-agent/pkg/util/docker
@@ -266,6 +270,7 @@ github.com/DataDog/datadog-agent/pkg/util/fargate
 github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
+github.com/DataDog/datadog-agent/pkg/util/fxutil/logging
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
@@ -288,6 +293,7 @@ github.com/DataDog/datadog-agent/pkg/util/statstracker
 github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
+github.com/DataDog/datadog-agent/pkg/util/tagger
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
@@ -431,6 +437,7 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -572,16 +579,16 @@ go.opentelemetry.io/collector/connector
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/consumererror
 go.opentelemetry.io/collector/exporter
+go.opentelemetry.io/collector/exporter/debugexporter
+go.opentelemetry.io/collector/exporter/debugexporter/internal/metadata
+go.opentelemetry.io/collector/exporter/debugexporter/internal/normal
 go.opentelemetry.io/collector/exporter/exporterbatcher
 go.opentelemetry.io/collector/exporter/exporterhelper
 go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata
 go.opentelemetry.io/collector/exporter/exporterqueue
-go.opentelemetry.io/collector/exporter/internal/common
 go.opentelemetry.io/collector/exporter/internal/experr
 go.opentelemetry.io/collector/exporter/internal/otlptext
 go.opentelemetry.io/collector/exporter/internal/queue
-go.opentelemetry.io/collector/exporter/loggingexporter
-go.opentelemetry.io/collector/exporter/loggingexporter/internal/metadata
 go.opentelemetry.io/collector/exporter/otlpexporter
 go.opentelemetry.io/collector/exporter/otlpexporter/internal/metadata
 go.opentelemetry.io/collector/extension
@@ -704,8 +711,8 @@ go.opentelemetry.io/otel/metric/noop
 go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/sdk
 go.opentelemetry.io/otel/sdk/instrumentation
-go.opentelemetry.io/otel/sdk/internal
 go.opentelemetry.io/otel/sdk/internal/env
+go.opentelemetry.io/otel/sdk/internal/x
 go.opentelemetry.io/otel/sdk/metric
 go.opentelemetry.io/otel/sdk/metric/internal
 go.opentelemetry.io/otel/sdk/metric/internal/aggregate
@@ -717,7 +724,9 @@ go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/tracetest
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.20.0
+go.opentelemetry.io/otel/semconv/v1.24.0
 go.opentelemetry.io/otel/semconv/v1.25.0
+go.opentelemetry.io/otel/semconv/v1.26.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/noop
@@ -732,6 +741,7 @@ go.uber.org/automaxprocs/internal/cgroups
 go.uber.org/automaxprocs/internal/runtime
 go.uber.org/automaxprocs/maxprocs
 go.uber.org/dig
+go.uber.org/dig/internal/digclock
 go.uber.org/dig/internal/digerror
 go.uber.org/dig/internal/digreflect
 go.uber.org/dig/internal/dot
@@ -757,6 +767,7 @@ go/token
 golang.org/x/exp/constraints
 golang.org/x/exp/maps
 golang.org/x/exp/slices
+golang.org/x/mod/semver
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
@@ -836,7 +847,9 @@ google.golang.org/grpc/credentials/insecure
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/experimental/stats
 google.golang.org/grpc/grpclog
+google.golang.org/grpc/grpclog/internal
 google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
@@ -859,11 +872,13 @@ google.golang.org/grpc/internal/resolver/dns/internal
 google.golang.org/grpc/internal/resolver/passthrough
 google.golang.org/grpc/internal/resolver/unix
 google.golang.org/grpc/internal/serviceconfig
+google.golang.org/grpc/internal/stats
 google.golang.org/grpc/internal/status
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/internal/transport/networktype
 google.golang.org/grpc/keepalive
+google.golang.org/grpc/mem
 google.golang.org/grpc/metadata
 google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
@@ -921,6 +936,7 @@ gopkg.in/DataDog/dd-trace-go.v1/internal
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo
+gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/constants
 gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams
 gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig
 gopkg.in/DataDog/dd-trace-go.v1/internal/hostname
@@ -934,6 +950,7 @@ gopkg.in/DataDog/dd-trace-go.v1/internal/hostname/validate
 gopkg.in/DataDog/dd-trace-go.v1/internal/log
 gopkg.in/DataDog/dd-trace-go.v1/internal/namingschema
 gopkg.in/DataDog/dd-trace-go.v1/internal/normalizer
+gopkg.in/DataDog/dd-trace-go.v1/internal/orchestrion
 gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo
 gopkg.in/DataDog/dd-trace-go.v1/internal/remoteconfig
 gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames
@@ -959,6 +976,7 @@ log/internal
 log/slog
 log/slog/internal
 log/slog/internal/buffer
+maps
 math
 math/big
 math/bits

@@ -11,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // RemoteExecutable is a helper struct to run tests on a remote host
@@ -138,15 +140,18 @@ func executeAndLogOutput(t *testing.T, vm *components.RemoteHost, command string
 	outfilename := command + ".out"
 	fullcommand := "cd " + cmdDir + ";"
 	fullcommand += command + " " + strings.Join(args, " ") + " | Out-File -Encoding ASCII -FilePath " + outfilename
-	_, err := vm.Execute(fullcommand)
-	require.NoError(t, err)
+	_, testErr := vm.Execute(fullcommand)
 
 	// get the output
 	outbytes, err := vm.ReadFile(outfilename)
-	require.NoError(t, err)
 
 	// log the output
-	for _, line := range strings.Split(string(outbytes[:]), "\n") {
-		t.Logf("TestSuite: %s", line)
+	if assert.NoError(t, err) {
+		for _, line := range strings.Split(string(outbytes[:]), "\n") {
+			t.Logf("TestSuite: %s", line)
+		}
 	}
+
+	require.NoError(t, testErr)
+
 }

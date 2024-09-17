@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
@@ -21,8 +21,8 @@ import (
 
 // for testing purposes
 var (
-	configIsContainerized  = config.IsContainerized
-	configIsFeaturePresent = config.IsFeaturePresent
+	configIsContainerized  = env.IsContainerized
+	configIsFeaturePresent = env.IsFeaturePresent
 
 	kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
 	dockerGetHostname                  = docker.GetHostname
@@ -51,20 +51,20 @@ func fromContainer(ctx context.Context, _ string) (string, error) {
 	}
 
 	// Cluster-agent logic: Kube apiserver
-	if configIsFeaturePresent(config.Kubernetes) {
+	if configIsFeaturePresent(env.Kubernetes) {
 		if hostname := callContainerProvider(ctx, kubernetesGetKubeAPIServerHostname, "kube_apiserver"); hostname != "" {
 			return hostname, nil
 		}
 	}
 
 	// Node-agent logic: docker or kubelet
-	if configIsFeaturePresent(config.Docker) {
+	if configIsFeaturePresent(env.Docker) {
 		if hostname := callContainerProvider(ctx, dockerGetHostname, "docker"); hostname != "" {
 			return hostname, nil
 		}
 	}
 
-	if configIsFeaturePresent(config.Kubernetes) {
+	if configIsFeaturePresent(env.Kubernetes) {
 		if hostname := callContainerProvider(ctx, kubeletGetHostname, "kubelet"); hostname != "" {
 			return hostname, nil
 		}

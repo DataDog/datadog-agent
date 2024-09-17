@@ -9,6 +9,7 @@ package dogstatsdstats
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -20,7 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 
@@ -70,11 +71,11 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken(config)
@@ -88,7 +89,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
+			e = errors.New(err)
 		}
 
 		if len(errMap["error_type"]) > 0 {

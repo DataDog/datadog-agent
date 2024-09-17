@@ -16,56 +16,59 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// objectParser is an interface allowing to plug any object
-type objectParser interface {
-	Parse(obj interface{}) []workloadmeta.Entity
-}
-
-// entityUID glue together a WLM Entity slice and a Kube UID
-type entitiesUID struct {
-	entities []workloadmeta.Entity
-	uid      types.UID
+// entityUID glue together a WLM Entity and a Kube UID
+type entityUID struct {
+	entity workloadmeta.Entity
+	uid    types.UID
 }
 
 type reflectorStore struct {
 	wlmetaStore workloadmeta.Component
 
 	mu     sync.Mutex
-	seen   map[string][]workloadmeta.EntityID // needs to be updated only if the object is added
-	parser objectParser
+	seen   map[string]workloadmeta.EntityID // needs to be updated only if the object is added
+	parser kubernetesresourceparsers.ObjectParser
 	// hasSynced logic is based on the logic see in FIFO queue (client-go/tools/cache/fifo.go)
 	// Normally `Replace` is called first and then `Add/Update/Delete`.
 	// If `Add/Update/Delete` is called first, triggers hasSynced
 	hasSynced bool
+
+	// filter to keep only resources that the Cluster-Agent needs
+	filter reflectorStoreFilter
+}
+
+// The filter is called in Replace/Add/Delete functions before the obj is parsed
+type reflectorStoreFilter interface {
+	filteredOut(workloadmeta.Entity) bool
 }
 
 // Add notifies the workloadmeta store with  an EventTypeSet for the given
 // object.
 func (r *reflectorStore) Add(obj interface{}) error {
 	metaObj := obj.(metav1.Object)
-	producedEntities := r.parser.Parse(obj)
+	entity := r.parser.Parse(obj)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.hasSynced = true
-
-	objUID := string(metaObj.GetUID())
-	r.seen[objUID] = make([]workloadmeta.EntityID, 0, len(producedEntities))
-
-	for _, entity := range producedEntities {
-		r.seen[objUID] = append(r.seen[objUID], entity.GetID())
-		r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
-				Entity: entity,
-			},
-		})
+	if r.filter != nil && r.filter.filteredOut(entity) {
+		// Don't store the object in memory if it is filtered out
+		return nil
 	}
+
+	r.seen[string(metaObj.GetUID())] = entity.GetID()
+	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: collectorID,
+			Entity: entity,
+		},
+	})
 
 	return nil
 }
@@ -79,11 +82,14 @@ func (r *reflectorStore) Update(obj interface{}) error {
 // Replace diffs the given list with the contents of the workloadmeta store
 // (through r.seen), and updates and deletes the necessary objects.
 func (r *reflectorStore) Replace(list []interface{}, _ string) error {
-	entitiesuids := make([]entitiesUID, 0, len(list))
+	entities := make([]entityUID, 0, len(list))
 
 	for _, obj := range list {
-		parsedEntites := r.parser.Parse(obj)
-		entitiesuids = append(entitiesuids, entitiesUID{parsedEntites, obj.(metav1.Object).GetUID()})
+		entity := r.parser.Parse(obj)
+		if r.filter != nil && r.filter.filteredOut(entity) {
+			continue
+		}
+		entities = append(entities, entityUID{entity, obj.(metav1.Object).GetUID()})
 	}
 
 	r.mu.Lock()
@@ -91,42 +97,35 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 
 	var events []workloadmeta.CollectorEvent
 
-	seenNow := make(map[string][]workloadmeta.EntityID)
+	seenNow := make(map[string]workloadmeta.EntityID)
 	seenBefore := r.seen
 
-	for _, entitiesuid := range entitiesuids {
-		producedEntities := entitiesuid.entities
-		uid := string(entitiesuid.uid)
+	for _, entityuid := range entities {
+		entity := entityuid.entity
+		uid := string(entityuid.uid)
 
-		seenNow[uid] = make([]workloadmeta.EntityID, 0, len(producedEntities))
-
-		for _, producedEntity := range producedEntities {
-			events = append(events, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeSet,
-				Source: collectorID,
-				Entity: producedEntity,
-			})
-
-			seenNow[uid] = append(seenNow[uid], producedEntity.GetID())
-		}
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeSet,
+			Source: collectorID,
+			Entity: entity,
+		})
 
 		delete(seenBefore, uid)
+
+		seenNow[uid] = entity.GetID()
 	}
 
-	for _, entityIDs := range seenBefore {
-
-		for _, entityID := range entityIDs {
-			entity, err := entityFromEntityID(entityID)
-			if err != nil {
-				return err
-			}
-
-			events = append(events, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeUnset,
-				Source: collectorID,
-				Entity: entity,
-			})
+	for _, entityID := range seenBefore {
+		entity, err := entityFromEntityID(entityID)
+		if err != nil {
+			return err
 		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: collectorID,
+			Entity: entity,
+		})
 	}
 
 	r.wlmetaStore.Notify(events)
@@ -143,6 +142,7 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	defer r.mu.Unlock()
 
 	var uid types.UID
+	var entity workloadmeta.Entity
 	switch v := obj.(type) {
 	// All the supported objects need to be in this switch statement to be able
 	// to be deleted.
@@ -159,18 +159,19 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.hasSynced = true
 	delete(r.seen, string(uid))
 
-	producedEntities := r.parser.Parse(obj)
+	entity = r.parser.Parse(obj)
 
-	for _, entity := range producedEntities {
-
-		r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeUnset,
-				Source: collectorID,
-				Entity: entity,
-			},
-		})
+	if r.filter != nil && r.filter.filteredOut(entity) {
+		return nil
 	}
+
+	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: collectorID,
+			Entity: entity,
+		},
+	})
 
 	return nil
 }

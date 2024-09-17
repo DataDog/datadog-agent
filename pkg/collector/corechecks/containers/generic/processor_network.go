@@ -14,7 +14,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,6 +87,7 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
 	for _, containerNetwork := range pn.ungroupedContainerNetwork {
 		pn.generateNetworkMetrics(containerNetwork.tags, containerNetwork.stats)
 	}
+	pn.ungroupedContainerNetwork = nil
 
 	for _, containerNetworks := range pn.groupedContainerNetwork {
 		// If we have multiple containers, tagging with container tag is incorrect as the metrics refer to whole isolation group.
@@ -97,8 +97,8 @@ func (pn *ProcessorNetwork) processGroupedContainerNetwork() {
 		if containerNetworks.count == 1 {
 			pn.generateNetworkMetrics(containerNetworks.tags, containerNetworks.stats)
 		} else if containerNetworks.owner != nil && containerNetworks.owner.Kind == workloadmeta.KindKubernetesPod {
-			podEntityID := kubelet.PodUIDToTaggerEntityName(containerNetworks.owner.ID)
-			orchTags, err := tagger.Tag(podEntityID, types.HighCardinality)
+			podEntityID := types.NewEntityID(types.KubernetesPodUID, containerNetworks.owner.ID)
+			orchTags, err := tagger.Tag(podEntityID.String(), types.HighCardinality)
 			if err != nil {
 				log.Debugf("Unable to get orchestrator tags for pod: %s", containerNetworks.owner.ID)
 				continue

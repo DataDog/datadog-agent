@@ -19,7 +19,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,7 +76,7 @@ var (
 
 func getMinRemainingRequestsTracker() *minTracker {
 	once.Do(func() {
-		refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
+		refreshPeriod := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.refresh_period")
 		expiryDuration := 2 * refreshPeriod
 		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
 	})

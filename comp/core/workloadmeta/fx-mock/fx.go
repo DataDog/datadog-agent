@@ -21,12 +21,13 @@ import (
 // team: container-platform
 
 // MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
+func MockModule(params wmdef.Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(wmimpl.NewWorkloadMetaMock),
+		fxutil.ProvideComponentConstructor(wmimpl.NewWorkloadMetaMock),
 		fx.Provide(func(mock wmmock.Mock) wmdef.Component { return mock }),
 		fx.Provide(func(mock wmmock.Mock) optional.Option[wmdef.Component] {
 			return optional.NewOption[wmdef.Component](mock)
 		}),
+		fx.Supply(params),
 	)
 }

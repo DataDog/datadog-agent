@@ -30,7 +30,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,15 +95,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.runLocal,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.runLocal,
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmetafx.Module(),
 				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
@@ -334,7 +331,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	}
 
 	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}

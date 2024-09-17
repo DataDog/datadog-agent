@@ -279,17 +279,18 @@ func (r *HTTPReceiver) Start() {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			ln, err := r.listenUnix(path)
 			if err != nil {
+				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				killProcess("Error creating UDS listener: %v", err)
+			} else {
+				go func() {
+					defer watchdog.LogOnPanic(r.statsd)
+					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+						log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+						r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+					}
+				}()
+				log.Infof("Listening for traces at unix://%s", path)
 			}
-			go func() {
-				defer watchdog.LogOnPanic(r.statsd)
-				if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-					r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				}
-			}()
-			log.Infof("Listening for traces at unix://%s", path)
 		} else {
 			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
@@ -852,4 +853,13 @@ func getMediaType(req *http.Request) string {
 		return "application/json"
 	}
 	return mt
+}
+
+// normalizeHTTPHeader takes a raw string and normalizes the value to be compatible
+// with an HTTP header value.
+func normalizeHTTPHeader(val string) string {
+	val = strings.ReplaceAll(val, "\r\n", "_")
+	val = strings.ReplaceAll(val, "\r", "_")
+	val = strings.ReplaceAll(val, "\n", "_")
+	return val
 }

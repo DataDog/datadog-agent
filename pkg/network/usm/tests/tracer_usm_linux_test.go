@@ -308,10 +308,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 		t.Skip("TLS classification platform not supported")
 	}
 
-	const srvPort = 9111
-	srvAddress := fmt.Sprintf("localhost:%d", srvPort)
-
-	srv := testutil.NewTLSServerWithSpecificVersion(srvAddress, func(conn net.Conn) {
+	srv := testutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
 		defer conn.Close()
 		// Echo back whatever is received
 		_, err := io.Copy(conn, conn)
@@ -323,6 +320,11 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	done := make(chan struct{})
 	require.NoError(t, srv.Run(done))
 	t.Cleanup(func() { close(done) })
+	_, srvPortStr, err := net.SplitHostPort(srv.Address())
+	require.NoError(t, err)
+	srvPort, err := strconv.Atoi(srvPortStr)
+	require.NoError(t, err)
+	srvPortU16 := uint16(srvPort)
 
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
@@ -397,7 +399,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 					Port: int(clientPort),
 				},
 			}
-			conn, err := dialer.Dial("tcp", srvAddress)
+			conn, err := dialer.Dial("tcp", srv.Address())
 			require.NoError(t, err)
 			defer conn.Close()
 			tlsConn := tls.Client(conn, tlsConfig)
@@ -408,7 +410,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 				Daddr_h:  addrHigh,
 				Daddr_l:  addrLow,
 				Sport:    clientPort,
-				Dport:    srvPort,
+				Dport:    srvPortU16,
 				Metadata: uint32(netebpf.TCP),
 			}
 			protocolValue := netebpf.ProtocolStackWrapper{
@@ -426,7 +428,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
 				for _, c := range payload.Conns {
-					if c.DPort == srvPort || c.SPort == srvPort {
+					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
 					}
 				}
@@ -463,10 +465,6 @@ func (s *USMSuite) TestTLSClassification() {
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
 		scenario := scenario
-		if scenario == tls.VersionTLS10 || scenario == tls.VersionTLS11 {
-			// Only tests for TLS 1.2 and 1.3 are expected to pass until PR#26591 is reintroduced.
-			continue
-		}
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1) + "_docker",
 			postTracerSetup: func(t *testing.T) {

@@ -13,11 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Resolver is the Software Bill-Of-material resolver
@@ -25,7 +23,7 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ optional.Option[workloadmeta.Component]) (*Resolver, error) {
+func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 

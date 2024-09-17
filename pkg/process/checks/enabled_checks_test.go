@@ -19,8 +19,8 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,7 +35,7 @@ func assertNotContainsCheck(t *testing.T, checks []string, name string) {
 	assert.NotContains(t, checks, name)
 }
 
-func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ReaderWriter, wmeta workloadmeta.Component, npCollector npcollector.Component) []string {
+func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig pkgconfigmodel.ReaderWriter, wmeta workloadmeta.Component, npCollector npcollector.Component) []string {
 	sysprobeConfigStruct, err := sysconfig.New("", "")
 	require.NoError(t, err)
 
@@ -53,7 +53,7 @@ func TestProcessDiscovery(t *testing.T) {
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
-		cfg, sysprobeCfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, sysprobeCfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, sysprobeCfg, deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
@@ -61,7 +61,7 @@ func TestProcessDiscovery(t *testing.T) {
 
 	// Make sure the process_discovery check can be disabled
 	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", false)
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
@@ -69,7 +69,7 @@ func TestProcessDiscovery(t *testing.T) {
 
 	// Make sure the process and process_discovery checks are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
@@ -80,7 +80,7 @@ func TestProcessDiscovery(t *testing.T) {
 func TestProcessCheck(t *testing.T) {
 	deps := createProcessCheckDeps(t)
 	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -88,7 +88,7 @@ func TestProcessCheck(t *testing.T) {
 
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -101,7 +101,7 @@ func TestConnectionsCheck(t *testing.T) {
 	defer flavor.SetFlavor(originalFlavor)
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", true)
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
 		flavor.SetFlavor("process_agent")
@@ -115,7 +115,7 @@ func TestConnectionsCheck(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", false)
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
@@ -131,9 +131,8 @@ type ProcessCheckDeps struct {
 
 func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 	return fxutil.Test[ProcessCheckDeps](t,
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 	)
 }

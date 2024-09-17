@@ -11,7 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -157,7 +158,7 @@ func (ch *chooser) start() {
 
 // preferred returns the preferred LogWhat, based on configuration
 func (ch *chooser) preferred() LogWhat {
-	if config.Datadog().GetBool("logs_config.k8s_container_use_file") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_file") {
 		return LogPods
 	}
 	return LogContainers
@@ -167,11 +168,11 @@ func (ch *chooser) preferred() LogWhat {
 // LogContainers, sending the result to ch.choice.  If wait is true, then if no
 // choice is available yet, it will wait until a choice becomes available.
 func (ch *chooser) choose(wait bool) {
-	c := config.IsFeaturePresent(config.Docker) ||
-		config.IsFeaturePresent(config.Containerd) ||
-		config.IsFeaturePresent(config.Cri) ||
-		config.IsFeaturePresent(config.Podman)
-	k := config.IsFeaturePresent(config.Kubernetes)
+	c := env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Cri) ||
+		env.IsFeaturePresent(env.Podman)
+	k := env.IsFeaturePresent(env.Kubernetes)
 
 	makeChoice := func(logWhat LogWhat) {
 		log.Debugf("LogWhat = %s", logWhat.String())
