@@ -9,12 +9,12 @@
   "resources": [],
   "detail": {
     "foo": "bar",
-    "BusName": "testBus",
-    "SentTimestamp": "100",
     "_datadog": {
       "x-datadog-trace-id": "12345",
       "x-datadog-parent-id": "67890",
-      "x-datadog-sampling-priority": "2"
+      "x-datadog-sampling-priority": "2",
+      "x-datadog-bus-name": "testBus",
+      "x-datadog-sent-timestamp": "100"
     }
   }
 }

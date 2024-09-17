@@ -288,35 +288,29 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an EventBridge event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPayload events.EventBridgeEvent) {
-	source := eventPayload.Source
-	serviceName := DetermineServiceName(serviceMapping, source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.eventbridge"
-	inferredSpan.Span.Service = serviceName
-
-	// The bus name isn't included in the payload, so we use `BusName`
-	// passed in by the tracer if it exists. Otherwise, use "EventBridge"
-	if resourceName, ok := eventPayload.Detail[busName].(string); ok {
-		inferredSpan.Span.Resource = resourceName
-	} else {
-		inferredSpan.Span.Resource = "EventBridge"
-	}
-
-	// Use the `SentTimestamp` time passed in by the tracer if it exists.
-	// Otherwise, use the time that AWS gives us in `eventPayload.Time`.
-	// `eventPayload.Time` only has second resolution, so it's very inaccurate.
-	var startTimeNanos int64
-	if startTime, ok := eventPayload.Detail[sentTimestamp].(string); ok {
-		startTimeNanos = calculateStartTime(convertStringTimestamp(startTime))
-	} else {
-		startTimeNanos = eventPayload.Time.UnixNano()
-	}
-
-	inferredSpan.Span.Start = startTimeNanos
+	inferredSpan.Span.Service = DetermineServiceName(serviceMapping, eventPayload.Source, "lambda_eventbridge", "eventbridge")
 	inferredSpan.Span.Type = "web"
+	inferredSpan.Span.Resource = "EventBridge"             // use as backup if bus name isn't passed by tracer
+	inferredSpan.Span.Start = eventPayload.Time.UnixNano() // use as backup if sent timestamp isn't passed by tracer
+
+	if traceContext, ok := eventPayload.Detail[datadogHeader].(map[string]interface{}); ok {
+		// The bus name isn't included in the default AWS payload, so we use
+		// `x-datadog-bus-name` passed in by the tracer if it exists.
+		if bus, ok := traceContext[busName].(string); ok {
+			inferredSpan.Span.Resource = bus
+		}
+
+		// Use the `x-datadog-sent-timestamp` passed in by the tracer if it exists.
+		if startTime, ok := traceContext[eventBridgeTime].(string); ok {
+			inferredSpan.Span.Start = calculateStartTime(convertStringTimestamp(startTime))
+		}
+	}
+
 	inferredSpan.Span.Meta = map[string]string{
 		operationName: "aws.eventbridge",
-		resourceNames: source,
+		resourceNames: eventPayload.Source,
 		detailType:    eventPayload.DetailType,
 	}
 }
