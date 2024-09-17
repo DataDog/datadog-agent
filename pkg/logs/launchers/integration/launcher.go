@@ -45,9 +45,9 @@ type Launcher struct {
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
 	err := os.MkdirAll(runPath, 0755)
+
 	if err != nil {
-		ddLog.Warn("Unable to make integrations logs directory: ", err)
-		return nil
+		ddLog.Warn("Unable to create integrations logs directory:", err)
 	}
 
 	return &Launcher{
@@ -76,6 +76,7 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
+
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
 				ddLog.Warn("Failed to create source ", err)
