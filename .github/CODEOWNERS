@@ -47,7 +47,7 @@
 /.circleci/                             @DataDog/agent-devx-infra
 
 /.github/CODEOWNERS                                 # do not notify anyone
-/.github/*_TEMPLATE.md                              @DataDog/agent-all
+/.github/*_TEMPLATE.md                              @DataDog/agent-devx-loops
 /.github/dependabot.yaml                            @DataDog/agent-devx-infra
 /.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
