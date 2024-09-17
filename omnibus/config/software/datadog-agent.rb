@@ -237,6 +237,10 @@ build do
   # Change RPATH from the install_dir to relative RPATH
   unless windows_target?
     delete "#{install_dir}/uselessfile"
-    command "inv omnibus.rpath-edit #{install_dir} #{install_dir}"
+    if osx_target?
+      command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --macos"
+    else
+      command "inv omnibus.rpath-edit #{install_dir} #{install_dir}"
+    end
   end
 end

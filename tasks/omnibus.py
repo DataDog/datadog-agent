@@ -19,7 +19,14 @@ from tasks.libs.releasing.version import get_version, load_release_versions
 
 
 def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
+    ctx,
+    task,
+    target_project,
+    base_dir,
+    env,
+    omnibus_s3_cache=False,
+    log_level="info",
+    host_distribution=None,
 ):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
@@ -29,9 +36,9 @@ def omnibus_run_task(
             overrides_cmd += f" --override=host_distribution:{host_distribution}"
 
         omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
+        if sys.platform == "win32":
             omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
+        elif sys.platform == "darwin":
             # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
@@ -74,18 +81,20 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
-                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        print(
+                            f"Fatal error while installing omnibus: {e.result.stdout}. Cannot continue."
+                        )
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
-        raise Exit('Too many failures while installing omnibus, giving up')
+        raise Exit("Too many failures while installing omnibus, giving up")
 
 
 def get_omnibus_env(
     ctx,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
+    major_version="7",
+    python_runtimes="3",
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -96,62 +105,70 @@ def get_omnibus_env(
     env = load_release_versions(ctx, release_version)
 
     # If the host has a GOMODCACHE set, try to reuse it
-    if not go_mod_cache and os.environ.get('GOMODCACHE'):
-        go_mod_cache = os.environ.get('GOMODCACHE')
+    if not go_mod_cache and os.environ.get("GOMODCACHE"):
+        go_mod_cache = os.environ.get("GOMODCACHE")
 
     if go_mod_cache:
-        env['OMNIBUS_GOMODCACHE'] = go_mod_cache
+        env["OMNIBUS_GOMODCACHE"] = go_mod_cache
 
     if int(major_version) > 6:
-        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
+        env["OMNIBUS_OPENSSL_SOFTWARE"] = "openssl3"
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = [
+        "INTEGRATIONS_CORE_VERSION",
+        "OMNIBUS_RUBY_VERSION",
+        "OMNIBUS_SOFTWARE_VERSION",
+    ]
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
         if value:
             env[key] = value
 
-    if sys.platform == 'darwin':
+    if sys.platform == "darwin":
         # Target MacOS 10.12
-        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+        env["MACOSX_DEPLOYMENT_TARGET"] = "10.12"
 
     if skip_sign:
-        env['SKIP_SIGN_MAC'] = 'true'
+        env["SKIP_SIGN_MAC"] = "true"
     if hardened_runtime:
-        env['HARDENED_RUNTIME_MAC'] = 'true'
+        env["HARDENED_RUNTIME_MAC"] = "true"
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+    env["PACKAGE_VERSION"] = get_version(
+        ctx,
+        include_git=True,
+        url_safe=True,
+        major_version=major_version,
+        include_pipeline_id=True,
     )
-    env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
+    env["MAJOR_VERSION"] = major_version
+    env["PY_RUNTIMES"] = python_runtimes
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
-    env['PIP_CONFIG_FILE'] = os.path.abspath(pip_config_file)
+    env["PIP_CONFIG_FILE"] = os.path.abspath(pip_config_file)
 
     if system_probe_bin:
-        env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    env['AGENT_FLAVOR'] = flavor.name
+        env["SYSTEM_PROBE_BIN"] = system_probe_bin
+    env["AGENT_FLAVOR"] = flavor.name
 
     if custom_config_dir:
-        env['OUTPUT_CONFIG_DIR'] = custom_config_dir
+        env["OUTPUT_CONFIG_DIR"] = custom_config_dir
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
-    kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
+    kubernetes_cpu_request = os.environ.get("KUBERNETES_CPU_REQUEST")
     if kubernetes_cpu_request:
-        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
+        env["OMNIBUS_WORKERS_OVERRIDE"] = str(int(kubernetes_cpu_request) + 1)
     # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    deploy_agent = os.environ.get('DEPLOY_AGENT')
+    deploy_agent = os.environ.get("DEPLOY_AGENT")
     if deploy_agent:
-        env['DEPLOY_AGENT'] = deploy_agent
-    if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
-    if 'INSTALL_DIR' in os.environ:
-        print('Forwarding INSTALL_DIR')
-        env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
+        env["DEPLOY_AGENT"] = deploy_agent
+    if "PACKAGE_ARCH" in os.environ:
+        env["PACKAGE_ARCH"] = os.environ["PACKAGE_ARCH"]
+    if "INSTALL_DIR" in os.environ:
+        print("Forwarding INSTALL_DIR")
+        env["INSTALL_DIR"] = os.environ["INSTALL_DIR"]
 
     return env
 
@@ -159,8 +176,8 @@ def get_omnibus_env(
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
-        'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
-        'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
+        "skip-sign": "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
+        "hardened-runtime": "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
     }
 )
 def build(
@@ -172,8 +189,8 @@ def build(
     skip_deps=False,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
+    major_version="7",
+    python_runtimes="3",
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -192,16 +209,16 @@ def build(
     flavor = AgentFlavor[flavor]
     durations = {}
     if not skip_deps:
-        with timed(quiet=True) as durations['Deps']:
+        with timed(quiet=True) as durations["Deps"]:
             deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
-    if base_dir is not None and sys.platform == 'win32':
+    if base_dir is not None and sys.platform == "win32":
         # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
         # error 'no matched files for glob copy' at the end of the build.
-        base_dir = base_dir.replace(os.path.sep, '/')
+        base_dir = base_dir.replace(os.path.sep, "/")
 
     env = get_omnibus_env(
         ctx,
@@ -232,20 +249,20 @@ def build(
     pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
 
     # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
-    with open(pip_config_file, 'w') as f:
+    with open(pip_config_file, "w") as f:
         f.write(pip_index_url)
 
-    with timed(quiet=True) as durations['Bundle']:
+    with timed(quiet=True) as durations["Bundle"]:
         bundle_install_omnibus(ctx, gem_path, env)
 
-    omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
+    omnibus_cache_dir = os.environ.get("OMNIBUS_GIT_CACHE_DIR")
     use_omnibus_git_cache = (
         omnibus_cache_dir is not None
         and target_project == "agent"
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
     )
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    aws_cmd = "aws.cmd" if sys.platform == "win32" else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -257,9 +274,9 @@ def build(
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
-        install_directory = install_directory.lstrip('/')
+        install_directory = install_directory.lstrip("/")
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
-        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+        remote_cache_name = os.environ.get("CI_JOB_NAME_SLUG")
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
@@ -271,27 +288,41 @@ def build(
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
                 bundle_path = (
-                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
+                    "/tmp/omnibus-git-cache-bundle"
+                    if sys.platform != "win32"
+                    else "C:\\TEMP\\omnibus-git-cache-bundle"
                 )
-                with timed(quiet=True) as durations['Restoring omnibus cache']:
+                with timed(quiet=True) as durations["Restoring omnibus cache"]:
                     # Allow failure in case the cache was evicted
-                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
-                        print(f'Successfully retrieved cache {cache_key}')
+                    if ctx.run(
+                        f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}",
+                        warn=True,
+                    ):
+                        print(f"Successfully retrieved cache {cache_key}")
                         try:
-                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                            ctx.run(
+                                f"git clone --mirror {bundle_path} {omnibus_cache_dir}"
+                            )
                         except UnexpectedExit as exc:
-                            print(f"An error occurring while cloning the cache repo: {exc}")
+                            print(
+                                f"An error occurring while cloning the cache repo: {exc}"
+                            )
                         else:
-                            cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                            cache_state = ctx.run(
+                                f"git -C {omnibus_cache_dir} tag -l"
+                            ).stdout
                     else:
-                        print(f'Failed to restore cache from key {cache_key}')
+                        print(f"Failed to restore cache from key {cache_key}")
                         send_cache_miss_event(
-                            ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                            ctx,
+                            os.environ.get("CI_PIPELINE_ID"),
+                            remote_cache_name,
+                            os.environ.get("CI_JOB_ID"),
                         )
 
-    with timed(quiet=True) as durations['Omnibus']:
-        omni_flavor = env.get('AGENT_FLAVOR')
-        print(f'We are building omnibus with flavor: {omni_flavor}')
+    with timed(quiet=True) as durations["Omnibus"]:
+        omni_flavor = env.get("AGENT_FLAVOR")
+        print(f"We are building omnibus with flavor: {omni_flavor}")
         omnibus_run_task(
             ctx=ctx,
             task="build",
@@ -307,26 +338,41 @@ def build(
     os.remove(pip_config_file)
 
     if use_omnibus_git_cache:
-        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        stale_tags = ctx.run(
+            f"git -C {omnibus_cache_dir} tag --no-merged", warn=True
+        ).stdout
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
         # Do this before checking for tag differences, in order to remove staled tags
         # in case they were included in the bundle in a previous build
         for _, tag in enumerate(stale_tags.split(os.linesep)):
-            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache']:
-            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+            ctx.run(f"git -C {omnibus_cache_dir} tag -d {tag}")
+        with timed(quiet=True) as durations["Updating omnibus cache"]:
+            if (
+                use_remote_cache
+                and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state
+            ):
+                ctx.run(
+                    f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags"
+                )
+                ctx.run(
+                    f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}"
+                )
 
     # Output duration information for different steps
     print("Build component timing:")
-    durations_to_print = ["Deps", "Bundle", "Omnibus", "Restoring omnibus cache", "Updating omnibus cache"]
+    durations_to_print = [
+        "Deps",
+        "Bundle",
+        "Omnibus",
+        "Restoring omnibus cache",
+        "Updating omnibus cache",
+    ]
     for name in durations_to_print:
         if name in durations:
             print(f"{name}: {durations[name].duration}")
 
-    send_build_metrics(ctx, durations['Omnibus'].duration)
+    send_build_metrics(ctx, durations["Omnibus"].duration)
 
 
 @task
@@ -341,8 +387,8 @@ def manifest(
     gem_path=None,
     skip_sign=False,
     release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
+    major_version="7",
+    python_runtimes="3",
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -387,16 +433,38 @@ def manifest(
         log_level=log_level,
     )
 
+
 @task
-def rpath_edit(ctx, install_path, target_rpath_dd_folder, dry_run=False):
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
     for file in glob.iglob(f"{install_path}/**/*", recursive=True):
         ext = os.path.splitext(file)[1]
-        if (ext != "" and "so" not in ext) or "json" in ext or not os.path.isfile(file):
+        if (
+            (ext != "" and "so" not in ext and "dylib" not in ext)
+            or "json" in ext
+            or not os.path.isfile(file)
+        ):
             continue
-        toedit_fd = ctx.run(f"objdump -x {file} | grep \"RPATH\" || true", hide=True)
+        if macos:
+            toedit_fd = ctx.run(
+                f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True
+            )
+        else:
+            toedit_fd = ctx.run(
+                f'objdump -x {file} | grep "RPATH"', warn=True, hide=True
+            )
         if install_path in toedit_fd.stdout:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
-            if not dry_run:
-                patch_fd = ctx.run(f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}")
+            if macos:
+                print()
+                patch_exit = 0
+                while not patch_exit:
+                    print(f"{file} -> @executable_path/{new_rpath}/embedded/lib")
+                    patch_exit = ctx.run(
+                        f"install_name_tool -rpath {install_path}/embedded/lib @executable_path/{new_rpath}/embedded/lib {file}",
+                        warn=True,
+                        hide=True,
+                    ).exited
             else:
-                print(f"Changing RPATH for {file} to $ORIGIN/{new_rpath}/embedded/lib")
+                patch_fd = ctx.run(
+                    f"patchelf --force-rpath --set-rpath \$ORIGIN/{new_rpath}/embedded/lib {file}"
+                )
