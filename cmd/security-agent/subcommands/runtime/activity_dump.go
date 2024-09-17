@@ -11,8 +11,6 @@ package runtime
 import (
 	"fmt"
 	"os"
-	"regexp"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -747,9 +745,8 @@ func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 			mergedRules = append(mergedRules, rules...)
 
 		}
-		// mergedRules = factorise(mergedRules, args)
-
 	}
+	mergedRules = utils.BuildPatterns(mergedRules)
 
 	wp := wconfig.WorkloadPolicy{
 		ID:   "workload",
@@ -795,97 +792,4 @@ func generateRules(ad interface{}, args *ActivityDumpToWorkloadPolicyCliParams) 
 		return nil, err
 	}
 	return rules, nil
-}
-
-// factorise function to combine rules with the same fields, operations, and paths
-func factorise(ruleset []*rules.RuleDefinition, args *ActivityDumpToWorkloadPolicyCliParams) []*rules.RuleDefinition {
-	// Map to store combined paths by their field + operation keys
-	expressionMap := make(map[string][]string)
-
-	for _, rule := range ruleset {
-		// Extract the field and operation as the key
-		key := extractFieldAndOperation(rule.Expression)
-		// Extract the paths from the expression
-		paths := extractPaths(rule.Expression)
-
-		// Add the paths to the corresponding key in the map
-		expressionMap[key] = append(expressionMap[key], paths...)
-	}
-
-	// Clear the original rules slice
-	var res []*rules.RuleDefinition
-
-	// Rebuild the rules with combined paths
-	for key, paths := range expressionMap {
-		var combinedExpression string
-
-		if strings.HasPrefix(key, "!") { // if it's lineage, just append it to the list of rules
-			combinedExpression = key
-		} else {
-
-			// Remove duplicates and format the paths list
-			uniquePaths := unique(paths)
-			combinedPaths := strings.Join(uniquePaths, ", ")
-
-			// Construct the combined expression
-			combinedExpression = fmt.Sprintf("%s not in [%s]", key, combinedPaths)
-		}
-		// Add image name and image tag args
-		if args.imageName != "" {
-			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_name:%s\"", combinedExpression, args.imageName)
-		}
-		if args.imageTag != "" {
-			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_tag:%s\"", combinedExpression, args.imageTag)
-		}
-		// Add the new combined rule to the rules slice
-
-		tmp := rules.RuleDefinition{Expression: combinedExpression}
-		if args.kill {
-			tmp.Actions = []*rules.ActionDefinition{
-				{
-					Kill: &rules.KillDefinition{
-						Signal: "SIGKILL",
-					},
-				},
-			}
-		}
-		res = append(res, &tmp)
-	}
-	return res
-}
-
-// extractFieldAndOperation extracts the field and operation from an expression
-func extractFieldAndOperation(expression string) string {
-	// Extract the part of the expression before the "not in"
-	re := regexp.MustCompile(`(\S+\.\S+)\snot\s+in`)
-	match := re.FindStringSubmatch(expression)
-	if len(match) > 1 {
-		return match[1]
-	}
-	return expression
-}
-
-// extractPaths extracts the paths from the "not in [ ... ]" part of the expression
-func extractPaths(expression string) []string {
-	// Regular expression to match the paths inside the square brackets
-	re := regexp.MustCompile(`\[(.*?)\]`)
-	match := re.FindStringSubmatch(expression)
-	if len(match) > 1 {
-		// Split the matched paths by commas
-		return strings.Split(match[1], ",")
-	}
-	return nil
-}
-
-// unique removes duplicate paths from a slice
-func unique(paths []string) []string {
-	seen := make(map[string]bool)
-	result := []string{}
-	for _, path := range paths {
-		if _, ok := seen[path]; !ok {
-			seen[path] = true
-			result = append(result, path)
-		}
-	}
-	return result
 }

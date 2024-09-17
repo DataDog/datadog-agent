@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
@@ -952,8 +953,23 @@ func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.
 	return ruleDef
 }
 
+func getGroupID(opts SECLRuleOpts) string {
+	groupID := "rules_"
+	if len(opts.ImageName) != 0 {
+		groupID = fmt.Sprintf("%s%s", groupID, opts.ImageName)
+	} else {
+		groupID = fmt.Sprintf("%s%s", groupID, uuid.GetUUID()) // It should be unique so that we can target it at least, but ImageName should be always set
+	}
+	if len(opts.ImageTag) != 0 {
+		groupID = fmt.Sprintf("%s:%s", groupID, opts.ImageTag)
+	}
+
+	return groupID
+}
+
 // ToSECL return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	groupID := getGroupID(opts)
 	type Paths struct {
 		execPath string
 		fimPaths []string
@@ -990,16 +1006,17 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 	for _, paths := range pathsPerProcess {
 		ruleDef := &rules.RuleDefinition{
 			Expression: "",
+			GroupID:    groupID,
 		}
 		var expression string
 		if opts.AllowList {
 			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, paths.execPath)
 		}
 		if opts.AllowList && opts.FIM {
-			expression = fmt.Sprintf(`%s &&`, expression)
+			expression = fmt.Sprintf(`%s && `, expression)
 		}
-		if opts.FIM {
-			expression = fmt.Sprintf(`%s open.file.path not in [%s]`, expression, strings.Join(paths.fimPaths, ", "))
+		if opts.FIM && len(paths.fimPaths) != 0 {
+			expression = fmt.Sprintf(`%sopen.file.path not in [%s]`, expression, strings.Join(paths.fimPaths, ", "))
 		}
 		ruleDef.Expression = expression
 		applyContext(ruleDef, opts)
@@ -1013,6 +1030,7 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 	if opts.Lineage {
 		execRuleDef := &rules.RuleDefinition{
 			Expression: fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),
+			GroupID:    groupID,
 		}
 		applyContext(execRuleDef, opts)
 		if opts.EnableKill {

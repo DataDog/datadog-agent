@@ -5,6 +5,15 @@
 
 package utils
 
+import (
+	"fmt"
+	"regexp"
+	"slices"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+)
+
 // PathPatternMatchOpts PathPatternMatch options
 type PathPatternMatchOpts struct {
 	WildcardLimit      int // max number of wildcard in the pattern
@@ -216,4 +225,54 @@ func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) 
 	}
 
 	return "", false
+}
+
+func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
+	for _, rule := range ruleset {
+		findAndReplacePatterns(&rule.Expression)
+	}
+	return ruleset
+}
+
+func findAndReplacePatterns(expression *string) {
+
+	re := regexp.MustCompile(`\[(.*?)\]`)
+	matches := re.FindAllStringSubmatch(*expression, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			arrayContent := match[1]
+			paths := replacePatterns(strings.Split(arrayContent, ","))
+			// reconstruct the modified array as a string
+			modifiedArrayString := "[" + strings.Join(paths, ", ") + "]"
+			// replace the original array with the modified array in the input string
+			*expression = strings.Replace(*expression, match[0], modifiedArrayString, 1)
+		}
+	}
+
+}
+
+func replacePatterns(paths []string) []string {
+	var result []string
+	for _, pattern := range paths {
+		strippedPattern := strings.Trim(pattern, `~" `)
+		initalLength := len(result)
+		for _, path := range paths {
+			strippedPath := strings.Trim(path, `~" `)
+			if pattern == path {
+				continue
+			}
+			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, PathPatternMatchOpts{WildcardLimit: 1})
+			if ok {
+				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
+				result = append(result, finalPath)
+			}
+		}
+		if len(result) == initalLength {
+			result = append(result, strings.Trim(pattern, ` `))
+		}
+	}
+	// remove duplicates
+	slices.Sort(result)
+	result = slices.Compact(result)
+	return result
 }
