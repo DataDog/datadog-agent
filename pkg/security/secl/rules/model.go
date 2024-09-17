@@ -60,7 +60,7 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID              `yaml:"id" json:"id"`
+	ID                     RuleID              `yaml:"id,omitempty" json:"id"`
 	Version                string              `yaml:"version,omitempty" json:"version,omitempty"`
 	Expression             string              `yaml:"expression" json:"expression,omitempty"`
 	Description            string              `yaml:"description,omitempty" json:"description,omitempty"`
