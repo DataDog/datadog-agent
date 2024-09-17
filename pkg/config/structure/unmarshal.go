@@ -71,7 +71,7 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 	fs.allowSquash = true
 }
 
-// ConvertEmptyStringtoNil allows UnmarshalKey to implicitly convert empty strings into nil slices
+// ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
 var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertEmptyStrNil = true
 }
@@ -125,6 +125,9 @@ type innerNodeImpl struct {
 type innerMapNodeImpl struct {
 	// val must be a map[string]interface{}
 	val reflect.Value
+	// remapCase maps each lower-case key to the original case. This
+	// enables GetChild to retrieve values using case-insensitive keys
+	remapCase map[string]string
 }
 
 var _ node = (*innerNodeImpl)(nil)
@@ -135,7 +138,7 @@ func newNode(v reflect.Value) (node, error) {
 	if v.Kind() == reflect.Struct {
 		return &innerNodeImpl{val: v}, nil
 	} else if v.Kind() == reflect.Map {
-		return &innerMapNodeImpl{val: v}, nil
+		return &innerMapNodeImpl{val: v, remapCase: makeRemapCase(v)}, nil
 	} else if v.Kind() == reflect.Slice {
 		return &arrayNodeImpl{val: v}, nil
 	} else if isScalarKind(v) {
@@ -144,7 +147,7 @@ func newNode(v reflect.Value) (node, error) {
 	return nil, fmt.Errorf("could not create node from: %v of type %T and kind %v", v, v, v.Kind())
 }
 
-// GetChild returns the child node at the given key, or an error if not found
+// GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerNodeImpl) GetChild(key string) (node, error) {
 	findex := findFieldMatch(n.val, key)
 	if findex == -1 {
@@ -173,9 +176,10 @@ func (n *innerNodeImpl) ChildrenKeys() ([]string, error) {
 	return keys, nil
 }
 
-// GetChild returns the child node at the given key, or an error if not found
+// GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerMapNodeImpl) GetChild(key string) (node, error) {
-	inner := n.val.MapIndex(reflect.ValueOf(key))
+	mkey := n.remapCase[strings.ToLower(key)]
+	inner := n.val.MapIndex(reflect.ValueOf(mkey))
 	if !inner.IsValid() {
 		return nil, errNotFound
 	}
@@ -293,8 +297,11 @@ func convertToBool(text string) (bool, error) {
 
 type specifierSet map[string]struct{}
 
+// fieldNameToKey returns the lower-cased field name, for case insensitive comparisons,
+// with struct tag rename applied, as well as the set of specifiers from struct tags
+// struct tags are handled in order of yaml, then json, then mapstructure
 func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
-	name := strings.ToLower(field.Name)
+	name := field.Name
 
 	tagtext := ""
 	if val := field.Tag.Get("yaml"); val != "" {
@@ -318,7 +325,7 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 	} else if tagtext != "" {
 		name = tagtext
 	}
-	return name, specifiers
+	return strings.ToLower(name), specifiers
 }
 
 func copyStruct(target reflect.Value, source node, fs *featureSet) error {
@@ -495,7 +502,25 @@ func isScalarKind(v reflect.Value) bool {
 	return (k >= reflect.Bool && k <= reflect.Float64) || k == reflect.String
 }
 
+func makeRemapCase(v reflect.Value) map[string]string {
+	remap := make(map[string]string)
+	iter := v.MapRange()
+	for iter.Next() {
+		mkey := ""
+		switch k := iter.Key().Interface().(type) {
+		case string:
+			mkey = k
+		default:
+			mkey = fmt.Sprintf("%s", k)
+		}
+		remap[strings.ToLower(mkey)] = mkey
+	}
+	return remap
+}
+
 func findFieldMatch(val reflect.Value, key string) int {
+	// case-insensitive match for struct names
+	key = strings.ToLower(key)
 	schema := val.Type()
 	for i := 0; i < schema.NumField(); i++ {
 		fieldKey, _ := fieldNameToKey(schema.Field(i))

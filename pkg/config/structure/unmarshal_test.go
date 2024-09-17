@@ -163,6 +163,31 @@ feature:
 	assert.Equal(t, feature.Enabled, true)
 }
 
+type FeatureConfigDiffCase struct {
+	ENaBLEd bool
+}
+
+func TestUnmarshalKeyCaseInsensitive(t *testing.T) {
+	confYaml := `
+feature:
+  EnABLeD: "true"
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	var feature = FeatureConfig{}
+	err := UnmarshalKey(mockConfig, "feature", &feature)
+	assert.NoError(t, err)
+
+	assert.Equal(t, feature.Enabled, true)
+
+	var diffcase = FeatureConfigDiffCase{}
+	err = UnmarshalKey(mockConfig, "feature", &diffcase)
+	assert.NoError(t, err)
+
+	assert.Equal(t, diffcase.ENaBLEd, true)
+}
+
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]string{"a": "apple", "b": "banana"}
 	n, err := newNode(reflect.ValueOf(m))
