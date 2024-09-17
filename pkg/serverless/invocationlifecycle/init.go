@@ -106,6 +106,10 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 }
 
 func (lp *LifecycleProcessor) initFromEventBridgeEvent(event events.EventBridgeEvent) {
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithEventBridgeEvent(event)
+	}
+
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, eventBridge)
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)
