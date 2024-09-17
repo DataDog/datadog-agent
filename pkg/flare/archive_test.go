@@ -111,7 +111,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func TestGetAgentTaggerList(t *testing.T) {
 	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
@@ -131,7 +131,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")

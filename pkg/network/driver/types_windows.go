@@ -114,8 +114,8 @@ type PerFlowData struct {
 	AddressFamily            uint16
 	Protocol                 uint16
 	Flags                    uint32
-	LocalAddress             [16]uint8
-	RemoteAddress            [16]uint8
+	LocalAddress             [16]byte
+	RemoteAddress            [16]byte
 	PacketsOut               uint64
 	MonotonicSentBytes       uint64
 	TransportBytesOut        uint64

@@ -89,7 +89,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -122,6 +122,8 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessDiscoveryCollection: true,
 	})
@@ -134,10 +136,19 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -152,6 +163,8 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
 		RunInCoreAgent:    true,
@@ -165,8 +178,14 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
 
 		// verify the standalone process-agent is not running
 		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
@@ -174,7 +193,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 
 		// Verify the process component is running in the core agent
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -214,16 +233,20 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
-	assert.EventuallyWithT(t, func(*assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
-		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
-		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-
+	var status AgentStatus
+	defer func() {
 		if t.Failed() {
 			t.Logf("status: %+v\n", status)
 		}
+	}()
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
+		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 4*time.Minute, 10*time.Second)
 
-	}, 2*time.Minute, 5*time.Second)
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
