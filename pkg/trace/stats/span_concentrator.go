@@ -163,6 +163,8 @@ func computeStatsForSpanKind(kind string) bool {
 	return slices.Contains(KindsComputed, k)
 }
 
+// KindsComputed is the list of span kinds that will have stats computed on them
+// when computeStatsByKind is enabled in the concentrator.
 var KindsComputed = []string{
 	"server",
 	"consumer",
