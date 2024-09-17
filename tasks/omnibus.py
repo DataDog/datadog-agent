@@ -268,7 +268,7 @@ def build(
         # For instance if git_cache_dir is set to "/git/cache/dir" and install_dir is
         # set to /a/b/c, the cache git repository will be located in
         # /git/cache/dir/a/b/c/.git
-        if install_directory is None:
+        if not install_directory:
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
