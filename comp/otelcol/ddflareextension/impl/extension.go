@@ -14,7 +14,9 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -35,36 +37,33 @@ type ddExtension struct {
 	tlsListener net.Listener
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
+	configStore configStore
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
 
-// NewExtension creates a new instance of the extension.
-func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
-	ext := &ddExtension{
-		cfg:       cfg,
-		telemetry: telemetry,
-		info:      info,
-		debug: extensionDef.DebugSourceResponse{
-			Sources: map[string]extensionDef.OTelFlareSource{},
-		},
-	}
-
+func (ext *ddExtension) NotifyConfig(ctx context.Context, conf *confmap.Conf) error {
+	var cfg *configSettings
 	var err error
-	ext.server, ext.tlsListener, err = buildHTTPServer(cfg.HTTPConfig.Endpoint, ext)
-	if err != nil {
-		return nil, err
-	}
-	return ext, nil
-}
 
-// Start is called when the extension is started.
-func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
-	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
+	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
+		fmt.Println(fmt.Errorf("cannot unmarshal the configuration: %w", err))
+		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
+	}
+
+	config := &otelcol.Config{
+		Receivers:  cfg.Receivers.Configs(),
+		Processors: cfg.Processors.Configs(),
+		Exporters:  cfg.Exporters.Configs(),
+		Connectors: cfg.Connectors.Configs(),
+		Extensions: cfg.Extensions.Configs(),
+		Service:    cfg.Service,
+	}
+
+	ext.configStore.addEnhancedConf(config)
 
 	// List configured Extensions
-	configstore := ext.cfg.ConfigStore
-	c, err := configstore.GetEnhancedConf()
+	c, err := ext.configStore.getEnhancedConf()
 	if err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		return nil
 	}
 
-	extensions := host.GetExtensions()
+	extensions := config.Extensions
 	for extension := range extensions {
 		extractor, ok := supportedDebugExtensions[extension.Type().String()]
 		if !ok {
@@ -120,6 +119,44 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		}
 	}
 
+	return nil
+}
+
+// NewExtension creates a new instance of the extension.
+func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
+	ocpProvided, err := otelcol.NewConfigProvider(cfg.configProviderSettings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create configprovider: %w", err)
+	}
+
+	providedConf, err := ocpProvided.Get(context.Background(), *cfg.factories)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := &ddExtension{
+		cfg:         cfg,
+		telemetry:   telemetry,
+		info:        info,
+		configStore: configStore{},
+		debug: extensionDef.DebugSourceResponse{
+			Sources: map[string]extensionDef.OTelFlareSource{},
+		},
+	}
+
+	ext.configStore.addProvidedConf(providedConf)
+
+	ext.server, ext.tlsListener, err = buildHTTPServer(cfg.HTTPConfig.Endpoint, ext)
+	if err != nil {
+		return nil, err
+	}
+	return ext, nil
+}
+
+// Start is called when the extension is started.
+func (ext *ddExtension) Start(_ context.Context, _ component.Host) error {
+	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
+
 	go func() {
 		if err := ext.server.Serve(ext.tlsListener); err != nil && err != http.ErrServerClosed {
 			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
@@ -141,13 +178,13 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	customer, err := ext.cfg.ConfigStore.GetProvidedConfAsString()
+	customer, err := ext.configStore.getProvidedConfAsString()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Unable to get provided config\n")
 		return
 	}
-	enhanced, err := ext.cfg.ConfigStore.GetEnhancedConfAsString()
+	enhanced, err := ext.configStore.getEnhancedConfAsString()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Unable to get enhanced config\n")

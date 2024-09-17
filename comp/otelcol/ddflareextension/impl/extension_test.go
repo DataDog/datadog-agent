@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	spanmetricsconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	pprofextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
@@ -100,18 +99,10 @@ func components() (otelcol.Factories, error) {
 }
 
 func getExtensionTestConfig(t *testing.T) *Config {
-	cf, err := configstore.NewConfigStore()
-	assert.NoError(t, err)
-
-	factories, err := components()
-	assert.NoError(t, err)
-
-	cf.AddConfigs(cpSettings, cpSettings, factories)
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
-		ConfigStore: cf,
 	}
 }
 

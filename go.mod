@@ -47,8 +47,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ./comp/otelcol/configstore/def
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ./comp/otelcol/ddflareextension/def/
@@ -633,8 +631,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.56.0-rc.3
@@ -727,7 +723,7 @@ require (
 	github.com/judwhite/go-svc v1.2.1
 	github.com/kr/pretty v0.3.1
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
