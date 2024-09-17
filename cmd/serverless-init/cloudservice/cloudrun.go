@@ -76,7 +76,7 @@ func getFunctionTags(tags map[string]string) map[string]string {
 // cloud service.
 func (c *CloudRun) GetOrigin() string {
 	if c.cloudRunFunctionMode {
-		return "cloudfunction"
+		return "cloudfunctions"
 	}
 	return "cloudrun"
 }
@@ -85,7 +85,7 @@ func (c *CloudRun) GetOrigin() string {
 // metrics with.
 func (c *CloudRun) GetPrefix() string {
 	if c.cloudRunFunctionMode {
-		return "gcp.cloudfunction"
+		return "gcp.cloudfunctions"
 	}
 	return "gcp.run"
 }
