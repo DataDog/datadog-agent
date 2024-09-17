@@ -14,34 +14,53 @@ import (
 	"testing"
 
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/extension"
+	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/nopreceiver"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/zap"
 )
 
-func getExtensionTestConfig() *Config {
+func getExtensionTestConfig(t *testing.T) *Config {
+	factories, err := components()
+	assert.NoError(t, err)
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
+		configProviderSettings: newConfigProviderSettings(uriFromFile("config.yaml"), false),
+		factories:              &factories,
 	}
 }
 
-func getTestExtension() (ddflareextension.Component, error) {
+func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	c := context.Background()
 	telemetry := component.TelemetrySettings{}
 	info := component.NewDefaultBuildInfo()
-	cfg := getExtensionTestConfig()
+	cfg := getExtensionTestConfig(t)
 
 	return NewExtension(c, cfg, telemetry, info)
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension()
+	ext, err := getTestExtension(t)
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 
@@ -60,7 +79,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension()
+	ext, err := getTestExtension(t)
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
@@ -73,6 +92,10 @@ func TestExtensionHTTPHandler(t *testing.T) {
 	)
 
 	ddExt.Start(context.TODO(), host)
+
+	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), false))
+	ddExt.NotifyConfig(context.TODO(), conf)
+	assert.NoError(t, err)
 
 	// Call the handler's ServeHTTP method
 	ddExt.ServeHTTP(rr, req)
@@ -117,4 +140,50 @@ func newHostWithExtensions(exts map[component.ID]component.Component) component.
 
 func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Component {
 	return h.exts
+}
+
+func components() (otelcol.Factories, error) {
+	var err error
+	factories := otelcol.Factories{}
+
+	factories.Extensions, err = extension.MakeFactoryMap(
+		healthcheckextension.NewFactory(),
+		pprofextension.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Receivers, err = receiver.MakeFactoryMap(
+		nopreceiver.NewFactory(),
+		otlpreceiver.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Exporters, err = exporter.MakeFactoryMap(
+		otlpexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Processors, err = processor.MakeFactoryMap(
+		batchprocessor.NewFactory(),
+		transformprocessor.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Connectors, err = connector.MakeFactoryMap(
+		spanmetricsconnector.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	return factories, nil
 }

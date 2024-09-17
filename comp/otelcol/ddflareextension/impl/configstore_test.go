@@ -95,11 +95,7 @@ func TestGetConfDump(t *testing.T) {
 		assert.Equal(t, expectedStringMap, actualStringMap)
 	})
 
-	resolverSettings := newResolverSettings(uriFromFile("simple-dd/config.yaml"), true)
-	resolver, err := confmap.NewResolver(resolverSettings)
-	assert.NoError(t, err)
-	conf, err := resolver.Resolve(context.TODO())
-	assert.NoError(t, err)
+	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("simple-dd/config.yaml"), true))
 	err = ext.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
@@ -134,6 +130,14 @@ func TestGetConfDump(t *testing.T) {
 
 		assert.Equal(t, expectedStringMap, actualStringMap)
 	})
+}
+
+func confmapFromResolverSettings(t *testing.T, resolverSettings confmap.ResolverSettings) *confmap.Conf {
+	resolver, err := confmap.NewResolver(resolverSettings)
+	assert.NoError(t, err)
+	conf, err := resolver.Resolve(context.TODO())
+	assert.NoError(t, err)
+	return conf
 }
 
 func uriFromFile(filename string) []string {
