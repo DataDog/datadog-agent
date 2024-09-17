@@ -15,10 +15,9 @@ import (
 	"sort"
 	"strings"
 
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -39,26 +38,21 @@ type podmanClient interface {
 
 type collector struct {
 	id      string
+	config  config.Component
 	client  podmanClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 	seen    map[workloadmeta.EntityID]struct{}
 }
 
-// NewCollector returns a new podman collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector returns a new podman collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		config:  cfg,
+		seen:    make(map[workloadmeta.EntityID]struct{}),
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 // Start the collector for the provided workloadmeta component
@@ -68,7 +62,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	var dbPath string
-	dbPath = config.Datadog().GetString("podman_db_path")
+	dbPath = c.config.GetString("podman_db_path")
 
 	// We verify the user-provided path exists to prevent the collector entering a failing loop.
 	if dbPath != "" && !dbIsAccessible(dbPath) {

@@ -10,21 +10,15 @@ import (
 	"context"
 
 	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const id = "host"
-
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
 
 type collector struct {
 	store        workloadmeta.Component
@@ -34,19 +28,12 @@ type collector struct {
 	timeoutTimer *clock.Timer
 }
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
-}
-
-// NewCollector returns a new host collector provider and an error
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			config:  deps.Config,
-			clock:   clock.New(),
-		},
+// NewCollector returns a new host collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		config:  cfg,
+		clock:   clock.New(),
 	}, nil
 }
 

@@ -12,10 +12,9 @@ import (
 	"os"
 	"strings"
 
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -31,24 +30,19 @@ const (
 
 type collector struct {
 	id       string
+	config   config.Component
 	store    workloadmeta.Component
 	nodeName string
 	catalog  workloadmeta.AgentType
 }
 
-// NewCollector instantiates a CollectorProvider which can provide a CF container collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector instantiates a CF container collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		config:  cfg,
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
@@ -57,7 +51,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Detect if we're on a PCF container
-	if !config.Datadog().GetBool("cloud_foundry_buildpack") {
+	if !c.config.GetBool("cloud_foundry_buildpack") {
 		return errors.NewDisabled(componentName, "Agent is not running on a CloudFoundry container")
 	}
 

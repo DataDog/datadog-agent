@@ -135,7 +135,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 			catalog := workloadmeta.NodeAgent
 			instantiate := config.GetBool("dogstatsd_origin_detection")

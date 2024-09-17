@@ -8,9 +8,12 @@
 // Package docker provides the docker collector for workloadmeta
 package docker
 
-import "go.uber.org/fx"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
+)
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
+// NewCollector is a no-op constructor
+func NewCollector(_ config.Component) (wmcatalog.Collector, error) {
+	return nil, nil
 }

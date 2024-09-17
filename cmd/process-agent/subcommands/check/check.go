@@ -126,7 +126,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				wmcatalog.GetCatalog(),
+				fx.Provide(wmcatalog.GetCatalog),
 				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType

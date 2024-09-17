@@ -117,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.DefaultStreamlogsLogFile,
 				)),
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				fx.Provide(wmcatalog.GetCatalog),
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType:  workloadmeta.NodeAgent,
 					InitHelper: common.GetWorkloadmetaInit(),

@@ -12,9 +12,8 @@ import (
 	"context"
 	"strings"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -30,40 +29,27 @@ const (
 	componentName = "workloadmeta-ecs_fargate"
 )
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
 type collector struct {
 	id                    string
+	config                config.Component
 	store                 workloadmeta.Component
 	catalog               workloadmeta.AgentType
 	metaV2                v2.Client
 	metaV4                v3or4.Client
 	seen                  map[workloadmeta.EntityID]struct{}
-	config                config.Component
 	taskCollectionEnabled bool
 	taskCollectionParser  util.TaskParser
 }
 
-// NewCollector returns a new ecsfargate collector provider and an error
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:                    collectorID,
-			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			seen:                  make(map[workloadmeta.EntityID]struct{}),
-			config:                deps.Config,
-			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
-		},
+// NewCollector returns a new ecsfargate collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		id:                    collectorID,
+		config:                cfg,
+		catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		seen:                  make(map[workloadmeta.EntityID]struct{}),
+		taskCollectionEnabled: util.IsTaskCollectionEnabled(cfg),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {

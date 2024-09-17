@@ -84,7 +84,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
 		}),
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),

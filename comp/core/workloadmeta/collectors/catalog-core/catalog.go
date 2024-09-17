@@ -9,19 +9,11 @@
 package catalog
 
 import (
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 )
 
-// GetCatalog returns the set of FX options to populate the catalog
-func GetCatalog() fx.Option {
-	options := getCollectorOptions()
-
-	// remove nil options
-	opts := make([]fx.Option, 0, len(options))
-	for _, item := range options {
-		if item != nil {
-			opts = append(opts, item)
-		}
-	}
-	return fx.Options(opts...)
+// GetCatalog returns the set of collectors in the catalog
+func GetCatalog(cfg config.Component) []wmcatalog.Collector {
+	return getCollectorList(cfg)
 }

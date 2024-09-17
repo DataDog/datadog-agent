@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -32,14 +32,9 @@ const (
 	componentName = "workloadmeta-ecs"
 )
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
 type collector struct {
 	id                  string
+	config              config.Component
 	store               workloadmeta.Component
 	catalog             workloadmeta.AgentType
 	metaV1              v1.Client
@@ -49,7 +44,6 @@ type collector struct {
 	collectResourceTags bool
 	resourceTags        map[string]resourceTags
 	seen                map[workloadmeta.EntityID]struct{}
-	config              config.Component
 	// taskCollectionEnabled is a flag to enable detailed task collection
 	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
 	// that is returned from the v1/tasks endpoint
@@ -68,29 +62,22 @@ type resourceTags struct {
 	containerInstanceTags map[string]string
 }
 
-// NewCollector returns a new ecs collector provider and an error
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:                           collectorID,
-			resourceTags:                 make(map[string]resourceTags),
-			seen:                         make(map[workloadmeta.EntityID]struct{}),
-			catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			config:                       deps.Config,
-			taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
-			taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
-			taskRateRPS:                  deps.Config.GetInt("ecs_task_collection_rate"),
-			taskRateBurst:                deps.Config.GetInt("ecs_task_collection_burst"),
-			metadataRetryInitialInterval: deps.Config.GetDuration("ecs_metadata_retry_initial_interval"),
-			metadataRetryMaxElapsedTime:  deps.Config.GetDuration("ecs_metadata_retry_max_elapsed_time"),
-			metadataRetryTimeoutFactor:   deps.Config.GetInt("ecs_metadata_retry_timeout_factor"),
-		},
+// NewCollector returns a new ecs collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		id:                           collectorID,
+		config:                       cfg,
+		resourceTags:                 make(map[string]resourceTags),
+		seen:                         make(map[workloadmeta.EntityID]struct{}),
+		catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		taskCollectionEnabled:        util.IsTaskCollectionEnabled(cfg),
+		taskCache:                    cache.New(cfg.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+		taskRateRPS:                  cfg.GetInt("ecs_task_collection_rate"),
+		taskRateBurst:                cfg.GetInt("ecs_task_collection_burst"),
+		metadataRetryInitialInterval: cfg.GetDuration("ecs_metadata_retry_initial_interval"),
+		metadataRetryMaxElapsedTime:  cfg.GetDuration("ecs_metadata_retry_max_elapsed_time"),
+		metadataRetryTimeoutFactor:   cfg.GetInt("ecs_metadata_retry_timeout_factor"),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {

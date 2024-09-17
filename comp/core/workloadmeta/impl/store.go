@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -590,7 +591,7 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
-		go func(id string, c wmdef.Collector) {
+		go func(id string, c wmcatalog.Collector) {
 			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
 			defer pullCancel()
 

@@ -9,8 +9,8 @@
 package catalog
 
 import (
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
@@ -24,22 +24,24 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
 	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 )
 
-func getCollectorOptions() []fx.Option {
-	return []fx.Option{
-		cfcontainer.GetFxOptions(),
-		cfvm.GetFxOptions(),
-		containerd.GetFxOptions(),
-		docker.GetFxOptions(),
-		ecs.GetFxOptions(),
-		ecsfargate.GetFxOptions(),
-		kubeapiserver.GetFxOptions(),
-		kubelet.GetFxOptions(),
-		kubemetadata.GetFxOptions(),
-		podman.GetFxOptions(),
-		remoteprocesscollector.GetFxOptions(),
-		host.GetFxOptions(),
-		process.GetFxOptions(),
-	}
+func getCollectorList(cfg config.Component) []wmcatalog.Collector {
+	return util.BuildCatalog(
+		cfg,
+		cfcontainer.NewCollector,
+		cfvm.NewCollector,
+		containerd.NewCollector,
+		docker.NewCollector,
+		ecs.NewCollector,
+		ecsfargate.NewCollector,
+		kubeapiserver.NewCollector,
+		kubelet.NewCollector,
+		kubemetadata.NewCollector,
+		podman.NewCollector,
+		remoteprocesscollector.NewCollector,
+		host.NewCollector,
+		process.NewCollector,
+	)
 }

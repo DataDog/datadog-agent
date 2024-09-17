@@ -341,7 +341,7 @@ func getSharedFxOption() fx.Option {
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 		// workloadmeta setup
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.Module(defaults.DefaultParams()),
 		fx.Supply(
 			status.Params{

@@ -114,7 +114,7 @@ func (s *service) Run(svcctx context.Context) error {
 		dogstatsd.ClientBundle,
 
 		// workloadmeta setup
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent

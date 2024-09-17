@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/fx"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -37,6 +37,7 @@ const (
 
 type collector struct {
 	id         string
+	config     config.Component
 	catalog    workloadmeta.AgentType
 	watcher    *kubelet.PodWatcher
 	store      workloadmeta.Component
@@ -44,19 +45,13 @@ type collector struct {
 	expireFreq time.Duration
 }
 
-// NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector returns a kubelet Collector
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		config:  cfg,
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {

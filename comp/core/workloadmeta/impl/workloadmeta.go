@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -38,8 +39,8 @@ type workloadmeta struct {
 	subscribers    []subscriber
 
 	collectorMut sync.RWMutex
-	candidates   map[string]wmdef.Collector
-	collectors   map[string]wmdef.Collector
+	candidates   map[string]wmcatalog.Collector
+	collectors   map[string]wmcatalog.Collector
 
 	eventCh chan []wmdef.CollectorEvent
 
@@ -53,7 +54,7 @@ type Dependencies struct {
 
 	Log     log.Component
 	Config  config.Component
-	Catalog wmdef.CollectorList `group:"workloadmeta"`
+	Catalog []wmcatalog.Collector `group:"workloadmeta"`
 
 	Params wmdef.Params
 }
@@ -67,7 +68,7 @@ type Provider struct {
 
 // NewWorkloadMeta creates a new workloadmeta component.
 func NewWorkloadMeta(deps Dependencies) Provider {
-	candidates := make(map[string]wmdef.Collector)
+	candidates := make(map[string]wmcatalog.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
@@ -80,7 +81,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 
 		store:        make(map[wmdef.Kind]map[string]*cachedEntity),
 		candidates:   candidates,
-		collectors:   make(map[string]wmdef.Collector),
+		collectors:   make(map[string]wmcatalog.Collector),
 		eventCh:      make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls: make(map[string]time.Time),
 	}

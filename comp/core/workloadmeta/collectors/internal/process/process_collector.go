@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -34,6 +35,7 @@ const (
 
 type collector struct {
 	id      string
+	config  config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -47,29 +49,23 @@ type collector struct {
 	containerProvider proccontainers.ContainerProvider
 }
 
-// NewCollector returns a new local process collector provider and an error.
+// NewCollector returns a new local process collector
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe())
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(pkgconfig.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:              collectorID,
-			catalog:         workloadmeta.NodeAgent,
-			wlmExtractor:    wlmExtractor,
-			processDiffCh:   wlmExtractor.ProcessCacheDiff(),
-			processData:     processData,
-			pidToCid:        make(map[int]string),
-			collectionClock: clock.New(),
-		},
+	return &collector{
+		id:              collectorID,
+		config:          cfg,
+		catalog:         workloadmeta.NodeAgent,
+		wlmExtractor:    wlmExtractor,
+		processDiffCh:   wlmExtractor.ProcessCacheDiff(),
+		processData:     processData,
+		pidToCid:        make(map[int]string),
+		collectionClock: clock.New(),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
@@ -81,7 +77,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// If process collection is disabled, the collector will gather the basic process and container data
 	// necessary for language detection.
-	if !config.Datadog().GetBool("process_config.process_collection.enabled") {
+	if !c.config.GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
 			c.containerProvider = proccontainers.GetSharedContainerProvider(store)

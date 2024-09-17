@@ -132,7 +132,7 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
 		logfx.Module(),
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),

@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -279,9 +280,12 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
+	mockConfig := mock.New(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &collector{
+				config:     mockConfig,
 				dcaClient:  tt.fields.dcaClient,
 				dcaEnabled: tt.fields.clusterAgentEnabled,
 			}
@@ -379,9 +383,11 @@ func TestKubeMetadataCollector_getNamespaceMetadata(t *testing.T) {
 		},
 	}
 
+	mockConfig := mock.New(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &collector{
+				config:                      mockConfig,
 				dcaClient:                   tt.fields.dcaClient,
 				dcaEnabled:                  tt.fields.clusterAgentEnabled,
 				collectNamespaceAnnotations: len(tt.namespaceAnnotationsAsTags) > 0,
@@ -748,9 +754,12 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			wantErr: false,
 		},
 	}
+
+	mockConfig := mock.New(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &collector{
+				config:                      mockConfig,
 				kubeUtil:                    tt.fields.kubeUtil,
 				apiClient:                   tt.fields.apiClient,
 				dcaClient:                   tt.fields.dcaClient,

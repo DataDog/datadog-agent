@@ -167,7 +167,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle(),
 
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				fx.Provide(wmcatalog.GetCatalog),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				authtokenimpl.Module(),

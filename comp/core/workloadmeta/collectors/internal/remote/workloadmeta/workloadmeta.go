@@ -11,14 +11,14 @@ import (
 	"fmt"
 	"slices"
 
-	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -41,17 +41,6 @@ var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
-}
-
-// Params defines the parameters of the remote workloadmeta collector.
-type Params struct {
-	Filter *workloadmeta.Filter
-}
-
-type dependencies struct {
-	fx.In
-
-	Params Params
 }
 
 type client struct {
@@ -88,30 +77,30 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port   int
 	filter *workloadmeta.Filter
-	config.Config
+	config config.Component
 }
 
-// NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	if filterHasUnsupportedKind(deps.Params.Filter) {
-		return workloadmeta.CollectorProvider{}, fmt.Errorf("the filter specified contains unsupported kinds")
+// NewCollector returns a remote process collector for workloadmeta if any
+func newCollectorWithFilter(cfg config.Component, filter *workloadmeta.Filter) (wmcatalog.Collector, error) {
+	if filterHasUnsupportedKind(filter) {
+		return nil, fmt.Errorf("the filter specified contains unsupported kinds")
 	}
 
-	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			StreamHandler: &streamHandler{
-				filter: deps.Params.Filter,
-				Config: config.Datadog(),
-			},
-			Catalog: workloadmeta.Remote,
+	return &remote.GenericCollector{
+		CollectorID: collectorID,
+		StreamHandler: &streamHandler{
+			filter: filter,
+			config: cfg,
 		},
+		Catalog: workloadmeta.Remote,
 	}, nil
 }
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
+// NewCollectorWithFilterFunc accepts a filter and returns a constructor for a collector that uses that filter
+func NewCollectorWithFilterFunc(filter *workloadmeta.Filter) func(config.Component) (wmcatalog.Collector, error) {
+	return func(cfg config.Component) (wmcatalog.Collector, error) {
+		return newCollectorWithFilter(cfg, filter)
+	}
 }
 
 func init() {
@@ -121,7 +110,7 @@ func init() {
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return s.Config.GetInt("cmd_port")
+		return s.config.GetInt("cmd_port")
 	}
 	// for tests
 	return s.port

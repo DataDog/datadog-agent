@@ -133,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
-			wmcatalog.GetCatalog(),
+			fx.Provide(wmcatalog.GetCatalog),
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
