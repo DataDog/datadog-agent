@@ -62,7 +62,7 @@ type RuleID = string
 type RuleDefinition struct {
 	ID                     RuleID              `yaml:"id" json:"id"`
 	Version                string              `yaml:"version,omitempty" json:"version,omitempty"`
-	Expression             string              `yaml:"expression,omitempty" json:"expression,omitempty"`
+	Expression             string              `yaml:"expression" json:"expression,omitempty"`
 	Description            string              `yaml:"description,omitempty" json:"description,omitempty"`
 	Tags                   map[string]string   `yaml:"tags,omitempty" json:"tags,omitempty"`
 	AgentVersionConstraint string              `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
