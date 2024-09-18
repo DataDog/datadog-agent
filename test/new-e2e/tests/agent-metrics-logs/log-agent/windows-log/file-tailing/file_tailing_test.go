@@ -14,13 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	testos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	testos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 // WindowsFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -137,17 +138,15 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Read permissions revoked")
 
-	// Generate logs and check the intake for no new logs because of revoked permissions
+	// wait for agent to be ready after restart
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		agentReady := s.Env().Agent.Client.IsReady()
-		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
-			// Generate log
-			utils.AppendLog(s, logFileName, "access-denied", 1)
-			// Check intake for new logs
-			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
-		}
+		assert.Truef(c, s.Env().Agent.Client.IsReady(), "Agent is not ready after restart")
 	}, 2*time.Minute, 5*time.Second)
 
+	// Generate logs and check the intake for no new logs because of revoked permissions
+	utils.AppendLog(s, logFileName, "access-denied", 1)
+	// Check intake for new logs
+	utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
 }
 
 func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {

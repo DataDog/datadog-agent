@@ -9,6 +9,7 @@ go 1.22.0
 replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
+	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
@@ -32,7 +33,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240910071149-7be84fb14a74
+	github.com/DataDog/test-infra-definitions v0.0.0-20240916222731-2a59d2442896
 	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -261,7 +262,12 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/hairyhenderson/go-codeowners v0.5.0
+require (
+	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
+	github.com/DataDog/datadog-go/v5 v5.5.0
+	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
+	github.com/hairyhenderson/go-codeowners v0.5.0
+)
 
 require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.60.0 // indirect
@@ -270,4 +276,5 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.59.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.60.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
 )

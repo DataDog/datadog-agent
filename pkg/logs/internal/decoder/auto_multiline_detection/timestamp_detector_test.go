@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type testInput struct {
@@ -82,8 +82,8 @@ var inputs = []testInput{
 }
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
-	tokenizer := NewTokenizer(config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
-	timestampDetector := NewTimestampDetector(config.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
+	tokenizer := NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	timestampDetector := NewTimestampDetector(pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
 	for _, testInput := range inputs {
 		context := &messageContext{
@@ -102,7 +102,7 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 }
 
 func printMatchUnderline(context *messageContext, input string, match MatchContext) {
-	maxLen := config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	maxLen := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	fmt.Printf("%.2f\t\t%v\n", match.probability, input)
 
 	if match.start == match.end {

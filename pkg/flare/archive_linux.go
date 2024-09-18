@@ -18,11 +18,11 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
-	sysprobeSocketLocation := config.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	sysprobeSocketLocation := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}

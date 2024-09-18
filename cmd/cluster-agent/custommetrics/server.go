@@ -20,7 +20,7 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,7 +55,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Opti
 	cmd.FlagSet = pflag.NewFlagSet(cmd.Name, pflag.ExitOnError)
 
 	var c []string
-	for k, v := range config.Datadog().GetStringMapString(metricsServerConf) {
+	for k, v := range pkgconfigsetup.Datadog().GetStringMapString(metricsServerConf) {
 		c = append(c, fmt.Sprintf("--%s=%s", k, v))
 	}
 
@@ -95,7 +95,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 		return nil, err
 	}
 
-	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
+	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		if dc, ok := datadogCl.Get(); ok {
 			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc)
 		}
@@ -122,9 +122,9 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	if !a.FlagSet.Lookup("secure-port").Changed {
 		// Ensure backward compatibility. 443 by default, but will error out if incorrectly set.
 		// refer to apiserver code in k8s.io/apiserver/pkg/server/option/serving.go
-		a.SecureServing.BindPort = config.Datadog().GetInt("external_metrics_provider.port")
+		a.SecureServing.BindPort = pkgconfigsetup.Datadog().GetInt("external_metrics_provider.port")
 		// Default in External Metrics is TLS 1.2
-		if !config.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
+		if !pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 			a.SecureServing.MinTLSVersion = tlsVersion13Str
 		}
 	}

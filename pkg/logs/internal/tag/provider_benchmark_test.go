@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func setupConfig(t testing.TB, tags []string) (model.Config, time.Time) {
 	mockConfig := configmock.New(t)
 
-	startTime := config.StartTime
-	config.StartTime = time.Now()
+	startTime := pkgconfigsetup.StartTime
+	pkgconfigsetup.StartTime = time.Now()
 
 	mockConfig.SetWithoutSource("tags", tags)
 
@@ -37,7 +37,7 @@ func BenchmarkProviderExpectedTags(b *testing.B) {
 
 	m, start := setupConfig(b, []string{"tag1:value1", "tag2", "tag3"})
 	defer func() {
-		config.StartTime = start
+		pkgconfigsetup.StartTime = start
 	}()
 
 	defer m.SetWithoutSource("tags", nil)
@@ -58,7 +58,7 @@ func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 
 	m, start := setupConfig(b, []string{})
 	defer func() {
-		config.StartTime = start
+		pkgconfigsetup.StartTime = start
 	}()
 
 	if len(m.GetStringSlice("tags")) > 0 {
@@ -81,7 +81,7 @@ func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 
 	m, start := setupConfig(b, nil)
 	defer func() {
-		config.StartTime = start
+		pkgconfigsetup.StartTime = start
 	}()
 
 	if len(m.GetStringSlice("tags")) > 0 {
@@ -104,7 +104,7 @@ func BenchmarkProviderNoExpectedTags(b *testing.B) {
 
 	m, start := setupConfig(b, []string{"tag1:value1", "tag2", "tag3"})
 	defer func() {
-		config.StartTime = start
+		pkgconfigsetup.StartTime = start
 	}()
 
 	defer m.SetWithoutSource("tags", nil)
@@ -124,7 +124,7 @@ func BenchmarkProviderNoExpectedTagsNil(b *testing.B) {
 
 	m, start := setupConfig(b, nil)
 	defer func() {
-		config.StartTime = start
+		pkgconfigsetup.StartTime = start
 	}()
 
 	defer m.SetWithoutSource("tags", nil)

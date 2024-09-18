@@ -15,8 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -57,7 +57,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Detect if we're on a PCF container
-	if !config.Datadog().GetBool("cloud_foundry_buildpack") {
+	if !pkgconfigsetup.Datadog().GetBool("cloud_foundry_buildpack") {
 		return errors.NewDisabled(componentName, "Agent is not running on a CloudFoundry container")
 	}
 

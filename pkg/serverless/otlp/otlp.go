@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	coreOtlp "github.com/DataDog/datadog-agent/comp/otelcol/otlp"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,7 +29,7 @@ type ServerlessOTLPAgent struct {
 // NewServerlessOTLPAgent creates a new ServerlessOTLPAgent with the correct
 // otel pipeline.
 func NewServerlessOTLPAgent(serializer serializer.MetricSerializer) *ServerlessOTLPAgent {
-	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(config.Datadog(), serializer, nil, nil)
+	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(pkgconfigsetup.Datadog(), serializer, nil, nil)
 	if err != nil {
 		log.Error("Error creating new otlp pipeline:", err)
 		return nil
@@ -61,7 +61,7 @@ func (o *ServerlessOTLPAgent) Stop() {
 
 // IsEnabled returns true if the OTLP endpoint should be enabled.
 func IsEnabled() bool {
-	return coreOtlp.IsEnabled(config.Datadog())
+	return coreOtlp.IsEnabled(pkgconfigsetup.Datadog())
 }
 
 var (
