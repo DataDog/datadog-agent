@@ -309,7 +309,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 			inferredSpan.Span.Resource = bus
 		}
 
-		// Use the `x-datadog-sent-timestamp` from the tracer if it exists.
+		// Use the `x-datadog-start-time` from the tracer if it exists.
 		if startTime, ok := traceContext[eventBridgeTime]; ok {
 			inferredSpan.Span.Start = calculateStartTime(convertStringTimestamp(startTime))
 		}

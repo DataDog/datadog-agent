@@ -15,7 +15,7 @@ const (
 	connectionID     = "connection_id"
 	detailType       = "detail_type"
 	endpoint         = "endpoint"
-	eventBridgeTime  = "x-datadog-sent-timestamp"
+	eventBridgeTime  = "x-datadog-start-time"
 	eventID          = "event_id"
 	eventName        = "event_name"
 	eventSourceArn   = "event_source_arn"

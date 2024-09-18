@@ -13,7 +13,7 @@
       "x-datadog-trace-id": "12345",
       "x-datadog-parent-id": "67890",
       "x-datadog-sampling-priority": "2",
-      "x-datadog-sent-timestamp": "100"
+      "x-datadog-start-time": "100"
     }
   }
 }
