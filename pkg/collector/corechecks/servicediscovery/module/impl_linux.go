@@ -547,11 +547,7 @@ func (s *discovery) updateServicesCPUStats() error {
 	}
 
 	for pid, serviceInfo := range s.cache {
-		err := updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
-		if err != nil {
-			return nil
-		}
-
+		updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
 	}
 
 	s.lastGlobalCPUTime = globalCPUTime
