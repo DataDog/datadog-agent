@@ -971,7 +971,6 @@ func getGroupID(opts SECLRuleOpts) string {
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
 	groupID := getGroupID(opts)
 	fimPathsperExecPath := make(map[string][]string)
-	
 	var (
 		ruleDefs    []*rules.RuleDefinition
 		execRuleExp []string
