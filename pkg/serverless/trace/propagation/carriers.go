@@ -205,7 +205,7 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 // context from the Detail field of an events.EventBridgeEvent
 func eventBridgeCarrier(event events.EventBridgeEvent) (tracer.TextMapReader, error) {
 	traceContext := event.Detail.TraceContext
-	if traceContext != nil && len(traceContext) > 0 {
+	if len(traceContext) > 0 {
 		return tracer.TextMapCarrier(traceContext), nil
 	}
 	return nil, errorNoDDContextFound
