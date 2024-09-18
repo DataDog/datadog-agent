@@ -944,3 +944,12 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 		ad.Unlock()
 	}
 }
+
+// PushIgnoreLocalPersistImage adds an image to the list of images to ignore for local persist
+func (adm *ActivityDumpManager) PushIgnoreLocalPersistImage(image string) {
+	if adm.storage == nil {
+		return
+	}
+
+	adm.storage.PushIgnoreLocalPersistImage(image)
+}

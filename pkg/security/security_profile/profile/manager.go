@@ -97,6 +97,7 @@ type eventFilteringEntry struct {
 // ActivityDumpManager is a generic interface to reach the Activity Dump manager
 type ActivityDumpManager interface {
 	StopDumpsWithSelector(selector cgroupModel.WorkloadSelector)
+	PushIgnoreLocalPersistImage(image string)
 }
 
 // SecurityProfileManager is used to manage Security Profiles
@@ -442,6 +443,10 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 		if profile.ActivityTree != nil {
 			if err := m.persistProfile(profile); err != nil {
 				seclog.Errorf("couldn't persist profile: %v", err)
+			}
+
+			if profile.selector.Tag == "*" {
+				m.activityDumpManager.PushIgnoreLocalPersistImage(profile.selector.Image)
 			}
 		}
 	}
