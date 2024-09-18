@@ -22,12 +22,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -150,7 +151,7 @@ func TestPodTestSuite(t *testing.T) {
 }
 
 func (suite *PodTestSuite) TestPodCheck() {
-	cacheKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)
 	if !found {
 		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)

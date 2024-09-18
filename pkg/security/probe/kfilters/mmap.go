@@ -36,8 +36,8 @@ var mmapCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func mmapKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
-	mmapKFilters, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
+func mmapKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	kfilters, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
@@ -50,16 +50,16 @@ func mmapKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 			if err != nil {
 				return nil, err
 			}
-			mmapKFilters = append(mmapKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		case "mmap.protection":
 			kfilter, err := getFlagsKFilter("mmap_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			mmapKFilters = append(mmapKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(mmapKFilters...), nil
+	return newActiveKFilters(kfilters...), nil
 }

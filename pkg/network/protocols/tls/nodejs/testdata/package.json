@@ -1,5 +1,5 @@
 {
-	"name": "nodejs-https-server",
+	"name": "test@nodejs-https-server",
 	"dependencies": {
 		"dd-trace": "^5.21.0"
 	}

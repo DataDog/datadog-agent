@@ -60,8 +60,8 @@ delete_docker_tag:
     TAG: "" # tag name, for example "6.9.0"
     ORGANIZATION: "datadog"
   before_script:
-    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN)
-    - PASS=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD)
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN) || exit $?
+    - PASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD) || exit $?
     - python3 -m pip install -r requirements.txt
     - |
       export DOCKER_TOKEN=`curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$DOCKER_REGISTRY_LOGIN'", "password": "'$PASS'"}' https://hub.docker.com/v2/users/login/ | python -c 'import sys, json; print(json.load(sys.stdin)["token"].strip())'`

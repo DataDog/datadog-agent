@@ -117,7 +117,6 @@ func TestNixFSTypeFiltering(t *testing.T) {
 			mounts, err := getFileSystemInfoWithMounts(inputMounts, mockFSSizeKB, getMockFSDev())
 			require.NoError(t, err)
 
-			require.Equal(t, len(expectedMounts), len(mounts))
 			assert.ElementsMatch(t, mounts, expectedMounts)
 		})
 	}
@@ -260,8 +259,9 @@ func TestFilterDev(t *testing.T) {
 
 func newTestInputMountinfo(name string) *mountinfo.Info {
 	return &mountinfo.Info{
+		// add suffixes to the name to avoid having an ignored source / type / mountpoint
 		Source:     name + "Source",
-		FSType:     name,
+		FSType:     name + "Type",
 		Mountpoint: name + "MountPoint",
 	}
 }

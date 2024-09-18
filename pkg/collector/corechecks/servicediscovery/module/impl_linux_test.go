@@ -335,7 +335,7 @@ func TestServiceName(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
-	cmd.Env = append(cmd.Env, "DD_SERVICE=foobar")
+	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -346,7 +346,8 @@ func TestServiceName(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
-		assert.Equal(t, "foobar", portMap[pid].DDService)
+		// Non-ASCII character removed due to normalization.
+		assert.Equal(t, "foo_bar", portMap[pid].DDService)
 		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
 		assert.False(t, portMap[pid].DDServiceInjected)
@@ -550,7 +551,19 @@ func assertStat(t assert.TestingT, svc model.Service) {
 		return
 	}
 
-	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+	// The value returned by proc.CreateTime() can vary between invocations
+	// since the BootTime (used internally in proc.CreateTime()) can vary when
+	// the version of BootTimeWithContext which uses /proc/uptime is active in
+	// gopsutil (either on Docker, or even outside of it due to a bug fixed in
+	// v4.24.8:
+	// https://github.com/shirou/gopsutil/commit/aa0b73dc6d5669de5bc9483c0655b1f9446317a9).
+	//
+	// This is due to an inherent race since the code in BootTimeWithContext
+	// substracts the uptime of the host from the current time, and there can be
+	// in theory an unbounded amount of time between the read of /proc/uptime
+	// and the retrieval of the current time. Allow a 10 second diff as a
+	// reasonable value.
+	assert.InDelta(t, uint64(createTimeMs/1000), svc.StartTimeSecs, 10)
 }
 
 func assertCPU(t *testing.T, url string, pid int) {
@@ -644,7 +657,8 @@ func TestNodeDocker(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
-		assert.Equal(collect, "nodejs-https-server", svcMap[pid].GeneratedName)
+		// test@... changed to test_... due to normalization.
+		assert.Equal(collect, "test_nodejs-https-server", svcMap[pid].GeneratedName)
 		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])

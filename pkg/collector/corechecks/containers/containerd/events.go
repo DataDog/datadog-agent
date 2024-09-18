@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -174,7 +174,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 
-	excludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
+	excludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
 
 	// Only used when excludePauseContainers is true
 	var pauseContainers setPauseContainers
