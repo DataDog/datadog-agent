@@ -117,16 +117,23 @@ func (s *Launcher) run() {
 			for _, source := range sources {
 				// TODO: integrations should only be allowed to have one IntegrationType config.
 				if source.Config.Type == config.IntegrationType {
-					logFile, err := s.createFile(cfg.IntegrationID)
-					if err != nil {
-						ddLog.Warn("Failed to create integration log file: ", err)
-						continue
+					// This check avoids duplicating files that have already been created
+					// by scanInitialFiles
+					logFile, exists := s.integrationToFile[cfg.IntegrationID]
+
+					if !exists {
+						logFile, err = s.createFile(cfg.IntegrationID)
+						if err != nil {
+							ddLog.Warn("Failed to create integration log file:", err)
+							continue
+						}
+
+						// file to write the incoming logs to
+						s.integrationToFile[cfg.IntegrationID] = logFile
 					}
+
 					filetypeSource := s.makeFileSource(source, logFile.filename)
 					s.sources.AddSource(filetypeSource)
-
-					// file to write the incoming logs to
-					s.integrationToFile[cfg.IntegrationID] = logFile
 				}
 			}
 

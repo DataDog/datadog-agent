@@ -251,6 +251,57 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 }
 
+// TestCreateFileAfterSCanInitialFile ensures files tracked by scanInitialFiles
+// are not created again after they've already been scanned
+func (suite *LauncherTestSuite) TestCreateFileAfterSCanInitialFile() {
+	filename := "sample_integration_123.log"
+	fileSize := int64(1 * 1024 * 1024)
+
+	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	assert.Nil(suite.T(), err)
+	defer file.Close()
+	defer os.Remove(filename)
+
+	data := make([]byte, fileSize)
+	_, err = file.Write(data)
+	assert.Nil(suite.T(), err)
+
+	suite.s.scanInitialFiles(suite.s.runPath)
+	fileID := fileNameToID(filename)
+	scannedFile := suite.s.integrationToFile[fileID]
+
+	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
+	assert.Equal(suite.T(), filename, scannedFile.filename)
+	assert.Equal(suite.T(), fileSize, scannedFile.size)
+	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
+
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
+
+	filepathChan := make(chan string)
+	fileLogChan := make(chan string)
+	suite.s.writeLogToFileFunction = func(logFilePath, log string) error {
+		fileLogChan <- log
+		filepathChan <- logFilePath
+		return nil
+	}
+
+	suite.s.Start(nil, nil, nil, nil)
+	suite.integrationsComp.RegisterIntegration(fileID, *mockConf)
+	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
+
+	logSample := "hello world"
+	suite.integrationsComp.SendLog(logSample, fileID)
+
+	foundSource := suite.s.sources.GetSources()[0]
+	assert.Equal(suite.T(), foundSource.Config.Type, config.FileType)
+	assert.Equal(suite.T(), foundSource.Config.Source, "foo")
+	assert.Equal(suite.T(), foundSource.Config.Service, "bar")
+
+	assert.Equal(suite.T(), logSample, <-fileLogChan)
+}
+
 // TestSentLogExceedsTotalUsage ensures files are deleted when a sent log causes a
 // disk usage overage
 func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
