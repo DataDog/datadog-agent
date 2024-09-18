@@ -4,7 +4,7 @@ go 1.22.0
 
 replace github.com/DataDog/datadog-agent/comp/def => ../../../def
 
-require github.com/DataDog/datadog-agent/comp/def v0.58.0-rc.4
+require github.com/DataDog/datadog-agent/comp/def v0.58.0-rc.5
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
