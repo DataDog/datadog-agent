@@ -173,7 +173,7 @@ func Test_pythonDetector(t *testing.T) {
 	}
 }
 
-func TestNodeDetector(t *testing.T) {
+func TestDotNetDetector(t *testing.T) {
 	for _, test := range []struct {
 		name   string
 		env    map[string]string
