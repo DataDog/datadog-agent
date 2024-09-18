@@ -36,7 +36,7 @@ func init() {
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	LocksPath = filepath.Join(datadogInstallerData, "locks")
 	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
-	datadogInstallerPath, _ := winregistry.GetProgramFilesDirForProduct("Datadog Installer")
+	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
 	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }
