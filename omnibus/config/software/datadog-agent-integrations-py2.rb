@@ -78,7 +78,7 @@ build do
   }
 
   # Install dependencies
-  python_version = "2.7"
+  python_version = "py2"
   lockfile_name = case
     when linux_target?
       arm_target? ? "linux-aarch64" : "linux-x86_64"
