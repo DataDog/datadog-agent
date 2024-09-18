@@ -207,12 +207,22 @@ func TestDotNetDetector(t *testing.T) {
 			result: None,
 		},
 		{
-			name: "in maps",
+			name: "in maps, no env",
 			maps: `
 785c89c00000-785c8a400000 rw-p 00000000 00:00 0
 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
 785c8aaec000-785c8ab0d000 rw-p 00000000 00:00 0
 785c8ab0d000-785c8ab24000 r--s 00000000 fc:06 12761829                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Collections.Specialized.dll
+			`,
+			result: Provided,
+		},
+		{
+			name: "in maps, env misleading",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			maps: `
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
 			`,
 			result: Provided,
 		},
