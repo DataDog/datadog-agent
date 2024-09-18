@@ -66,6 +66,7 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 		}
 		if traceContext.TraceIDUpper64Hex != "" {
 			executionContext.TraceIDUpper64Hex = traceContext.TraceIDUpper64Hex
+			lp.requestHandler.SetMetaTag(Upper64BitsTag, traceContext.TraceIDUpper64Hex)
 		}
 	} else {
 		executionContext.TraceID = 0
@@ -80,6 +81,7 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
 func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
+	defer lp.cleanupMetaTags()
 	executionContext := lp.GetExecutionInfo()
 	start := executionContext.startTime.UnixNano()
 
@@ -156,6 +158,12 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	}
 
 	return executionSpan
+}
+
+// Remove meta tags that we don't want persisting past this execution.
+// Defer a call to this function in endExecutionSpan.
+func (lp *LifecycleProcessor) cleanupMetaTags() {
+	delete(lp.requestHandler.triggerTags, Upper64BitsTag)
 }
 
 // completeInferredSpan finishes the inferred span and passes it
