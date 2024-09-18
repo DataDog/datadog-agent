@@ -9,7 +9,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/wconfig"
 )
 
 // UpdateEventMonitorOpts adapt the event monitor options
@@ -31,15 +30,7 @@ func DisableRuntimeSecurity(config *config.Config) {
 func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, _ *config.RuntimeSecurityConfig, _ Opts) error {
 	// Activity dumps related
 	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
-		// Activity dumps related
 		p.AddActivityDumpHandler(c)
-
-		// workload policy provider
-		provider, err := wconfig.NewWorkloadPolicyProvider(p.Resolvers.CGroupResolver)
-		if err != nil {
-			return err
-		}
-		c.ruleEngine.AddPolicyProvider(provider)
 	}
 
 	return nil

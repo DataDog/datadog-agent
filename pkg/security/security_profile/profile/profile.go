@@ -199,9 +199,6 @@ func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 		return nil, fmt.Errorf("couldn't read profile: %w", err)
 	}
 
-	// Check if the file is a dump
-	// Then convert it to a profile
-
 	pp := &proto.SecurityProfile{}
 	if err = pp.UnmarshalVT(raw); err != nil {
 		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
