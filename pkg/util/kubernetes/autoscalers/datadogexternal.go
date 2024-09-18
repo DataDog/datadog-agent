@@ -92,8 +92,8 @@ func isRateLimitError(err error) bool {
 	return strings.Contains(err.Error(), "429 Too Many Requests")
 }
 
-// isUnprocessableContentError is a helper function that checks if the received error is an unprocessable content error
-func isUnprocessableContentError(err error) bool {
+// isUnprocessableEntityError is a helper function that checks if the received error is an unprocessable entity error
+func isUnprocessableEntityError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -116,8 +116,8 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	if err != nil {
 		if isRateLimitError(err) {
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
-		} else if isUnprocessableContentError(err) {
-			ddRequests.Inc("unprocessable_content_error", le.JoinLeaderValue)
+		} else if isUnprocessableEntityError(err) {
+			ddRequests.Inc("unprocessable_entity_error", le.JoinLeaderValue)
 		} else {
 			ddRequests.Inc("error", le.JoinLeaderValue)
 		}
