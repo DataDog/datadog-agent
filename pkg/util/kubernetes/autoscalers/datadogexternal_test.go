@@ -303,3 +303,39 @@ func TestIsRateLimitError(t *testing.T) {
 		})
 	}
 }
+
+func TestIsUnprocessableEntityError(t *testing.T) {
+
+	tests := []struct {
+		name                  string
+		err                   error
+		isUnprocessableEntity bool
+	}{
+		{
+			name:                  "nil error",
+			err:                   nil,
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "empty error",
+			err:                   errors.New(""),
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "unprocessable entity error",
+			err:                   errors.New("422 Unprocessable Entity"),
+			isUnprocessableEntity: true,
+		},
+		{
+			name:                  "unprocessable entity error variant",
+			err:                   errors.New("API error 422 Unprocessable Entity: "),
+			isUnprocessableEntity: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, isUnprocessableEntityError(test.err), test.isUnprocessableEntity)
+		})
+	}
+}
