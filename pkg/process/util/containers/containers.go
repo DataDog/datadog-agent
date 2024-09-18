@@ -99,7 +99,14 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
-	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	containersMetadata := p.metadataStore.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+		if _, found := previousContainers[container.ID]; found {
+			return container.State.Running
+		}
+		// this is a new container, let's collect it regardless of its state
+		log.Infof("New Container found: %+v", container)
+		return true
+	})
 
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
