@@ -7,6 +7,7 @@ package stats
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"testing"
 	"time"
 
@@ -182,7 +183,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
 	sc := &SpanConcentrator{}
-	meta := map[string]string{tagStatusCode: "418"}
+	meta := map[string]string{traceutil.TagStatusCode: "418"}
 	s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, map[string]float64{"_dd.measured": 1}, nil)
 
 	aggr := NewAggregationFromSpan(s, "synthetics-browser", PayloadAggregationKey{

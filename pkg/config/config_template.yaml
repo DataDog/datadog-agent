@@ -1354,7 +1354,7 @@ api_key:
   ## @param peer_tags - list of strings - optional
   ## @env DD_APM_PEER_TAGS - list of strings - optional
   ## [BETA] Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
-  ## and will drop ones that are unapproved.
+  ## and will drop ones that are unapproved.Ï
   # peer_tags: []
 
   ## @param features - list of strings - optional
@@ -1363,7 +1363,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
