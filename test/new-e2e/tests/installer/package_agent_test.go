@@ -397,6 +397,32 @@ func (s *packageAgentSuite) TestRunPath() {
 	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
 }
 
+func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
+	// install deb/rpm agent
+	s.RunInstallScript(envForceNoInstall("datadog-agent"))
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	defer s.Purge()
+	defer s.purgeAgentDebInstall()
+
+	state := s.host.State()
+	s.assertUnits(state, true)
+	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
+
+	// disable the unit
+	s.host.Run("sudo systemctl disable datadog-agent")
+
+	// install OCI agent
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+
+	state = s.host.State()
+	s.assertUnits(state, false)
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
+}
+
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {

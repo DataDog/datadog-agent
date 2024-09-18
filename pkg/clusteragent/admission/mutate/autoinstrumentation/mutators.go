@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // containerMutator describes something that can mutate a container.
@@ -166,7 +166,7 @@ type configKeyEnvVarMutator struct {
 }
 
 func (c configKeyEnvVarMutator) mutatePod(pod *corev1.Pod) error {
-	if config.Datadog().IsSet(c.configKey) {
+	if pkgconfigsetup.Datadog().IsSet(c.configKey) {
 		_ = common.InjectEnv(pod, corev1.EnvVar{Name: c.envKey, Value: c.getVal(c.configKey)})
 	}
 

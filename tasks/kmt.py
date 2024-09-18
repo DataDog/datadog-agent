@@ -30,6 +30,7 @@ from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
     LibvirtDomain,
+    build_alien_infrastructure,
     build_infrastructure,
     ensure_key_in_ec2,
     get_ssh_agent_key_names,
@@ -458,7 +459,7 @@ def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance
 def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> set[Arch]:
     archs: set[Arch] = set()
     for d in domains:
-        archs.add(Arch.from_str(d.instance.arch))
+        archs.add(Arch.from_str(d.arch))
     return archs
 
 
@@ -620,10 +621,8 @@ def ninja_copy_ebpf_files(
 @task
 def kmt_secagent_prepare(
     ctx: Context,
-    vms: str | None = None,
     stack: str | None = None,
     arch: Arch | str = "local",
-    ssh_key: str | None = None,
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
@@ -673,6 +672,7 @@ def prepare(
     ctx: Context,
     component: Component,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     arch: str | Arch = "local",
     ssh_key: str | None = None,
@@ -681,20 +681,39 @@ def prepare(
     ci=False,
     compile_only=False,
 ):
-    if not ci:
-        stack = check_and_get_stack(stack)
-        assert stacks.stack_exists(
-            stack
-        ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
-    else:
-        stack = "ci"
-
     arch_obj = Arch.from_str(arch)
     if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
 
+    if ci:
+        domains = None
+        stack = "ci"
+        return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    assert len(domains) > 0, err_msg
+
+    _prepare(ctx, stack, component, arch, packages, verbose, ci, compile_only, domains=domains)
+
+
+def _prepare(
+    ctx: Context,
+    stack: str,
+    component: Component,
+    arch_obj: Arch,
+    packages=None,
+    verbose=True,
+    ci=False,
+    compile_only=False,
+    domains: list[LibvirtDomain] | None = None,
+):
     if not ci:
         cc = get_compiler(ctx)
 
@@ -710,7 +729,7 @@ def prepare(
     info(f"[+] Compiling artifacts for {arch_obj}, component = {component}")
     if component == "security-agent":
         if ci:
-            kmt_secagent_prepare(ctx, vms, stack, arch_obj, ssh_key, packages, verbose, ci)
+            kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
@@ -765,14 +784,7 @@ def prepare(
     if ci or compile_only:
         return
 
-    if vms is None or vms == "":
-        raise Exit("No vms specified to sync with")
-
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
-
-    info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
+    info(f"[+] Preparing VMs in stack {stack} for {arch_obj}")
 
     target_instances: list[HostInstance] = []
     for d in domains:
@@ -1048,6 +1060,32 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     return len(not_matches) == 0
 
 
+def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
+    def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
+        if alien_vms:
+            alien_vms_path = Path(alien_vms)
+            if not alien_vms_path.exists():
+                raise Exit(f"No alien VMs profile found @ {alien_vms_path}")
+            return build_alien_infrastructure(alien_vms_path)
+
+        if vms is None:
+            vms = ",".join(stacks.get_all_vms_in_stack(stack))
+            info(f"[+] running tests on all vms in stack {stack}: vms={vms}")
+
+        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+        return build_infrastructure(stack, ssh_key_obj)
+
+    infra = _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms)
+    if alien_vms is not None:
+        return infra["local"].microvms
+
+    domains = filter_target_domains(vms, infra, arch_obj)
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
+    return domains
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests. If None, run against all vms",
@@ -1068,6 +1106,7 @@ def test(
     ctx: Context,
     component: str = "system-probe",
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     packages=None,
     run: str | None = None,
@@ -1080,32 +1119,23 @@ def test(
     test_extra_arguments=None,
     test_extra_env=None,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
-
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
-        info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
-
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra)
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+    domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
     used_archs = get_archs_in_domains(domains)
 
-    if not images_matching_ci(ctx, domains):
-        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
-            return
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     info("[+] Detected architectures in target VMs: " + ", ".join(map(str, used_archs)))
 
     if not quick:
         for arch in used_archs:
             info(f"[+] Preparing {component} for {arch}")
-            prepare(ctx, component, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
+            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
@@ -1175,6 +1205,22 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
             d.run_cmd(ctx, cmd, verbose)
 
 
+def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
+    assert vms is not None and alien_vms is not None, "target VMs can be either KMT VMs or alien VMs, not both"
+
+    if alien_vms is not None and vms is None:
+        stack = check_and_get_stack("alien-stack")
+        if not stacks.stack_exists(stack):
+            stacks.create_stack(ctx, stack)
+        return stack
+
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    return stack
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests",
@@ -1189,6 +1235,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 def build(
     ctx: Context,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
@@ -1198,10 +1245,7 @@ def build(
     compile_only=False,
     override_agent=False,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
 
     if arch is None:
         arch = "local"
@@ -1225,26 +1269,21 @@ def build(
     if compile_only:
         return
 
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
-
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    if not images_matching_ci(ctx, domains):
-        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
-            return
-
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
         if override_agent:
             d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
-            d.copy(ctx, f"./bin/{component}/{component}", "/opt/datadog-agent/embedded/bin/{component}")
+            d.copy(ctx, f"./bin/{component}/{component}", f"/opt/datadog-agent/embedded/bin/{component}")
         else:
             d.copy(ctx, f"./bin/{component}", "/root/")
 
@@ -2082,6 +2121,7 @@ def install_ddagent(
     ctx: Context,
     api_key: str,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
@@ -2090,24 +2130,20 @@ def install_ddagent(
     datadog_yaml: str | None = None,
     layout: str | None = None,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
 
     if arch is None:
         arch = "local"
 
     arch_obj = Arch.from_str(arch)
 
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
-
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     if version is not None:
         check_version(version)

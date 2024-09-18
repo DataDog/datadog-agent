@@ -17,7 +17,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -39,7 +40,7 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config config.Reader) (*HostInfo, error) {
+func CollectHostInfo(config pkgconfigmodel.Reader) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
@@ -57,7 +58,7 @@ func CollectHostInfo(config config.Reader) (*HostInfo, error) {
 	}, nil
 }
 
-func resolveHostName(config config.Reader) (string, error) {
+func resolveHostName(config pkgconfigmodel.Reader) (string, error) {
 	// use the common agent hostname utility when not running in the process-agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		hostName, err := coreAgentGetHostname(context.TODO())
@@ -147,12 +148,12 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, config.GetIPCPort())
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}

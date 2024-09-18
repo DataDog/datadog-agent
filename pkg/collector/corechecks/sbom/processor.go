@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -38,7 +38,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog().GetString("env")
+	envVarEnv   = pkgconfigsetup.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 

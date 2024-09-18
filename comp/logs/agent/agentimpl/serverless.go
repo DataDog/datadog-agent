@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -24,7 +24,7 @@ import (
 func NewServerlessLogsAgent(tagger tagger.Component) agent.ServerlessLogsAgent {
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
-		config:  pkgConfig.Datadog(),
+		config:  pkgconfigsetup.Datadog(),
 		started: atomic.NewUint32(0),
 
 		sources:         sources.NewLogSources(),
