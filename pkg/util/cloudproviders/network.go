@@ -30,7 +30,7 @@ func GetNetworkID(ctx context.Context) (string, error) {
 	return cache.Get[string](
 		networkIDCacheKey,
 		func() (string, error) {
-			// the the id from configuration
+			// the id from configuration
 			if networkID := config.Datadog().GetString("network.id"); networkID != "" {
 				log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
 				return networkID, nil

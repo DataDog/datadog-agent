@@ -14,9 +14,29 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 )
 
+// ApplyFunc is a generic function applied to an object of type V
+type ApplyFunc[V any] func(EntityID, V)
+
+// ObjectStore is a generic interface used as a key-value store in different tagstore implementations
+// The key is of type EntityID
+type ObjectStore[V any] interface {
+	// Get returns an object with the specified entity ID if it exists in the store
+	Get(EntityID) (V, bool)
+	// Set sets a given entityID to a given object in the store
+	Set(EntityID, V)
+	// Unset unsets a given entityID in the store
+	Unset(EntityID)
+	// Size returns the total number of objects in the store
+	Size() int
+	// ListObjects returns a slice containing objects of the store matching the filter
+	ListObjects(*Filter) []V
+	// ForEach applies a given function to each object in the store matching the filter
+	ForEach(*Filter, ApplyFunc[V])
+}
+
 // TaggerListResponse holds the tagger list response
 type TaggerListResponse struct {
-	Entities map[string]TaggerListEntity `json:"entities"`
+	Entities map[string]TaggerListEntity
 }
 
 // TaggerListEntity holds the tagging info about an entity
@@ -28,7 +48,7 @@ type TaggerListEntity struct {
 // to be created from collectors and read by the store.
 type TagInfo struct {
 	Source               string    // source collector's name
-	Entity               string    // entity name ready for lookup
+	EntityID             EntityID  // entity id for lookup
 	HighCardTags         []string  // high cardinality tags that can create a lot of different timeseries (typically one per container, user request, etc.)
 	OrchestratorCardTags []string  // orchestrator cardinality tags that have as many combination as pods/tasks
 	LowCardTags          []string  // low cardinality tags safe for every pipeline
@@ -62,7 +82,7 @@ const (
 
 // Entity is an entity ID + tags.
 type Entity struct {
-	ID                          string
+	ID                          EntityID
 	HighCardinalityTags         []string
 	OrchestratorCardinalityTags []string
 	LowCardinalityTags          []string

@@ -102,6 +102,16 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
@@ -784,5 +794,54 @@ func TestFilterBpfCmd(t *testing.T) {
 		if otherErr, ok := err.(ErrTimeout); !ok {
 			t.Fatal(otherErr)
 		}
+	}
+}
+
+func TestFilterRuntimeDiscarded(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_open",
+			Expression: `open.file.path == "{{.Root}}/no-event"`,
+		},
+		{
+			ID:         "test_unlink",
+			Expression: `unlink.file.path == "{{.Root}}/no-event"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{discardRuntime: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("no-event")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	// test that we don't receive event from the kernel
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd, err := openTestFile(test, testFile, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd)
+	}, testFile); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+
+	// unlink aren't discarded kernel side (inode invalidation) but should be discarded before the rule evaluation
+	err = test.GetSignal(t, func() error {
+		return os.Remove(testFile)
+	}, func(event *model.Event, r *rules.Rule) {
+		t.Errorf("shouldn't get an event")
+	})
+
+	if err == nil {
+		t.Errorf("shouldn't get an event")
 	}
 }

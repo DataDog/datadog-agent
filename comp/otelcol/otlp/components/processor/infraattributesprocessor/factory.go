@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/component"
@@ -19,14 +18,18 @@ import (
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
+// TODO: Remove tagger and generateID as depenendencies to enable future import of
+// infraattributesprocessor by external go packages like ocb
 type factory struct {
-	tagger tagger.Component
+	tagger     taggerClient
+	generateID GenerateKubeMetadataEntityID
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
-func NewFactory(tagger tagger.Component) processor.Factory {
+func NewFactory(tagger taggerClient, generateID GenerateKubeMetadataEntityID) processor.Factory {
 	f := &factory{
-		tagger: tagger,
+		tagger:     tagger,
+		generateID: generateID,
 	}
 
 	return processor.NewFactory(
@@ -50,7 +53,7 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger, f.generateID)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +72,7 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger, f.generateID)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +91,7 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger, f.generateID)
 	if err != nil {
 		return nil, err
 	}

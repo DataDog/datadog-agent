@@ -8,7 +8,10 @@
 package privileged
 
 import (
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -97,6 +100,45 @@ func TestGetBinID(t *testing.T) {
 	assert.Equal(t, binID1, binID2)
 }
 
+// copyForkExecDelete creates a scenario where the executable is not longer
+// available while it is running. We make a copy of "sleep" to a temporary path,
+// exec the copy, and delete it. This will result in the exe symlink looking
+// something like the below (note that the "(deleted)" string is part of the
+// actual content of the link), so attempting to resolve the target path will
+// not work, but stating/opening the exe file will still work.
+//
+//	/proc/123/exe -> /tmp/foo/sleep (deleted)
+func copyForkExecDelete(t *testing.T, timeout int) *exec.Cmd {
+	sleepBin := filepath.Join(t.TempDir(), "sleep")
+	require.NoError(t, exec.Command("cp", "/bin/sleep", sleepBin).Run())
+
+	cmd := exec.Command(sleepBin, strconv.Itoa(timeout))
+	require.NoError(t, cmd.Start())
+
+	time.Sleep(250 * time.Millisecond)
+
+	// cmd.Start() waits for the exec to happen so deleting the file should be
+	// safe immediately. Unclear what the sleep above is for; it's copied from
+	// the other tests.
+	os.Remove(sleepBin)
+
+	t.Cleanup(func() {
+		err := cmd.Process.Kill()
+		if err != nil {
+			t.Log("failed to kill pid:", cmd.Process.Pid)
+		}
+		cmd.Process.Wait()
+	})
+	return cmd
+}
+
+func TestGetBinIDDeleted(t *testing.T) {
+	cmd := copyForkExecDelete(t, 20)
+	d := NewLanguageDetector()
+	_, err := d.getBinID(cmdWrapper{cmd})
+	require.NoError(t, err)
+}
+
 func TestShortLivingProc(t *testing.T) {
 	cmd := forkExecForTest(t, 1)
 	_, err := cmd.Process.Wait()
@@ -107,4 +149,75 @@ func TestShortLivingProc(t *testing.T) {
 	require.Len(t, res, 1)
 	require.Equal(t, languagemodels.Language{}, res[0])
 	require.Zero(t, d.binaryIDCache.Len())
+}
+
+// DummyDetector is a detector used for testing
+type DummyDetector struct {
+	language languagemodels.LanguageName
+}
+
+// DummyProcess is a process used for testing
+type DummyProcess struct{}
+
+// GetPid is unused
+func (p DummyProcess) GetPid() int32 {
+	return int32(os.Getpid())
+}
+
+// GetCommand is unused
+func (p DummyProcess) GetCommand() string {
+	return "dummy"
+}
+
+// GetCmdline is unused
+func (p DummyProcess) GetCmdline() []string {
+	return []string{"dummy"}
+}
+
+// DetectLanguage "detects" a dummy language for testing
+func (d DummyDetector) DetectLanguage(_ languagemodels.Process) (languagemodels.Language, error) {
+	if d.language == languagemodels.Unknown {
+		return languagemodels.Language{}, errors.New("unable to detect")
+	}
+
+	return languagemodels.Language{Name: languagemodels.LanguageName(d.language)}, nil
+}
+
+func TestDetectorOrder(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		detectors []languagemodels.Detector
+		language  languagemodels.LanguageName
+	}{
+		{
+			name: "stop at first good",
+			detectors: []languagemodels.Detector{
+				DummyDetector{languagemodels.Java},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Java,
+		},
+		{
+			name: "try second if first fails",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{languagemodels.Python}},
+			language: languagemodels.Python,
+		},
+		{
+			name: "all fail",
+			detectors: []languagemodels.Detector{
+				DummyDetector{},
+				DummyDetector{}},
+			language: languagemodels.Unknown,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			MockPrivilegedDetectors(t, test.detectors)
+			d := NewLanguageDetector()
+			res := d.DetectWithPrivileges([]languagemodels.Process{DummyProcess{}})
+			require.Len(t, res, 1)
+			require.NotNil(t, res[0])
+			assert.Equal(t, test.language, res[0].Name)
+		})
+	}
 }

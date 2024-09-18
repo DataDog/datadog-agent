@@ -191,6 +191,13 @@ func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 	o.RetryQueuePayloadsTotalMaxSize = v * maxPayloadSize
 }
 
+// SetEnabledFeatures sets the features enabled
+func (o *Options) SetEnabledFeatures(features []Features) {
+	for _, feature := range features {
+		o.EnabledFeatures = SetFeature(o.EnabledFeatures, feature)
+	}
+}
+
 // DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
 	config config.Component

@@ -63,12 +63,13 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 		return nil, false
 	}
 	defer serverConfigFile.Close()
-	if ok, err := canSafelyParse(serverConfigFile); !ok {
+	reader, err := SizeVerifiedReader(serverConfigFile)
+	if err != nil {
 		log.Debugf("weblogic: config.xml looks too big. Err: %v", err)
 		return nil, false
 	}
 	var deployInfos weblogicDeploymentInfo
-	err = xml.NewDecoder(serverConfigFile).Decode(&deployInfos)
+	err = xml.NewDecoder(reader).Decode(&deployInfos)
 
 	if err != nil {
 		log.Debugf("weblogic: cannot parse config.xml. Err: %v", err)
@@ -78,7 +79,9 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 	for _, di := range deployInfos.AppDeployment {
 		if di.StagingMode == "stage" && di.Target == serverName {
 			_, name := path.Split(di.SourcePath)
-			deployments = append(deployments, jeeDeployment{name: name, path: di.SourcePath})
+			// The original code did not have the domainHome addition here,
+			// unlike in jboss/tomcat.
+			deployments = append(deployments, jeeDeployment{name: name, path: abs(di.SourcePath, domainHome)})
 		}
 	}
 	return deployments, len(deployments) > 0
