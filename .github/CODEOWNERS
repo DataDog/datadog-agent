@@ -351,7 +351,7 @@
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
-/pkg/collector/corechecks/embed/                   @Datadog/agent-devx-infra
+/pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/processes
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
