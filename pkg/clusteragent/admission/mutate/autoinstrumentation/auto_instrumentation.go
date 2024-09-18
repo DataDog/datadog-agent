@@ -41,7 +41,7 @@ const (
 	// defaultMilliCPURequest defines default milli cpu request number.
 	defaultMilliCPURequest int64 = 50 // 0.05 core
 	// defaultMemoryRequest defines default memory request size.
-	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
+	defaultMemoryRequest int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
 	webhookName = "lib_injection"
 )
