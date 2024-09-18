@@ -142,6 +142,9 @@ remove_apm_remote_config()
     fi
 }
 
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}" || true
+fi
 stop_agent
 deregister_agent
 
