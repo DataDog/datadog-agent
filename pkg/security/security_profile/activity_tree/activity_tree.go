@@ -1012,7 +1012,7 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 		if opts.AllowList {
 			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, paths.execPath)
 		}
-		if opts.AllowList && opts.FIM {
+		if opts.AllowList && opts.FIM && len(paths.fimPaths) != 0{
 			expression = fmt.Sprintf(`%s && `, expression)
 		}
 		if opts.FIM && len(paths.fimPaths) != 0 {

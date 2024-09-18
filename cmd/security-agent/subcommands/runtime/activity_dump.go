@@ -734,7 +734,7 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 			return err
 		}
 		mergedRules = rules
-	case []*dump.ActivityDump: // the provided path is a directory containing several activity dumps
+	case []*dump.ActivityDump:
 
 		for _, ad := range ads {
 
