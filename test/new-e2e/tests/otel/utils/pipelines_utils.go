@@ -15,9 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -345,6 +348,175 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 
 	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
 	require.NoError(s.T(), err, "Could not properly start job")
+}
+
+func createApp(ctx context.Context, s OTelTestSuite) {
+	var replicas int32 = 1
+
+	otlpEndpoint := fmt.Sprintf("otlp://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
+	serviceSpec := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "manual-container-metrics-app",
+			Labels: map[string]string{
+				"helm.sh/chart":                "manual-container-metrics-app-0.1.0",
+				"app.kubernetes.io/name":       "manual-container-metrics-app",
+				"app.kubernetes.io/instance":   "manual-container-metrics-app",
+				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/managed-by": "Helm",
+			},
+			Annotations: map[string]string{
+				"openshift.io/deployment.name": "openshift",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{
+					Port: 3000,
+					TargetPort: intstr.IntOrString{
+						StrVal: "http",
+					},
+					Protocol: "TCP",
+					Name:     "http",
+				},
+			},
+			Selector: map[string]string{
+				"app.kubernetes.io/name":     "manual-container-metrics-app",
+				"app.kubernetes.io/instance": "manual-container-metrics-app",
+			},
+		},
+	}
+	deploymentSpec := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "manual-container-metrics-app",
+			Labels: map[string]string{
+				"helm.sh/chart":                "manual-container-metrics-app-0.1.0",
+				"app.kubernetes.io/name":       "manual-container-metrics-app",
+				"app.kubernetes.io/instance":   "manual-container-metrics-app",
+				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/managed-by": "Helm",
+			},
+			Annotations: map[string]string{
+				"openshift.io/deployment.name": "openshift",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app.kubernetes.io/name":     "manual-container-metrics-app",
+					"app.kubernetes.io/instance": "manual-container-metrics-app",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app.kubernetes.io/name":     "manual-container-metrics-app",
+						"app.kubernetes.io/instance": "manual-container-metrics-app",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:            "manual-container-metrics-app",
+						Image:           "datadog/opentelemetry-examples:manual-container-metrics-app-v1.0.5",
+						ImagePullPolicy: "IfNotPresent",
+						Ports: []corev1.ContainerPort{{
+							Name:          "http",
+							ContainerPort: 3000,
+							Protocol:      "TCP",
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/liveness",
+									Port: intstr.FromString("http"),
+								},
+							},
+						},
+						ReadinessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/readiness",
+									Port: intstr.FromString("http"),
+								},
+							},
+						},
+						Env: []corev1.EnvVar{{
+							Name:  "OTEL_SERVICE_NAME",
+							Value: "manual-container-metrics-app",
+						}, {
+							Name:  "OTEL_CONTAINER_NAME",
+							Value: "manual-container-metrics-app",
+						}, {
+							Name:      "OTEL_K8S_CONTAINER_ID",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
+						}, {
+							Name:      "OTEL_K8S_NAMESPACE",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
+						}, {
+							Name:      "OTEL_K8S_NODE_NAME",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
+						}, {
+							Name:      "OTEL_K8S_POD_NAME",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
+						}, {
+							Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
+							Value: otlpEndpoint,
+						}, {
+							Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
+							Value: "grpc",
+						}, {
+							Name: "OTEL_RESOURCE_ATTRIBUTES",
+							Value: "service.name=$(OTEL_SERVICE_NAME)," +
+								//"k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
+								//"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
+								//"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
+								//"k8s.container.name=manual-container-metrics-app," +
+								"host.name=$(OTEL_K8S_NODE_NAME)," +
+								"deployment.environment=$(OTEL_K8S_NAMESPACE)," +
+								//"container.name=$(OTEL_CONTAINER_NAME)," +
+								"container.id=$(OTEL_K8S_CONTAINER_ID)",
+						}},
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("1"),
+								corev1.ResourceMemory: resource.MustParse("1Gi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("1"),
+								corev1.ResourceMemory: resource.MustParse("1Gi"),
+							},
+						},
+					},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start service")
+	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start deployment")
+}
+
+// TestContainerMetrics tests that OTLP metrics are received through OTel pipelines as expected
+func TestContainerMetrics(s OTelTestSuite) {
+	ctx := context.Background()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	s.T().Log("Starting app")
+	createApp(ctx, s)
+
+	var metrics []*aggregator.MetricSeries
+	s.T().Log("Waiting for metrics")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("container.cpu.usage", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service:manual-container-metrics-app"}))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+	}, 5*time.Minute, 10*time.Second)
+	s.T().Log("Got metrics", metrics)
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {

@@ -1,0 +1,64 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'datadog-agent'
+          scrape_interval: 10s
+          static_configs:
+            - targets: [ '0.0.0.0:8888' ]
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${DD_API_KEY}
+processors:
+  batch:
+connectors:
+  # Use datadog connector to compute stats for pre-sampled traces
+  datadog/connector:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+extensions:
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+service:
+  extensions:
+    [
+      pprof,
+      zpages,
+      health_check,
+      ddflare,
+    ]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog/connector]
+    traces/send:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, datadog/connector, prometheus]
+      processors: [batch]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
