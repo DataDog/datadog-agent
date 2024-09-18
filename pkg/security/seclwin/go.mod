@@ -5,7 +5,7 @@ go 1.22.0
 replace github.com/DataDog/datadog-agent/pkg/security/secl => ../secl
 
 require (
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.57.1
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.57.2-rc.1
 	modernc.org/mathutil v1.6.0
 )
 

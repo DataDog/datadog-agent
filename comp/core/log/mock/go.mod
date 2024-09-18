@@ -26,15 +26,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.1
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.57.1
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.57.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.57.2-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.57.2-rc.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.57.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.2-rc.1 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
