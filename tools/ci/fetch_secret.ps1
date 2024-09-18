@@ -6,6 +6,9 @@ param (
 $retryCount = 0
 $maxRetries = 10
 
+# To catch the error message from aws cli
+$ErrorActionPreference = "Continue"
+
 while ($retryCount -lt $maxRetries) {
     $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> awsErrorFile.txt)
     $error = Get-Content awsErrorFile.txt
