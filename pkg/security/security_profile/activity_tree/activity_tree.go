@@ -970,15 +970,12 @@ func getGroupID(opts SECLRuleOpts) string {
 // ToSECLRules return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
 	groupID := getGroupID(opts)
-	type Paths struct {
-		execPath string
-		fimPaths []string
-	}
+	fimPathsperExecPath := make(map[string][]string)
+	
 	var (
 		ruleDefs    []*rules.RuleDefinition
 		execRuleExp []string
 	)
-	pathsPerProcess := make(map[uint32]Paths)
 
 	at.visit(func(processNode *ProcessNode) {
 		var fimPaths []string
@@ -994,29 +991,30 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 				}
 			})
 		}
-		paths := Paths{
-			execPath: processNode.Process.FileEvent.PathnameStr,
-			fimPaths: fimPaths,
+		paths, ok := fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr]
+		if ok {
+			fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr] = append(paths, fimPaths...)
+		}else{
+			fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr] = fimPaths
 		}
-		pathsPerProcess[processNode.Process.Pid] = paths
 		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
 
 	})
 
-	for _, paths := range pathsPerProcess {
+	for execPath, fimPaths := range fimPathsperExecPath {
 		ruleDef := &rules.RuleDefinition{
 			Expression: "",
 			GroupID:    groupID,
 		}
 		var expression string
 		if opts.AllowList {
-			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, paths.execPath)
+			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, execPath)
 		}
-		if opts.AllowList && opts.FIM && len(paths.fimPaths) != 0{
+		if (opts.AllowList && opts.FIM && len(fimPaths) != 0) {
 			expression = fmt.Sprintf(`%s && `, expression)
 		}
-		if opts.FIM && len(paths.fimPaths) != 0 {
-			expression = fmt.Sprintf(`%sopen.file.path not in [%s]`, expression, strings.Join(paths.fimPaths, ", "))
+		if opts.FIM && len(fimPaths) != 0 {
+			expression = fmt.Sprintf(`%sopen.file.path not in [%s]`, expression, strings.Join(fimPaths, ", "))
 		}
 		ruleDef.Expression = expression
 		applyContext(ruleDef, opts)

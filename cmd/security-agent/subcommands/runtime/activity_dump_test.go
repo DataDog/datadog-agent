@@ -56,8 +56,8 @@ func TestDumpActivityDumpCommand(t *testing.T) {
 
 func TestActivityDumpToWorkloadPolicyCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-	Commands(&command.GlobalParams{}),
-	[]string{"runtime", "activity-dump", "workload-policy", "--input", "file"},
-	activityDumpToWorkloadPolicy,
-	func() {})
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "activity-dump", "workload-policy", "--input", "file"},
+		activityDumpToWorkloadPolicy,
+		func() {})
 }
