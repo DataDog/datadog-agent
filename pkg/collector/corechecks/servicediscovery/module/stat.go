@@ -86,8 +86,8 @@ func getGlobalCPUTime() (uint64, error) {
 }
 
 // updateCPUCoresStats updates the provided serviceInfo cpuUsage and cpuTime stats.
-func updateCPUCoresStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) error {
-	statPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "stat")
+func updateCPUCoresStats(pid int32, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) error {
+	statPath := kernel.HostProc(strconv.Itoa(int(pid)), "stat")
 
 	// This file is very small so just read it fully.
 	content, err := os.ReadFile(statPath)

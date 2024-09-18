@@ -320,10 +320,8 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot            string
-	netNsInfo           map[uint32]*namespaceInfo
-	shouldUpdateCPUTime bool
-	globalCPUTime       uint64
+	procRoot  string
+	netNsInfo map[uint32]*namespaceInfo
 }
 
 // getServiceInfo gets the service information for a process using the
@@ -502,11 +500,6 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		name = info.generatedName
 	}
 
-	// Update CPU usage stats if needed
-	if context.shouldUpdateCPUTime && updateCPUCoresStats(proc, info, s.lastGlobalCPUTime, context.globalCPUTime) != nil {
-		return nil
-	}
-
 	return &model.Service{
 		PID:                int(pid),
 		Name:               name,
@@ -538,6 +531,35 @@ func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
 	}
 }
 
+// updateServicesCPUStats updates the CPU stats of the service, as well as the
+// global CPU time cache for future updates.
+func (s *discovery) updateServicesCPUStats() error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
+		return nil
+	}
+
+	globalCPUTime, err := getGlobalCPUTime()
+	if err != nil {
+		return fmt.Errorf("could not get global CPU time: %w", err)
+	}
+
+	for pid, serviceInfo := range s.cache {
+		err := updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
+		if err != nil {
+			return nil
+		}
+
+	}
+
+	s.lastGlobalCPUTime = globalCPUTime
+	s.lastCPUTimeUpdate = time.Now()
+
+	return nil
+}
+
 // getStatus returns the list of currently running services.
 func (s *discovery) getServices() (*[]model.Service, error) {
 	procRoot := kernel.ProcFSRoot()
@@ -547,17 +569,8 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	context := parsingContext{
-		procRoot:            procRoot,
-		netNsInfo:           make(map[uint32]*namespaceInfo),
-		shouldUpdateCPUTime: time.Since(s.lastCPUTimeUpdate) >= s.config.cpuUsageUpdateDelay,
-	}
-
-	if context.shouldUpdateCPUTime {
-		globalCPUTime, err := getGlobalCPUTime()
-		if err != nil {
-			return nil, err
-		}
-		context.globalCPUTime = globalCPUTime
+		procRoot:  procRoot,
+		netNsInfo: make(map[uint32]*namespaceInfo),
 	}
 
 	var services []model.Service
@@ -576,9 +589,8 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	s.cleanCache(alivePids)
 
-	if context.shouldUpdateCPUTime {
-		s.lastGlobalCPUTime = context.globalCPUTime
-		s.lastCPUTimeUpdate = time.Now()
+	if err = s.updateServicesCPUStats(); err != nil {
+		return nil, err
 	}
 
 	return &services, nil
