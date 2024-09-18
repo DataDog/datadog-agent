@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.1
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.57.2-rc.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
 	github.com/stretchr/testify v1.9.0
@@ -20,8 +20,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.57.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.1 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.57.2-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.2-rc.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
