@@ -411,6 +411,18 @@ func TestEventBridgeCarrier(t *testing.T) {
 			expMap: nil,
 			expErr: "No Datadog trace context found",
 		},
+		{
+			name: "nil_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: nil,
+				},
+			},
+			expMap: nil,
+			expErr: "No Datadog trace context found",
+		},
 	}
 
 	for _, tc := range testcases {

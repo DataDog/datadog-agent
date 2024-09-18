@@ -637,8 +637,6 @@ func TestEnrichInferredSpanWithEventBridgeEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
 	span := inferredSpan.Span
-	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
-	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
 	assert.Equal(t, int64(100*1e6), span.Start)
 	assert.Equal(t, "eventbridge", span.Service)
 	assert.Equal(t, "aws.eventbridge", span.Name)
@@ -656,8 +654,6 @@ func TestEnrichInferredSpanWithEventBridgeEventNoBus(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
 	span := inferredSpan.Span
-	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
-	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
 	assert.Equal(t, "EventBridge", span.Resource)
 }
 
@@ -667,8 +663,6 @@ func TestEnrichInferredSpanWithEventBridgeEventNoSentTimestamp(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
 	span := inferredSpan.Span
-	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
-	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
 	assert.Equal(t, int64(1726505925*1e9), span.Start)
 }
 

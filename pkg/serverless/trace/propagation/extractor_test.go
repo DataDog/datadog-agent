@@ -417,21 +417,45 @@ func TestExtractorExtract(t *testing.T) {
 			expNoErr: false,
 		},
 		{
-			name: "eventbridge-event-with-trace-context",
+			name: "eventbridge-event-with-dd-headers",
 			events: []interface{}{
 				events.EventBridgeEvent{
 					Detail: struct {
 						TraceContext map[string]string `json:"_datadog"`
 					}{
-						TraceContext: map[string]string{
-							"x-datadog-trace-id":          "123456789",
-							"x-datadog-parent-id":         "987654321",
-							"x-datadog-sampling-priority": "1",
-						},
+						TraceContext: headersMapDD,
 					},
 				},
 			},
-			expCtx:   &TraceContext{TraceID: 123456789, ParentID: 987654321, SamplingPriority: 1},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-with-all-headers",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: headersMapAll,
+					},
+				},
+			},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-with-w3c-headers",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: headersMapW3C,
+					},
+				},
+			},
+			expCtx:   w3cTraceContext,
 			expNoErr: true,
 		},
 		{
