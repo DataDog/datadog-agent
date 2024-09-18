@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -33,7 +33,7 @@ import (
 
 const testHostName = "test-host"
 
-func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -46,7 +46,7 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 	config.SetWithoutSource("process_config.additional_endpoints", additionalEps)
 }
 
-func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEventsEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -432,11 +432,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()

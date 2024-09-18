@@ -34,7 +34,7 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
 from tasks.libs.releasing.json import _get_release_json_value
-from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -454,13 +454,14 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-        best_module_path = get_go_module(modified_file)
+        best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
-        targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
+        module = get_module_by_path(best_module_path)
+        targets = module.lint_targets if lint else module.targets
 
         for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
@@ -475,7 +476,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If we modify the go.mod or go.sum we run the tests for the whole module
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
             go_mod_modified_modules.add(best_module_path)
             continue
 

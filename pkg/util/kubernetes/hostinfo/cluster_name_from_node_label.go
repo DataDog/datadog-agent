@@ -8,7 +8,7 @@ package hostinfo
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -41,7 +41,7 @@ func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName stri
 
 	var clusterNameLabelKeys []clusterNameLabelType
 	// check if a node label has been added on the config
-	if customLabels := config.Datadog().GetString("kubernetes_node_label_as_cluster_name"); customLabels != "" {
+	if customLabels := pkgconfigsetup.Datadog().GetString("kubernetes_node_label_as_cluster_name"); customLabels != "" {
 		clusterNameLabelKeys = append(clusterNameLabelKeys, clusterNameLabelType{key: customLabels, shouldOverride: true})
 	} else {
 		// Use default configuration

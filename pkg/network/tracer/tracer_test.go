@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/sync/errgroup"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -77,7 +76,7 @@ func isFentry() bool {
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if isFentry() {
-		ddconfig.SetFeatures(t, env.ECSFargate)
+		env.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
@@ -1341,6 +1340,7 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 		if tcpConn, ok := c.(*net.TCPConn); ok {
 			tcpConn.SetLinger(0)
 		}
+		time.Sleep(10 * time.Millisecond)
 		// Close the connection immediately to trigger a reset
 		c.Close()
 	})
