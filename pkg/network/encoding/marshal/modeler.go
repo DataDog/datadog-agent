@@ -10,7 +10,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
@@ -64,9 +64,9 @@ func (c *ConnectionsModeler) Close() {
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: config.SystemProbe().GetBool("network_config.enabled"),
-			UsmEnabled: config.SystemProbe().GetBool("service_monitoring_config.enabled"),
-			CcmEnabled: config.SystemProbe().GetBool("ccm_network_config.enabled"),
+			NpmEnabled: pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
+			UsmEnabled: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
+			CcmEnabled: pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
 		}
 	})
 

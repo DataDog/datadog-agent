@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -68,7 +68,7 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	if err := processnet.CheckPath(ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket")); err != nil {
+	if err := processnet.CheckPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")); err != nil {
 		return fmt.Errorf("sysprobe socket: %s", err)
 	}
 
@@ -80,7 +80,7 @@ func (m *EBPFCheck) Run() error {
 	if m.sysProbeUtil == nil {
 		var err error
 		m.sysProbeUtil, err = processnet.GetRemoteSystemProbeUtil(
-			ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
+			pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 		)
 		if err != nil {
 			return fmt.Errorf("sysprobe connection: %s", err)

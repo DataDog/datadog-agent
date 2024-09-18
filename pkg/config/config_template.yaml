@@ -885,6 +885,8 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+
 {{ end -}}
 
 {{- if .LogsAgent }}
@@ -1713,6 +1715,28 @@ api_key:
   ## @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
   ##
   # check_max_events_per_run: 100
+{{ end -}}
+
+{{- if .SBOM }}
+## @param sbom - custom object - optional
+## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
+# sbom:
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Cloud Security Management Vulnerability Management
+  # enabled: false
+
+  ## uncomment the sections below to enable where the vulnerability scanning is done
+
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Infrastructure Vulnerabiltilies
+  # host:
+  #  enabled: false
+{{- if (eq .OS "linux")}}
+
+ 
+  # container_image:
+  #   enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -2992,6 +3016,15 @@ api_key:
     ## Only applicable in "socket" mode.
     #
     # trace_agent_socket: unix:///var/run/datadog/apm.socket
+
+    ## @param type_socket_volumes - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
+    ## When enabled, injected volumes are of type "Socket". This means that
+    ## injected pods will not start until the Agent creates the dogstatsd and
+    ## trace-agent sockets. This ensures no lost traces or dogstatsd metrics but
+    ## can cause the pod to wait if the agent has issues creating the sockets.
+    #
+    # type_socket_volumes: false
 
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
@@ -4392,22 +4425,13 @@ api_key:
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
-  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
   #
   # debug:
-
-    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
-    ## @param loglevel - string - optional - default: none
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
-    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are disabled, debug, info, error, warn.
-    #
-    # loglevel: info
-
     ## @param verbosity - string - optional - default: normal
     ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
     ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are basic, normal, detailed.
+    ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
 {{- if (eq .OS "windows")}}

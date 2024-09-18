@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,7 +41,7 @@ const (
 	// defaultMilliCPURequest defines default milli cpu request number.
 	defaultMilliCPURequest int64 = 50 // 0.05 core
 	// defaultMemoryRequest defines default memory request size.
-	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
+	defaultMemoryRequest int64 = 100 * 1024 * 1024 // 100 MB (recommended minimum by Alpine)
 
 	webhookName = "lib_injection"
 )
@@ -84,13 +84,13 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		return nil, err
 	}
 
-	v, err := instrumentationVersion(config.Datadog().GetString("apm_config.instrumentation.version"))
+	v, err := instrumentationVersion(pkgconfigsetup.Datadog().GetString("apm_config.instrumentation.version"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
 	}
 
 	var (
-		isEnabled         = config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled")
+		isEnabled         = pkgconfigsetup.Datadog().GetBool("admission_controller.auto_instrumentation.enabled")
 		containerRegistry = mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 		pinnedLibraries   []libInfo
 	)
@@ -102,14 +102,14 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 	return &Webhook{
 		name:                     webhookName,
 		isEnabled:                isEnabled,
-		endpoint:                 config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
+		endpoint:                 pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:                []string{"pods"},
 		operations:               []admiv1.OperationType{admiv1.Create},
 		initSecurityContext:      initSecurityContext,
 		initResourceRequirements: initResourceRequirements,
 		injectionFilter:          filter,
 		containerRegistry:        containerRegistry,
-		injectorImageTag:         config.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
+		injectorImageTag:         pkgconfigsetup.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
 		pinnedLibraries:          pinnedLibraries,
 		version:                  v,
 		wmeta:                    wmeta,
@@ -228,7 +228,7 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 // * false - product disactivated, not overridable remotely
 func securityClientLibraryConfigMutators() []podMutator {
 	boolVal := func(key string) string {
-		return strconv.FormatBool(config.Datadog().GetBool(key))
+		return strconv.FormatBool(pkgconfigsetup.Datadog().GetBool(key))
 	}
 	return []podMutator{
 		configKeyEnvVarMutator{
@@ -259,7 +259,7 @@ func profilingClientLibraryConfigMutators() []podMutator {
 		configKeyEnvVarMutator{
 			envKey:    "DD_PROFILING_ENABLED",
 			configKey: "admission_controller.auto_instrumentation.profiling.enabled",
-			getVal:    config.Datadog().GetString,
+			getVal:    pkgconfigsetup.Datadog().GetString,
 		},
 	}
 }
@@ -289,7 +289,7 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 func getPinnedLibraries(registry string) []libInfo {
 	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified,
 	// inject only the libraries from the configuration
-	singleStepLibraryVersions := config.Datadog().
+	singleStepLibraryVersions := pkgconfigsetup.Datadog().
 		GetStringMapString("apm_config.instrumentation.lib_versions")
 
 	var res []libInfo
@@ -351,14 +351,14 @@ func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator 
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
 func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
-	if !config.Datadog().GetBool("language_detection.enabled") ||
-		!config.Datadog().GetBool("language_detection.reporting.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("language_detection.enabled") ||
+		!pkgconfigsetup.Datadog().GetBool("language_detection.reporting.enabled") {
 		return nil
 	}
 
 	return &libInfoLanguageDetection{
 		libs:             w.getAutoDetectedLibraries(pod),
-		injectionEnabled: config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
+		injectionEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
 	}
 }
 
@@ -568,8 +568,7 @@ func (w *Webhook) initContainerMutators() containerMutators {
 	}
 }
 
-func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) podMutator {
-	var opts []injectorOption
+func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
@@ -599,9 +598,11 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		injector              = w.newInjector(time.Now(), pod)
 		initContainerMutators = w.initContainerMutators()
-		containerMutators     = containerMutators{
+		injector              = w.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
+			initContainerMutators: initContainerMutators,
+		}))
+		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(w.version),
 		}
 	)
@@ -650,8 +651,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
 
-	if config.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
-		quantity, err := resource.ParseQuantity(config.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
+	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return resources, err
 		}
@@ -662,8 +663,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
 	}
 
-	if config.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
-		quantity, err := resource.ParseQuantity(config.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.memory"))
+	if pkgconfigsetup.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+		quantity, err := resource.ParseQuantity(pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return resources, err
 		}
@@ -681,8 +682,8 @@ func parseInitSecurityContext() (*corev1.SecurityContext, error) {
 	securityContext := corev1.SecurityContext{}
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
 
-	if config.Datadog().IsSet(confKey) {
-		confValue := config.Datadog().GetString(confKey)
+	if pkgconfigsetup.Datadog().IsSet(confKey) {
+		confValue := pkgconfigsetup.Datadog().GetString(confKey)
 		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)

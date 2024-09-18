@@ -9,3 +9,4 @@ process_config.process_dd_url: http://localhost:9092
 cloud_provider_metadata: []
 
 telemetry.enabled: true
+telemetry.checks: '*'

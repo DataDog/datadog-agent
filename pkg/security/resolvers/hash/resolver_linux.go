@@ -18,7 +18,6 @@ import (
 	"io/fs"
 	"os"
 	"slices"
-	"syscall"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -161,9 +161,17 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 
 // ComputeHashesFromEvent calls ComputeHashes using the provided event
 func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent) []string {
+	if !resolver.opts.Enabled {
+		return nil
+	}
+
 	// resolve FileEvent
 	event.FieldHandlers.ResolveFilePath(event, file)
-	return resolver.ComputeHashes(event.GetEventType(), &event.ProcessContext.Process, file)
+
+	process := event.ProcessContext.Process
+	resolver.HashFileEvent(event.GetEventType(), process.ContainerID, process.Pid, file)
+
+	return file.Hashes
 }
 
 // ComputeHashes computes the hashes of the provided file event.
@@ -173,23 +181,8 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	// check state
-	if file.HashState == model.Done {
-		return file.Hashes
-	}
-	if file.HashState != model.NoHash && file.HashState != model.HashWasRateLimited {
-		// this file was already processed and an error occurred, nothing else to do
-		return nil
-	}
+	resolver.HashFileEvent(eventType, process.ContainerID, process.Pid, file)
 
-	// check if the resolver is allowed to hash this event type
-	if !slices.Contains(resolver.opts.EventTypes, eventType) {
-		file.HashState = model.EventTypeNotConfigured
-		resolver.hashMiss[eventType][model.EventTypeNotConfigured].Inc()
-		return nil
-	}
-
-	resolver.hash(eventType, process, file)
 	return file.Hashes
 }
 
@@ -215,22 +208,41 @@ type fileUniqKey struct {
 }
 
 func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
-	fileInfo, err := os.Stat(path)
+	stat, err := utils.UnixStat(path)
 	if err != nil {
 		return 0, 0, fileUniqKey{}, err
 	}
 
-	stat := fileInfo.Sys().(*syscall.Stat_t)
 	fkey := fileUniqKey{
 		dev:   stat.Dev,
 		inode: stat.Ino,
 	}
 
-	return fileInfo.Mode(), fileInfo.Size(), fkey, nil
+	return utils.UnixStatModeToGoFileMode(stat.Mode), stat.Size, fkey, nil
 }
 
-// hash hashes the provided file event
-func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) {
+// HashFileEvent hashes the provided file event
+func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID containerutils.ContainerID, pid uint32, file *model.FileEvent) {
+	if !resolver.opts.Enabled {
+		return
+	}
+
+	// check state
+	if file.HashState == model.Done {
+		return
+	}
+	if file.HashState != model.NoHash && file.HashState != model.HashWasRateLimited {
+		// this file was already processed and an error occurred, nothing else to do
+		return
+	}
+
+	// check if the resolver is allowed to hash this event type
+	if !slices.Contains(resolver.opts.EventTypes, eventType) {
+		file.HashState = model.EventTypeNotConfigured
+		resolver.hashMiss[eventType][model.EventTypeNotConfigured].Inc()
+		return
+	}
+
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
 		resolver.hashMiss[eventType][model.PathnameResolutionError].Inc()
 		file.HashState = model.PathnameResolutionError
@@ -246,7 +258,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	// check if the hash(es) of this file is in cache
 	fileKey := LRUCacheKey{
 		path:        file.PathnameStr,
-		containerID: string(process.ContainerID),
+		containerID: string(ctrID),
 		inode:       file.Inode,
 		pathID:      file.PathKey.PathID,
 	}
@@ -269,9 +281,10 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		return
 	}
 
-	rootPIDs := []uint32{process.Pid}
+	// add pid one for hash resolution outside of a container
+	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(string(process.ContainerID))
+		w, ok := resolver.cgroupResolver.GetWorkload(string(ctrID))
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}

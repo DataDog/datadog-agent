@@ -18,15 +18,17 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
-const LoggerName config.LoggerName = "PROCESS"
+const LoggerName pkglogsetup.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
+var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", pkgconfigsetup.DefaultProcessAgentLogFile)
 
 // OneShotLogParams are the log params that are given to commands
 var OneShotLogParams = log.ForOneShot(string(LoggerName), "info", true)
@@ -130,7 +132,7 @@ func SetHostMountEnv(logger log.Component) {
 	// Set default values for proc/sys paths if unset.
 	// Generally only applicable for container-only cases like Fargate.
 	// This is primarily used by gopsutil to correlate cpu metrics with host processes
-	if !config.IsContainerized() || !filesystem.FileExists("/host") {
+	if !env.IsContainerized() || !filesystem.FileExists("/host") {
 		return
 	}
 

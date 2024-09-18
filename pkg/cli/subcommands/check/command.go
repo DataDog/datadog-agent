@@ -75,8 +75,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -152,6 +152,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+
+			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams.UseNoopEventPlatformForwarder = true
+
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
@@ -171,24 +175,18 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(),
-				fx.Provide(func() eventplatformimpl.Params {
-					params := eventplatformimpl.NewDefaultParams()
-					params.UseNoopEventPlatformForwarder = true
-					return params
-				}),
+				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -219,8 +217,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() pidmap.Component { return nil }),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(),
-				fx.Supply(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 			)
 		},
 	}
@@ -278,15 +275,15 @@ func run(
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
-		if pkgconfig.Datadog().IsSet("integration_tracing") {
-			previousIntegrationTracing = pkgconfig.Datadog().GetBool("integration_tracing")
+		if pkgconfigsetup.Datadog().IsSet("integration_tracing") {
+			previousIntegrationTracing = pkgconfigsetup.Datadog().GetBool("integration_tracing")
 
 		}
-		if pkgconfig.Datadog().IsSet("integration_tracing_exhaustive") {
-			previousIntegrationTracingExhaustive = pkgconfig.Datadog().GetBool("integration_tracing_exhaustive")
+		if pkgconfigsetup.Datadog().IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfigsetup.Datadog().GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog().Set("integration_tracing", true, model.SourceAgentRuntime)
-		pkgconfig.Datadog().Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -301,7 +298,7 @@ func run(
 	pkgcollector.InitPython(common.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta, config, telemetry)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -627,8 +624,8 @@ func run(
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog().Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
-		pkgconfig.Datadog().Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

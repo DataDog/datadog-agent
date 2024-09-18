@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -101,7 +101,7 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 }
 
 func TestInsecureKubeletSuite(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	compose, err := initInsecureKubelet()
 	require.Nil(t, err)

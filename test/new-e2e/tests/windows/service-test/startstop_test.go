@@ -36,13 +36,28 @@ var agentConfig string
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
+//go:embed fixtures/system-probe-nofim.yaml
+var systemProbeNoFIMConfig string
+
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfig string
+
+// TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
+func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
+	s := &agentServiceCommandSuite{}
+	run(t, s, systemProbeNoFIMConfig)
+}
+
+// TestServiceBehaviorPowerShellNoFIM tests the service behavior when controlled by PowerShell commands
+func TestNoFIMServiceBehaviorPowerShell(t *testing.T) {
+	s := &powerShellServiceCommandSuite{}
+	run(t, s, systemProbeNoFIMConfig)
+}
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
 	s := &agentServiceCommandSuite{}
-	run(t, s)
+	run(t, s, systemProbeConfig)
 }
 
 type agentServiceCommandSuite struct {
@@ -78,7 +93,7 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
 func TestServiceBehaviorPowerShell(t *testing.T) {
 	s := &powerShellServiceCommandSuite{}
-	run(t, s)
+	run(t, s, systemProbeConfig)
 }
 
 type powerShellServiceCommandSuite struct {
@@ -204,7 +219,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
 
-func run[Env any](t *testing.T, s e2e.Suite[Env]) {
+func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
 		awsHostWindows.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfig),

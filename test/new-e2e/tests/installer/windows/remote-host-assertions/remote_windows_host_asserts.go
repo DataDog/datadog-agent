@@ -128,3 +128,24 @@ func (r *RemoteWindowsHostAssertions) HasBinary(path string) *RemoteWindowsBinar
 		binaryPath:                  path,
 	}
 }
+
+// HasRegistryKey checks if a registry key exists on the remote host.
+func (r *RemoteWindowsHostAssertions) HasRegistryKey(key string) *RemoteWindowsRegistryKeyAssertions {
+	r.suite.T().Helper()
+	exists, err := common.RegistryKeyExists(r.remoteHost, key)
+	r.require.NoError(err)
+	r.require.True(exists)
+	return &RemoteWindowsRegistryKeyAssertions{
+		RemoteWindowsHostAssertions: r,
+		keyPath:                     key,
+	}
+}
+
+// HasNoRegistryKey checks if a registry key does not exist on the remote host.
+func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+	exists, err := common.RegistryKeyExists(r.remoteHost, key)
+	r.require.NoError(err)
+	r.require.False(exists)
+	return r
+}

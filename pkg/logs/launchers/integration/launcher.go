@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -57,11 +57,11 @@ type FileInfo struct {
 // NewLauncher creates and returns an integrations launcher, and creates the
 // path for integrations files to run in
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
-	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
+	runPath := filepath.Join(pkgconfigsetup.Datadog().GetString("logs_config.run_path"), "integrations")
 	err := os.MkdirAll(runPath, 0755)
+
 	if err != nil {
-		ddLog.Warn("Unable to make integrations logs directory: ", err)
-		return nil
+		ddLog.Warn("Unable to create integrations logs directory:", err)
 	}
 
 	logsTotalUsageSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
@@ -108,6 +108,7 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case cfg := <-s.addedConfigs:
+
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
 				ddLog.Warn("Failed to create source ", err)

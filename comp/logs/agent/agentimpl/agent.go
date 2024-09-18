@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -30,7 +31,7 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -80,6 +81,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+	Tagger             tagger.Component
 }
 
 type provides struct {
@@ -97,9 +99,10 @@ type provides struct {
 // a description of its operation.
 type logAgent struct {
 	log            log.Component
-	config         pkgConfig.Reader
+	config         model.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
+	tagger         tagger.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -146,6 +149,7 @@ func newLogsAgent(deps dependencies) provides {
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
+			tagger:             deps.Tagger,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

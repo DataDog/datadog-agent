@@ -47,7 +47,7 @@
 /.circleci/                             @DataDog/agent-devx-infra
 
 /.github/CODEOWNERS                                 # do not notify anyone
-/.github/*_TEMPLATE.md                              @DataDog/agent-all
+/.github/*_TEMPLATE.md                              @DataDog/agent-devx-loops
 /.github/dependabot.yaml                            @DataDog/agent-devx-infra
 /.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
@@ -92,12 +92,14 @@
 
 /.gitlab/kitchen_*                                   @DataDog/agent-delivery
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/agent-devx-infra
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx-loops
+/.gitlab/e2e_k8s/e2e_k8s.yml                         @DataDog/container-integrations @DataDog/agent-devx-loops
+/.gitlab/e2e/install_packages                        @DataDog/agent-delivery
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
@@ -106,6 +108,9 @@
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
+
+
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-delivery @DataDog/windows-agent
 
@@ -200,6 +205,7 @@
 /cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
+/cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
@@ -296,6 +302,7 @@
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/discovery/				@DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
@@ -419,6 +426,7 @@
 /pkg/util/orchestrator/                 @DataDog/container-app
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/prometheus                    @DataDog/container-integrations
+/pkg/util/tagger                        @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/container-integrations @DataDog/agent-security
 /pkg/util/uuid/                         @DataDog/agent-shared-components
 /pkg/util/cgroups/                      @DataDog/container-integrations
@@ -585,6 +593,8 @@
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
+/test/fakeintake/aggregator/servicediscoveryAggregator.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/test/fakeintake/aggregator/servicediscoveryAggregator_test.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform

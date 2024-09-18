@@ -11,7 +11,7 @@ package check
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
@@ -22,7 +22,7 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 	// Create the Leader election engine without initializing it
-	if pkgconfig.Datadog().GetBool("leader_election") {
+	if pkgconfigsetup.Datadog().GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 

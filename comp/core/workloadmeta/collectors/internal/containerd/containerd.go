@@ -20,7 +20,8 @@ import (
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -123,7 +124,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Containerd) {
+	if !env.IsFeaturePresent(env.Containerd) {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
 
@@ -429,5 +430,5 @@ func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) 
 }
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog().GetBool("container_image.enabled")
+	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
 }

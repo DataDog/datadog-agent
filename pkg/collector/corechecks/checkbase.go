@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,7 +64,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 		checkName:     name,
 		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
-		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog()),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, pkgconfigsetup.Datadog()),
 	}
 }
 
