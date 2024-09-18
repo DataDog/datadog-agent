@@ -1002,40 +1002,29 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 	})
 
 	for execPath, fimPaths := range fimPathsperExecPath {
-		ruleDef := &rules.RuleDefinition{
-			Expression: "",
-			GroupID:    groupID,
-		}
-		var expression string
 		if opts.AllowList {
-			expression = fmt.Sprintf(`exec.file.path not in ["%s"]`, execPath)
-		}
-		if (opts.AllowList && opts.FIM && len(fimPaths) != 0) {
-			expression = fmt.Sprintf(`%s && `, expression)
+			ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in ["%s"]`, execPath), groupID, opts))
 		}
 		if opts.FIM && len(fimPaths) != 0 {
-			expression = fmt.Sprintf(`%sopen.file.path not in [%s]`, expression, strings.Join(fimPaths, ", "))
+			ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`open.file.path not in [%s] && process.file.path == "%s"`, strings.Join(fimPaths, ", "), execPath),groupID, opts))
 		}
-		ruleDef.Expression = expression
-		applyContext(ruleDef, opts)
-		if opts.EnableKill {
-			applyKillAction(ruleDef)
-		}
-		ruleDefs = append(ruleDefs, ruleDef)
-
 	}
 
 	if opts.Lineage {
-		execRuleDef := &rules.RuleDefinition{
-			Expression: fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),
-			GroupID:    groupID,
-		}
-		applyContext(execRuleDef, opts)
-		if opts.EnableKill {
-			applyKillAction(execRuleDef)
-		}
-		ruleDefs = append(ruleDefs, execRuleDef)
+		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),groupID, opts))
 	}
 
 	return ruleDefs, nil
+}
+
+func addRule(expression string, groupID string, opts SECLRuleOpts) *rules.RuleDefinition {
+	ruleDef := &rules.RuleDefinition{
+		Expression: expression,
+		GroupID:    groupID,
+	}
+	applyContext(ruleDef, opts)
+		if opts.EnableKill {
+			applyKillAction(ruleDef)
+		}
+	return ruleDef
 }

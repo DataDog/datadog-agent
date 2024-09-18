@@ -28,7 +28,6 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/wconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -748,16 +747,11 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 	mergedRules = utils.BuildPatterns(mergedRules)
 
-	wp := wconfig.WorkloadPolicy{
-		ID:   "workload",
-		Name: "workload",
-		Kind: "secl",
-		SECLPolicy: wconfig.SECLPolicy{
-			Rules: mergedRules,
-		},
+	policy := rules.PolicyDef{
+		Rules: mergedRules,
 	}
 
-	b, err := yaml.Marshal(wp)
+	b, err := yaml.Marshal(policy)
 	if err != nil {
 		return err
 	}

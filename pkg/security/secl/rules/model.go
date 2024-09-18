@@ -170,8 +170,8 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version            string              `yaml:"version" json:"version"`
-	Macros             []*MacroDefinition  `yaml:"macros" json:"macros,omitempty"`
+	Version            string              `yaml:"version,omitempty" json:"version"`
+	Macros             []*MacroDefinition  `yaml:"macros,omitempty" json:"macros,omitempty"`
 	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks" json:"hooks,omitempty"`
+	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
