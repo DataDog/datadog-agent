@@ -118,6 +118,9 @@ type Tailer struct {
 	info      *status.InfoRegistry
 	bytesRead *status.CountInfo
 	movingSum *util.MovingSum
+
+	// readBufferSize is the size of the buffer used for every `read` calls.
+	readBufferSize int
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -181,6 +184,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		info:                   opts.Info,
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
+		readBufferSize:         getFileReadBufferSizeFromConfig(),
 	}
 
 	if fileRotated {
@@ -195,6 +199,14 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 	newInfo := status.NewMappedInfo(k)
 	newInfo.SetMessage(k, m)
 	tailerInfo.Register(newInfo)
+}
+
+func getFileReadBufferSizeFromConfig() int {
+	fileReadBufferSize := pkgconfigsetup.Datadog().GetInt("logs_config.file_read_buffer_size")
+	if fileReadBufferSize <= 0 {
+		fileReadBufferSize = 1024 * 4
+	}
+	return fileReadBufferSize
 }
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing

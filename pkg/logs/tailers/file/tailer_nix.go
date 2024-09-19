@@ -45,7 +45,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 // until it is closed or the tailer is stopped.
 func (t *Tailer) read() (int, error) {
 	// keep reading data from file
-	inBuf := make([]byte, 4096)
+	inBuf := make([]byte, t.readBufferSize)
 	n, err := t.osFile.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
