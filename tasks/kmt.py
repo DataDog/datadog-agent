@@ -1104,12 +1104,12 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[Li
                 raise Exit(f"No alien VMs profile found @ {alien_vms_path}")
             return build_alien_infrastructure(alien_vms_path)
 
-        if vms is None:
-            vms = ",".join(stacks.get_all_vms_in_stack(stack))
-            info(f"[+] running tests on all vms in stack {stack}: vms={vms}")
-
         ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
         return build_infrastructure(stack, ssh_key_obj)
+
+    if vms is None and alien_vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+        info(f"[+] running tests on all vms in stack {stack}: vms={vms}")
 
     infra = _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms)
     if alien_vms is not None:
