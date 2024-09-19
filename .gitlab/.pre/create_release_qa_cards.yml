@@ -6,9 +6,9 @@ create_release_qa_cards:
   rules:
     - !reference [.on_deploy_rc]
   script:
-    - source /root/.bashrc
     - !reference [.setup_agent_github_app]
-    - export ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $JIRA_READ_API_TOKEN_SSM_NAME)
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
     - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
     - pip install ddqa
     - inv -e release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
+  allow_failure: true

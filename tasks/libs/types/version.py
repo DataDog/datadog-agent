@@ -110,10 +110,8 @@ class Version:
             raise RuntimeError("Cannot determine the previous version of incomplete or non-rc version")
         previous = self.clone()
         if previous.rc == 1:
-            previous.rc = 0
             previous.devel = True
-        else:
-            previous.rc -= 1
+        previous.rc -= 1
         return previous
 
     def qa_label(self):
