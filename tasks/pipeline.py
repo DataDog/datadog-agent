@@ -1,7 +1,6 @@
 import os
 import pprint
 import re
-import sys
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -61,11 +60,11 @@ def GitlabYamlLoader():
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo: Project, git_ref: str, release_version_7, repo_branch):
     """
     Run checks to verify a deploy pipeline is valid:
     - it targets a valid repo branch
-    - it has matching Agent 6 and Agent 7 tags (depending on release_version_* values)
+    - it has a matching Agent 7 tag (depending on release_version_* values)
     """
 
     # Check that the target repo branch is valid
@@ -76,38 +75,22 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
         raise Exit(code=1)
 
     #
-    # If git_ref matches v7 pattern and release_version_6 is not empty, make sure Gitlab has v6 tag.
-    # If git_ref matches v6 pattern and release_version_7 is not empty, make sure Gitlab has v7 tag.
     # v7 version pattern should be able to match 7.12.24-rc2 and 7.12.34
     #
     v7_pattern = r'^7\.(\d+\.\d+)(-.+|)$'
-    v6_pattern = r'^6\.(\d+\.\d+)(-.+|)$'
 
     match = re.match(v7_pattern, git_ref)
 
-    if release_version_6 and match:
-        # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
-        tag_name = "6." + "".join(match.groups())
+    if release_version_7 and match:
+        # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
+        tag_name = "7." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
         except GitlabError as e:
-            print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
+            print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
             raise Exit(code=1) from e
 
-        print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
-    else:
-        match = re.match(v6_pattern, git_ref)
-
-        if release_version_7 and match:
-            # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
-            tag_name = "7." + "".join(match.groups())
-            try:
-                repo.tags.get(tag_name)
-            except GitlabError as e:
-                print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
-                raise Exit(code=1) from e
-
-            print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
+        print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
 
 @task
@@ -289,24 +272,16 @@ def run(
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
-        release_version_6 = release_entry_for(6)
         release_version_7 = release_entry_for(7)
     else:
-        release_version_6 = nightly_entry_for(6)
         release_version_7 = nightly_entry_for(7)
-
-    if major_versions:
-        print(
-            "[WARNING] --major-versions option will be deprecated soon. Both Agent 6 & 7 will be run everytime.",
-            file=sys.stderr,
-        )
 
     if here:
         git_ref = get_current_branch(ctx)
 
     if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
+        check_deploy_pipeline(repo, git_ref, release_version_7, repo_branch)
         # Force all builds and e2e tests to be run
         if not all_builds:
             print(
@@ -341,7 +316,6 @@ def run(
         pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
-            release_version_6,
             release_version_7,
             repo_branch,
             deploy=deploy,
