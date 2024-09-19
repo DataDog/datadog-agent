@@ -1354,7 +1354,7 @@ api_key:
   ## @param peer_tags - list of strings - optional
   ## @env DD_APM_PEER_TAGS - list of strings - optional
   ## [BETA] Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
-  ## and will drop ones that are unapproved.Ï
+  ## and will drop ones that are unapproved.
   # peer_tags: []
 
   ## @param features - list of strings - optional
@@ -1727,7 +1727,7 @@ api_key:
   #  enabled: false
 {{- if (eq .OS "linux")}}
 
- 
+
   # container_image:
   #   enabled: false
 {{ end -}}

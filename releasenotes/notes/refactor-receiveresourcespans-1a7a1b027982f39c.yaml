@@ -7,4 +7,4 @@
 # Each section note must be formatted as reStructuredText.
 ---
 features:
-  - Added a new feature flag to enable a refactored implementation of ReceiveResourceSpans for OTLP - add `enable_receive_resource_spans_v2` in DD_APM_FEATURES.
+  - Added a new feature flag `enable_receive_resource_spans_v2` in DD_APM_FEATURES that gates a refactored implementation of ReceiveResourceSpans for OTLP.
