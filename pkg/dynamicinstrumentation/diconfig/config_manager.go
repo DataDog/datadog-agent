@@ -254,6 +254,7 @@ generateCompileAttach:
 
 	err = ebpf.CompileBPFProgram(procInfo, probe)
 	if err != nil {
+		// TODO: Emit diagnostic?
 		log.Info("Couldn't compile BPF object", err)
 		if !probe.InstrumentationInfo.AttemptedRebuild {
 			log.Info("Removing parameters and attempting to rebuild BPF object", err)
@@ -263,7 +264,6 @@ generateCompileAttach:
 		}
 		return
 	}
-
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't load and attach bpf programs", err)
