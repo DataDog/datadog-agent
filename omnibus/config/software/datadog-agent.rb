@@ -114,7 +114,6 @@ build do
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
-    mkdir "#{install_dir}/bin/agent/"
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"

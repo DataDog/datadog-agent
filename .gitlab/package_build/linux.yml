@@ -34,37 +34,6 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
-# Temporary custom agent build test to prevent regression
-# This test will be removed when custom path are used to build macos agent
-# with in-house macos runner builds.
-.custom_agent_build_test:
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  stage: package_build
-  script:
-    - mkdir /custom
-    - export CONFIG_DIR="/custom"
-    - export INSTALL_DIR="/custom/datadog-agent"
-    - !reference [.agent_build_script]
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - ls -la $INSTALL_DIR
-    - ls -la /custom/etc
-    - (ls -la /opt/datadog-agent 2>/dev/null && exit 1) || echo "/opt/datadog-agent has correctly not been generated"
-    - (ls -la /etc/datadog-agent 2>/dev/null && exit 1) || echo "/etc/datadog-agent has correctly not been generated"
-  variables:
-    KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
-
-
-
 .agent_build_x86:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -115,9 +84,35 @@
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-
+# Temporary custom agent build test to prevent regression
+# This test will be removed when custom path are used to build macos agent
+# with in-house macos runner builds.
 datadog-agent-7-x64-custom-path-test:
-  extends: [.custom_agent_build_test, .agent_build_x86, .agent_7_build]
+  extends: [.agent_build_x86, .agent_7_build]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  script:
+    - mkdir /custom
+    - export CONFIG_DIR="/custom"
+    - export INSTALL_DIR="/custom/datadog-agent"
+    - !reference [.agent_build_script]
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - ls -la $INSTALL_DIR
+    - ls -la /custom/etc
+    - (ls -la /opt/datadog-agent 2>/dev/null && exit 1) || echo "/opt/datadog-agent has correctly not been generated"
+    - (ls -la /etc/datadog-agent 2>/dev/null && exit 1) || echo "/etc/datadog-agent has correctly not been generated"
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
   # build Agent 6 binaries for x86_64
 datadog-agent-6-x64:
