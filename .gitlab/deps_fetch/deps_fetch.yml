@@ -41,16 +41,22 @@ go_deps:
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - inv -e deps --verbose
+    - inv -e install-tools
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
   cache:
+    # The `cache:key:files` only accepts up to two path ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+    # Ideally, we should also include the https://github.com/DataDog/datadog-agent/blob/main/.custom-gcl.yml file to
+    # avoid issues if a plugin is added in one PR and enabled in another. However, we decided to accept this limitation
+    # because the probability for this to happen is very low and go mod files are modified frequently so the risk of
+    # failing a job because of a network issue when building the custom binary is very low, but still exists.
     - key:
         files:
-          - go.mod
-          - ./**/go.mod
+          - \**/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_deps"
       paths:
         - modcache.tar.xz
@@ -59,7 +65,7 @@ go_tools_deps:
   extends: .cache
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
-    - inv -e download-tools
+    - inv -e install-tools
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
@@ -69,6 +75,7 @@ go_tools_deps:
     - key:
         files:
           - ./**/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps"
       paths:
         - modcache_tools.tar.xz
@@ -87,6 +94,7 @@ go_e2e_deps:
     - key:
         files:
           - ./test/new-e2e/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_e2e_deps"
       paths:
         - modcache_e2e.tar.xz
