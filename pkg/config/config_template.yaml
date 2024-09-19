@@ -1727,7 +1727,6 @@ api_key:
   #  enabled: false
 {{- if (eq .OS "linux")}}
 
-
   # container_image:
   #   enabled: false
 {{ end -}}
