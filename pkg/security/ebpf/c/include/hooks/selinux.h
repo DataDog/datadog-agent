@@ -59,7 +59,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 
     syscall.resolver.key = syscall.selinux.file.path_key;
     syscall.resolver.dentry = syscall.selinux.dentry;
-    syscall.resolver.discarder_type = syscall.policy.mode != NO_FILTER ? EVENT_SELINUX : 0;
+    syscall.resolver.discarder_event_type = dentry_resolver_discarder_event_type(&syscall);
     syscall.resolver.callback = DR_SELINUX_CALLBACK_KPROBE_KEY;
     syscall.resolver.iteration = 0;
     syscall.resolver.ret = 0;

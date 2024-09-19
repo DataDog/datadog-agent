@@ -24,7 +24,8 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -190,7 +191,7 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          ddconfig.Config
+	agentConfig          model.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
@@ -240,7 +241,7 @@ func init() {
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
-	k.agentConfig = ddconfig.Datadog()
+	k.agentConfig = pkgconfigsetup.Datadog()
 
 	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
@@ -344,7 +345,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
-		resyncPeriod = ddconfig.Datadog().GetInt("kubernetes_informers_resync_period")
+		resyncPeriod = pkgconfigsetup.Datadog().GetInt("kubernetes_informers_resync_period")
 	}
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
@@ -526,7 +527,7 @@ func (k *KSMCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if (!k.isCLCRunner || !k.instance.LeaderSkip) && !podsFromKubeletInNodeAgent {
 		// Only run if Leader Election is enabled.
-		if !ddconfig.Datadog().GetBool("leader_election") {
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
 		}
 
@@ -952,8 +953,8 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		CheckBase:            base,
 		instance:             instance,
 		telemetry:            newTelemetryCache(),
-		isCLCRunner:          ddconfig.IsCLCRunner(),
-		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !ddconfig.IsCLCRunner(),
+		isCLCRunner:          pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent: flavor.GetFlavor() != flavor.ClusterAgent && !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 		metricNamesMapper:    defaultMetricNamesMapper(),
 		metricAggregators:    defaultMetricAggregators(),
 		metricTransformers:   defaultMetricTransformers(),

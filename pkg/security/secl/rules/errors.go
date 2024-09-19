@@ -186,3 +186,13 @@ type ErrFieldNotAvailable struct {
 func (e *ErrFieldNotAvailable) Error() string {
 	return fmt.Sprintf("field `%s` not available for event type `%v`, available for `%v`", e.Field, e.EventType, e.RestrictedTo)
 }
+
+// ErrActionNotAvailable is returned when an action is not available
+type ErrActionNotAvailable struct {
+	ActionName string
+	EventType  eval.EventType
+}
+
+func (e *ErrActionNotAvailable) Error() string {
+	return fmt.Sprintf("action `%s` not available for event type `%v`", e.ActionName, e.EventType)
+}

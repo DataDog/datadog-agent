@@ -11,7 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -190,7 +190,7 @@ func Test_convertIOStats(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
-	config.Datadog().SetWithoutSource("container_proc_root", dir)
+	pkgconfigsetup.Datadog().SetWithoutSource("container_proc_root", dir)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
