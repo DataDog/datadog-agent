@@ -10,7 +10,6 @@ package trivy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -38,6 +37,7 @@ import (
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/fanal/walker"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
@@ -104,18 +104,19 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
-		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(_ string, err error) error {
-				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
-					return nil
-				}
-				return err
-			},
+		WalkerOption:      walker.Option{
+			// XXX Handle in the walker instead
+			//ErrorCallback: func(_ string, err error) error {
+			//	if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
+			//		return nil
+			//	}
+			//	return err
+			//},
 		},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
-		option.OnlyDirs = []string{
+		option.WalkerOption.OnlyDirs = []string{
 			"/etc/*",
 			"/lib/apk/db/*",
 			"/usr/lib/*",
@@ -127,8 +128,8 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 			// OnlyDirs is handled differently for image than for filesystem.
 			// This needs to be fixed properly but in the meantime, use absolute
 			// paths for fs and relative paths for images.
-			for i := range option.OnlyDirs {
-				option.OnlyDirs[i] = filepath.Join(root, option.OnlyDirs[i])
+			for i := range option.WalkerOption.OnlyDirs {
+				option.WalkerOption.OnlyDirs[i] = filepath.Join(root, option.WalkerOption.OnlyDirs[i])
 			}
 		}
 	}
@@ -398,7 +399,9 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(fsys, path, cache, getDefaultArtifactOption(".", scanOptions))
+	// XXX Handle fsys
+	fs := walker.NewFS()
+	fsArtifact, err := local2.NewArtifact(path, cache, fs, getDefaultArtifactOption(".", scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
@@ -443,9 +446,14 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 
 	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
-		VulnType:            []string{},
+		Scanners:            types.Scanners{types.SBOMScanner},
 		ScanRemovedPackages: false,
-		ListAllPackages:     true,
+		PkgTypes:            []string{types.PkgTypeOS, types.PkgTypeLibrary},
+		PkgRelationships: []ftypes.Relationship{
+			ftypes.RelationshipUnknown,
+			ftypes.RelationshipRoot,
+			ftypes.RelationshipIndirect,
+		},
 	})
 	if err != nil {
 		return nil, err
