@@ -9,6 +9,7 @@ package uploader
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"sync"
 
@@ -29,7 +30,7 @@ type OfflineSerializer[T any] struct {
 // uploading to the DataDog backend
 func NewOfflineLogSerializer(outputPath string) (*OfflineSerializer[ditypes.SnapshotUpload], error) {
 	if outputPath == "" {
-		panic("No snapshot output path set")
+		return nil, errors.New("no snapshot output path set")
 	}
 	return NewOfflineSerializer[ditypes.SnapshotUpload](outputPath)
 }
@@ -38,7 +39,7 @@ func NewOfflineLogSerializer(outputPath string) (*OfflineSerializer[ditypes.Snap
 // and printing instead of uploading to the DataDog backend
 func NewOfflineDiagnosticSerializer(dm *diagnostics.DiagnosticManager, outputPath string) (*OfflineSerializer[ditypes.DiagnosticUpload], error) {
 	if outputPath == "" {
-		panic("No diagnostic output path set")
+		return nil, errors.New("no diagnostic output path set")
 	}
 	ds, err := NewOfflineSerializer[ditypes.DiagnosticUpload](outputPath)
 	if err != nil {
