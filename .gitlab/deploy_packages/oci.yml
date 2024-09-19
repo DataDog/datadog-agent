@@ -15,6 +15,7 @@ include:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
     - set +x
+    - !reference [.retrieve_linux_go_tools_deps]
     - export VERSION=$(inv agent.version --url-safe)-1
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
