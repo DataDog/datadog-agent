@@ -547,7 +547,7 @@ func (s *discovery) updateServicesCPUStats() error {
 	}
 
 	for pid, serviceInfo := range s.cache {
-		updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
+		_ = updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
 	}
 
 	s.lastGlobalCPUTime = globalCPUTime
