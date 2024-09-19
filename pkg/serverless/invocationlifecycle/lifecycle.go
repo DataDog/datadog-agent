@@ -236,16 +236,15 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			break
 		}
 		ev = event.Payload
-		lp.initFromStepFunctionEvent(event)
+		lp.initFromStepFunctionPayload(event.Payload)
 	case trigger.StepFunctionEvent:
 		var eventPayload events.StepFunctionPayload
 		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
-		sfe := events.StepFunctionEvent{Payload: eventPayload}
 		ev = eventPayload
-		lp.initFromStepFunctionEvent(sfe)
+		lp.initFromStepFunctionPayload(eventPayload)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}

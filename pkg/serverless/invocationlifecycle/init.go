@@ -190,6 +190,6 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
 }
 
-func (lp *LifecycleProcessor) initFromStepFunctionEvent(event events.StepFunctionEvent) {
-	lp.requestHandler.event = event.Payload
+func (lp *LifecycleProcessor) initFromStepFunctionPayload(event events.StepFunctionPayload) {
+	lp.requestHandler.event = event
 }
