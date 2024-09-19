@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -56,16 +57,16 @@ var (
 	initStackManager sync.Once
 )
 
-// RetryStrategy is a function that given the current error and the number of retries, returns the type of retry to perform and a list of options to modify the configuration
-type RetryStrategy func(error, int) (RetryType, []GetStackOption)
+// RetryStrategyFromFn is a function that given the current error and the number of retries, returns the type of retry to perform and a list of options to modify the configuration
+type RetryStrategyFromFn func(error, int) (RetryType, []GetStackOption)
 
 // StackManager handles
 type StackManager struct {
 	stacks      *safeStackMap
 	knownErrors []knownError
 
-	// RetryStrategy defines how to handle retries. By default points to StackManager.getRetryStrategyFrom but can be overridden
-	RetryStrategy RetryStrategy
+	// GetRetryStrategyFrom defines how to handle retries. By default points to StackManager.getRetryStrategyFrom but can be overridden
+	GetRetryStrategyFrom RetryStrategyFromFn
 }
 
 type safeStackMap struct {
@@ -120,7 +121,7 @@ func newStackManager() (*StackManager, error) {
 		stacks:      newSafeStackMap(),
 		knownErrors: getKnownErrors(),
 	}
-	sm.RetryStrategy = sm.getRetryStrategyFrom
+	sm.GetRetryStrategyFrom = sm.getRetryStrategyFrom
 
 	return sm, nil
 }
@@ -523,7 +524,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 			}
 		}
 
-		retryStrategy, changedOpts := sm.RetryStrategy(upError, upCount)
+		retryStrategy, changedOpts := sm.GetRetryStrategyFrom(upError, upCount)
 		sendEventToDatadog(params.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
@@ -619,7 +620,11 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType,
 	}
 
 	for _, knownError := range sm.knownErrors {
-		if strings.Contains(err.Error(), knownError.errorMessage) {
+		isMatch, err := regexp.MatchString(knownError.errorMessage, err.Error())
+		if err != nil {
+			fmt.Printf("Error matching regex %s: %v\n", knownError.errorMessage, err)
+		}
+		if isMatch {
 			return knownError.retryType, nil
 		}
 	}

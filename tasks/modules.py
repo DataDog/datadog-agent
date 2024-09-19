@@ -189,6 +189,9 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/metricsclient": GoModule(
         "comp/otelcol/otlp/components/metricsclient", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/otlp/components/processor/infraattributesprocessor": GoModule(
+        "comp/otelcol/otlp/components/processor/infraattributesprocessor", independent=True, used_by_otel=True
+    ),
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
@@ -503,3 +506,14 @@ def validate_used_by_otel(ctx: Context):
         message += "Please label them as \"used_by_otel\" in the DEFAULT_MODULES list."
 
         raise Exit(message)
+
+
+def get_module_by_path(path: Path) -> GoModule | None:
+    """
+    Return the GoModule object corresponding to the given path.
+    """
+    for module in DEFAULT_MODULES.values():
+        if Path(module.path) == path:
+            return module
+
+    return None

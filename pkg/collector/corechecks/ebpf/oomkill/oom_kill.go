@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -87,7 +87,7 @@ func (m *OOMKillCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -132,8 +132,8 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
-		tags = append(tags, "trigger_process_name:"+line.FComm)
-		tags = append(tags, "process_name:"+line.TComm)
+		tags = append(tags, "trigger_process_name:"+line.TriggerComm)
+		tags = append(tags, "process_name:"+line.VictimComm)
 
 		// submit counter metric
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
@@ -145,7 +145,7 @@ func (m *OOMKillCheck) Run() error {
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AggregationKey: containerID,
-			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.TComm, line.TPid),
+			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.VictimComm, line.VictimPid),
 			Tags:           tags,
 		}
 
@@ -155,10 +155,10 @@ func (m *OOMKillCheck) Run() error {
 		if line.ScoreAdj != 0 {
 			oomScoreAdj = fmt.Sprintf(", oom_score_adj: %d", line.ScoreAdj)
 		}
-		if line.Pid == line.TPid {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d%s) triggered an OOM kill on itself.", line.FComm, line.Pid, line.Score, oomScoreAdj)
+		if line.VictimPid == line.TriggerPid {
+			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d%s) triggered an OOM kill on itself.", line.VictimComm, line.VictimPid, line.Score, oomScoreAdj)
 		} else {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d%s).", line.FComm, line.Pid, line.TComm, line.TPid, line.Score, oomScoreAdj)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d%s).", line.TriggerComm, line.TriggerPid, line.VictimComm, line.VictimPid, line.Score, oomScoreAdj)
 		}
 		fmt.Fprintf(&b, "\n The process had reached %d pages in size. \n\n", line.Pages)
 		b.WriteString(triggerTypeText)

@@ -139,7 +139,6 @@ github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults
 github.com/DataDog/datadog-agent/pkg/collector/check/id
 github.com/DataDog/datadog-agent/pkg/collector/check/stats
-github.com/DataDog/datadog-agent/pkg/config
 github.com/DataDog/datadog-agent/pkg/config/env
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
@@ -438,6 +437,7 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -580,16 +580,16 @@ go.opentelemetry.io/collector/connector
 go.opentelemetry.io/collector/consumer
 go.opentelemetry.io/collector/consumer/consumererror
 go.opentelemetry.io/collector/exporter
+go.opentelemetry.io/collector/exporter/debugexporter
+go.opentelemetry.io/collector/exporter/debugexporter/internal/metadata
+go.opentelemetry.io/collector/exporter/debugexporter/internal/normal
 go.opentelemetry.io/collector/exporter/exporterbatcher
 go.opentelemetry.io/collector/exporter/exporterhelper
 go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata
 go.opentelemetry.io/collector/exporter/exporterqueue
-go.opentelemetry.io/collector/exporter/internal/common
 go.opentelemetry.io/collector/exporter/internal/experr
 go.opentelemetry.io/collector/exporter/internal/otlptext
 go.opentelemetry.io/collector/exporter/internal/queue
-go.opentelemetry.io/collector/exporter/loggingexporter
-go.opentelemetry.io/collector/exporter/loggingexporter/internal/metadata
 go.opentelemetry.io/collector/exporter/otlpexporter
 go.opentelemetry.io/collector/exporter/otlpexporter/internal/metadata
 go.opentelemetry.io/collector/extension

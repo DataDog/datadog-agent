@@ -18,7 +18,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -50,12 +51,12 @@ const maxVersionHistoryEntries = 60
 
 // GetFilePath returns the path of the 'install_info' directory relative to the loaded coinfiguration file. The
 // 'install_info' directory contains information about how the agent was installed.
-func GetFilePath(conf config.Reader) string {
+func GetFilePath(conf model.Reader) string {
 	return filepath.Join(configUtils.ConfFileDirectory(conf), "install_info")
 }
 
 // Get returns information about how the Agent was installed.
-func Get(conf config.Reader) (*InstallInfo, error) {
+func Get(conf model.Reader) (*InstallInfo, error) {
 	return getFromPath(GetFilePath(conf))
 }
 
@@ -77,8 +78,8 @@ func getFromPath(path string) (*InstallInfo, error) {
 // LogVersionHistory loads version history file, append new entry if agent version is different than the last entry in the
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
-	versionHistoryFilePath := filepath.Join(config.Datadog().GetString("run_path"), "version-history.json")
-	installInfoFilePath := GetFilePath(config.Datadog())
+	versionHistoryFilePath := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "version-history.json")
+	installInfoFilePath := GetFilePath(pkgconfigsetup.Datadog())
 	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
 }
 

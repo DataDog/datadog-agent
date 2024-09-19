@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,6 +78,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if service, ok := serviceMap[pid]; ok {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
 		}
@@ -112,6 +113,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
 			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
@@ -159,6 +161,6 @@ type systemProbeClient interface {
 
 func getSysProbeClient() (systemProbeClient, error) {
 	return processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 	)
 }

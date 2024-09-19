@@ -27,7 +27,7 @@ import (
 
 	"github.com/fatih/color"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -272,19 +272,19 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis
 func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
 	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
+	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte

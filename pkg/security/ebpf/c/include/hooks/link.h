@@ -69,8 +69,9 @@ int hook_vfs_link(ctx_t *ctx) {
     // force a new path id to force path resolution
     set_file_inode(src_dentry, &syscall->link.src_file, 1);
 
-    if (filter_syscall(syscall, link_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, link_approvers) == DISCARDED) {
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
     }
 
     fill_file(src_dentry, &syscall->link.src_file);
@@ -85,7 +86,7 @@ int hook_vfs_link(ctx_t *ctx) {
 
     syscall->resolver.dentry = src_dentry;
     syscall->resolver.key = syscall->link.src_file.path_key;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -107,7 +108,8 @@ int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         monitor_discarded(EVENT_LINK);
-        return mark_as_discarded(syscall);
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        syscall->state = DISCARDED;
     }
 
     return 0;
@@ -124,18 +126,16 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         return 0;
     }
 
-    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_LINK);
-
     // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         // for hardlink we need to invalidate the discarders as the nlink counter in now > 1
         expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
     }
 
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
-        syscall->resolver.discarder_type = 0;
+        syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;

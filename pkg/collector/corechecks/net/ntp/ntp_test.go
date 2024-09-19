@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
@@ -361,7 +361,7 @@ func TestDefaultHostConfig(t *testing.T) {
 
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -130,7 +130,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 
 	fmt.Println("Requesting a cluster check rebalance...")
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -183,7 +183,7 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams) err
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
 
 	// Set session token
 	err := util.SetAuthToken(config)

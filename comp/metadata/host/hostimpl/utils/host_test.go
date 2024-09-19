@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -31,13 +31,13 @@ func TestOTLPEnabled(t *testing.T) {
 	ctx := context.Background()
 	conf := configmock.New(t)
 
-	defer func(orig func(cfg config.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
+	defer func(orig func(cfg model.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
-	otlpIsEnabled = func(config.Reader) bool { return false }
+	otlpIsEnabled = func(model.Reader) bool { return false }
 	p := GetPayload(ctx, conf)
 	assert.False(t, p.OtlpMeta.Enabled)
 
-	otlpIsEnabled = func(config.Reader) bool { return true }
+	otlpIsEnabled = func(model.Reader) bool { return true }
 	p = GetPayload(ctx, conf)
 	assert.True(t, p.OtlpMeta.Enabled)
 }
@@ -69,18 +69,18 @@ func TestGetLogsMeta(t *testing.T) {
 
 func TestGetInstallMethod(t *testing.T) {
 	conf := configmock.New(t)
-	defer func(orig func(conf config.Reader) (*installinfo.InstallInfo, error)) {
+	defer func(orig func(conf model.Reader) (*installinfo.InstallInfo, error)) {
 		installinfoGet = orig
 	}(installinfoGet)
 
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) { return nil, fmt.Errorf("an error") }
+	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) { return nil, fmt.Errorf("an error") }
 
 	installMethod := getInstallMethod(conf)
 	assert.Equal(t, "undefined", installMethod.ToolVersion)
 	assert.Nil(t, installMethod.Tool)
 	assert.Nil(t, installMethod.InstallerVersion)
 
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
+	installinfoGet = func(model.Reader) (*installinfo.InstallInfo, error) {
 		return &installinfo.InstallInfo{
 			ToolVersion:      "chef-15",
 			Tool:             "chef",
