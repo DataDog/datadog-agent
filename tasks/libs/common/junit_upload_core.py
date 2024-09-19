@@ -101,6 +101,9 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
         # Upload junit on a per-team basis (all folders except the one part of the original archive)
         team_folders = [item for item in working_dir.iterdir() if item.is_dir() and item not in xml_folders]
+        print("COUCOU" * 100)
+        print(team_folders)
+        print("COUCOU" * 100)
         with ThreadPoolExecutor() as executor:
             for log in executor.map(upload_junitxmls, team_folders):
                 print(log)
