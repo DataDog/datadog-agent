@@ -214,6 +214,7 @@ def gen_config_from_ci_pipeline(
 
     failed_packages: set[str] = set()
     failed_tests: set[str] = set()
+    successful_tests: set[str] = set()
     for test_job in test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
@@ -223,13 +224,48 @@ def gen_config_from_ci_pipeline(
             results = test_job.get_test_results()
             for test, result in results.items():
                 if result is False:
-                    package, test = test.split(":")
+                    package, test = test.split(":", maxsplit=1)
                     failed_tests.add(test)
                     failed_packages.add(package)
+                elif result is True:  # It can also be None if the test was skipped
+                    successful_tests.add(test)
 
             vm_name = f"{vm_arch}-{test_job.distro}-distro"
             info(f"[+] Adding {vm_name} from failed job {test_job.name}")
             vms.add(vm_name)
+
+    # Simplify the failed tests so that we show only the parent tests with all failures below
+    # and not all child tests that failed
+    # Not at all the most efficient way to do this, but it works for the amount of data we have
+    # and is simple enough
+    successful_tests = successful_tests.difference(failed_tests)
+    coalesced_failed_tests: set[str] = set()
+    non_coalesced_failed_tests: set[str] = set()
+    for test in sorted(failed_tests):  # Sort to have parent tests first
+        is_included = False
+
+        # Check if this test is already included in some parent test
+        for already_coalesced in coalesced_failed_tests:
+            if test.startswith(already_coalesced):
+                is_included = True
+                break
+        else:
+            # If not, check if there is a subtest that succeeded. If there is not,
+            # we assume all children tests of this one failed and we can coalesce them
+            # into a single one
+            for succesful_test in successful_tests:
+                if succesful_test.startswith(test):
+                    # There was a subtest of this one that succeeded, we cannot coalesce
+                    # Add it to the non-coalesced list so that it's not checked as a parent
+                    # and its children will be checked again
+                    non_coalesced_failed_tests.add(test)
+                    is_included = True
+                    break
+
+        if not is_included:
+            coalesced_failed_tests.add(test)
+
+    failed_tests = non_coalesced_failed_tests | {f"{t}/.*" for t in coalesced_failed_tests}
 
     if len(vms) == 0:
         raise Exit(f"No failed jobs found in pipeline {pipeline}")
@@ -241,7 +277,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
+    print(f"inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -1060,7 +1096,7 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     return len(not_matches) == 0
 
 
-def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
+def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[LibvirtDomain]:
     def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
         if alien_vms:
             alien_vms_path = Path(alien_vms)
@@ -1082,7 +1118,8 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms):
     domains = filter_target_domains(vms, infra, arch_obj)
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
-            return
+            raise Exit("[-] Aborting due to version mismatch")
+
     return domains
 
 
