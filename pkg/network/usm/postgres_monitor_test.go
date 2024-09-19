@@ -724,10 +724,10 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 			if hasTLSTag != tls {
 				continue
 			}
-			if _, ok := found[key.TableName]; !ok {
-				found[key.TableName] = make(map[postgres.Operation]int)
+			if _, ok := found[key.Parameters]; !ok {
+				found[key.Parameters] = make(map[postgres.Operation]int)
 			}
-			found[key.TableName][key.Operation] += stats.Count
+			found[key.Parameters][key.Operation] += stats.Count
 		}
 		return reflect.DeepEqual(expectedStats, found)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)

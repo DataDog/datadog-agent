@@ -28,10 +28,8 @@ type EventWrapper struct {
 
 	operationSet bool
 	operation    Operation
-	tableNameSet bool
-	tableName    string
-	opPayloadSet bool
-	opPayload    string
+	operandSet   bool
+	operand      string
 	normalizer   *sqllexer.Normalizer
 }
 
@@ -75,29 +73,12 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
-func filterNonNulls(inSlices [][]byte) [][]byte {
-	var outSlices [][]byte
-	for _, inSlice := range inSlices {
-		var outSlice []byte
-		for _, b := range inSlice {
-			if b > 0 {
-				outSlice = append(outSlice, b)
-			}
-		}
-		outSlices = append(outSlices, outSlice)
-	}
-	return outSlices
-}
-
-// OperationPayload returns the string following the command
-func (e *EventWrapper) OperationPayload() string {
-	if !e.opPayloadSet {
-		slices := bytes.SplitN(getFragment(&e.Tx), []byte(" "), 4)
-		slices = filterNonNulls(slices)
-		e.opPayload = string(bytes.Join(slices[1:], []byte(" ")))
-		e.opPayloadSet = true
-	}
-	return e.opPayload
+// extractOperand returns the string following the command
+func (e *EventWrapper) extractParameters() string {
+	b := getFragment(&e.Tx)
+	idxStart := bytes.Index(b, []byte(" ")) + 1 // trim operation
+	idxEnd := bytes.Index(b, []byte("\x00"))    // trim trailing nulls
+	return string(b[idxStart:idxEnd])
 }
 
 var re = regexp.MustCompile(`(?i)if\s+exists`)
@@ -124,19 +105,18 @@ func (e *EventWrapper) extractTableName() string {
 
 }
 
-// TableName returns the name of the table the query is operating on.
-func (e *EventWrapper) TableName() string {
-	if !e.tableNameSet {
+// Parameters returns the table name or run-time parameter.
+func (e *EventWrapper) Parameters() string {
+	if !e.operandSet {
 		if e.operation == ShowOP {
-			// do not search table name for command SHOW, save payload as table name
-			e.tableName = e.OperationPayload()
+			e.operand = e.extractParameters()
 		} else {
-			e.tableName = e.extractTableName()
+			e.operand = e.extractTableName()
 		}
-		e.tableNameSet = true
+		e.operandSet = true
 	}
 
-	return e.tableName
+	return e.operand
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
@@ -157,6 +137,6 @@ ebpfTx{
 // String returns a string representation of the underlying event
 func (e *EventWrapper) String() string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf(template, e.Operation(), e.TableName(), e.RequestLatency()))
+	output.WriteString(fmt.Sprintf(template, e.Operation(), e.Parameters(), e.RequestLatency()))
 	return output.String()
 }
