@@ -473,51 +473,30 @@ func (dp *DirectoryProvider) cleanupLoop(ctx context.Context) {
 }
 
 func (dp *DirectoryProvider) cleanup() error {
+	// collect all workload selectors
+	profiles := dp.getProfiles()
+	pathToImageName := make(map[string]string)
+	for imageName, pfse := range profiles {
+		pathToImageName[pfse.path] = imageName
+	}
+
 	paths, err := dp.listProfiles()
 	if err != nil {
 		return err
 	}
 
-	// read workload selectors from all directory profiles
-	workloadSelectors := make([]profileFSEntry, 0)
-	for _, path := range paths {
-		_, workloadSelector, err := readProfile(path)
-		if err != nil {
-			return err
-		}
-
-		workloadSelectors = append(workloadSelectors, profileFSEntry{
-			selector: workloadSelector,
-			path:     path,
-		})
-	}
-
-	// understand all images with actual security profiles
-	imagesWithProfiles := make(map[string]struct{})
-	for _, entry := range workloadSelectors {
-		if entry.selector.Tag == "*" {
-			imagesWithProfiles[entry.selector.Image] = struct{}{}
-		}
-	}
-
-	// list dump files for image that have profiles
 	toRemovePaths := make([]string, 0)
-	for _, entry := range workloadSelectors {
-		if entry.selector.Tag == "*" {
-			continue
-		}
-
-		if _, ok := imagesWithProfiles[entry.selector.Image]; ok {
-			toRemovePaths = append(toRemovePaths, entry.path)
+	for _, path := range paths {
+		if _, ok := pathToImageName[path]; !ok {
+			toRemovePaths = append(toRemovePaths, path)
 		}
 	}
 
-	seclog.Debugf("directory provider: removing paths: %v\n", toRemovePaths)
+	seclog.Errorf("directory provider: removing paths: %v\n", toRemovePaths)
 
 	for _, path := range toRemovePaths {
 		if err := os.Remove(path); err != nil {
-			// let's return in case of error, worse case scenario we will retry during next iteration
-			return err
+			seclog.Errorf("couldn't remove profile %s: %v", path, err)
 		}
 	}
 
