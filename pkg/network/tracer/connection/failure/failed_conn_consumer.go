@@ -57,7 +57,7 @@ func (c *TCPFailedConnConsumer) Stop() {
 	c.once.Do(func() {
 		close(c.closed)
 	})
-	c.FailedConns.mapCleaner.Stop()
+	c.FailedConns.connCloseFlushedCleaner.Stop()
 }
 
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {

@@ -40,8 +40,8 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -620,9 +620,9 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
-		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+		pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -1127,31 +1127,61 @@ func (s *TracerSuite) TestSelfConnect() {
 	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
 }
 
-func (s *TracerSuite) TestUDPPeekCount() {
-	t := s.T()
-	config := testConfig()
-	tr := setupTracer(t, config)
+// sets up two udp sockets talking to each other locally.
+// returns (listener, dialer)
+func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
+	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
-	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
+	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
 	require.NoError(t, err)
-	defer ln.Close()
+
+	var ln, c *net.UDPConn = nil, nil
+	t.Cleanup(func() {
+		if ln != nil {
+			ln.Close()
+		}
+		if c != nil {
+			c.Close()
+		}
+	})
+
+	ln, err = net.ListenUDP(udpnet, laddr)
+	require.NoError(t, err)
 
 	saddr := ln.LocalAddr().String()
 
-	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
-	require.NoError(t, err)
-	raddr, err := net.ResolveUDPAddr("udp", saddr)
+	raddr, err := net.ResolveUDPAddr(udpnet, saddr)
 	require.NoError(t, err)
 
-	c, err := net.DialUDP("udp", laddr, raddr)
+	c, err = net.DialUDP(udpnet, laddr, raddr)
 	require.NoError(t, err)
-	defer c.Close()
+
+	return ln, c
+}
+
+func (s *TracerSuite) TestUDPPeekCount() {
+	t := s.T()
+	t.Run("v4", func(t *testing.T) {
+		testUDPPeekCount(t, "udp4", "127.0.0.1")
+	})
+	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
+		testUDPPeekCount(t, "udp6", "[::1]")
+	})
+}
+func testUDPPeekCount(t *testing.T, udpnet, ip string) {
+	config := testConfig()
+	tr := setupTracer(t, config)
+
+	ln, c := setupUdpSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
-	_, err = c.Write(msg)
+	_, err := c.Write(msg)
 	require.NoError(t, err)
 
-	rawConn, err := ln.(*net.UDPConn).SyscallConn()
+	rawConn, err := ln.SyscallConn()
 	require.NoError(t, err)
 	err = rawConn.Control(func(fd uintptr) {
 		buf := make([]byte, 1024)
@@ -1204,12 +1234,82 @@ func (s *TracerSuite) TestUDPPeekCount() {
 	m := outgoing.Monotonic
 	require.Equal(t, len(msg), int(m.SentBytes))
 	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, 1, int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
 	require.True(t, outgoing.IntraHost)
 
 	// make sure the inverse values are seen for the other message
 	m = incoming.Monotonic
 	require.Equal(t, 0, int(m.SentBytes))
 	require.Equal(t, len(msg), int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, 1, int(m.RecvPackets))
+	require.True(t, incoming.IntraHost)
+}
+
+func (s *TracerSuite) TestUDPPacketSumming() {
+	t := s.T()
+	t.Run("v4", func(t *testing.T) {
+		testUDPPacketSumming(t, "udp4", "127.0.0.1")
+	})
+	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
+		testUDPPacketSumming(t, "udp6", "[::1]")
+	})
+}
+func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
+	config := testConfig()
+	tr := setupTracer(t, config)
+
+	ln, c := setupUdpSockets(t, udpnet, ip)
+
+	msg := []byte("asdf")
+	// send UDP packets of increasing length
+	for i := range msg {
+		_, err := c.Write(msg[:i+1])
+		require.NoError(t, err)
+	}
+	expectedBytes := 1 + 2 + 3 + 4
+
+	buf := make([]byte, 256)
+	recvBytes := 0
+	for range msg {
+		n, _, err := ln.ReadFrom(buf)
+		require.NoError(t, err)
+		recvBytes += n
+	}
+	// sanity check: did userspace get all four expected packets?
+	require.Equal(t, recvBytes, expectedBytes)
+
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
+
+	m := outgoing.Monotonic
+	require.Equal(t, expectedBytes, int(m.SentBytes))
+	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, int(len(msg)), int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	m = incoming.Monotonic
+	require.Equal(t, 0, int(m.SentBytes))
+	require.Equal(t, expectedBytes, int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, int(len(msg)), int(m.RecvPackets))
 	require.True(t, incoming.IntraHost)
 }
 
@@ -1507,10 +1607,18 @@ func (s *TracerSuite) TestSendfileRegression() {
 		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile send data wasn't properly traced")
+			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
+			if connType == network.UDP {
+				assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
+				assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
+			}
 		}
 		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv data wasn't properly traced")
+			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv bytes wasn't properly traced")
+			if connType == network.UDP {
+				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
+				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
+			}
 		}
 	}
 
@@ -1541,7 +1649,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
 
-				// Start TCP server
+				// Start UDP server
 				var rcvd int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
@@ -2283,8 +2391,8 @@ func checkSkipFailureConnectionsTests(t *testing.T) {
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
-
 }
+
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
 
@@ -2337,11 +2445,76 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	// Check if the connection was recorded as failed due to timeout
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		// 110 is the errno for ETIMEDOUT
-		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
-	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+		conn = findFailedConnection(t, localAddr, srvAddr, conns, 110)
+		return conn != nil
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	assert.Equal(t, uint32(0), conn.TCPFailures[104], "expected 0 connection reset")
+	assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+	assert.Equal(t, uint32(1), conn.TCPFailures[110], "expected 1 connection timeout")
+	assert.Equal(t, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
+	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// Setup DNAT to redirect traffic from 2.2.2.2 to 1.1.1.1
+	netlinktestutil.SetupDNAT(t)
+
+	// Set up a TCP server on the translated address (1.1.1.1)
+	srv := tracertestutil.NewTCPServerOnAddress("1.1.1.1:80", func(c net.Conn) {
+		if tcpConn, ok := c.(*net.TCPConn); ok {
+			tcpConn.SetLinger(0)
+			buf := make([]byte, 10)
+			_, _ = c.Read(buf)
+			time.Sleep(10 * time.Millisecond)
+		}
+		c.Close()
+	})
+
+	require.NoError(t, srv.Run(), "error running server")
+	t.Cleanup(srv.Shutdown)
+
+	// Attempt to connect to the DNAT address (2.2.2.2), which should be redirected to the server at 1.1.1.1
+	serverAddr := "2.2.2.2:80"
+	c, err := net.Dial("tcp", serverAddr)
+	require.NoError(t, err, "could not connect to server: ", err)
+
+	// Write to the server and expect a reset
+	_, writeErr := c.Write([]byte("ping"))
+	if writeErr != nil {
+		t.Log("Write error:", writeErr)
+	}
+
+	// Read from server to ensure that the server has a chance to reset the connection
+	_, readErr := c.Read(make([]byte, 4))
+	require.Error(t, readErr, "expected connection reset error but got none")
+
+	// Check if the connection was recorded as reset
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		// 104 is the errno for ECONNRESET
+		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(t, tr), 104)
+		return conn != nil
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	require.NoError(t, c.Close(), "error closing client connection")
+	assert.Equal(t, uint32(1), conn.TCPFailures[104], "expected 1 connection reset")
+	assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+	assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+	assert.Equal(t, uint64(4), conn.Monotonic.SentBytes, "expected 4 bytes sent")
+	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {

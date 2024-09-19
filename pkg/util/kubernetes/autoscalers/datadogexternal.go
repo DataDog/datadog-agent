@@ -19,7 +19,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,7 +76,7 @@ var (
 
 func getMinRemainingRequestsTracker() *minTracker {
 	once.Do(func() {
-		refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
+		refreshPeriod := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.refresh_period")
 		expiryDuration := 2 * refreshPeriod
 		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
 	})
@@ -90,6 +90,14 @@ func isRateLimitError(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "429 Too Many Requests")
+}
+
+// isUnprocessableEntityError is a helper function that checks if the received error is an unprocessable entity error
+func isUnprocessableEntityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "422 Unprocessable Entity")
 }
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
@@ -108,6 +116,8 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	if err != nil {
 		if isRateLimitError(err) {
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
+		} else if isUnprocessableEntityError(err) {
+			ddRequests.Inc("unprocessable_entity_error", le.JoinLeaderValue)
 		} else {
 			ddRequests.Inc("error", le.JoinLeaderValue)
 		}

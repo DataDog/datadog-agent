@@ -31,7 +31,7 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -99,7 +99,7 @@ type provides struct {
 // a description of its operation.
 type logAgent struct {
 	log            log.Component
-	config         pkgConfig.Reader
+	config         model.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component

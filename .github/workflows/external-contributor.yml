@@ -6,10 +6,14 @@ on:
   pull_request_target:
     types: [opened, reopened]
 
+permissions: {}
+
 jobs:
   external-contributor-prs:
     name: Handle Fork PRs
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout repository

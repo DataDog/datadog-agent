@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -101,7 +101,7 @@ func TestConfigRefresh(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 
 	assert.False(t, io.RefreshTriggered())
-	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, io.RefreshTriggered())
 }
 

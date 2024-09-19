@@ -11,12 +11,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // GetAccountID returns the account ID of the current AWS instance
 func GetAccountID(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
