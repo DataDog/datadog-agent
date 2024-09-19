@@ -26,11 +26,11 @@ import (
 type EventWrapper struct {
 	*ebpf.EbpfEvent
 
-	operationSet bool
-	operation    Operation
-	operandSet   bool
-	operand      string
-	normalizer   *sqllexer.Normalizer
+	operationSet  bool
+	operation     Operation
+	parametersSet bool
+	parameters    string
+	normalizer    *sqllexer.Normalizer
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
@@ -73,7 +73,7 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
-// extractOperand returns the string following the command
+// extractParameters returns the string following the command
 func (e *EventWrapper) extractParameters() string {
 	b := getFragment(&e.Tx)
 	idxStart := bytes.Index(b, []byte(" ")) + 1 // trim operation
@@ -107,16 +107,16 @@ func (e *EventWrapper) extractTableName() string {
 
 // Parameters returns the table name or run-time parameter.
 func (e *EventWrapper) Parameters() string {
-	if !e.operandSet {
+	if !e.parametersSet {
 		if e.operation == ShowOP {
-			e.operand = e.extractParameters()
+			e.parameters = e.extractParameters()
 		} else {
-			e.operand = e.extractTableName()
+			e.parameters = e.extractTableName()
 		}
-		e.operandSet = true
+		e.parametersSet = true
 	}
 
-	return e.operand
+	return e.parameters
 }
 
 // RequestLatency returns the latency of the request in nanoseconds

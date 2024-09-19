@@ -62,7 +62,7 @@ func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.
 		staticTags |= stats.StaticTags
 		e.postgresAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
 			builder.SetPostgres(func(statsBuilder *model.PostgresStatsBuilder) {
-				statsBuilder.SetTableName(key.TableName)
+				statsBuilder.SetTableName(key.Parameters)
 				statsBuilder.SetOperation(uint64(toPostgresModelOperation(key.Operation)))
 				if latencies := stats.Latencies; latencies != nil {
 					blob, _ := proto.Marshal(latencies.ToProto())
