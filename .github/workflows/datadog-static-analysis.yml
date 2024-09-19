@@ -2,6 +2,8 @@ on: [push]
 
 name: Datadog Static Analysis
 
+permissions: {}
+
 jobs:
   static-analysis:
     if: github.triggering_actor != 'dependabot[bot]'

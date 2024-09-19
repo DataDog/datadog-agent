@@ -8,9 +8,12 @@
 package main
 
 import (
+	"time"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func main() {
 	tracer.Start()
+	time.Sleep(time.Second * 20)
 }

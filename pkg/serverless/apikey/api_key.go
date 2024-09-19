@@ -19,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -95,7 +95,7 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(
 		context.TODO(),
 		awsconfig.WithHTTPClient(&http.Client{
-			Transport: datadogHttp.CreateHTTPTransport(config.Datadog()),
+			Transport: datadogHttp.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		}),
 	)
 	if err != nil {
@@ -125,7 +125,7 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
 		awsconfig.WithHTTPClient(&http.Client{
-			Transport: datadogHttp.CreateHTTPTransport(config.Datadog()),
+			Transport: datadogHttp.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		}),
 		awsconfig.WithRegion(region),
 	)

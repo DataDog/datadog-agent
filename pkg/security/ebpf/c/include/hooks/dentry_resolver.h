@@ -20,7 +20,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_ERROR;
     }
     *params = (struct is_discarded_by_inode_t){
-        .discarder_type = input->discarder_type,
+        .event_type = input->discarder_event_type,
         .now = bpf_ktime_get_ns(),
     };
 
@@ -40,7 +40,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             next_key.mount_id = 0;
         }
 
-        if (input->discarder_type && input->iteration == 1 && i <= 3) {
+        if (input->discarder_event_type && input->iteration == 1 && i <= 3) {
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;

@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -556,7 +556,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.Datadog().GetProxies()
+	proxies := pkgconfigsetup.Datadog().GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -798,7 +798,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 }
 
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
-	confFolder := pkgconfig.Datadog().GetString("confd_path")
+	confFolder := pkgconfigsetup.Datadog().GetString("confd_path")
 	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {

@@ -15,7 +15,8 @@ docker_build_fakeintake:
     BUILD_CONTEXT: .
   script:
     # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN)
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN) || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD | docker login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     - docker buildx build --push --pull --platform ${PLATFORMS} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2

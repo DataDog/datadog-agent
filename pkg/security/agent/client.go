@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -182,7 +182,7 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := coreconfig.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
