@@ -217,7 +217,7 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 	testRoot := path.Join("c:", "users", "administrator")
 
 	clientJSONFile := path.Join(testRoot, "datadog.json")
-	clientAppConfig := path.Join(testRoot, "app.config")
+	clientAppConfig := path.Join(testRoot, "littleget.exe.config")
 
 	removeIfExists(vm, clientJSONFile)
 	removeIfExists(vm, clientAppConfig)

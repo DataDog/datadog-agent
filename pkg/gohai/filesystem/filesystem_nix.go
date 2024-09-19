@@ -74,9 +74,7 @@ func replaceDev(oldMount, newMount MountInfo) bool {
 }
 
 // getFileSystemInfoWithMounts is an internal method to help testing with test mounts and mocking syscalls
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fsInfoGetter) ([]MountInfo, error) {
-	mounts := initialMounts
-
+func getFileSystemInfoWithMounts(mounts []*mountinfo.Info, sizeKB, dev fsInfoGetter) ([]MountInfo, error) {
 	devMountInfos := map[uint64]MountInfo{}
 	for _, mount := range mounts {
 		// Skip mounts that seem to be missing data

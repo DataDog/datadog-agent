@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -131,26 +132,26 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	})
 }
 
-func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
+func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
-		return false
+		return false, fmt.Errorf("the enforcement capability is disabled")
 	}
 	p.Unlock()
 
 	for i, pid := range pids {
 		if pid <= 1 || pid == utils.Getpid() {
-			return false
+			return false, fmt.Errorf("process with pid %d cannot be killed", pid)
 		}
 
 		if slices.ContainsFunc(p.binariesExcluded, func(glob *eval.Glob) bool {
 			return glob.Matches(paths[i])
 		}) {
-			return false
+			return false, fmt.Errorf("process `%s`(%d) is protected", paths[i], pid)
 		}
 	}
-	return true
+	return true, nil
 }
 
 func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
@@ -215,8 +216,8 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	}
 
 	// if one pids is not allowed don't kill anything
-	if !p.isKillAllowed(pids, paths) {
-		log.Warnf("unable to kill, some processes are protected: %v, %v", pids, paths)
+	if killAllowed, err := p.isKillAllowed(pids, paths); !killAllowed {
+		log.Warnf("unable to kill: %v", err)
 		return
 	}
 
@@ -254,7 +255,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
-		Rule:       rule,
+		rule:       rule,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
