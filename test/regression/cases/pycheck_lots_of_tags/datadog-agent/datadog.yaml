@@ -6,6 +6,7 @@ auth_token_file_path: /tmp/agent-auth-token
 cloud_provider_metadata: []
 
 telemetry.enabled: true
+telemetry.checks: '*'
 
 memtrack_enabled: false
 

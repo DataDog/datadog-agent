@@ -19,13 +19,15 @@ type infraAttributesSpanProcessor struct {
 	logger      *zap.Logger
 	tagger      taggerClient
 	cardinality types.TagCardinality
+	generateID  GenerateKubeMetadataEntityID
 }
 
-func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
+		generateID:  generateID,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
 	return iasp, nil
@@ -35,14 +37,14 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		resourceAttributes := rss.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		entityIDs := entityIDsFromAttributes(resourceAttributes, iasp.generateID)
 		tagMap := make(map[string]string)
 
 		// Get all unique tags from resource attributes and global tags
 		for _, entityID := range entityIDs {
-			entityTags, err := iasp.tagger.Tag(entityID, iasp.cardinality)
+			entityTags, err := iasp.tagger.Tag(entityID.String(), iasp.cardinality)
 			if err != nil {
-				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue
 			}
 			for _, tag := range entityTags {

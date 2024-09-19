@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -130,8 +129,10 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc := newTestTaggerClient()
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[collectors.GlobalEntityID] = []string{"global:tag"}
-			factory := NewFactory(tc)
+			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			gc := newTestGenerateIDClient().generateID
+
+			factory := NewFactory(tc, gc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
 				processortest.NewNopSettings(),
@@ -262,11 +263,15 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"process://process_pid_goes_here"},
 		},
 	}
-
+	gc := newTestGenerateIDClient().generateID
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			entityIDs := entityIDsFromAttributes(testInstance.attrs)
-			assert.Equal(t, testInstance.entityIDs, entityIDs)
+			entityIDs := entityIDsFromAttributes(testInstance.attrs, gc)
+			entityIDsAsStrings := make([]string, len(entityIDs))
+			for idx, entityID := range entityIDs {
+				entityIDsAsStrings[idx] = entityID.String()
+			}
+			assert.Equal(t, testInstance.entityIDs, entityIDsAsStrings)
 		})
 	}
 }

@@ -3,6 +3,7 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Win32;
 using System;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
@@ -177,6 +178,7 @@ namespace Datadog.CustomActions
             {
                 _session.Log("WindowsBuild not found");
             }
+            _session.Log("FIPS enabled: " + CryptoConfig.AllowOnlyFipsAlgorithms);
         }
 
         public static SecurityIdentifier GetPreviousAgentUser(ISession session, IRegistryServices registryServices,

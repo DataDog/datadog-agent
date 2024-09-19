@@ -25,11 +25,33 @@ type FieldCapabilities []FieldCapability
 
 // FieldCapability represents a field and the type of its value (scalar, pattern, bitmask, ...)
 type FieldCapability struct {
-	Field        eval.Field
-	TypeBitmask  eval.FieldValueType
-	ValidateFnc  func(FilterValue) bool
-	FilterWeight int
-	FilterMode   FilterMode
+	Field                  eval.Field
+	TypeBitmask            eval.FieldValueType
+	ValidateFnc            func(FilterValue) bool
+	FilterWeight           int
+	FilterMode             FilterMode
+	RangeFilterValue       *RangeFilterValue
+	HandleNotApproverValue func(valueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool)
+}
+
+// TypeMatches return if a type is supported
+func (fc FieldCapability) TypeMatches(kind eval.FieldValueType) bool {
+	return kind&fc.TypeBitmask != 0
+}
+
+// Validate validate the filter value
+func (fc FieldCapability) Validate(filterValue FilterValue) bool {
+	if filterValue.Field != fc.Field || !fc.TypeMatches(filterValue.Type) {
+		return false
+	}
+
+	if fc.ValidateFnc != nil {
+		if !fc.ValidateFnc(filterValue) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetFields returns all the fields of FieldCapabilities
@@ -39,31 +61,4 @@ func (fcs FieldCapabilities) GetFields() []eval.Field {
 		fields = append(fields, fc.Field)
 	}
 	return fields
-}
-
-// Validate ensures all the filter values match field capabilities
-func (fcs FieldCapabilities) Validate(filterValues FilterValues) bool {
-	for _, filterValue := range filterValues {
-		var found bool
-		for _, fc := range fcs {
-			if filterValue.Field != fc.Field || filterValue.Type&fc.TypeBitmask == 0 {
-				continue
-			}
-
-			if fc.ValidateFnc != nil {
-				if !fc.ValidateFnc(filterValue) {
-					continue
-				}
-			}
-
-			found = true
-			break
-		}
-
-		if !found {
-			return false
-		}
-	}
-
-	return true
 }

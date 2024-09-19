@@ -237,7 +237,7 @@ var defaultProfiles = `
           - check_name:network
           - check_name:io
           - check_name:file_handle
-      metrics:  
+      metrics:
         - name: checks.runs
           aggregate_tags:
             - check_name
@@ -257,6 +257,10 @@ var defaultProfiles = `
         - name: logs.destination_http_resp
           aggregate_tags:
             - status_code
+        - name: oracle.activity_samples_count
+        - name: oracle.activity_latency
+        - name: oracle.statement_metrics
+        - name: oracle.statement_plan_errors
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries

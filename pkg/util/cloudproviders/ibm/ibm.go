@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +49,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 			"Metadata-Flavor": "ibm",
 		},
 		[]byte("{\"expires_in\": 3600}"),
-		config.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog())
+		pkgconfigsetup.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, pkgconfigsetup.Datadog())
 	if err != nil {
 		token.ExpirationDate = time.Now()
 		return "", time.Time{}, err
@@ -82,7 +82,7 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "IBM instance name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !config.IsCloudProviderEnabled(CloudProviderName) {
+		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return "", fmt.Errorf("IBM cloud provider is disabled by configuration")
 		}
 
@@ -96,7 +96,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 			map[string]string{
 				"Authorization": fmt.Sprintf("Bearer %s", t),
 			},
-			config.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog())
+			pkgconfigsetup.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("IBM HostAliases: unable to query metadata endpoint: %s", err)
 		}

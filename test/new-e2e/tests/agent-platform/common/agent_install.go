@@ -120,6 +120,6 @@ func CheckUninstallation(t *testing.T, client *TestClient) {
 		installFolderPath := client.Helper.GetInstallFolder()
 
 		entries, err := client.FileManager.ReadDir(installFolderPath)
-		require.Error(tt, err, "should not find anything in install folder, found %v dir entries ", len(entries))
+		require.Error(tt, err, "should not find anything in install folder, found %v dir entries.\nContent: %+v ", len(entries), entries)
 	})
 }
