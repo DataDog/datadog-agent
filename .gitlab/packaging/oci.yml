@@ -67,12 +67,12 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7"]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
 installer_oci:
   extends: .package_oci
-  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64"]
+  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-installer"

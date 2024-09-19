@@ -28,12 +28,12 @@ include:
 
 deploy_agent_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "agent_oci" ]
+  needs: [ "agent_oci", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
 deploy_installer_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "installer_oci" ]
+  needs: [ "installer_oci", "go_tools_deps" ]
   variables:
     OCI_PRODUCT: "datadog-installer"

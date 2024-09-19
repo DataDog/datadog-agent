@@ -66,6 +66,7 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - inv -e install-tools
+    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest # This is needed to provide cached package for the agent_oci job to mitigate #incident-30779. This can be removed when datadog-packages is stored internally as a binary
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
