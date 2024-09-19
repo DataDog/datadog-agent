@@ -19,7 +19,7 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
 		SamplingRate:   aggFlow.SamplingRate,
-		Direction:      format.Direction(aggFlow.Direction),
+		Direction:      format.Direction(aggFlow.Direction, aggFlow.FlowType),
 		Device: payload.Device{
 			Namespace: aggFlow.Namespace,
 		},
