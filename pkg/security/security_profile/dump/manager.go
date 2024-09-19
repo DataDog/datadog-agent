@@ -690,9 +690,14 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	// compute the list of ancestors, we need to start inserting them from the root
 	ancestors := []*model.ProcessCacheEntry{entry}
 	parent := pces.getNextAncestorBinaryOrArgv0(&entry.ProcessContext)
-	for parent != nil && pces.ad.MatchesSelector(entry) {
+	var nextAncestor *model.ProcessCacheEntry
+	if parent != nil {
+		nextAncestor = pces.getNextAncestorBinaryOrArgv0(&parent.ProcessContext)
+	}
+	for nextAncestor != nil && pces.ad.MatchesSelector(entry) && activity_tree.IsValidRootNodeForAncestor(&parent.ProcessContext, nextAncestor) {
 		ancestors = append(ancestors, parent)
-		parent = pces.getNextAncestorBinaryOrArgv0(&parent.ProcessContext)
+		parent = nextAncestor
+		nextAncestor = pces.getNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 	}
 	slices.Reverse(ancestors)
 
@@ -700,8 +705,8 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	for _, parent = range ancestors {
 		node, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {
-			// try to insert the other ancestors as we might find a valid root node in the lineage
-			continue
+			// if one of the parents wasn't inserted, leave now
+			break
 		}
 		if node != nil {
 			// This step is important to populate the kernel space "traced_pids" map. Some traced event types use this
