@@ -450,9 +450,9 @@ func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
 
-// TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
+// TestReadOnlyFileSystem ensures the launcher doesn't panic in a read-only
 // file system. There will be errors but it should handle them gracefully.
-func TestReadyOnlyFileSystem(t *testing.T) {
+func TestReadOnlyFileSystem(t *testing.T) {
 	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
 	err := os.Mkdir(readOnlyDir, 0444)
 	assert.Nil(t, err, "Unable to make tempdir readonly")

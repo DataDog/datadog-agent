@@ -64,8 +64,8 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		ddLog.Warn("Unable to create integrations logs directory:", err)
 	}
 
-	logsTotalUsageSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
-	logsUsageRatio := pkgConfig.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
+	logsTotalUsageSetting := pkgconfigsetup.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
+	logsUsageRatio := pkgconfigsetup.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
 	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
 	if err != nil {
 		ddLog.Warn("Unable to compute integrations logs max disk usage, defaulting to set value: ", err)
@@ -75,7 +75,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 	return &Launcher{
 		sources:              sources,
 		runPath:              runPath,
-		fileSizeMax:          pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
+		fileSizeMax:          pkgconfigsetup.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
 		combinedUsageMax:     maxDiskUsage,
 		combinedUsageSize:    0,
 		stop:                 make(chan struct{}),
