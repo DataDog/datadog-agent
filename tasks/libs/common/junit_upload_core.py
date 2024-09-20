@@ -70,6 +70,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     """
     from codeowners import CodeOwners
 
+    print("HEHE" * 100)
+    print(junit_tgz)
+    print(codeowners_path)
+
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
@@ -231,13 +235,8 @@ def upload_junitxmls(team_dir: Path):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
-
-    print("HEHE" * 100)
-    print(team_dir)
     additional_tags = read_additional_tags(team_dir.parent)
-    print("HEHE" * 100)
     process_env = _update_environ(team_dir.parent)
-    print("HEHE" * 100)
     processes = []
 
     owner, flavor = team_dir.name.split("_")
