@@ -30,6 +30,7 @@ var validProducts = map[string]struct{}{
 	ProductContainerAutoscalingValues:   {},
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
+	ProductOrchestratorK8sCRDs:          {},
 }
 
 const (
@@ -81,4 +82,6 @@ const (
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config
 	ProductTesting2 = "TESTING2"
+	// ProductOrchestratorK8sCRDs receives values for k8s crds
+	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
 )
