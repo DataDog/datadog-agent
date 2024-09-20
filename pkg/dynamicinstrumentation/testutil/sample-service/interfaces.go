@@ -14,19 +14,19 @@ type behavior interface {
 	DoSomething() string
 }
 
-type first_behavior struct {
+type firstBehavior struct {
 	s string
 }
 
-type second_behavior struct {
+type secondBehavior struct {
 	i int
 }
 
-func (b first_behavior) DoSomething() string {
+func (b firstBehavior) DoSomething() string {
 	return fmt.Sprintln(b)
 }
 
-func (b second_behavior) DoSomething() string {
+func (b secondBehavior) DoSomething() string {
 	return fmt.Sprintf("%10d\n", b.i)
 }
 
@@ -55,6 +55,6 @@ func test_interface(b behavior) string {
 }
 
 func executeInterfaceFuncs() {
-	test_interface(first_behavior{"foo"})
-	test_interface(second_behavior{42})
+	test_interface(firstBehavior{"foo"})
+	test_interface(secondBehavior{42})
 }

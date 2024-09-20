@@ -5,20 +5,20 @@
 
 package main
 
-type TypeWithGenerics[V comparable] struct {
+type typeWithGenerics[V comparable] struct {
 	Value V
 }
 
 //nolint:all
 //go:noinline
-func (x TypeWithGenerics[V]) Guess(value V) bool {
+func (x typeWithGenerics[V]) Guess(value V) bool {
 	return x.Value == value
 }
 
 func executeGenericFuncs() {
-	x := TypeWithGenerics[string]{Value: "generics work"}
+	x := typeWithGenerics[string]{Value: "generics work"}
 	x.Guess("generics work")
 
-	y := TypeWithGenerics[int]{Value: 42}
+	y := typeWithGenerics[int]{Value: 42}
 	y.Guess(21)
 }

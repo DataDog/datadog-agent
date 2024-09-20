@@ -15,7 +15,7 @@ import (
 func startHTTPServer() error {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Datadog-Response", "Success")
-		fmt.Fprint(w, "OK")
+		fmt.Fprintf(w, "OK %s", r.Method)
 	})
 
 	return http.ListenAndServe(":9999", nil)
