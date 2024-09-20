@@ -142,11 +142,13 @@
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
@@ -189,6 +191,9 @@
       - $CI_PROJECT_DIR/stack.output
       - $CI_PROJECT_DIR/libvirt
       - $VMCONFIG_FILE
+  reports:
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
