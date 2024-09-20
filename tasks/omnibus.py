@@ -145,7 +145,6 @@ def get_omnibus_env(
     if 'PACKAGE_ARCH' in os.environ:
         env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
     if 'INSTALL_DIR' in os.environ:
-        print('Forwarding INSTALL_DIR')
         env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
 
     return env
