@@ -194,7 +194,7 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 		return new, error
 	}
 
-	if event.GetEventType() == model.ExecEventType {
+	if event.GetEventType() == model.ExecEventType || event.GetEventType() == model.ForkEventType {
 		return new, nil
 	}
 

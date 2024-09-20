@@ -43,9 +43,7 @@ type processKey struct {
 }
 
 type execKey struct {
-	pid  uint32
-	tid  uint32
-	nsid uint64
+	pathnameStr string
 }
 
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
@@ -54,7 +52,7 @@ func (at *ProcessResolver) IsAValidRootNode(entry *model.Process) bool {
 }
 
 func (at *ProcessResolver) ExecMatches(e1, e2 *processlist.ExecNode) bool {
-	return e1.Pid == e2.Pid && e1.NSID == e2.NSID && e1.Tid == e2.Tid
+	return e1.FileEvent.PathnameStr == e2.FileEvent.PathnameStr
 }
 
 func (at *ProcessResolver) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
@@ -72,7 +70,7 @@ func (at *ProcessResolver) GetProcessCacheKey(process *model.Process) interface{
 }
 
 func (at *ProcessResolver) GetExecCacheKey(process *model.Process) interface{} {
-	return execKey{pid: process.Pid, tid: process.Tid, nsid: process.NSID}
+	return execKey{pathnameStr: process.FileEvent.PathnameStr}
 }
 
 func (at *ProcessResolver) GetParentProcessCacheKey(event *model.Event) interface{} {

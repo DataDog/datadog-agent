@@ -19,14 +19,14 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func newFakeExecEvent(ppid, pid, tid int) *model.Event {
+func newFakeExecEvent(ppid, pid int, pathname string) *model.Event {
 	e := model.NewFakeEvent()
 	e.Type = uint32(model.ExecEventType)
 	e.ProcessContext = &model.ProcessContext{}
 	e.ProcessContext.PPid = uint32(ppid)
 	e.ProcessContext.Pid = uint32(pid)
-	e.ProcessContext.Tid = uint32(tid)
 	e.ProcessContext.ForkTime = time.Now()
+	e.ProcessContext.FileEvent.PathnameStr = pathname
 	return e
 }
 
@@ -149,7 +149,7 @@ func TestFork1st(t *testing.T) {
 	stats := testStats{}
 
 	// parent
-	parent := newFakeExecEvent(0, 1, 1)
+	parent := newFakeExecEvent(0, 1, "/bin/parent")
 	new, err := processList.Insert(parent, true, "")
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestFork1st(t *testing.T) {
 
 	// parent
 	//     \ child
-	child := newFakeExecEvent(1, 2, 2)
+	child := newFakeExecEvent(1, 2, "/bin/child")
 	new, err = processList.Insert(child, true, "")
 	if err != nil {
 		t.Fatal(err)
