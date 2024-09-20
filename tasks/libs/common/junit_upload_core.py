@@ -70,10 +70,6 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     """
     from codeowners import CodeOwners
 
-    print("HEHE" * 100)
-    print(junit_tgz)
-    print(codeowners_path)
-
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
