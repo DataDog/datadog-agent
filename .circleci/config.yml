@@ -78,19 +78,6 @@ jobs:
             - /go/src/github.com/DataDog/datadog-agent/dev
             - /usr/local/bin
 
-  unit_tests:
-    <<: *job_template
-    resource_class: xlarge
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: run unit tests
-          no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib --test-washer
-          environment:
-            GO_TEST_SKIP_FLAKE: "true"
-
   integration_tests:
     <<: *job_template
     resource_class: large
@@ -132,9 +119,6 @@ workflows:
       - dependencies:
           requires:
             - checkout_code
-      - unit_tests:
-          requires:
-            - dependencies
       - integration_tests:
           requires:
             - dependencies
