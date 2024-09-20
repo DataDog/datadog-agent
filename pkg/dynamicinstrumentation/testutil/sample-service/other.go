@@ -13,11 +13,13 @@ import (
 
 type triggerVerifierErrorForTesting byte
 
+//nolint:all
 //go:noinline
 func test_trigger_verifier_error(t triggerVerifierErrorForTesting) {}
 
 // return_goroutine_id gets the goroutine ID and returns it
 //
+//nolint:all
 //go:noinline
 func return_goroutine_id() uint64 {
 	b := make([]byte, 64)
@@ -28,6 +30,7 @@ func return_goroutine_id() uint64 {
 	return n
 }
 
+//nolint:all
 //go:noinline
 func executeOther() {
 	test_trigger_verifier_error(1)

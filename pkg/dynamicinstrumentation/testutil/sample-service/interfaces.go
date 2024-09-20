@@ -42,6 +42,7 @@ type itab struct {
 	fun   [1]uintptr
 }
 
+//nolint:all
 //go:noinline
 func test_interface(b behavior) string {
 	ptr := unsafe.Pointer(&b)
