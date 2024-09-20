@@ -45,8 +45,8 @@ dir C:\opt\datadog-installer\
 dir %REPO_ROOT%\omnibus\pkg\
 
 REM copy resulting packages to expected location for collection by gitlab.
-REM if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
-REM copy %REPO_ROOT%\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
+if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
+copy %REPO_ROOT%\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
 REM Save the installer.exe for bootstrapping
 SET TARGET_INSTALLER = c:\mnt\omnibus\pkg\datadog-installer-%AGENT_VERSION%-1-x86_64.exe
 copy C:\opt\datadog-installer\datadog-installer.exe %TARGET_INSTALLER% || exit /b 7
