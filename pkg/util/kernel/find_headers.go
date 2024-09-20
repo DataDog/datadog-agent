@@ -22,7 +22,6 @@ import (
 	"strings"
 	"sync"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 	"golang.org/x/exp/maps"
@@ -461,7 +460,7 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 
 	khdTags := append(tags,
 		fmt.Sprintf("result:%s", resultTag),
-		fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(result).String()),
+		fmt.Sprintf("reason_code:%d", result),
 	)
 
 	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {
