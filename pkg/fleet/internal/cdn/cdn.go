@@ -10,9 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	detectenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -28,9 +26,8 @@ const configOrderID = "configuration_order"
 
 // CDN provides access to the Remote Config CDN.
 type CDN struct {
-	client                *remoteconfig.HTTPClient
-	currentRootsVersion   uint64
-	currentTargetsVersion uint64
+	client              *remoteconfig.HTTPClient
+	currentRootsVersion uint64
 }
 
 // Config represents the configuration from the CDN.
@@ -47,15 +44,10 @@ type orderConfig struct {
 
 // New creates a new CDN.
 func New(env *env.Env) (*CDN, error) {
-	config := pkgconfigsetup.Datadog()
-	detectenv.DetectFeatures(config)
 	client, err := remoteconfig.NewHTTPClient(
-		config,
-		fmt.Sprintf("https://remote-config.%s", env.Site),
-		fmt.Sprintf("https://config.%s", env.Site),
+		"/opt/datadog-agent",
 		env.Site,
 		env.APIKey,
-		"",
 		version.AgentVersion,
 	)
 	if err != nil {
@@ -63,9 +55,8 @@ func New(env *env.Env) (*CDN, error) {
 	}
 
 	return &CDN{
-		client:                client,
-		currentTargetsVersion: 1,
-		currentRootsVersion:   1,
+		client:              client,
+		currentRootsVersion: 1,
 	}, nil
 }
 
@@ -73,7 +64,7 @@ func New(env *env.Env) (*CDN, error) {
 func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	configLayers, err := c.getOrderedLayers()
+	configLayers, err := c.getOrderedLayers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -86,8 +77,9 @@ func (c *CDN) Close() error {
 }
 
 // getOrderedLayers calls the Remote Config service to get the ordered layers.
-func (c *CDN) getOrderedLayers() ([]*layer, error) {
+func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
+		ctx,
 		[]string{"AGENT_CONFIG"},
 		// Always send 0 since we are relying on the CDN cache state instead of our own tracer cache. This will fetch the latest configs from the cache/CDN everytime.
 		0,
@@ -127,9 +119,6 @@ func (c *CDN) getOrderedLayers() ([]*layer, error) {
 	if err == nil {
 		var targets data.Targets
 		err = json.Unmarshal(signedTargets.Signed, &targets)
-		if err == nil && uint64(targets.Version) > c.currentTargetsVersion {
-			c.currentTargetsVersion = uint64(targets.Version)
-		}
 	}
 
 	// Unmarshal RC results

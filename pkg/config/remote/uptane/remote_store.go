@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/DataDog/go-tuf/client"
 
@@ -177,7 +178,7 @@ func (sc *remoteStoreConfig) update(update *pbgo.LatestConfigsResponse) {
 type cdnRemoteStore struct {
 	httpClient     RequestDoer
 	host           string
-	site           string
+	pathPrefix     string
 	apiKey         string
 	repositoryType string
 
@@ -197,24 +198,56 @@ type cdnRemoteDirectorStore struct {
 	cdnRemoteStore
 }
 
-func newCDNRemoteConfigStore(client *http.Client, host, site, apiKey string) *cdnRemoteConfigStore {
+// getCDNHostnameFromSite returns the staging or production CDN hostname for a given site.
+// Site can be any of the (non-fed) documented DD sites per https://docs.datadoghq.com/getting_started/site/
+func getCDNHostnameFromSite(site string) string {
+	s := strings.TrimPrefix(site, "https://")
+	switch s {
+	// staging:
+	case "datad0g.com":
+		return "remote-config.datad0g.com"
+	// prod:
+	case "ap1.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "us5.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "us3.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	case "app.datadoghq.eu":
+		return "remote-config.datadoghq.com"
+	case "app.datadoghq.com":
+		return "remote-config.datadoghq.com"
+	}
+	return "remote-config.datadoghq.com"
+}
+
+// Trims any schemas or non-datacenter related subdomains from the site to get the path prefix for the CDN
+// e.g. https://us3.datadoghq.com -> us3.datadoghq.com
+// e.g. https://app.datadoghq.com -> datadoghq.com
+func getCDNPathPrefixFromSite(site string) string {
+	s := strings.TrimPrefix(site, "https://app.")
+	s = strings.TrimPrefix(site, "https://")
+	return s
+}
+
+func newCDNRemoteConfigStore(client *http.Client, site, apiKey string) *cdnRemoteConfigStore {
 	return &cdnRemoteConfigStore{
 		cdnRemoteStore: cdnRemoteStore{
 			httpClient:     client,
-			host:           host,
-			site:           site,
+			host:           getCDNHostnameFromSite(site),
+			pathPrefix:     getCDNPathPrefixFromSite(site),
 			apiKey:         apiKey,
 			repositoryType: "config",
 		},
 	}
 }
 
-func newCDNRemoteDirectorStore(client *http.Client, host, site, apiKey string) *cdnRemoteDirectorStore {
+func newCDNRemoteDirectorStore(client *http.Client, site, apiKey string) *cdnRemoteDirectorStore {
 	return &cdnRemoteDirectorStore{
 		cdnRemoteStore: cdnRemoteStore{
 			httpClient:     client,
-			host:           host,
-			site:           site,
+			host:           getCDNHostnameFromSite(site),
+			pathPrefix:     getCDNPathPrefixFromSite(site),
 			apiKey:         apiKey,
 			repositoryType: "director",
 		},
@@ -246,7 +279,7 @@ func (s *cdnRemoteStore) newAuthenticatedHTTPReq(method, p string) (*http.Reques
 
 	req.URL.Scheme = "https"
 	req.URL.Host = s.host
-	req.URL.Path = "/" + path.Join(s.site, p)
+	req.URL.Path = "/" + path.Join(s.pathPrefix, p)
 	req.Host = s.host
 
 	return req, err

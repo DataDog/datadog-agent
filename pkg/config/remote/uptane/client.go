@@ -9,8 +9,10 @@ package uptane
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,9 +30,8 @@ import (
 type Client struct {
 	sync.Mutex
 
-	site            string
-	orgID           int64
-	orgUUIDProvider OrgUUIDProvider
+	site  string
+	orgID int64
 
 	configLocalStore   *localStore
 	configTUFClient    *client.Client
@@ -41,13 +42,14 @@ type Client struct {
 	directorRootOverride string
 
 	targetStore *targetStore
-	orgStore    *orgStore
 
 	cachedVerify     bool
 	cachedVerifyTime time.Time
 
 	// TUF transaction tracker
 	transactionalStore *transactionalStore
+
+	verifyOrg func() error
 }
 
 // CoreAgentClient is an uptane client that fetches the latest configs from the Core Agent
@@ -55,12 +57,14 @@ type CoreAgentClient struct {
 	*Client
 	configRemoteStore   *remoteStoreConfig
 	directorRemoteStore *remoteStoreDirector
+
+	orgStore        *orgStore
+	orgUUIDProvider OrgUUIDProvider
 }
 
 // CDNClient is an uptane client that fetches the latest configs from the server over HTTP(s)
 type CDNClient struct {
 	*Client
-	host                string
 	directorRemoteStore *cdnRemoteDirectorStore
 	configRemoteStore   *cdnRemoteConfigStore
 }
@@ -103,13 +107,15 @@ func NewCoreAgentClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, opti
 	c = &CoreAgentClient{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
+		orgStore:            orgStore,
+		orgUUIDProvider:     orgUUIDProvider,
 		Client: &Client{
 			targetStore:        targetStore,
-			orgStore:           orgStore,
 			transactionalStore: transactionalStore,
-			orgUUIDProvider:    orgUUIDProvider,
 		},
 	}
+	// TODO 🤮ugly 🤮ugly 🤮ugly 🤮
+	c.Client.verifyOrg = c.verifyOrg
 
 	for _, o := range options {
 		o(c.Client)
@@ -181,36 +187,33 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 	return nil
 }
 
-// NewHTTPClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
-func NewHTTPClient(cacheDB *bbolt.DB, host, site, apiKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CDNClient, err error) {
-
+// NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
+func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOption) (c *CDNClient, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
 	targetStore := newTargetStore(transactionalStore)
-	orgStore := newOrgStore(transactionalStore)
 
 	httpClient := &http.Client{}
 
 	c = &CDNClient{
-		host:                host,
-		configRemoteStore:   newCDNRemoteConfigStore(httpClient, host, site, apiKey),
-		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, host, site, apiKey),
+		configRemoteStore:   newCDNRemoteConfigStore(httpClient, site, apiKey),
+		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, site, apiKey),
 		Client: &Client{
 			site:               site,
 			targetStore:        targetStore,
-			orgStore:           orgStore,
 			transactionalStore: transactionalStore,
-			orgUUIDProvider:    orgUUIDProvider,
 		},
 	}
 	for _, o := range options {
 		o(c.Client)
 	}
+	// TODO 🤮ugly 🤮ugly 🤮ugly 🤮
+	c.Client.verifyOrg = func() error { return nil }
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, c.site, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, site, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, c.site, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, site, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +223,10 @@ func NewHTTPClient(cacheDB *bbolt.DB, host, site, apiKey string, orgUUIDProvider
 }
 
 // Update updates the uptane client and rollbacks in case of error
-func (c *CDNClient) Update() error {
+func (c *CDNClient) Update(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.Update")
+	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
@@ -229,7 +235,7 @@ func (c *CDNClient) Update() error {
 	// the defer is present to be sure a transaction is never left behind.
 	defer c.transactionalStore.rollback()
 
-	err := c.update()
+	err = c.update(ctx)
 	if err != nil {
 		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
@@ -239,8 +245,12 @@ func (c *CDNClient) Update() error {
 }
 
 // update updates the uptane client
-func (c *CDNClient) update() error {
-	err := c.updateRepos()
+func (c *CDNClient) update(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.update")
+	defer span.Finish(tracer.WithError(err))
+
+	err = c.updateRepos(ctx)
 	if err != nil {
 		return err
 	}
@@ -251,14 +261,20 @@ func (c *CDNClient) update() error {
 	return c.verify()
 }
 
-func (c *CDNClient) updateRepos() error {
-	_, err := c.directorTUFClient.Update()
+func (c *CDNClient) updateRepos(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
+	defer span.Finish(tracer.WithError(err))
+
+	_, err = c.directorTUFClient.Update()
 	if err != nil {
-		return errors.Wrap(err, "failed updating director repository")
+		err = errors.Wrap(err, "failed updating director repository")
+		return err
 	}
 	_, err = c.configTUFClient.Update()
 	if err != nil {
-		return errors.Wrap(err, "could not update config repository")
+		err = errors.Wrap(err, "could not update config repository")
+		return err
 	}
 	return nil
 }
@@ -372,7 +388,7 @@ func (c *Client) verify() error {
 }
 
 // StoredOrgUUID returns the org UUID given by the backend
-func (c *Client) StoredOrgUUID() (string, error) {
+func (c *CoreAgentClient) StoredOrgUUID() (string, error) {
 	// This is an important block of code : to avoid being locked out
 	// of the agent in case of a wrong uuid being stored, we link an
 	// org UUID storage to a root version. What this means in practice
@@ -399,7 +415,7 @@ func (c *Client) StoredOrgUUID() (string, error) {
 	return orgUUID, nil
 }
 
-func (c *Client) verifyOrg() error {
+func (c *CoreAgentClient) verifyOrg() error {
 	rawCustom, err := c.configLocalStore.GetMetaCustom(metaSnapshot)
 	if err != nil {
 		return fmt.Errorf("could not obtain snapshot custom: %v", err)

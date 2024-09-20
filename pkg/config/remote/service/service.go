@@ -18,6 +18,7 @@ import (
 	"expvar"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/url"
 	"path"
 	"strconv"
@@ -142,7 +143,6 @@ type CoreAgentService struct {
 type uptaneClient interface {
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
-	StoredOrgUUID() (string, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
@@ -153,11 +153,12 @@ type uptaneClient interface {
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
+	StoredOrgUUID() (string, error)
 }
 
 type cdnUptaneClient interface {
 	uptaneClient
-	Update() error
+	Update(ctx context.Context) error
 }
 
 // RcTelemetryReporter should be implemented by the agent to publish metrics on exceptional cache bypass request events
@@ -544,7 +545,7 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		log.Warnf("[%s] could not get previous backend client state: %v", s.rcType, err)
 	}
-	orgUUID, err := s.uptane.StoredOrgUUID()
+	orgUUID, err := s.coreAgentUptane.StoredOrgUUID()
 	if err != nil {
 		s.Unlock()
 		return err
@@ -955,44 +956,20 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 type HTTPClient struct {
 	Service
 	lastUpdate time.Time
-	api        api.API
 	cdnUptane  cdnUptaneClient
 }
 
 // NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
 // It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
 // An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
-func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agentVersion string) (*HTTPClient, error) {
-	dbPath := path.Join(cfg.GetString("run_path"), "remote-config-cdn.db")
+func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
+	dbPath := path.Join(runPath, "remote-config-cdn.db")
 	db, err := openCacheDB(dbPath, agentVersion, apiKey)
 	if err != nil {
 		return nil, err
 	}
 
-	uptaneClientOptions := []uptane.ClientOption{
-		uptane.WithConfigRootOverride(site, ""),
-		uptane.WithDirectorRootOverride(site, ""),
-	}
-	baseURL, err := url.Parse(baseRawURL)
-	if err != nil {
-		return nil, err
-	}
-	authKeys, err := getRemoteConfigAuthKeys(apiKey, rcKey)
-	if err != nil {
-		return nil, err
-	}
-	http, err := api.NewHTTPClient(authKeys.apiAuth(), cfg, baseURL)
-	if err != nil {
-		return nil, err
-	}
-	uptaneHTTPClient, err := uptane.NewHTTPClient(
-		db,
-		host,
-		site,
-		apiKey,
-		newRCBackendOrgUUIDProvider(http),
-		uptaneClientOptions...,
-	)
+	uptaneCDNClient, err := uptane.NewCDNClient(db, site, apiKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,11 +977,10 @@ func NewHTTPClient(cfg model.Reader, baseRawURL, host, site, apiKey, rcKey, agen
 	return &HTTPClient{
 		Service: Service{
 			rcType: "CDN",
-			uptane: uptaneHTTPClient,
+			uptane: uptaneCDNClient,
 			db:     db,
 		},
-		api:       http,
-		cdnUptane: uptaneHTTPClient,
+		cdnUptane: uptaneCDNClient,
 	}, nil
 }
 
@@ -1019,34 +995,37 @@ func (c *HTTPClient) Close() error {
 // an error is returned. If there is no update (the targets version is up-to-date) nil
 // is returned for both the update and error.
 func (c *HTTPClient) GetCDNConfigUpdate(
+	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
 	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
-
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.GetCDNConfigUpdate")
+	defer span.Finish(tracer.WithError(err))
 	if !c.shouldUpdate() {
-		return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+		span.SetTag("use_cache", true)
+		return c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
 	}
 
-	// check org status in the backend. If RC is disabled, return current state.
-	response, err := c.api.FetchOrgStatus(context.Background())
-	if err != nil || !response.Enabled || !response.Authorized {
-		return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
-	}
-
-	err = c.update()
+	err = c.update(ctx)
 	if err != nil {
+		span.SetTag("cache_update_error", true)
 		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
-	return c.getUpdate(products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	u, err := c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	return u, err
 }
 
-func (c *HTTPClient) update() error {
+func (c *HTTPClient) update(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.update")
+	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 
-	err := c.cdnUptane.Update()
+	err = c.cdnUptane.Update(ctx)
 	if err != nil {
 		return err
 	}
@@ -1065,12 +1044,19 @@ func (c *HTTPClient) shouldUpdate() bool {
 }
 
 func (c *HTTPClient) getUpdate(
+	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
 	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
+	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
+	defer span.Finish()
+	span.SetTag("products", products)
+	span.SetTag("current_targets_version", currentTargetsVersion)
+	span.SetTag("current_root_version", currentRootVersion)
+	span.SetTag("cached_target_files", cachedTargetFiles)
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
@@ -1107,6 +1093,7 @@ func (c *HTTPClient) getUpdate(
 		productsMap[product] = struct{}{}
 	}
 	configs := make([]string, 0)
+	expiredConfigs := make([]string, 0)
 	for path, meta := range directorTargets {
 		pathMeta, err := rdata.ParseConfigPath(path)
 		if err != nil {
@@ -1120,6 +1107,7 @@ func (c *HTTPClient) getUpdate(
 			return nil, err
 		}
 		if configExpired(configMetadata.Expires) {
+			expiredConfigs = append(expiredConfigs, path)
 			continue
 		}
 
@@ -1131,6 +1119,8 @@ func (c *HTTPClient) getUpdate(
 		fileMap[f.Path] = f.Raw
 	}
 
+	span.SetTag("configs.returned", configs)
+	span.SetTag("configs.expired", expiredConfigs)
 	return &state.Update{
 		TUFRoots:      roots,
 		TUFTargets:    canonicalTargets,
