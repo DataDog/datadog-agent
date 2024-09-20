@@ -21,7 +21,7 @@ import (
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -351,7 +351,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
-			tags:            make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
+			tags:            tags,
 			actionReports:   actionReports,
 		}
 
@@ -545,7 +545,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	if as.msgSender == nil {
-		if pkgconfig.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
+		if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
 			msgSender, err := NewDirectMsgSender(stopper)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -51,7 +51,7 @@ type WorkloadMetaExtractor struct {
 
 	pidToCid map[int]string
 
-	sysprobeConfig config.Reader
+	sysprobeConfig pkgconfigmodel.Reader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
@@ -72,7 +72,7 @@ var (
 )
 
 // GetSharedWorkloadMetaExtractor returns a shared WorkloadMetaExtractor
-func GetSharedWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
+func GetSharedWorkloadMetaExtractor(sysprobeConfig pkgconfigmodel.Reader) *WorkloadMetaExtractor {
 	initWorkloadMetaExtractor.Do(func() {
 		sharedWorkloadMetaExtractor = NewWorkloadMetaExtractor(sysprobeConfig)
 	})
@@ -80,7 +80,7 @@ func GetSharedWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaE
 }
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig pkgconfigmodel.Reader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
@@ -197,7 +197,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 }
 
 // Enabled returns whether the extractor should be enabled
-func Enabled(ddconfig config.Reader) bool {
+func Enabled(ddconfig pkgconfigmodel.Reader) bool {
 	enabled := ddconfig.GetBool("language_detection.enabled")
 	if enabled && runtime.GOOS == "darwin" {
 		log.Warn("Language detection is not supported on macOS")
