@@ -3,14 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Sample-service is a simple program with lots of functions to test GoDI against
 package main
 
 import (
-	"log"
 	"net"
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -19,7 +20,7 @@ func main() {
 		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED") != "" &&
 		os.Getenv("DD_DYNAMIC_INSTRUMENTATION_OFFLINE") == ""
 
-	log.Println("Starting sample process with tracerEnabled=", tracerEnabled)
+	log.Info("Starting sample process with tracerEnabled=", tracerEnabled)
 
 	if tracerEnabled {
 		ddAgentHost := os.Getenv("DD_AGENT_HOST")
@@ -31,7 +32,12 @@ func main() {
 			tracer.WithDebugMode(true))
 	}
 
-	go startHTTPServer()
+	go func() {
+		err := startHTTPServer()
+		if err != nil {
+			log.Info(err)
+		}
+	}()
 
 	ticker := time.NewTicker(time.Second / 2)
 	for range ticker.C {

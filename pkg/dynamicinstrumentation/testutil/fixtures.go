@@ -227,7 +227,7 @@ var structCaptures = fixtures{
 // TODO: this doesn't work yet:
 // could not determine locations of variables from debug information could not inspect param "x" on function: no location field in parameter entry
 var genericCaptures = fixtures{
-	"main.TypeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
+	"main.typeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
 }
 
 // TODO: check how map entries should be represented, likely that entries have key / value pair fields
