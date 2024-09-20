@@ -49,7 +49,7 @@ def build(
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
-    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = f"CGO_ENABLED=0 go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
