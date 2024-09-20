@@ -305,7 +305,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithEventBridgeEvent(eventPa
 	if traceContext := eventPayload.Detail.TraceContext; traceContext != nil {
 		// The bus name isn't included in the default AWS payload, so we use
 		// `x-datadog-bus-name` from the tracer if it exists.
-		if bus, ok := traceContext[busName]; ok {
+		if bus, ok := traceContext[resourceName]; ok {
 			inferredSpan.Span.Resource = bus
 		}
 
