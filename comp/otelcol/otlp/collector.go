@@ -12,9 +12,10 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -85,6 +87,11 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 	return enrichedTags
 }
 
+func generateID(group, resource, namespace, name string) string {
+
+	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
+}
+
 func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message.Message, tagger tagger.Component) (
 	otelcol.Factories,
 	error,
@@ -106,7 +113,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
-		loggingexporter.NewFactory(),
+		debugexporter.NewFactory(),
 	}
 
 	if logsAgentChannel != nil {
@@ -120,7 +127,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
 	if tagger != nil {
-		processorFactories = append(processorFactories, infraattributesprocessor.NewFactory(tagger))
+		processorFactories = append(processorFactories, infraattributesprocessor.NewFactory(tagger, generateID))
 	}
 	processors, err := processor.MakeFactoryMap(processorFactories...)
 	if err != nil {
@@ -163,30 +170,20 @@ type PipelineConfig struct {
 	Metrics map[string]interface{}
 }
 
-// valid values for debug log level.
-var debugLogLevelMap = map[string]struct{}{
-	"disabled": {},
-	"debug":    {},
-	"info":     {},
-	"warn":     {},
-	"error":    {},
-}
-
 // shouldSetLoggingSection returns whether debug logging is enabled.
-// If an invalid loglevel value is set, it assumes debug logging is disabled.
-// If the special 'disabled' value is set, it returns false.
-// Otherwise it returns true and lets the Collector handle the rest.
+// Debug logging is enabled when verbosity is set to a valid value except for "none", or left unset.
 func (p *PipelineConfig) shouldSetLoggingSection() bool {
-	// Legacy behavior: keep it so that we support `loglevel: disabled`.
-	if v, ok := p.Debug["loglevel"]; ok {
-		if s, ok := v.(string); ok {
-			_, ok := debugLogLevelMap[s]
-			return ok && s != "disabled"
-		}
+	v, ok := p.Debug["verbosity"]
+	if !ok {
+		return true
 	}
-
-	// If the legacy behavior does not apply, we always want to set the logging section.
-	return true
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+	var level configtelemetry.Level
+	err := level.UnmarshalText([]byte(s))
+	return err == nil && s != "none"
 }
 
 // Pipeline is an OTLP pipeline.

@@ -8,6 +8,7 @@ from pathlib import Path
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import bin_name, environ, gitlab_section
@@ -41,6 +42,7 @@ TOOLS = {
 @task
 def download_tools(ctx):
     """Download all Go tools for testing."""
+    print(color_message("This command is deprecated, please use `install-tools` instead", Color.ORANGE))
     with environ({'GO111MODULE': 'on'}):
         download_go_dependencies(ctx, paths=list(TOOLS.keys()))
 

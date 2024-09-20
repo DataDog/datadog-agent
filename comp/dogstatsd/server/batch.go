@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -162,7 +162,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 }
 
 func getShardGenerator() shardKeyGenerator {
-	isolated := config.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
+	isolated := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
 
 	base := shardKeyGeneratorBase{
 		keyGenerator: ckey.NewKeyGenerator(),
