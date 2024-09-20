@@ -23,7 +23,7 @@ def build(
     build_include=None,
     build_exclude=None,
     go_mod="mod",
-    no_strip_binary=True,
+    no_strip_binary=False,
 ):
     """
     Build the updater.
