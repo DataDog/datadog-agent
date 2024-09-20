@@ -23,7 +23,7 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
-var progIgnoredIds = make(map[ebpf.ProgramID]struct{})
+var progIgnoredIDs = make(map[ebpf.ProgramID]struct{})
 
 // errNoMapping is returned when a give map or program id is
 // not tracked as part of system-probe/security-agent
@@ -121,7 +121,7 @@ func RemoveNameMappings(mgr *manager.Manager) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	iterateMaps(maps, func(mapid uint32, name string) {
+	iterateMaps(maps, func(mapid uint32, _ string) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)
 	})
@@ -130,7 +130,7 @@ func RemoveNameMappings(mgr *manager.Manager) {
 	if err != nil {
 		return
 	}
-	iterateProgs(progs, func(progid uint32, name string) {
+	iterateProgs(progs, func(progid uint32, _ string) {
 		delete(progNameMapping, progid)
 		delete(progModuleMapping, progid)
 	})
@@ -151,11 +151,11 @@ func RemoveNameMappingsCollection(coll *ebpf.Collection) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	iterateMaps(coll.Maps, func(mapid uint32, name string) {
+	iterateMaps(coll.Maps, func(mapid uint32, _ string) {
 		delete(mapNameMapping, mapid)
 		delete(mapModuleMapping, mapid)
 	})
-	iterateProgs(coll.Programs, func(progid uint32, name string) {
+	iterateProgs(coll.Programs, func(progid uint32, _ string) {
 		delete(progNameMapping, progid)
 		delete(progModuleMapping, progid)
 	})
@@ -186,7 +186,7 @@ func AddIgnoredProgramID(id ebpf.ProgramID) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	progIgnoredIds[id] = struct{}{}
+	progIgnoredIDs[id] = struct{}{}
 }
 
 // RemoveIgnoredProgramID removes a program ID from the list of ignored programs
@@ -194,7 +194,7 @@ func RemoveIgnoredProgramID(id ebpf.ProgramID) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	progIgnoredIds[id] = struct{}{}
+	progIgnoredIDs[id] = struct{}{}
 }
 
 // IsProgramIDIgnored returns true if this program ID should be ignored
@@ -202,6 +202,6 @@ func IsProgramIDIgnored(id ebpf.ProgramID) bool {
 	mappingLock.RLock()
 	defer mappingLock.RUnlock()
 
-	_, ok := progIgnoredIds[id]
+	_, ok := progIgnoredIDs[id]
 	return ok
 }

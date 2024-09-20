@@ -172,6 +172,21 @@
       ],
       "description": "BindEventSerializer serializes a bind event to JSON"
     },
+    "CGroupContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "CGroup ID"
+        },
+        "manager": {
+          "type": "string",
+          "description": "CGroup manager"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+    },
     "ContainerContext": {
       "properties": {
         "id": {
@@ -195,11 +210,11 @@
     "DDContext": {
       "properties": {
         "span_id": {
-          "type": "integer",
+          "type": "string",
           "description": "Span ID used for APM correlation"
         },
         "trace_id": {
-          "type": "integer",
+          "type": "string",
           "description": "Trace ID used for APM correlation"
         }
       },
@@ -1260,6 +1275,10 @@
           "type": "string",
           "description": "Filesystem Group name"
         },
+        "auid": {
+          "type": "integer",
+          "description": "Login UID"
+        },
         "cap_effective": {
           "items": {
             "type": "string"
@@ -1287,6 +1306,7 @@
         "egid",
         "fsuid",
         "fsgid",
+        "auid",
         "cap_effective",
         "cap_permitted"
       ],
@@ -1475,6 +1495,10 @@
         "destination_path": {
           "type": "string",
           "description": "Destination path argument"
+        },
+        "fs_type": {
+          "type": "string",
+          "description": "File system type argument"
         }
       },
       "additionalProperties": false,
@@ -1504,7 +1528,13 @@
         "link": {
           "$ref": "#/$defs/SyscallArgs"
         },
+        "rename": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
         "utimes": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "mount": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },
@@ -1604,6 +1634,9 @@
     },
     "container": {
       "$ref": "#/$defs/ContainerContext"
+    },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
     },
     "network": {
       "$ref": "#/$defs/NetworkContext"

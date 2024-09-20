@@ -17,8 +17,10 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -26,7 +28,9 @@ import (
 
 // team: agent-apm
 
-type dependencies struct {
+// Dependencies defines the trace config component deps.
+// These include the core config configuration and component config params.
+type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
@@ -42,10 +46,12 @@ type cfg struct {
 	coreConfig coreconfig.Component
 
 	// warnings are the warnings generated during setup
-	warnings *pkgconfig.Warnings
+	warnings *model.Warnings
 }
 
-func newConfig(deps dependencies) (Component, error) {
+// NewConfig is the default constructor for the component, it returns
+// a component instance and an error.
+func NewConfig(deps Dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {
@@ -59,12 +65,12 @@ func newConfig(deps dependencies) (Component, error) {
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
 	}
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
 
 	return &c, nil
 }
 
-func (c *cfg) Warnings() *pkgconfig.Warnings {
+func (c *cfg) Warnings() *model.Warnings {
 	return c.warnings
 }
 
@@ -90,11 +96,10 @@ func (c *cfg) SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfig.ChangeLogLevel(lvl); err != nil {
+				if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				pkgconfig.Datadog().Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

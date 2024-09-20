@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -91,9 +92,57 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
 			assertFieldEqual(t, event, "open.file.path", testFileDelay)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assert.Equal(t, event.CGroupContext.CGroupFlags, containerutils.CGroupFlags(containerutils.CGroupManagerDocker))
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
+
+			test.validateOpenSchema(t, event)
+		})
+	})
+}
+
+func TestContainerFlags(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_flags",
+			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*docker*"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	if err != nil {
+		t.Skip("Skipping created time in containers tests: Docker not available")
+		return
+	}
+
+	if _, err := dockerWrapper.start(); err != nil {
+		t.Fatal(err)
+	}
+	defer dockerWrapper.stop()
+
+	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_container_flags")
+			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldEqual(t, event, "container.runtime", "docker")
+			assert.Equal(t, containerutils.CGroupFlags(containerutils.CGroupManagerDocker), event.CGroupContext.CGroupFlags)
 
 			test.validateOpenSchema(t, event)
 		})

@@ -15,28 +15,14 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(5, seelog.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
@@ -58,22 +44,7 @@ func stopServer(listener net.Listener, name string) {
 }
 
 // StartServers creates certificates and starts API + IPC servers
-func StartServers(
-	configService optional.Option[rcservice.Component],
-	configServiceMRF optional.Option[rcservicemrf.Component],
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	pidMap pidmap.Component,
-	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	logsAgent optional.Option[logsAgent.Component],
-	senderManager sender.DiagnoseSenderManager,
-	secretResolver secrets.Component,
-	collector optional.Option[collector.Component],
-	ac autodiscovery.Component,
-	providers []api.EndpointProvider,
-	telemetry telemetry.Component,
-) error {
+func (server *apiServer) startServers() error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
@@ -100,26 +71,13 @@ func StartServers(
 		}
 	}
 
-	tmf := observability.NewTelemetryMiddlewareFactory(telemetry)
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
 
 	// start the CMD server
-	if err := startCMDServer(
+	if err := server.startCMDServer(
 		apiAddr,
 		tlsConfig(),
 		tlsCertPool,
-		configService,
-		configServiceMRF,
-		dogstatsdServer,
-		capture,
-		pidMap,
-		wmeta,
-		taggerComp,
-		logsAgent,
-		senderManager,
-		secretResolver,
-		collector,
-		ac,
-		providers,
 		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
@@ -127,9 +85,9 @@ func StartServers(
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
+		if err := server.startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
-			StopServers()
+			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
 		}
 	}
@@ -138,7 +96,7 @@ func StartServers(
 }
 
 // StopServers closes the connections and the servers
-func StopServers() {
-	stopCMDServer()
-	stopIPCServer()
+func (server *apiServer) stopServers() {
+	stopServer(server.cmdListener, cmdServerName)
+	stopServer(server.ipcListener, ipcServerName)
 }

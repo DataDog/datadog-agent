@@ -45,6 +45,7 @@ type KubeServiceListener struct {
 	targetAllServices bool
 	m                 sync.RWMutex
 	containerFilters  *containerFilters
+	telemetryStore    *telemetry.Store
 }
 
 // KubeServiceService represents a Kubernetes Service
@@ -80,7 +81,7 @@ func isServiceAnnotated(ksvc *v1.Service, annotationKey string) bool {
 }
 
 // NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
-func NewKubeServiceListener(conf Config) (ServiceListener, error) {
+func NewKubeServiceListener(conf Config, telemetryStore *telemetry.Store) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -103,6 +104,7 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
 		containerFilters:  containerFilters,
+		telemetryStore:    telemetryStore,
 	}, nil
 }
 
@@ -261,7 +263,9 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	l.m.Unlock()
 
 	l.newService <- svc
-	telemetry.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
+	if l.telemetryStore != nil {
+		l.telemetryStore.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
+	}
 }
 
 func processService(ksvc *v1.Service) *KubeServiceService {
@@ -312,7 +316,9 @@ func (l *KubeServiceListener) removeService(ksvc *v1.Service) {
 		l.m.Unlock()
 
 		l.delService <- svc
-		telemetry.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
+		if l.telemetryStore != nil {
+			l.telemetryStore.WatchedResources.Dec(kubeServicesName, telemetry.ResourceKubeService)
+		}
 	} else {
 		log.Debugf("Entity %s not found, not removing", ksvc.UID)
 	}

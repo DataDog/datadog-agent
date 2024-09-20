@@ -12,12 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"runtime"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -40,6 +42,16 @@ func (m *testPackageManager) State(pkg string) (repository.State, error) {
 }
 
 func (m *testPackageManager) States() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) ConfigState(pkg string) (repository.State, error) {
+	args := m.Called(pkg)
+	return args.Get(0).(repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) ConfigStates() (map[string]repository.State, error) {
 	args := m.Called()
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
@@ -89,12 +101,15 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 }
 
 type testRemoteConfigClient struct {
-	listeners map[string][]client.Handler
+	sync.Mutex
+	t         *testing.T
+	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 }
 
-func newTestRemoteConfigClient() *testRemoteConfigClient {
+func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
-		listeners: make(map[string][]client.Handler),
+		t:         t,
+		listeners: make(map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))),
 	}
 }
 
@@ -105,13 +120,21 @@ func (c *testRemoteConfigClient) Close() {
 }
 
 func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
+	c.Lock()
+	defer c.Unlock()
+	c.listeners[product] = append(c.listeners[product], fn)
 }
 
-func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
+}
+
+func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+	return nil
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
+	c.Lock()
+	defer c.Unlock()
 	rawCatalog, err := json.Marshal(catalog)
 	if err != nil {
 		panic(err)
@@ -125,7 +148,19 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 	}
 }
 
+func (c *testRemoteConfigClient) subscribedToRequests() bool {
+	c.Lock()
+	defer c.Unlock()
+	_, ok := c.listeners[state.ProductUpdaterTask]
+	return ok
+}
+
 func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
+	// wait for the client to subscribe to the requests after the catalog has been applied
+	require.Eventually(c.t, c.subscribedToRequests, 1*time.Second, 10*time.Millisecond)
+
+	c.Lock()
+	defer c.Unlock()
 	rawTask, err := json.Marshal(request)
 	if err != nil {
 		panic(err)
@@ -145,10 +180,11 @@ type testInstaller struct {
 	pm  *testPackageManager
 }
 
-func newTestInstaller() *testInstaller {
+func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
-	rcc := newTestRemoteConfigClient()
+	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
+	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
 		daemonImpl: newDaemon(rc, pm, &env.Env{RemoteUpdates: true}),
@@ -164,7 +200,7 @@ func (i *testInstaller) Stop() {
 }
 
 func TestInstall(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
@@ -179,7 +215,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestStartExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
@@ -194,7 +230,7 @@ func TestStartExperiment(t *testing.T) {
 }
 
 func TestStopExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -209,7 +245,7 @@ func TestStopExperiment(t *testing.T) {
 }
 
 func TestPromoteExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -224,7 +260,7 @@ func TestPromoteExperiment(t *testing.T) {
 }
 
 func TestUpdateCatalog(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testPackage := Package{
@@ -247,15 +283,12 @@ func TestUpdateCatalog(t *testing.T) {
 }
 
 func TestRemoteRequest(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testStablePackage := Package{
-		Name:     "test-package",
-		Version:  "0.0.1",
-		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
-		Platform: runtime.GOOS,
-		Arch:     runtime.GOARCH,
+		Name:    "test-package",
+		Version: "0.0.1",
 	}
 	testExperimentPackage := Package{
 		Name:     "test-package",

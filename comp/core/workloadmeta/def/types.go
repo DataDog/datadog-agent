@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -88,6 +88,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -273,7 +277,7 @@ func NewContainerImage(imageID string, imageName string) (ContainerImage, error)
 		Name:    imageName,
 	}
 
-	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
@@ -576,7 +580,6 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
@@ -669,6 +672,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string
@@ -735,6 +739,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
@@ -787,7 +792,7 @@ type KubeMetadataEntityID string
 type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
-	GVR schema.GroupVersionResource
+	GVR *schema.GroupVersionResource
 }
 
 // GetID implements Entity#GetID.
@@ -833,6 +838,7 @@ var _ Entity = &KubernetesMetadata{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
+	EntityMeta
 	Env     string
 	Service string
 	Version string
@@ -872,6 +878,8 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)

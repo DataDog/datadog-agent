@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -32,11 +33,12 @@ func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.R
 func TestTraceAgentConfig(t *testing.T) {
 	cfg := traceconfig.New()
 	require.NotZero(t, cfg.ReceiverPort)
+	require.True(t, cfg.ReceiverEnabled)
 
 	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
 	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
-	require.Zero(t, cfg.ReceiverPort)
+	require.False(t, cfg.ReceiverEnabled)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
 }
@@ -78,22 +80,29 @@ func TestTraceAgent(t *testing.T) {
 
 	a.Ingest(ctx, traces)
 	var stats *pb.StatsPayload
-	timeout := time.After(500 * time.Millisecond)
-loop:
-	for {
+	timeout := time.After(5 * time.Second)
+	var actual []*pb.ClientGroupedStats
+	// Depending on the time bucket boundaries, the stats can come in one or multiple payloads.
+	// Wait until all payloads are received.
+	for len(actual) < traces.SpanCount() {
 		select {
 		case stats = <-out:
 			if len(stats.Stats) != 0 {
-				break loop
+				require.Len(t, stats.Stats, 1)
+				cspayload := stats.Stats[0]
+				// stats can be in one or multiple buckets
+				assert.Greater(t, len(cspayload.Stats), 0)
+				for _, bucket := range cspayload.Stats {
+					assert.Greater(t, len(bucket.Stats), 0)
+					actual = append(actual, bucket.Stats...)
+				}
 			}
 		case <-timeout:
 			t.Fatal("timed out")
 		}
 	}
 
-	require.Len(t, stats.Stats, 1)
-	require.Len(t, stats.Stats[0].Stats, 1)
 	// considering all spans in rspans have distinct aggregations, we should have an equal amount
 	// of groups
-	require.Len(t, stats.Stats[0].Stats[0].Stats, traces.SpanCount())
+	require.Len(t, actual, traces.SpanCount())
 }

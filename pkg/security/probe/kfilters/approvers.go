@@ -17,39 +17,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// BasenameApproverKernelMapName defines the basename approver kernel map name
-const BasenameApproverKernelMapName = "basename_approvers"
+const (
+	// BasenameApproverKernelMapName defines the basename approver kernel map name
+	BasenameApproverKernelMapName = "basename_approvers"
 
-type onApproverHandler func(approvers rules.Approvers) (ActiveApprovers, error)
-type activeApprover = activeKFilter
+	// BasenameApproverType is the type of basename approver
+	BasenameApproverType = "basename"
+	// FlagApproverType is the type of flags approver
+	FlagApproverType = "flag"
+	// AUIDApproverType is the type of auid approver
+	AUIDApproverType = "auid"
+)
 
-// ActiveApprovers defines the active approvers type
-type ActiveApprovers = activeKFilters
+type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, error)
 
-// AllApproversHandlers var contains all the approvers handlers
-var AllApproversHandlers = make(map[eval.EventType]onApproverHandler)
+// KFilterGetters var contains all the kfilter getters
+var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
-func approveBasename(tableName string, eventType model.EventType, basename string) (activeApprover, error) {
-	return &mapEventMask{
-		tableName: tableName,
-		key:       basename,
-		tableKey:  ebpf.NewStringMapItem(basename, BasenameFilterSize),
-		eventMask: uint64(1 << (eventType - 1)),
+func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (activeKFilter, error) {
+	return &eventMaskEntry{
+		approverType: BasenameApproverType,
+		tableName:    tableName,
+		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
 
-func approveBasenames(tableName string, eventType model.EventType, basenames ...string) (approvers []activeApprover, _ error) {
+func newBasenameKFilters(tableName string, eventType model.EventType, basenames ...string) (approvers []activeKFilter, _ error) {
 	for _, basename := range basenames {
-		activeApprover, err := approveBasename(tableName, eventType, basename)
+		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename)
 		if err != nil {
 			return nil, err
 		}
-		approvers = append(approvers, activeApprover)
+		approvers = append(approvers, activeKFilter)
 	}
 	return approvers, nil
 }
 
-func intValues[I int32 | int64](fvs rules.FilterValues) []I {
+func uintValues[I uint32 | uint64](fvs rules.FilterValues) []I {
 	var values []I
 	for _, v := range fvs {
 		values = append(values, I(v.Value.(int)))
@@ -57,38 +62,49 @@ func intValues[I int32 | int64](fvs rules.FilterValues) []I {
 	return values
 }
 
-func setFlagsFilter[I int32 | int64](tableName string, flags ...I) (activeApprover, error) {
-	var flagsItem I
-
+func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (activeKFilter, error) {
+	var bitmask uint32
 	for _, flag := range flags {
-		flagsItem |= flag
+		bitmask |= flag
 	}
 
-	if flagsItem != 0 {
-		return &arrayEntry{
-			tableName: tableName,
-			index:     uint32(0),
-			value:     flagsItem,
-			zeroValue: I(0),
-		}, nil
+	return &arrayEntry{
+		approverType: FlagApproverType,
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        ebpf.NewUint32FlagsMapItem(bitmask),
+		zeroValue:    ebpf.Uint32FlagsZeroMapItem,
+	}, nil
+}
+
+func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (activeKFilter, error) {
+	var bitmask uint64
+	for _, flag := range flags {
+		bitmask |= flag
 	}
 
-	return nil, nil
+	return &arrayEntry{
+		approverType: FlagApproverType,
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        ebpf.NewUint64FlagsMapItem(bitmask),
+		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
+	}, nil
 }
 
-func approveFlags(tableName string, flags ...int32) (activeApprover, error) {
-	return setFlagsFilter(tableName, flags...)
+func getFlagsKFilter(tableName string, flags ...uint32) (activeKFilter, error) {
+	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
-func approveEnums(tableName string, enums ...int64) (activeApprover, error) {
-	var flags []int64
+func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) {
+	var flags []uint64
 	for _, enum := range enums {
 		flags = append(flags, 1<<enum)
 	}
-	return setFlagsFilter(tableName, flags...)
+	return newKFilterWithUInt64Flags(tableName, flags...)
 }
 
-func onNewBasenameApprovers(eventType model.EventType, field string, approvers rules.Approvers) ([]activeApprover, error) {
+func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]activeKFilter, error) {
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string
 		for _, v := range fvs {
@@ -102,69 +118,58 @@ func onNewBasenameApprovers(eventType model.EventType, field string, approvers r
 		prefix += "." + field
 	}
 
-	var basenameApprovers []activeApprover
+	var kfilters []activeKFilter
 	for field, values := range approvers {
 		switch field {
 		case prefix + model.NameSuffix:
-			activeApprovers, err := approveBasenames(BasenameApproverKernelMapName, eventType, stringValues(values)...)
+			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, stringValues(values)...)
 			if err != nil {
 				return nil, err
 			}
-			basenameApprovers = append(basenameApprovers, activeApprovers...)
+			kfilters = append(kfilters, activeKFilters...)
 
 		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
-				activeApprover, err := approveBasename(BasenameApproverKernelMapName, eventType, basename)
+				activeKFilter, err := newBasenameKFilter(BasenameApproverKernelMapName, eventType, basename)
 				if err != nil {
 					return nil, err
 				}
-				basenameApprovers = append(basenameApprovers, activeApprover)
+				kfilters = append(kfilters, activeKFilter)
 			}
 		}
 	}
 
-	return basenameApprovers, nil
+	return kfilters, nil
 }
 
-func onNewBasenameApproversWrapper(event model.EventType) onApproverHandler {
-	return func(approvers rules.Approvers) (ActiveApprovers, error) {
-		basenameApprovers, err := onNewBasenameApprovers(event, "file", approvers)
-		if err != nil {
-			return nil, err
+func fimKFiltersGetter(event model.EventType, fields []eval.Field) kfiltersGetter {
+	return func(approvers rules.Approvers) (ActiveKFilters, error) {
+		var kfilters []activeKFilter
+		for _, field := range fields {
+			kfilter, err := getBasenameKFilters(event, field, approvers)
+			if err != nil {
+				return nil, err
+			}
+			kfilters = append(kfilters, kfilter...)
 		}
-		return newActiveKFilters(basenameApprovers...), nil
-	}
-}
-
-func onNewTwoBasenamesApproversWrapper(event model.EventType, field1, field2 string) onApproverHandler {
-	return func(approvers rules.Approvers) (ActiveApprovers, error) {
-		basenameApprovers, err := onNewBasenameApprovers(event, field1, approvers)
-		if err != nil {
-			return nil, err
-		}
-		basenameApprovers2, err := onNewBasenameApprovers(event, field2, approvers)
-		if err != nil {
-			return nil, err
-		}
-		basenameApprovers = append(basenameApprovers, basenameApprovers2...)
-		return newActiveKFilters(basenameApprovers...), nil
+		return newActiveKFilters(kfilters...), nil
 	}
 }
 
 func init() {
-	AllApproversHandlers["chmod"] = onNewBasenameApproversWrapper(model.FileChmodEventType)
-	AllApproversHandlers["chown"] = onNewBasenameApproversWrapper(model.FileChownEventType)
-	AllApproversHandlers["link"] = onNewTwoBasenamesApproversWrapper(model.FileLinkEventType, "file", "file.destination")
-	AllApproversHandlers["mkdir"] = onNewBasenameApproversWrapper(model.FileMkdirEventType)
-	AllApproversHandlers["open"] = openOnNewApprovers
-	AllApproversHandlers["rename"] = onNewTwoBasenamesApproversWrapper(model.FileRenameEventType, "file", "file.destination")
-	AllApproversHandlers["rmdir"] = onNewBasenameApproversWrapper(model.FileRmdirEventType)
-	AllApproversHandlers["unlink"] = onNewBasenameApproversWrapper(model.FileUnlinkEventType)
-	AllApproversHandlers["utimes"] = onNewBasenameApproversWrapper(model.FileUtimesEventType)
-	AllApproversHandlers["mmap"] = mmapOnNewApprovers
-	AllApproversHandlers["mprotect"] = mprotectOnNewApprovers
-	AllApproversHandlers["splice"] = spliceOnNewApprovers
-	AllApproversHandlers["chdir"] = onNewBasenameApproversWrapper(model.FileChdirEventType)
-	AllApproversHandlers["bpf"] = bpfOnNewApprovers
+	KFilterGetters["chmod"] = fimKFiltersGetter(model.FileChmodEventType, []eval.Field{"file"})
+	KFilterGetters["chown"] = fimKFiltersGetter(model.FileChownEventType, []eval.Field{"file"})
+	KFilterGetters["link"] = fimKFiltersGetter(model.FileLinkEventType, []eval.Field{"file", "file.destination"})
+	KFilterGetters["mkdir"] = fimKFiltersGetter(model.FileMkdirEventType, []eval.Field{"file"})
+	KFilterGetters["open"] = openKFiltersGetter
+	KFilterGetters["rename"] = fimKFiltersGetter(model.FileRenameEventType, []eval.Field{"file", "file.destination"})
+	KFilterGetters["rmdir"] = fimKFiltersGetter(model.FileRmdirEventType, []eval.Field{"file"})
+	KFilterGetters["unlink"] = fimKFiltersGetter(model.FileUnlinkEventType, []eval.Field{"file"})
+	KFilterGetters["utimes"] = fimKFiltersGetter(model.FileUtimesEventType, []eval.Field{"file"})
+	KFilterGetters["mmap"] = mmapKFiltersGetter
+	KFilterGetters["mprotect"] = mprotectKFiltersGetter
+	KFilterGetters["splice"] = spliceKFiltersGetter
+	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
+	KFilterGetters["bpf"] = bpfKFiltersGetter
 }

@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -512,7 +512,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else if initConfig.Namespace != "" {
 		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
+		c.Namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
 	}
 
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
@@ -563,40 +563,40 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	// Ping configuration
-	if initConfig.PingConfig.Enabled != nil {
-		c.PingEnabled = bool(*initConfig.PingConfig.Enabled)
-	} else if instance.PingConfig.Enabled != nil {
+	if instance.PingConfig.Enabled != nil {
 		c.PingEnabled = bool(*instance.PingConfig.Enabled)
+	} else if initConfig.PingConfig.Enabled != nil {
+		c.PingEnabled = bool(*initConfig.PingConfig.Enabled)
 	}
 
-	if initConfig.PingConfig.Interval != nil {
-		c.PingConfig.Interval = time.Duration(*initConfig.PingConfig.Interval) * time.Millisecond
-	} else if instance.PingConfig.Interval != nil {
+	if instance.PingConfig.Interval != nil {
 		c.PingConfig.Interval = time.Duration(*instance.PingConfig.Interval) * time.Millisecond
+	} else if initConfig.PingConfig.Interval != nil {
+		c.PingConfig.Interval = time.Duration(*initConfig.PingConfig.Interval) * time.Millisecond
 	} else {
 		c.PingConfig.Interval = DefaultPingInterval
 	}
 
-	if initConfig.PingConfig.Timeout != nil {
-		c.PingConfig.Timeout = time.Duration(*initConfig.PingConfig.Timeout) * time.Millisecond
-	} else if instance.PingConfig.Interval != nil {
+	if instance.PingConfig.Timeout != nil {
 		c.PingConfig.Timeout = time.Duration(*instance.PingConfig.Timeout) * time.Millisecond
+	} else if initConfig.PingConfig.Timeout != nil {
+		c.PingConfig.Timeout = time.Duration(*initConfig.PingConfig.Timeout) * time.Millisecond
 	} else {
 		c.PingConfig.Timeout = DefaultPingTimeout
 	}
 
-	if initConfig.PingConfig.Count != nil {
-		c.PingConfig.Count = int(*initConfig.PingConfig.Count)
-	} else if instance.PingConfig.Count != nil {
+	if instance.PingConfig.Count != nil {
 		c.PingConfig.Count = int(*instance.PingConfig.Count)
+	} else if initConfig.PingConfig.Count != nil {
+		c.PingConfig.Count = int(*initConfig.PingConfig.Count)
 	} else {
 		c.PingConfig.Count = DefaultPingCount
 	}
 
-	if initConfig.PingConfig.Linux.UseRawSocket != nil {
-		c.PingConfig.UseRawSocket = bool(*initConfig.PingConfig.Linux.UseRawSocket)
-	} else if instance.PingConfig.Linux.UseRawSocket != nil {
+	if instance.PingConfig.Linux.UseRawSocket != nil {
 		c.PingConfig.UseRawSocket = bool(*instance.PingConfig.Linux.UseRawSocket)
+	} else if initConfig.PingConfig.Linux.UseRawSocket != nil {
+		c.PingConfig.UseRawSocket = bool(*initConfig.PingConfig.Linux.UseRawSocket)
 	}
 
 	c.UpdateDeviceIDAndTags()

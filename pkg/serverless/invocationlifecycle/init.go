@@ -189,3 +189,7 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 	lp.addTag(tagFunctionTriggerEventSourceArn, fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
 }
+
+func (lp *LifecycleProcessor) initFromStepFunctionPayload(event events.StepFunctionPayload) {
+	lp.requestHandler.event = event
+}

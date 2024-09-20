@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -34,7 +35,7 @@ var interval = 50 * time.Millisecond
 func Test_AddDelete_Deployment(t *testing.T) {
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent)
+	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -106,7 +107,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		Version:  "v1",
 		Resource: "namespaces",
 	}
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	metadataStore := &reflectorStore{
@@ -127,7 +128,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		},
 	}
 
-	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("namespaces", "", "test-object")
+	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-object")
 
 	err = metadataStore.Add(&partialObjMetadata)
 	require.NoError(t, err)
@@ -159,17 +160,17 @@ func TestReplace(t *testing.T) {
 	testNodeMetadata := workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   "nodes//test-node",
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-node",
 		},
-		GVR: gvr,
+		GVR: &gvr,
 	}
 
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(10*time.Second))
@@ -259,7 +260,6 @@ func TestReplace(t *testing.T) {
 func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }

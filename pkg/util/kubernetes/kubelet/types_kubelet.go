@@ -28,20 +28,22 @@ type PodList struct {
 
 // PodMetadata contains fields for unmarshalling a pod's metadata
 type PodMetadata struct {
-	Name        string            `json:"name,omitempty"`
-	UID         string            `json:"uid,omitempty"`
-	Namespace   string            `json:"namespace,omitempty"`
-	ResVersion  string            `json:"resourceVersion,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Owners      []PodOwner        `json:"ownerReferences,omitempty"`
+	Name              string            `json:"name,omitempty"`
+	UID               string            `json:"uid,omitempty"`
+	Namespace         string            `json:"namespace,omitempty"`
+	ResVersion        string            `json:"resourceVersion,omitempty"`
+	Annotations       map[string]string `json:"annotations,omitempty"`
+	Labels            map[string]string `json:"labels,omitempty"`
+	Owners            []PodOwner        `json:"ownerReferences,omitempty"`
+	CreationTimestamp time.Time         `json:"creationTimestamp,omitempty"`
 }
 
 // PodOwner contains fields for unmarshalling a Pod.Metadata.Owners
 type PodOwner struct {
-	Kind string `json:"kind,omitempty"`
-	Name string `json:"name,omitempty"`
-	ID   string `json:"uid,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Name       string `json:"name,omitempty"`
+	ID         string `json:"uid,omitempty"`
+	Controller *bool  `json:"controller,omitempty"`
 }
 
 // Spec contains fields for unmarshalling a Pod.Spec
@@ -53,6 +55,8 @@ type Spec struct {
 	Volumes           []VolumeSpec            `json:"volumes,omitempty"`
 	PriorityClassName string                  `json:"priorityClassName,omitempty"`
 	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
+	RuntimeClassName  *string                 `json:"runtimeClassName,omitempty"`
+	Tolerations       []Toleration            `json:"tolerations,omitempty"`
 }
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
@@ -71,6 +75,15 @@ type ContainerSpec struct {
 	Env             []EnvVar                      `json:"env,omitempty"`
 	SecurityContext *ContainerSecurityContextSpec `json:"securityContext,omitempty"`
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
+}
+
+// Toleration contains fields for unmarshalling a Pod.Spec.Tolerations
+type Toleration struct {
+	Key               string `json:"key,omitempty"`
+	Operator          string `json:"operator,omitempty"`
+	Value             string `json:"value,omitempty"`
+	Effect            string `json:"effect,omitempty"`
+	TolerationSeconds *int64 `json:"tolerationSeconds,omitempty"`
 }
 
 // ResourceName is the key to fields in in Pod.Spec.Containers.Resources
@@ -154,6 +167,7 @@ type VolumeSpec struct {
 // PersistentVolumeClaimSpec contains fields for unmarshalling a Pod.Spec.Volumes.PersistentVolumeClaim
 type PersistentVolumeClaimSpec struct {
 	ClaimName string `json:"claimName"`
+	ReadOnly  bool   `json:"readOnly,omitempty"`
 }
 
 // EphemeralSpec contains fields for unmarshalling a Pod.Spec.Volumes.Ephemeral
@@ -176,6 +190,8 @@ type Status struct {
 	AllContainers  []ContainerStatus
 	Conditions     []Conditions `json:"conditions,omitempty"`
 	QOSClass       string       `json:"qosClass,omitempty"`
+	StartTime      time.Time    `json:"startTime,omitempty"`
+	Reason         string       `json:"reason,omitempty"`
 }
 
 // GetAllContainers returns the list of init and regular containers

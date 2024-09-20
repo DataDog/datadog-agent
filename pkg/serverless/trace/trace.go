@@ -8,30 +8,34 @@ package trace
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
-type ServerlessTraceAgent struct {
-	ta           *agent.Agent
-	spanModifier *spanModifier
-	cancel       context.CancelFunc
+type ServerlessTraceAgent interface {
+	Stop()
+	Flush()
+	Process(p *api.Payload)
+	SetTags(map[string]string)
+	SetTargetTPS(float64)
+	SetSpanModifier(agent.SpanModifier)
+	GetSpanModifier() agent.SpanModifier
 }
 
 // Load abstracts the file configuration loading
@@ -56,8 +60,8 @@ const tcpRemotePortMetaKey = "tcp.remote.port"
 // dnsAddressMetaKey is the key of the span meta containing the DNS address
 const dnsAddressMetaKey = "dns.address"
 
-// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API
-const lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
+// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
+var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
@@ -88,12 +92,12 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) {
+func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
@@ -102,65 +106,76 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			var compressor compression.Component
-			if tc.HasFeature("zstd-encoding") {
-				compressor = zstd.NewComponent()
-			} else {
-				compressor = gzip.NewComponent()
-			}
-			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, compressor)
-			s.spanModifier = &spanModifier{
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
 
-			s.ta.ModifySpan = s.spanModifier.ModifySpan
-			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
-			s.cancel = cancel
-			go s.ta.Run()
+			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
+			go ta.Run()
+			return &serverlessTraceAgent{
+				ta:     ta,
+				cancel: cancel,
+			}
 		}
+	} else {
+		log.Info("Trace agent is disabled")
 	}
+	return noopTraceAgent{}
+}
+
+type serverlessTraceAgent struct {
+	ta     *agent.Agent
+	cancel context.CancelFunc
 }
 
 // Flush performs a synchronous flushing in the trace agent
-func (s *ServerlessTraceAgent) Flush() {
-	if s.Get() != nil {
-		s.ta.FlushSync()
-	}
+func (t *serverlessTraceAgent) Flush() {
+	t.ta.FlushSync()
 }
 
-// Get returns the trace agent instance
-func (s *ServerlessTraceAgent) Get() *agent.Agent {
-	return s.ta
+// Process processes a payload in the trace agent.
+func (t *serverlessTraceAgent) Process(p *api.Payload) {
+	t.ta.Process(p)
+}
+
+type taggable interface {
+	SetTags(tags map[string]string)
 }
 
 // SetTags sets the tags to the trace agent config and span processor
-func (s *ServerlessTraceAgent) SetTags(tagMap map[string]string) {
-	if s.Get() != nil {
-		s.ta.SetGlobalTagsUnsafe(tagMap)
-		s.spanModifier.tags = tagMap
-	} else {
-		log.Debug("could not set tags as the trace agent has not been initialized")
+func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
+	t.ta.SetGlobalTagsUnsafe(tags)
+	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
+		tagger.SetTags(tags)
 	}
 }
 
 // Stop stops the trace agent
-func (s *ServerlessTraceAgent) Stop() {
-	if s.cancel != nil {
-		s.cancel()
-	}
+func (t *serverlessTraceAgent) Stop() {
+	t.cancel()
 }
 
-//nolint:revive // TODO(SERV) Fix revive linter
-func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.TraceChunk, *pb.Span)) {
-	s.ta.ModifySpan = fn
+// SetTargetTPS sets the target TPS to the trace agent.
+func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
+	t.ta.PrioritySampler.UpdateTargetTPS(tps)
+}
+
+// SetSpanModifier sets the span modifier to the trace agent.
+func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifier) {
+	t.ta.SpanModifier = sm
+}
+
+// GetSpanModifier returns the span modifier from the trace agent.
+func (t *serverlessTraceAgent) GetSpanModifier() agent.SpanModifier {
+	return t.ta.SpanModifier
 }
 
 // filterSpanFromLambdaLibraryOrRuntime returns true if a span was generated by internal HTTP calls within the Datadog
 // Lambda Library or the Lambda runtime
 func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
-
 	// Filters out HTTP calls
 	if httpURL, ok := span.Meta[httpURLMetaKey]; ok {
 		if strings.HasPrefix(httpURL, lambdaExtensionURLPrefix) {
@@ -225,4 +240,20 @@ func getDDOrigin() string {
 		origin = cloudServiceOrigin
 	}
 	return origin
+}
+
+type noopTraceAgent struct{}
+
+func (t noopTraceAgent) Stop()                               {}
+func (t noopTraceAgent) Flush()                              {}
+func (t noopTraceAgent) Process(*api.Payload)                {}
+func (t noopTraceAgent) SetTags(map[string]string)           {}
+func (t noopTraceAgent) SetTargetTPS(float64)                {}
+func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
+func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
+
+func init() {
+	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
+		lambdaRuntimeURLPrefix = fmt.Sprintf("http://%s", lambdaRuntime)
+	}
 }

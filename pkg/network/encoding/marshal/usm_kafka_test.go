@@ -105,16 +105,16 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 					RequestType:    kafka.ProduceAPIKey,
 					RequestVersion: apiVersion1,
 				},
-				Topic:             "TopicName",
-				StatsByStatusCode: map[int32]*model.KafkaStats{0: {Count: 10}, 1: {Count: 2}},
+				Topic:            "TopicName",
+				StatsByErrorCode: map[int32]*model.KafkaStats{0: {Count: 10}, 1: {Count: 2}},
 			},
 			{
 				Header: &model.KafkaRequestHeader{
 					RequestType:    kafka.FetchAPIKey,
 					RequestVersion: apiVersion2,
 				},
-				Topic:             "TopicName",
-				StatsByStatusCode: map[int32]*model.KafkaStats{0: {Count: 2}, 10: {Count: 5}},
+				Topic:            "TopicName",
+				StatsByErrorCode: map[int32]*model.KafkaStats{0: {Count: 2}, 10: {Count: 5}},
 			},
 		},
 	}
@@ -177,7 +177,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 
 	// assert that the first connection matching the Kafka data will get back a non-nil result
 	assert.Equal(topicName, aggregations.KafkaAggregations[0].Topic)
-	assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByStatusCode[0].Count)
+	assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByErrorCode[0].Count)
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the Kafka stats
@@ -240,7 +240,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 	for _, conn := range in.Conns {
 		aggregations := getKafkaAggregations(t, encoder, conn)
 		assert.Equal(topicName, aggregations.KafkaAggregations[0].Topic)
-		assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByStatusCode[0].Count)
+		assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByErrorCode[0].Count)
 	}
 }
 

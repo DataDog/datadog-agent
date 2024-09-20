@@ -25,11 +25,11 @@ const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 const contentLenLimit = 100
 
 func getDummyMessage(content string) *message.Message {
-	return NewMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
+	return message.NewRawMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
 }
 
 func getDummyMessageWithLF(content string) *message.Message {
-	return NewMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
+	return message.NewRawMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
 }
 
 func lineHandlerChans() (func(*message.Message), chan *message.Message) {
@@ -63,19 +63,19 @@ func TestSingleLineHandler(t *testing.T) {
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.process(getDummyMessage(line))
 	output = <-outputChan
-	assert.Equal(t, len(line)+len(truncatedFlag), len(output.GetContent()))
+	assert.Equal(t, len(line)+len(message.TruncatedFlag), len(output.GetContent()))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", contentLenLimit+10)
 	h.process(getDummyMessage(line))
 	output = <-outputChan
-	assert.Equal(t, len(truncatedFlag)+len(line)+len(truncatedFlag), len(output.GetContent()))
+	assert.Equal(t, len(message.TruncatedFlag)+len(line)+len(message.TruncatedFlag), len(output.GetContent()))
 	assert.Equal(t, len(line), output.RawDataLen)
 
 	line = strings.Repeat("a", 10)
 	h.process(getDummyMessageWithLF(line))
 	output = <-outputChan
-	assert.Equal(t, string(truncatedFlag)+line, string(output.GetContent()))
+	assert.Equal(t, string(message.TruncatedFlag)+line, string(output.GetContent()))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
@@ -128,6 +128,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("3. stringssssssize20"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -135,6 +136,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...con", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 4, output.RawDataLen)
 
 	// second line + TRUNCATED too long
@@ -143,10 +145,12 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("4. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
@@ -159,14 +163,17 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("5. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len(longLineTracingSpaces), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...end", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("end\n"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -257,7 +264,7 @@ func TestAutoMultiLineHandlerStaysSingleLineMode(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
-	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
 
 	for i := 0; i < 6; i++ {
 		h.process(getDummyMessageWithLF("blah"))
@@ -272,7 +279,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
-	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
 
 	for i := 0; i < 6; i++ {
 		h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message"))
@@ -287,7 +294,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineMode(t *testing.T) {
 func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(outputFn, 500, 1, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 500, 1, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
 	<-outputChan
@@ -305,7 +312,7 @@ func TestAutoMultiLineHandlerHandelsMessage(t *testing.T) {
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	// we will match both patterns, but one will win with a threshold of 0.75
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -330,7 +337,7 @@ func TestAutoMultiLineHandlerHandelsMessageConflictingPatterns(t *testing.T) {
 func TestAutoMultiLineHandlerHandelsMessageConflictingPatternsNoWinner(t *testing.T) {
 	outputFn, outputChan := lineHandlerChans()
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
-	h := NewAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 500, 4, 0.75, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, &DetectedPattern{}, status.NewInfoRegistry())
 
 	// we will match both patterns, but neither will win because it doesn't meet the threshold
 	h.process(getDummyMessageWithLF("Jul 12, 2021 12:55:15 PM test message 1"))
@@ -355,7 +362,7 @@ func TestAutoMultiLineHandlerSwitchesToMultiLineModeWithDelay(t *testing.T) {
 	source := sources.NewReplaceableSource(sources.NewLogSource("config", &config.LogsConfig{}))
 	detectedPattern := &DetectedPattern{}
 
-	h := NewAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
+	h := NewLegacyAutoMultilineHandler(outputFn, 100, 5, 1.0, 250*time.Millisecond, 250*time.Millisecond, source, []*regexp.Regexp{}, detectedPattern, status.NewInfoRegistry())
 	clock := clock.NewMock()
 	h.clk = clock
 

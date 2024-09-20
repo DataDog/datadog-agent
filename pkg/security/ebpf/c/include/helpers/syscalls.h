@@ -184,54 +184,12 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = pop_task_syscall(key, type);
-#ifdef DEBUG
+#if defined(DEBUG_SYSCALLS)
     if (!syscall) {
         bpf_printk("Failed to pop syscall with type %d", type);
     }
 #endif
     return syscall;
-}
-
-int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid();
-    bpf_map_delete_elem(&syscalls, &key);
-    monitor_syscalls(syscall->type, -1);
-    return 0;
-}
-
-int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *syscall) {
-    syscall->discarded = 1;
-    return 0;
-}
-
-int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
-    if (syscall->policy.mode == NO_FILTER) {
-        return 0;
-    }
-
-    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-
-    if (syscall->policy.mode == DENY) {
-        pass_to_userspace = check_approvers(syscall);
-    }
-
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
-    if (cookie != NULL) {
-        u64 now = bpf_ktime_get_ns();
-        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
-        if (config != NULL) {
-            // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
-                if (!pass_to_userspace) {
-                    syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
-                }
-                return 0;
-            }
-        }
-    }
-
-    return !pass_to_userspace;
 }
 
 // the following functions must use the {peek,pop}_current_or_impersonated_exec_syscall to retrieve the syscall context

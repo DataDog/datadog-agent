@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -107,6 +108,11 @@ func StatusPath(pid uint32) string {
 	return procPidPath(pid, "status")
 }
 
+// LoginUIDPath returns the path to the loginuid file of a pid in /proc
+func LoginUIDPath(pid uint32) string {
+	return procPidPath(pid, "loginuid")
+}
+
 // ProcRootPath returns the path to the root directory of a pid in /proc
 func ProcRootPath(pid uint32) string {
 	return procPidPath(pid, "root")
@@ -117,17 +123,40 @@ func ProcRootFilePath(pid uint32, file string) string {
 	return procPidPath2(pid, "root", file)
 }
 
+// we do not use `HostProc` here because of the double call to `filepath.Join`
+// and those functions can be called in a tight loop
+
 func procPidPath(pid uint32, path string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path)
 }
 
 func procPidPath2(pid uint32, path1 string, path2 string) string {
-	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path1, path2)
+	return filepath.Join(kernel.ProcFSRoot(), strconv.FormatUint(uint64(pid), 10), path1, path2)
 }
 
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
-	return kernel.HostProc("modules")
+	return filepath.Join(kernel.ProcFSRoot(), "modules")
+}
+
+// GetLoginUID returns the login uid of the provided process
+func GetLoginUID(pid uint32) (uint32, error) {
+	content, err := os.ReadFile(LoginUIDPath(pid))
+	if err != nil {
+		return model.AuditUIDUnset, err
+	}
+
+	data := strings.TrimSuffix(string(content), "\n")
+	if len(data) == 0 {
+		return model.AuditUIDUnset, fmt.Errorf("invalid login uid: %v", data)
+	}
+
+	// parse login uid
+	auid, err := strconv.ParseUint(data, 10, 32)
+	if err != nil {
+		return model.AuditUIDUnset, fmt.Errorf("coudln't parse loginuid: %v", err)
+	}
+	return uint32(auid), nil
 }
 
 // CapEffCapEprm returns the effective and permitted kernel capabilities of a process

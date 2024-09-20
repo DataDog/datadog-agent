@@ -331,6 +331,21 @@ var (
 	// Tags: -
 	MetricRulesStatus = newRuntimeMetric(".rules_status")
 
+	// Enforcement metrics
+
+	// MetricEnforcementKillActionPerformed is the name of the metric used to report that a kill action was performed
+	// Tags: rule_id
+	MetricEnforcementKillActionPerformed = newRuntimeMetric(".enforcement.kill_action_performed")
+	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// Tags: rule_id
+	MetricEnforcementProcessKilled = newRuntimeMetric(".enforcement.process_killed")
+	// MetricEnforcementRuleDisarmed is the name of the metric used to report that a rule was disarmed
+	// Tags: rule_id, disarmer_type ('executable', 'container')
+	MetricEnforcementRuleDisarmed = newRuntimeMetric(".enforcement.rule_disarmed")
+	// MetricEnforcementRuleRearmed is the name of the metric used to report that a rule was rearmed
+	// Tags: rule_id
+	MetricEnforcementRuleRearmed = newRuntimeMetric(".enforcement.rule_rearmed")
+
 	// Others
 
 	// MetricSelfTest is the name of the metric used to report that a self test was performed
@@ -346,13 +361,22 @@ var (
 	MetricSecurityAgentRuntimeRunning = newAgentMetric(".runtime.running")
 	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
 	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
-
+	// MetricSecurityAgentFargateFIMRunning is reported when the security agent `FIM` feature is enabled on Fargate
+	MetricSecurityAgentFargateFIMRunning = newAgentMetric(".fargate_fim.running")
+	// MetricSecurityAgentFargateRuntimeRunning is reported when the security agent `Runtime` feature is enabled on Fargate
+	MetricSecurityAgentFargateRuntimeRunning = newAgentMetric(".fargate_runtime.running")
 	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent.
 	// `Runtime` feature is enabled
 	MetricSecurityAgentRuntimeContainersRunning = newAgentMetric(".runtime.containers_running")
+	// MetricSecurityAgentFargateRuntimeContainersRunning is used to report the count of running containers when the security agent.
+	// `Runtime` feature is enabled on Fargate
+	MetricSecurityAgentFargateRuntimeContainersRunning = newAgentMetric(".fargate_runtime.containers_running")
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+	// MetricSecurityAgentFargateFIMContainersRunning is used to report the count of running containers when the security agent
+	// `FIM` feature is enabled on Fargate
+	MetricSecurityAgentFargateFIMContainersRunning = newAgentMetric(".fargate_fim.containers_running")
 	// MetricRuntimeCgroupsRunning is used to report the count of running cgroups.
 	// Tags: -
 	MetricRuntimeCgroupsRunning = newAgentMetric(".runtime.cgroups_running")

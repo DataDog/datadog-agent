@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -106,7 +106,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 
 // Configure parses the check configuration and initializes the container_image check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog().GetBool("container_image.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 
@@ -145,7 +145,7 @@ func (c *Check) Run() error {
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
-
+	defer imgRefreshTicker.Stop()
 	defer c.processor.stop()
 	for {
 		select {

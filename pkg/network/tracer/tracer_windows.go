@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"go4.org/intern"
+
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -25,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,6 +62,8 @@ type Tracer struct {
 
 	// windows event handle for stopping the closed connection event loop
 	hStopClosedLoopEvent windows.Handle
+
+	processCache *processCache
 }
 
 // NewTracer returns an initialized tracer struct
@@ -84,6 +89,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
 		config.MaxPostgresStatsBuffered,
+		config.MaxRedisStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
 	)
@@ -113,6 +119,22 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
+	if config.EnableProcessEventMonitoring {
+		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
+			return nil, fmt.Errorf("could not create process cache; %w", err)
+		}
+		if telemetry != nil {
+			// the tests don't have a telemetry component
+			telemetry.RegisterCollector(tr.processCache)
+		}
+
+		if err = events.Init(); err != nil {
+			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
+		}
+
+		events.RegisterHandler(tr.processCache)
+	}
+
 	tr.closedEventLoop.Add(1)
 	go func() {
 		defer tr.closedEventLoop.Done()
@@ -135,7 +157,10 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 				})
 				closedConnStats := tr.closedBuffer.Connections()
 
-				tr.state.StoreClosedConnections(closedConnStats)
+				for i := range closedConnStats {
+					tr.addProcessInfo(&closedConnStats[i])
+					tr.state.StoreClosedConnection(&closedConnStats[i])
+				}
 
 			case windows.WAIT_FAILED:
 				break waitloop
@@ -197,7 +222,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	t.state.StoreClosedConnections(closedConnStats)
+	for i := range activeConnStats {
+		t.addProcessInfo(&activeConnStats[i])
+	}
+	for i := range closedConnStats {
+		t.addProcessInfo(&closedConnStats[i])
+		t.state.StoreClosedConnection(&closedConnStats[i])
+	}
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
@@ -278,6 +309,11 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// GetNetworkID is not implemented on this OS for Tracer
+func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
+	return "", ebpf.ErrNotImplemented
+}
+
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil
@@ -295,4 +331,29 @@ func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	}
 	monitor.Start()
 	return monitor
+}
+
+func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
+	if t.processCache == nil {
+		return
+	}
+
+	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+
+	// on windows, cLastUpdateEpoch is already set as
+	// ns since unix epoch.
+	ts := c.LastUpdateEpoch
+	p, ok := t.processCache.Get(c.Pid, int64(ts))
+	if !ok {
+		return
+	}
+
+	if len(p.Tags) > 0 {
+		c.Tags = make([]*intern.Value, len(p.Tags))
+		copy(c.Tags, p.Tags)
+	}
+
+	if p.ContainerID != nil {
+		c.ContainerID.Source = p.ContainerID
+	}
 }

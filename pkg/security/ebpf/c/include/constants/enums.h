@@ -48,6 +48,8 @@ enum event_type
     EVENT_SYSCALLS,
     EVENT_IMDS,
     EVENT_ON_DEMAND,
+    EVENT_LOGIN_UID_WRITE,
+    EVENT_CGROUP_WRITE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -85,28 +87,35 @@ enum
 enum policy_mode
 {
     NO_FILTER = 0,
-    ACCEPT = 1,
-    DENY = 2,
+    ACCEPT,
+    DENY,
 };
 
-enum policy_flags
+enum APPROVER_TYPE
 {
-    BASENAME = 1,
-    FLAGS = 2,
-    MODE = 4,
-    PARENT_NAME = 8,
+    BASENAME_APPROVER_TYPE = 0,
+    FLAG_APPROVER_TYPE,
+    AUID_APPROVER_TYPE,
+};
+
+enum SYSCALL_STATE
+{
+    ACCEPTED = 0,    // approved and can't be discarded later
+    APPROVED,        // approved but can be discarded later
+    DISCARDED,       // discarded
+};
+
+enum MONITOR_KEYS
+{
+    ERPC_MONITOR_KEY = 1,
+    DISCARDER_MONITOR_KEY,
+    APPROVER_MONITOR_KEY,
 };
 
 enum tls_format
 {
     DEFAULT_TLS_FORMAT
 };
-
-typedef enum discard_check_state
-{
-    NOT_DISCARDED,
-    DISCARDED,
-} discard_check_state;
 
 enum bpf_cmd_def
 {
@@ -163,6 +172,7 @@ enum dr_kprobe_progs
     DR_RENAME_CALLBACK_KPROBE_KEY,
     DR_SELINUX_CALLBACK_KPROBE_KEY,
     DR_CHDIR_CALLBACK_KPROBE_KEY,
+    DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY,
 };
 
 enum dr_tracepoint_progs
@@ -174,19 +184,20 @@ enum dr_tracepoint_progs
     DR_LINK_DST_CALLBACK_TRACEPOINT_KEY,
     DR_RENAME_CALLBACK_TRACEPOINT_KEY,
     DR_CHDIR_CALLBACK_TRACEPOINT_KEY,
+    DR_CGROUP_WRITE_CALLBACK_TRACEPOINT_KEY
 };
 
 enum erpc_op
 {
     UNKNOWN_OP,
     DISCARD_INODE_OP,
-    DISCARD_PID_OP,
+    DISCARD_PID_OP, // DEPRECATED
     RESOLVE_SEGMENT_OP, // DEPRECATED
     RESOLVE_PATH_OP,
     RESOLVE_PARENT_OP, // DEPRECATED
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
     EXPIRE_INODE_DISCARDER_OP,
-    EXPIRE_PID_DISCARDER_OP,
+    EXPIRE_PID_DISCARDER_OP, // DEPRECATED
     BUMP_DISCARDERS_REVISION,
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,

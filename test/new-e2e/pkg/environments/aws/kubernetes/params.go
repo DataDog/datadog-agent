@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
@@ -34,6 +35,7 @@ type ProvisionerParams struct {
 	eksLinuxARMNodeGroup     bool
 	eksBottlerocketNodeGroup bool
 	eksWindowsNodeGroup      bool
+	awsEnv                   *aws.Environment
 	deployDogstatsd          bool
 }
 
@@ -170,6 +172,14 @@ type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kub
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAwsEnv asks the provisioner to use the given environment, it is created otherwise
+func WithAwsEnv(env *aws.Environment) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.awsEnv = env
 		return nil
 	}
 }

@@ -37,6 +37,7 @@ func TestOOMKill(t *testing.T) {
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
+	conf.ReceiverPort = 8327           // use non-default port to avoid conflict with running agent
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
@@ -58,7 +59,7 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp, err := http.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+			resp, err := http.Post("http://localhost:8327/v0.4/traces", "application/msgpack", bytes.NewReader(data))
 			if err != nil {
 				t.Log("Error posting payload", err)
 				return

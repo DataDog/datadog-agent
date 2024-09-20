@@ -46,13 +46,13 @@ func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 }
 
 // EKSProvisioner creates a new provisioner
-func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.AwsKubernetes] {
+func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.AwsKubernetes) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
@@ -67,11 +67,11 @@ func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments
 }
 
 // EKSRunFunc deploys a EKS environment given a pulumi.Context
-func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *ProvisionerParams) error {
+func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
+	if params.awsEnv != nil {
+		awsEnv = *params.awsEnv
 	} else {
 		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
@@ -163,6 +163,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 				linuxNodeRole,
 			},
 			ServiceRole: clusterRole,
+			ProviderCredentialOpts: &eks.KubeconfigOptionsArgs{
+				ProfileName: pulumi.String(awsEnv.Profile()),
+			},
 		}, pulumi.Timeouts(&pulumi.CustomTimeouts{
 			Create: "30m",
 			Update: "30m",
@@ -172,9 +175,16 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 			return err
 		}
 
+		kubeConfig, err := cluster.GetKubeconfig(ctx, &eks.ClusterGetKubeconfigArgs{
+			ProfileName: pulumi.String(awsEnv.Profile()),
+		})
+		if err != nil {
+			return err
+		}
+
 		// Building Kubernetes provider
 		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx(), awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
-			Kubeconfig:            cluster.KubeconfigJson,
+			Kubeconfig:            kubeConfig,
 			EnableServerSideApply: pulumi.BoolPtr(true),
 			DeleteUnreachable:     pulumi.BoolPtr(true),
 		}, awsEnv.WithProviders(config.ProviderAWS))
@@ -184,7 +194,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 
 		// Filling Kubernetes component from EKS cluster
 		comp.ClusterName = cluster.EksCluster.Name()
-		comp.KubeConfig = cluster.KubeconfigJson
+		comp.KubeConfig = kubeConfig
 		comp.KubeProvider = eksKubeProvider
 
 		// Create configuration for POD subnets if any
@@ -319,7 +329,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			paramsAgent, err := kubernetesagentparams.NewParams(&awsEnv, params.agentOptions...)
+			paramsAgent, err := kubernetesagentparams.NewParams(params.agentOptions...)
 			if err != nil {
 				return err
 			}

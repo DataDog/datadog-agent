@@ -281,6 +281,7 @@ const (
 	MetricSourceVarnish
 	MetricSourceVault
 	MetricSourceVertica
+	MetricSourceVllm
 	MetricSourceVoltdb
 	MetricSourceVsphere
 	MetricSourceWin32EventLog
@@ -289,6 +290,13 @@ const (
 	MetricSourceWmiCheck
 	MetricSourceYarn
 	MetricSourceZk
+	MetricSourceAwsNeuron
+	MetricSourceTibcoEMS
+	MetricSourceSlurm
+	MetricSourceKyverno
+	MetricSourceKubeflow
+	MetricSourceAppgateSDP
+	MetricSourceAnyscale
 )
 
 // String returns a string representation of MetricSource
@@ -518,6 +526,8 @@ func (ms MetricSource) String() string {
 		return "kube_controller_manager"
 	case MetricSourceKubeDNS:
 		return "kube_dns"
+	case MetricSourceKubeflow:
+		return "kubeflow"
 	case MetricSourceKubeMetricsServer:
 		return "kube_metrics_server"
 	case MetricSourceKubeProxy:
@@ -650,6 +660,8 @@ func (ms MetricSource) String() string {
 		return "vault"
 	case MetricSourceVertica:
 		return "vertica"
+	case MetricSourceVllm:
+		return "vllm"
 	case MetricSourceVoltdb:
 		return "voltdb"
 	case MetricSourceVsphere:
@@ -838,6 +850,8 @@ func (ms MetricSource) String() string {
 		return "zabbix"
 	case MetricSourceZenohRouter:
 		return "zenoh_router"
+	case MetricSourceAwsNeuron:
+		return "aws_neuron"
 	default:
 		return "<unknown>"
 	}
@@ -1168,6 +1182,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceVault
 	case "vertica":
 		return MetricSourceVertica
+	case "vllm":
+		return MetricSourceVllm
 	case "voltdb":
 		return MetricSourceVoltdb
 	case "vsphere":
@@ -1356,6 +1372,18 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceZabbix
 	case "zenoh_router":
 		return MetricSourceZenohRouter
+	case "aws_neuron":
+		return MetricSourceAwsNeuron
+	case "kyverno":
+		return MetricSourceKyverno
+	case "anyscale":
+		return MetricSourceAnyscale
+	case "appgate_sdp":
+		return MetricSourceAppgateSDP
+	case "slurm":
+		return MetricSourceSlurm
+	case "tibco_ems":
+		return MetricSourceTibcoEMS
 	default:
 		return MetricSourceUnknown
 	}

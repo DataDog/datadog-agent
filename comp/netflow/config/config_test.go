@@ -9,19 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestReadConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 
 	var tests = []struct {
 		name           string
@@ -219,11 +216,11 @@ network_devices:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog().SetConfigType("yaml")
-			err := config.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
+			pkgconfigsetup.Datadog().SetConfigType("yaml")
+			err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig(config.Datadog(), logger)
+			readConfig, err := ReadConfig(pkgconfigsetup.Datadog(), logger)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)

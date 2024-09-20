@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -139,7 +141,8 @@ func testLoadCustomCheck(t *testing.T) {
 	rtloader = newMockRtLoaderPtr()
 	defer func() { rtloader = nil }()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	loader, err := NewPythonCheckLoader(senderManager)
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver)
 	assert.Nil(t, err)
 
 	// testing loading custom checks
@@ -176,7 +179,8 @@ func testLoadWheelCheck(t *testing.T) {
 	defer func() { rtloader = nil }()
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	loader, err := NewPythonCheckLoader(senderManager)
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	loader, err := NewPythonCheckLoader(senderManager, logReceiver)
 	assert.Nil(t, err)
 
 	// testing loading dd wheels

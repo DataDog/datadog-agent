@@ -14,7 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -34,7 +35,7 @@ type EndpointsChecksConfigProvider struct {
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewEndpointsChecksConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEndpointsChecksConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	c := &EndpointsChecksConfigProvider{
 		degradedDuration: defaultDegradedDeadline,
 	}
@@ -109,8 +110,8 @@ func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integrat
 // getNodename retrieves current node name from kubelet (if running on Kubernetes)
 // or bosh ID of current node (if running on Cloud Foundry).
 func getNodename(ctx context.Context) (string, error) {
-	if config.Datadog().GetBool("cloud_foundry") {
-		boshID := config.Datadog().GetString("bosh_id")
+	if pkgconfigsetup.Datadog().GetBool("cloud_foundry") {
+		boshID := pkgconfigsetup.Datadog().GetString("bosh_id")
 		if boshID == "" {
 			return "", fmt.Errorf("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 		}

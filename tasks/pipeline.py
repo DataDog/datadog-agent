@@ -12,8 +12,13 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
-from tasks.libs.common.color import color_message
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_bot_token,
+    get_gitlab_repo,
+    gitlab_configuration_is_modified,
+    refresh_pipeline,
+)
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import check_clean_branch_state, get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
@@ -31,6 +36,8 @@ from tasks.libs.pipeline.tools import (
     wait_for_pipeline,
 )
 from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
+
+BOT_NAME = "github-actions[bot]"
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -227,6 +234,7 @@ def run(
     major_versions=None,
     repo_branch="dev",
     deploy=False,
+    deploy_installer=False,
     all_builds=True,
     e2e_tests=True,
     kmt_tests=True,
@@ -235,10 +243,11 @@ def run(
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
-    By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
-    Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
+    By default, this pipeline will run all builds & tests, including all kmt and e2e tests, but is not a deploy pipeline.
+    Use --deploy to make this pipeline a deploy pipeline for the agent, which will upload artifacts to the staging repositories.
+    Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
-    Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
+    Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
 
     Release Candidate related flags:
@@ -264,8 +273,8 @@ def run(
     Run a pipeline on the current branch:
       inv pipeline.run --here
 
-    Run a pipeline without kitchen tests on the current branch:
-      inv pipeline.run --here --no-kitchen-tests
+    Run a pipeline without Kernel Matrix Tests on the current branch:
+      inv pipeline.run --here --no-kmt-tests
 
     Run a pipeline with e2e tets on the current branch:
       inv pipeline.run --here --e2e-tests
@@ -295,10 +304,10 @@ def run(
     if here:
         git_ref = get_current_branch(ctx)
 
-    if deploy:
+    if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
         check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
-        # Force all builds and kitchen tests to be run
+        # Force all builds and e2e tests to be run
         if not all_builds:
             print(
                 color_message(
@@ -336,6 +345,7 @@ def run(
             release_version_7,
             repo_branch,
             deploy=deploy,
+            deploy_installer=deploy_installer,
             all_builds=all_builds,
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
@@ -519,7 +529,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh {os.environ['CHANGELOG_COMMIT_SHA_SSM_NAME']}",
+        f"{parent_dir}/tools/ci/fetch_secret.sh {os.environ['CHANGELOG_COMMIT_SHA']}",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
@@ -572,10 +582,10 @@ def changelog(ctx, new_commit_sha):
     if messages:
         slack_message += (
             "\n".join(messages) + "\n:wave: Authors, please check the "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_cluster_name%5B0%5D=stripe"
-            "&tpl_var_cluster_name%5B1%5D=muk&tpl_var_cluster_name%5B2%5D=snowver"
-            "&tpl_var_cluster_name%5B3%5D=chillpenguin&tpl_var_cluster_name%5B4%5D=diglet"
-            "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_kube_cluster_name%5B0%5D=stripe"
+            "&tpl_var_kube_cluster_name%5B1%5D=oddish-b&tpl_var_kube_cluster_name%5B2%5D=lagaffe"
+            "&tpl_var_kube_cluster_name%5B3%5D=diglet&tpl_var_kube_cluster_name%5B4%5D=snowver"
+            "&tpl_var_kube_cluster_name%5B5%5D=chillpenguin&tpl_var_kube_cluster_name%5B6%5D=muk|dashboard> for issues"
         )
     else:
         slack_message += empty_changelog_msg
@@ -991,3 +1001,82 @@ def test_merge_queue(ctx):
     ctx.run(f"git push origin :{test_main}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
+
+
+@task
+def compare_to_itself(ctx):
+    """
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    """
+    if not gitlab_configuration_is_modified(ctx):
+        print("No modification in the gitlab configuration, ignoring this test.")
+        return
+    agent = get_gitlab_repo()
+    gh = GithubAPI()
+    current_branch = os.environ["CI_COMMIT_REF_NAME"]
+    if current_branch.startswith("compare/"):
+        print("Branch already in compare_to_itself mode, ignoring this test to prevent infinite loop")
+        return
+    new_branch = f"compare/{current_branch}/{int(datetime.now(timezone.utc).timestamp())}"
+    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run(f"git config --global user.name '{BOT_NAME}'", hide=True)
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
+    # The branch must exist in gitlab to be able to "compare_to"
+    # Push an empty commit to prevent linking this pipeline to the actual PR
+    ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
+    ctx.run(f"git push origin {new_branch}")
+
+    from tasks.libs.releasing.json import load_release_json
+
+    release_json = load_release_json()
+
+    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
+        with open(file) as f:
+            content = f.read()
+        with open(file, 'w') as f:
+            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+
+    ctx.run("git commit -am 'Compare to itself'", hide=True)
+    ctx.run(f"git push origin {new_branch}", hide=True)
+    max_attempts = 6
+    compare_to_pipeline = None
+    for attempt in range(max_attempts):
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
+        time.sleep(30)
+        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
+        for pipeline in pipelines:
+            commit = agent.commits.get(pipeline.sha)
+            if commit.author_name == BOT_NAME:
+                compare_to_pipeline = pipeline
+                print(f"Test pipeline found: {pipeline.web_url}")
+        if compare_to_pipeline:
+            break
+        if attempt == max_attempts - 1:
+            # Clean up the branch and possible pipelines
+            for pipeline in pipelines:
+                pipeline.cancel()
+            ctx.run(f"git checkout {current_branch}", hide=True)
+            ctx.run(f"git branch -D {new_branch}", hide=True)
+            ctx.run(f"git push origin :{new_branch}", hide=True)
+            raise RuntimeError(f"No pipeline found for {new_branch}")
+    try:
+        if len(compare_to_pipeline.jobs.list(get_all=False)) == 0:
+            print(
+                f"[{color_message('ERROR', Color.RED)}] Failed to generate a pipeline for {new_branch}, please check {compare_to_pipeline.web_url}"
+            )
+            raise Exit(message="compare_to itself failed", code=1)
+        else:
+            print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
+    finally:
+        # Clean up
+        print("Cleaning up the pipelines")
+        for pipeline in pipelines:
+            pipeline.cancel()
+        print("Cleaning up git")
+        ctx.run(f"git checkout {current_branch}", hide=True)
+        ctx.run(f"git branch -D {new_branch}", hide=True)
+        ctx.run(f"git push origin :{new_branch}", hide=True)

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -149,15 +149,28 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 
 	for {
-		select {
-		case <-fh.stop:
-			return
-		case <-validateTicker.C:
-			valid := fh.checkValidAPIKey()
-			if !valid {
-				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+		// only read from the health channel if the api key is valid
+		if valid {
+			select {
+			case <-fh.stop:
+				return
+			case <-validateTicker.C:
+				valid = fh.checkValidAPIKey()
+				if !valid {
+					fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				}
+			case <-fh.health.C:
 			}
-		case <-fh.health.C:
+		} else {
+			select {
+			case <-fh.stop:
+				return
+			case <-validateTicker.C:
+				valid = fh.checkValidAPIKey()
+				if !valid {
+					fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				}
+			}
 		}
 	}
 }

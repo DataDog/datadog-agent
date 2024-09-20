@@ -11,19 +11,175 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // TODO Improve test coverage with dogstatsd/enrich tests once Origin Detection is refactored.
 
-func Test_taggerCardinality(t *testing.T) {
+type fakeCIDProvider struct {
+	entries     map[string]string
+	initEntries map[string]string
+}
+
+func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	id := podUID + "/" + contName
+	if initCont {
+		return f.initEntries[id], nil
+	}
+	return f.entries[id], nil
+}
+
+func TestEnrichTags(t *testing.T) {
+	// Create fake tagger
+	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
+	defer fakeTagger.ResetTagger()
+
+	// Fill fake tagger with entities
+	fakeTagger.SetTags(types.KubernetesPodUID.ToUID("pod"), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
+	fakeTagger.SetTags(types.ContainerID.ToUID("container"), "host", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
+
+	for _, tt := range []struct {
+		name         string
+		originInfo   taggertypes.OriginInfo
+		cidProvider  *fakeCIDProvider
+		expectedTags []string
+	}{
+		{
+			name:         "no origin",
+			originInfo:   taggertypes.OriginInfo{},
+			expectedTags: []string{},
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name:         "with local data (containerID) and low cardinality",
+			originInfo:   taggertypes.OriginInfo{FromMsg: "container", Cardinality: "low"},
+			expectedTags: []string{"container-low"},
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name:         "with local data (containerID) and high cardinality",
+			originInfo:   taggertypes.OriginInfo{FromMsg: "container", Cardinality: "high"},
+			expectedTags: []string{"container-low", "container-orch", "container-high"},
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name:         "with local data (podUID) and low cardinality",
+			originInfo:   taggertypes.OriginInfo{FromTag: "pod", Cardinality: "low"},
+			expectedTags: []string{"pod-low"},
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name:         "with local data (podUID) and high cardinality",
+			originInfo:   taggertypes.OriginInfo{FromTag: "pod", Cardinality: "high"},
+			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
+			cidProvider:  &fakeCIDProvider{},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := tagset.NewHashingTagsAccumulator()
+			fakeTagger.EnrichTags(tb, tt.originInfo)
+			assert.Equal(t, tt.expectedTags, tb.Get())
+		})
+	}
+}
+
+func TestEnrichTagsOrchestrator(t *testing.T) {
+	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
+	defer fakeTagger.ResetTagger()
+	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	tb := tagset.NewHashingTagsAccumulator()
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://bar", Cardinality: "orchestrator"})
+	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
+}
+
+func TestEnrichTagsOptOut(t *testing.T) {
+	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
+	defer fakeTagger.ResetTagger()
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
+	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	tb := tagset.NewHashingTagsAccumulator()
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{}, tb.Get())
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	assert.Equal(t, []string{}, tb.Get())
+}
+
+func TestGenerateContainerIDFromExternalData(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		externalData externalData
+		expected     string
+		cidProvider  *fakeCIDProvider
+	}{
+		{
+			name:         "empty",
+			externalData: externalData{},
+			expected:     "",
+			cidProvider:  &fakeCIDProvider{},
+		},
+		{
+			name: "found container",
+			externalData: externalData{
+				init:          false,
+				containerName: "containerName",
+				podUID:        "podUID",
+			},
+			expected: "containerID",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{
+					"podUID/containerName": "containerID",
+				},
+				initEntries: map[string]string{},
+			},
+		},
+		{
+			name: "found init container",
+			externalData: externalData{
+				init:          true,
+				containerName: "initContainerName",
+				podUID:        "podUID",
+			},
+			expected: "initContainerID",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{},
+				initEntries: map[string]string{
+					"podUID/initContainerName": "initContainerID",
+				},
+			},
+		},
+		{
+			name: "container not found",
+			externalData: externalData{
+				init:          true,
+				containerName: "containerName",
+				podUID:        "podUID",
+			},
+			expected: "",
+			cidProvider: &fakeCIDProvider{
+				entries: map[string]string{},
+				initEntries: map[string]string{
+					"podUID/initContainerName": "initContainerID",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := TaggerClient{}
+			containerID, err := fakeTagger.generateContainerIDFromExternalData(tt.externalData, tt.cidProvider)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, containerID)
+		})
+	}
+}
+
+func TestTaggerCardinality(t *testing.T) {
 	tests := []struct {
 		name        string
 		cardinality string
@@ -62,94 +218,8 @@ func Test_taggerCardinality(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality()))
-		})
-	}
-}
-
-func TestEnrichTagsOrchestrator(t *testing.T) {
-	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
-	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
-	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo", Cardinality: "orchestrator"})
-	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
-}
-
-func TestEnrichTagsOptOut(t *testing.T) {
-	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
-	defer fakeTagger.ResetTagger()
-	cfg := config.Mock(t)
-	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
-	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
-	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
-	assert.Equal(t, []string{}, tb.Get())
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
-	assert.Equal(t, []string{}, tb.Get())
-}
-
-type fakeCIDProvider struct {
-	entries     map[string]string
-	initEntries map[string]string
-}
-
-func (f *fakeCIDProvider) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
-	id := podUID + "/" + contName
-	if initCont {
-		return f.initEntries[id], nil
-	}
-	return f.entries[id], nil
-}
-
-func TestParseEntityID(t *testing.T) {
-	for _, tt := range []struct {
-		name        string
-		entityID    string
-		expected    string
-		cidProvider *fakeCIDProvider
-	}{
-		{
-			name:        "empty",
-			entityID:    "",
-			expected:    kubelet.KubePodTaggerEntityPrefix,
-			cidProvider: &fakeCIDProvider{},
-		},
-		{
-			name:        "pod uid",
-			entityID:    "my-pod_uid",
-			expected:    kubelet.KubePodTaggerEntityPrefix + "my-pod_uid",
-			cidProvider: &fakeCIDProvider{},
-		},
-		{
-			name:     "container + pod uid",
-			entityID: "en-62381f4f-a19f-4f37-9413-90b738f92f83/appp",
-			expected: containers.BuildTaggerEntityName("cid"),
-			cidProvider: &fakeCIDProvider{
-				entries: map[string]string{
-					"62381f4f-a19f-4f37-9413-90b738f92f83/appp": "cid",
-				},
-			},
-		},
-		{
-			name:     "init container + pod uid",
-			entityID: "en-init.62381f4f-a19f-4f37-9413-90b738f92f83/appp",
-			expected: containers.BuildTaggerEntityName("init-cid"),
-			cidProvider: &fakeCIDProvider{
-				initEntries: map[string]string{
-					"62381f4f-a19f-4f37-9413-90b738f92f83/appp": "init-cid",
-				},
-			},
-		},
-		{
-			name:        "not found",
-			entityID:    "en-init.62381f4f-a19f-4f37-9413-90b738f92f83/init-my-cont_name",
-			cidProvider: &fakeCIDProvider{},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeCl := TaggerClient{}
-			assert.Equal(t, tt.expected, fakeCl.parseEntityID(tt.entityID, tt.cidProvider))
+			l := logmock.New(t)
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality(), l))
 		})
 	}
 }

@@ -54,6 +54,8 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ string) []string
+	GetProfileManager() interface{}
+	EnableEnforcement(bool)
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -395,4 +397,9 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 // IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(state bool) {
+	p.PlatformProbe.EnableEnforcement(state)
 }

@@ -14,7 +14,7 @@ import (
 // ApplyModeAllowSource returns true if the given source is allowed by the given apply mode.
 func ApplyModeAllowSource(mode datadoghq.DatadogPodAutoscalerApplyMode, source datadoghq.DatadogPodAutoscalerValueSource) bool {
 	switch mode {
-	case datadoghq.DatadogPodAutoscalerAllApplyNone:
+	case datadoghq.DatadogPodAutoscalerNoneApplyMode:
 	case datadoghq.DatadogPodAutoscalerManualApplyMode:
 		return source == datadoghq.DatadogPodAutoscalerManualValueSource
 	case datadoghq.DatadogPodAutoscalerAllApplyMode:

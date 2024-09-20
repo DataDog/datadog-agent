@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,7 +53,7 @@ type datadogProvider struct {
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
 func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.ExternalMetricsProvider {
-	maxAge := config.Datadog().GetInt64("external_metrics_provider.local_copy_refresh_rate")
+	maxAge := pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.local_copy_refresh_rate")
 	d := &datadogProvider{
 		client: client,
 		mapper: mapper,
@@ -129,7 +129,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 }
 
 // GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
-func (p *datadogProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *datadogProvider) GetExternalMetric(_ context.Context, _ string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
 		return nil, fmt.Errorf("external metrics invalid")
 	}

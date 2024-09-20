@@ -83,7 +83,7 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 }
 
 // SetupHandler sets up the closed connection event handler
-func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, ringSize int, perfSize int, mapName probes.BPFMapName) {
+func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, perfSize int, mapName probes.BPFMapName) {
 	switch handler := eventHandler.(type) {
 	case *ebpf.RingBufferHandler:
 		log.Infof("Setting up connection handler for map %v with ring buffer", mapName)
@@ -93,8 +93,6 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 				RecordGetter:     handler.RecordGetter,
 				RecordHandler:    handler.RecordHandler,
 				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: ringSize,
 			},
 		}
 		mgr.RingBuffers = append(mgr.RingBuffers, rb)
@@ -113,6 +111,7 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 			},
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
 		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
 		if err != nil {
@@ -125,12 +124,12 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 
 // SetupFailedConnHandler sets up the closed connection event handler
 func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnectionsRingBufferSize(), computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnRingBufferSize(), computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
 }
 
 // AddBoolConst modifies the options to include a constant editor for a boolean value
@@ -164,10 +163,10 @@ func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
 	} else {
 		tup.SetType(netebpf.UDP)
 	}
-	if !c.Source.IsZero() {
+	if c.Source.IsValid() {
 		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
 	}
-	if !c.Dest.IsZero() {
+	if c.Dest.IsValid() {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
 }

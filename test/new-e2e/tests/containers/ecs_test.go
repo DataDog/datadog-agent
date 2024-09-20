@@ -186,7 +186,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 10*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }
 

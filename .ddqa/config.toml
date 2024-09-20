@@ -42,7 +42,7 @@ github_team = "agent-devx-infra"
 github_labels = ["team/agent-devx-infra"]
 exclude_members = []
 
-[teams."Agent Build and Releases Experience"]
+[teams."Agent Delivery"]
 jira_project = "BARX"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
@@ -78,6 +78,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
+exclude_members = ["ancostas", "Maascamp"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"

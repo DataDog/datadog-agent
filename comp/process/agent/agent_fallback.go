@@ -9,13 +9,13 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // Enabled determines whether the process agent is enabled based on the configuration
 // The process-agent always runs as a stand-alone agent in all non-linux platforms
-func Enabled(_ config.Component, _ []types.CheckComponent, _ logComponent.Component) bool {
+func Enabled(_ config.Component, _ []types.CheckComponent, _ log.Component) bool {
 	return flavor.GetFlavor() == flavor.ProcessAgent
 }

@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -48,7 +48,7 @@ type config struct {
 }
 
 func testConfig() *config {
-	cfg := aconfig.SystemProbe
+	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	return &config{

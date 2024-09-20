@@ -10,17 +10,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type configRefreshWindowsSuite struct {
@@ -28,6 +30,10 @@ type configRefreshWindowsSuite struct {
 }
 
 func TestConfigRefreshWindowsSuite(t *testing.T) {
+	// WINA-1014
+	flake.Mark(t)
+
+	t.Parallel()
 	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
@@ -77,10 +83,13 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 	// Currently the framework does not restart the security agent on Windows so we need to do it manually.
 	// When the framework will support it, remove the line below and add `agentclientparams.WithSecurityAgentOnPort(securityCmdPort)` to the agent options.
 	v.Env().RemoteHost.MustExecute("Restart-Service datadog-security-agent")
+
 	// get auth token
 	v.T().Log("Getting the authentication token")
-	authtokenContent := v.Env().RemoteHost.MustExecute("Get-Content -Raw -Path " + authTokenFilePath)
-	authtoken := strings.TrimSpace(authtokenContent)
+	authtokenContent, err := v.Env().RemoteHost.ReadFile(authTokenFilePath)
+	require.NoError(v.T(), err)
+
+	authtoken := strings.TrimSpace(string(authtokenContent))
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver

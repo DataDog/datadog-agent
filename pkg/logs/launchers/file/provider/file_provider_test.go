@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -135,7 +135,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -197,7 +197,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -237,7 +237,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -256,7 +256,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
@@ -679,21 +679,21 @@ func TestContainerIDInContainerLogFile(t *testing.T) {
 	}
 
 	// we've found a symlink validating that the file we have just scanned is concerning the container we're currently processing for this source
-	assert.False(shouldIgnore(true, &file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
+	assert.False(ShouldIgnore(true, &file), "the file existing in ContainersLogsDir is pointing to the same container, scanned file should be tailed")
 
 	// now, let's change the container for which we are trying to scan files,
 	// because the symlink is pointing from another container, we should ignore
 	// that log file
 	file.Source.Config().Identifier = "1234123412341234123412341234123412341234123412341234123412341234"
-	assert.True(shouldIgnore(true, &file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
+	assert.True(ShouldIgnore(true, &file), "the file existing in ContainersLogsDir is not pointing to the same container, scanned file should be ignored")
 
 	// in this scenario, no link is found in /var/log/containers, thus, we should not ignore the file
 	os.Remove("/tmp/myapp_my-namespace_myapp-abcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcdabcdefabcdefabcd.log")
-	assert.False(shouldIgnore(true, &file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
+	assert.False(ShouldIgnore(true, &file), "no files existing in ContainersLogsDir, we should not ignore the file we have just scanned")
 
 	// in this scenario, the file we've found doesn't look like a container ID
 	os.Symlink("/var/log/pods/file-uuid-foo-bar.log", "/tmp/myapp_my-namespace_myapp-thisisnotacontainerIDevenifthisispointingtothecorrectfile.log")
-	assert.False(shouldIgnore(true, &file), "no container ID found, we don't want to ignore this scanned file")
+	assert.False(ShouldIgnore(true, &file), "no container ID found, we don't want to ignore this scanned file")
 }
 
 func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {

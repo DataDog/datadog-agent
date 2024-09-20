@@ -16,8 +16,6 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -128,12 +126,13 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 				Metrics:     MetricInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
-			fakeTagger.SetTags("container_id://test", "test", []string{"container:id"}, nil, nil, nil)
-			fakeTagger.SetTags("deployment://namespace/deployment", "test", []string{"deployment:name"}, nil, nil, nil)
-			fakeTagger.SetTags(collectors.GlobalEntityID, "test", []string{"global:tag"}, nil, nil, nil)
-			factory := NewFactory(fakeTagger)
+			tc := newTestTaggerClient()
+			tc.tagMap["container_id://test"] = []string{"container:id"}
+			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.tagMap[types.NewEntityID("internal", "global-entity-id").String()] = []string{"global:tag"}
+			gc := newTestGenerateIDClient().generateID
+
+			factory := NewFactory(tc, gc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
 				processortest.NewNopSettings(),
@@ -228,7 +227,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"deployment://k8s_namespace_goes_here/k8s_deployment_name_goes_here", "kubernetes_metadata://namespaces//k8s_namespace_goes_here"},
+			entityIDs: []string{"deployment://k8s_namespace_goes_here/k8s_deployment_name_goes_here", "kubernetes_metadata:///namespaces//k8s_namespace_goes_here"},
 		},
 		{
 			name: "only namespace name",
@@ -239,7 +238,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_metadata://namespaces//k8s_namespace_goes_here"},
+			entityIDs: []string{"kubernetes_metadata:///namespaces//k8s_namespace_goes_here"},
 		},
 		{
 			name: "only node UID",
@@ -250,7 +249,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_metadata://nodes//k8s_node_name_goes_here"},
+			entityIDs: []string{"kubernetes_metadata:///nodes//k8s_node_name_goes_here"},
 		},
 		{
 			name: "only process pid",
@@ -264,11 +263,15 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			entityIDs: []string{"process://process_pid_goes_here"},
 		},
 	}
-
+	gc := newTestGenerateIDClient().generateID
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			entityIDs := entityIDsFromAttributes(testInstance.attrs)
-			assert.Equal(t, testInstance.entityIDs, entityIDs)
+			entityIDs := entityIDsFromAttributes(testInstance.attrs, gc)
+			entityIDsAsStrings := make([]string, len(entityIDs))
+			for idx, entityID := range entityIDs {
+				entityIDsAsStrings[idx] = entityID.String()
+			}
+			assert.Equal(t, testInstance.entityIDs, entityIDsAsStrings)
 		})
 	}
 }

@@ -130,10 +130,13 @@ func (d *tlsDebugger) GetAllBlockedPathIDs() []BlockedProcess {
 	// Iterate over each `FileRegistry` instance:
 	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
 	for _, registry := range d.registries {
-		all = append(all, BlockedProcess{
-			ProgramType:     registry.telemetry.programName,
-			PathIdentifiers: d.GetBlockedPathIDsWithSamplePath(registry.telemetry.programName),
-		})
+		blockedPathIdentifiers := d.GetBlockedPathIDsWithSamplePath(registry.telemetry.programName)
+		if len(blockedPathIdentifiers) > 0 {
+			all = append(all, BlockedProcess{
+				ProgramType:     registry.telemetry.programName,
+				PathIdentifiers: blockedPathIdentifiers,
+			})
+		}
 	}
 
 	return all

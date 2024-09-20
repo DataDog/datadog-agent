@@ -31,6 +31,9 @@ RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 # Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
 MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
 
+# Regex matching the git describe output
+DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
+
 
 def build_compatible_version_re(allowed_major_versions, minor_version):
     """
@@ -253,7 +256,9 @@ def get_version(
 ):
     version = ""
     if pipeline_id is None:
-        pipeline_id = os.getenv("CI_PIPELINE_ID")
+        pipeline_id = os.getenv(
+            "E2E_PIPELINE_ID", os.getenv("CI_PIPELINE_ID")
+        )  # If we are in an E2E pipeline, we should use the E2E pipeline ID
 
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
@@ -379,7 +384,7 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
+    commit_number_match = DESCRIBE_PATTERN.match(described_version)
     commit_number = 0
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
@@ -418,10 +423,19 @@ def get_matching_pattern(ctx, major_version, release=False):
     """
     We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
+    from functools import cmp_to_key
+
+    import semver
+
     pattern = rf"{major_version}\.*"
     if release or os.getenv("BUCKET_BRANCH") in ALLOWED_REPO_NIGHTLY_BRANCHES:
-        pattern = ctx.run(
-            rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
-            hide=True,
-        ).stdout.strip()
+        tags = (
+            ctx.run(
+                rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'",
+                hide=True,
+            )
+            .stdout.strip()
+            .split("\n")
+        )
+        pattern = max(tags, key=cmp_to_key(semver.compare))
     return pattern

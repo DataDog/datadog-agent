@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -100,8 +101,8 @@ func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 		return nil, fmt.Errorf("couldn't determine current kernel version: %w", err)
 	}
 
-	if kversion < MinimumKernelVersion {
-		return nil, fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String())
+	if kversion < usmconfig.MinimumKernelVersion {
+		return nil, fmt.Errorf("http feature not available on pre %s kernels", usmconfig.MinimumKernelVersion.String())
 	}
 
 	telemetry := NewTelemetry("http")
@@ -201,7 +202,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

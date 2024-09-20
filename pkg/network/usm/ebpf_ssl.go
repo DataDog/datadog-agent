@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -426,7 +427,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
 			return nil, nil
 		}
 
@@ -437,7 +438,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 
 		procRoot := kernel.ProcFSRoot()
 
-		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
+		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
@@ -648,12 +649,12 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 				}
 			}
 		}
-		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+		symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSet)
 		if err != nil {
 			return err
 		}
 		/* Best effort to resolve symbols, so we don't care about the error */
-		symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
+		symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSetBestEffort)
 
 		for _, singleProbe := range probes {
 			_, isBestEffort := singleProbe.(*manager.BestEffort)

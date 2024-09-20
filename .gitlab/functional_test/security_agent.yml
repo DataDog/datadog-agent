@@ -49,7 +49,7 @@ kitchen_test_security_agent_x64:
         KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [ad, ebpfless]
+        KITCHEN_CWS_PLATFORM: [ad, ebpfless, ebpfless-no-seccomp]
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
         KITCHEN_CWS_PLATFORM: [docker]
@@ -77,7 +77,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [docker, ad, ebpfless]
+        KITCHEN_CWS_PLATFORM: [docker, ad, ebpfless, ebpfless-no-seccomp]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
@@ -157,25 +157,3 @@ kitchen_stress_security_agent:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04"
-
-kitchen_test_security_agent_windows_x64:
-  extends:
-    - .kitchen_test_security_agent
-    - .kitchen_os_windows
-    - .kitchen_azure_location_north_central_us
-  rules:
-    !reference [.on_security_agent_changes_or_manual]
-  stage: functional_test
-  needs: [ "tests_windows_secagent_x64" ]
-  variables:
-    KITCHEN_ARCH: x86_64
-    KITCHEN_OSVERS: "win2016"
-    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
-  before_script:
-    - export WINDOWS_DDPROCMON_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_DRIVER")
-    - export WINDOWS_DDPROCMON_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_VERSION")
-    - export WINDOWS_DDPROCMON_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDPROCMON_SHASUM")
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  script:
-    - tasks/run-test-kitchen.sh windows-secagent-test $AGENT_MAJOR_VERSION

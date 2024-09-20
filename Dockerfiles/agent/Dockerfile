@@ -3,10 +3,10 @@ ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
-LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
-LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.title "Datadog Agent"
+LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title="Datadog Agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -48,7 +48,7 @@ COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
-ENV S6_VERSION v2.2.0.3
+ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
 RUN apt install --no-install-recommends -y curl ca-certificates
@@ -109,9 +109,11 @@ COPY install_info etc/datadog-agent/
 ######################################
 
 FROM baseimage AS release
-LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL maintainer="Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -125,7 +127,10 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1 \
     # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    # Source code integration
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt full-upgrade -y \
@@ -153,8 +158,6 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
-RUN mkdir -p /etc/services-available.d/
-COPY s6-services-opt /etc/services-available.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
@@ -205,6 +208,12 @@ RUN if [ -n "$PYTHON_VERSION" ]; then \
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Update if optional OTel Agent process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
+  rm -rf /etc/services.d/otel ; \
+  else \
+  mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 

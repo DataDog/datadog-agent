@@ -69,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
     bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
     bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(get_file_f_path_addr(file)));
@@ -80,7 +80,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     // This overwrites the resolver fields on this syscall, but that's ok because the executed file has already been written to the map/pathnames ebpf map.
     syscall->resolver.key = syscall->exec.linux_binprm.interpreter;
     syscall->resolver.dentry = get_file_dentry(file);
-    syscall->resolver.discarder_type = 0;
+    syscall->resolver.discarder_event_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -252,7 +252,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, event->container.container_id);
+    inherit_traced_state(args, ppid, pid, &event->container);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -291,8 +291,6 @@ int hook_do_exit(ctx_t *ctx) {
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
     if (tgid == pid && pid_tgid_execing == NULL) {
-        expire_pid_discarder(tgid);
-
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
@@ -573,7 +571,7 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
     struct file *interpreter;
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
     bpf_printk("interpreter file: %llx", interpreter);
@@ -741,7 +739,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_args_envs(event, syscall);
 
     // [activity_dump] check if this process should be traced
-    should_trace_new_process(ctx, now, tgid, event->container.container_id);
+    should_trace_new_process(ctx, now, tgid, &event->container);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

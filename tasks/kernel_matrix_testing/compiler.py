@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -22,6 +23,9 @@ CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 AMD64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-amd64_5.10.209-2~deb10u1_amd64.deb"
 ARM64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb"
 
+DOCKER_REGISTRY = "486234852809.dkr.ecr.us-east-1.amazonaws.com"
+DOCKER_IMAGE_BASE = f"{DOCKER_REGISTRY}/ci/datadog-agent-buildimages/system-probe"
+
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
@@ -29,7 +33,31 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.load(f, Loader=GitlabYamlLoader())
 
     ci_vars = ci_config['variables']
-    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
+    return ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
+
+
+def get_docker_image_name(ctx: Context, container: str) -> str:
+    res = ctx.run(f"docker inspect \"{container}\"", hide=True)
+    if res is None or not res.ok:
+        raise ValueError(f"Could not get {container} info")
+
+    data = json.loads(res.stdout)
+    return data[0]["Config"]["Image"]
+
+
+def has_docker_auth_helpers() -> bool:
+    docker_config = Path("~/.docker/config.json").expanduser()
+    if not docker_config.exists():
+        return False
+
+    try:
+        with open(docker_config) as f:
+            config = json.load(f)
+    except json.JSONDecodeError:
+        # Invalid JSON (or empty file), we don't have the helper
+        return False
+
+    return DOCKER_REGISTRY in config.get("credHelpers", {})
 
 
 class CompilerImage:
@@ -44,20 +72,27 @@ class CompilerImage:
     @property
     def image(self):
         suffix, version = get_build_image_suffix_and_version()
-        image_base = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe"
 
-        return f"{image_base}_{self.arch.ci_arch}{suffix}:{version}"
+        return f"{DOCKER_IMAGE_BASE}_{self.arch.ci_arch}{suffix}:{version}"
 
-    @property
-    def is_running(self):
+    def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
             warn(f"[!] Dry run, not checking if compiler {self.name} is running")
             return True
 
-        res = self.ctx.run(f"docker ps -aqf \"name={self.name}\"", hide=True)
+        args = "a" if allow_stopped else ""
+        res = self.ctx.run(f"docker ps -{args}qf \"name={self.name}\"", hide=True)
         if res is not None and res.ok:
             return res.stdout.rstrip() != ""
         return False
+
+    @property
+    def is_running(self):
+        return self._check_container_exists(allow_stopped=False)
+
+    @property
+    def is_loaded(self):
+        return self._check_container_exists(allow_stopped=True)
 
     def ensure_running(self):
         if not self.is_running:
@@ -67,13 +102,26 @@ class CompilerImage:
             except Exception as e:
                 raise Exit(f"Failed to start compiler for {self.arch}: {e}") from e
 
+    def ensure_version(self):
+        if not self.is_loaded:
+            return  # Nothing to do if the container is not loaded
+
+        image_used = get_docker_image_name(self.ctx, self.name)
+        if image_used != self.image:
+            warn(f"[!] Running compiler image {image_used} is different from the expected {self.image}, will restart")
+            self.start()
+
     def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None, allow_fail=False):
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
         self.ensure_running()
+
+        # Set FORCE_COLOR=1 so that termcolor works in the container
         return self.ctx.run(
-            f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose), warn=allow_fail
+            f"docker exec -u {user} -i -e FORCE_COLOR=1 {self.name} bash -c \"{cmd}\"",
+            hide=(not verbose),
+            warn=allow_fail,
         )
 
     def stop(self) -> Result:
@@ -81,17 +129,26 @@ class CompilerImage:
         return cast('Result', res)  # Avoid mypy error about res being None
 
     def start(self) -> None:
-        if self.is_running:
+        if self.is_loaded:
             self.stop()
 
         # Check if the image exists
         res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
         if res is None or not res.ok:
             info(f"[!] Image {self.image} not found, logging in and pulling...")
-            self.ctx.run(
-                "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
-            )
-            self.ctx.run(f"docker pull {self.image}")
+
+            if has_docker_auth_helpers():
+                # With ddtool helpers (installed with ddtool auth helpers install), docker automatically
+                # pulls credentials from ddtool, and we require the aws-vault context to pull
+                docker_pull_auth = "aws-vault exec sso-build-stable-developer -- "
+            else:
+                # Without the helpers, we need to get the password and login manually to docker
+                self.ctx.run(
+                    "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
+                )
+                docker_pull_auth = ""
+
+            self.ctx.run(f"{docker_pull_auth}docker pull {self.image}")
 
         res = self.ctx.run(
             f"docker run -d --restart always --name {self.name} "
@@ -127,6 +184,12 @@ class CompilerImage:
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
+        # Install all requirements except for libvirt ones (they won't build in the compiler and are not needed)
+        self.exec(
+            f"cat {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements.txt | grep -v libvirt | xargs pip install ",
+            user="compiler",
+        )
+
         self.prepare_for_cross_compile()
 
     def ensure_ready_for_cross_compile(self):
@@ -158,7 +221,7 @@ class CompilerImage:
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
         # with dpkg-deb not respecting symlinks.
         self.exec(f"dpkg-deb --fsys-tarfile {header_package_path} > {header_package_path}.tar", user="root")
-        self.exec(f"tar -h -xvf {header_package_path}.tar -C /", user="root")
+        self.exec(f"tar -h -xf {header_package_path}.tar -C /", user="root")
 
         # Install the corresponding arch compilers
         self.exec(f"apt update && apt install -y gcc-{target.gcc_arch.replace('_', '-')}-linux-gnu", user="root")
@@ -166,4 +229,8 @@ class CompilerImage:
 
 
 def get_compiler(ctx: Context):
-    return CompilerImage(ctx, Arch.local())
+    cc = CompilerImage(ctx, Arch.local())
+    cc.ensure_version()
+    cc.ensure_running()
+
+    return cc

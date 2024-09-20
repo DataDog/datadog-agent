@@ -19,7 +19,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 
@@ -196,6 +195,8 @@ type etwCallback func(n interface{}, pid uint32)
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if !p.opts.disableProcmon {
 		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
 		if err != nil {
@@ -204,6 +205,11 @@ func (p *WindowsProbe) Init() error {
 		p.pm = pm
 	}
 	return p.initEtwFIM()
+}
+
+// GetProfileManager returns the Profile Managers
+func (p *WindowsProbe) GetProfileManager() interface{} {
+	return nil
 }
 
 func (p *WindowsProbe) initEtwFIM() error {
@@ -295,7 +301,7 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
 
-		fileIds := []uint16{
+		fileIDs := []uint16{
 			idCreate,
 			idCreateNewFile,
 			idCleanup,
@@ -303,19 +309,19 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		}
 
 		if p.isWriteEnabled {
-			fileIds = append(fileIds, idWrite)
+			fileIDs = append(fileIDs, idWrite)
 		}
 		if p.isRenameEnabled {
-			fileIds = append(fileIds, idRename, idRenamePath, idRename29)
+			fileIDs = append(fileIDs, idRename, idRenamePath, idRename29)
 		}
 		if p.isDeleteEnabled {
-			fileIds = append(fileIds, idSetDelete, idDeletePath)
+			fileIDs = append(fileIDs, idSetDelete, idDeletePath)
 		}
 		if p.isChangePermissionEnabled {
-			fileIds = append(fileIds, idObjectPermsChange)
+			fileIDs = append(fileIDs, idObjectPermsChange)
 		}
 
-		cfg.EnabledIDs = fileIds
+		cfg.EnabledIDs = fileIDs
 	})
 
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
@@ -1104,6 +1110,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1155,6 +1164,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
 	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -1183,7 +1197,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		volumeMap: make(map[string]string),
 
-		processKiller: NewProcessKiller(),
+		processKiller: processKiller,
 
 		blockonchannelsend: bocs,
 
@@ -1198,13 +1212,13 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
 	p.probe = probe
-	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
+	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -1244,6 +1258,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 			p.isChangePermissionEnabled = true
 		}
 	}
+
+	p.processKiller.Reset()
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
@@ -1334,19 +1350,19 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		}
@@ -1372,13 +1388,18 @@ func (p *Probe) Origin() string {
 	return ""
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
 
-	pp, err := NewWindowsProbe(p, config, opts)
+	pp, err := NewWindowsProbe(p, config, opts, telemetry)
 	if err != nil {
 		return nil, err
 	}

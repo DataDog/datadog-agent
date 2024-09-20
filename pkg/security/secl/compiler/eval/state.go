@@ -55,7 +55,7 @@ func (s *State) UpdateFieldValues(field Field, value FieldValue) error {
 	for _, v := range values {
 		// compare only comparable
 		switch v.Value.(type) {
-		case int, uint, int64, uint64, string:
+		case int, uint, int64, uint64, string, bool:
 			if v == value {
 				return nil
 			}

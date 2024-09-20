@@ -46,6 +46,7 @@ type ProvisionerParams struct {
 	ecsWindowsNodeGroup               bool
 	infraShouldDeployFakeintakeWithLB bool
 	workloadAppFuncs                  []WorkloadAppFunc
+	awsEnv                            *aws.Environment
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -166,6 +167,14 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WithAwsEnv asks the provisioner to use the given environment, it is created otherwise
+func WithAwsEnv(env *aws.Environment) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.awsEnv = env
+		return nil
+	}
+}
+
 // WorkloadAppFunc is a function that deploys a workload app to an ECS cluster
 type WorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error)
 
@@ -181,8 +190,8 @@ func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
+	if params.awsEnv != nil {
+		awsEnv = *params.awsEnv
 	} else {
 		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
@@ -198,8 +207,6 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 	// Export cluster’s properties
 	ctx.Export("ecs-cluster-name", ecsCluster.Name)
 	ctx.Export("ecs-cluster-arn", ecsCluster.Arn)
-	env.ClusterName = ecsCluster.Name
-	env.ClusterArn = ecsCluster.Arn
 
 	// Handle capacity providers
 	capacityProviders := pulumi.StringArray{}

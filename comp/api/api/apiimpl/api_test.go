@@ -18,23 +18,19 @@ import (
 
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -44,13 +40,12 @@ import (
 	// package dependencies
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -59,45 +54,36 @@ import (
 type testdeps struct {
 	fx.In
 
-	// additional StartServer arguments
-	//
-	// TODO: remove these in the next PR once StartServer component arguments
-	//       are part of the api component dependency struct
-	DogstatsdServer       dogstatsdServer.Component
-	Capture               replay.Component
-	SecretResolver        secrets.Component
-	RcService             optional.Option[rcservice.Component]
-	RcServiceMRF          optional.Option[rcservicemrf.Component]
-	AuthToken             authtoken.Component
-	WorkloadMeta          workloadmeta.Component
-	Tagger                tagger.Mock
-	Autodiscovery         autodiscovery.Mock
-	Logs                  optional.Option[logsAgent.Component]
-	Collector             optional.Option[collector.Component]
-	DiagnoseSenderManager diagnosesendermanager.Component
-	Telemetry             telemetry.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
+	API       api.Component
+	Telemetry telemetry.Mock
 }
 
-func getComponentDependencies(t *testing.T) testdeps {
-	// TODO: this fxutil.Test[T] can take a component and return the component
+func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
 	return fxutil.Test[testdeps](
 		t,
+		Module(),
+		fx.Replace(params),
 		hostnameimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
-		telemetryimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
 		taggerimpl.MockModule(),
+		fx.Provide(func(mock tagger.Mock) tagger.Component {
+			return mock
+		}),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 		autodiscoveryimpl.MockModule(),
+		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
+			return mock
+		}),
 		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
 		fx.Supply(optional.NewNoneOption[collector.Component]()),
+		pidmapimpl.Module(),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -107,32 +93,14 @@ func getComponentDependencies(t *testing.T) testdeps {
 	)
 }
 
-func getTestAPIServer(deps testdeps) api.Component {
-	apideps := dependencies{
-		DogstatsdServer:   deps.DogstatsdServer,
-		Capture:           deps.Capture,
-		SecretResolver:    deps.SecretResolver,
-		RcService:         deps.RcService,
-		RcServiceMRF:      deps.RcServiceMRF,
-		AuthToken:         deps.AuthToken,
-		Tagger:            deps.Tagger,
-		LogsAgentComp:     deps.Logs,
-		WorkloadMeta:      deps.WorkloadMeta,
-		Collector:         deps.Collector,
-		Telemetry:         deps.Telemetry,
-		EndpointProviders: deps.EndpointProviders,
-	}
-	return newAPIServer(apideps)
-}
-
 func TestStartServer(t *testing.T) {
-	deps := getComponentDependencies(t)
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port": 0,
+		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
+		"agent_ipc.port": 0,
+	}}
 
-	srv := getTestAPIServer(deps)
-	err := srv.StartServer()
-	defer srv.StopServer()
-
-	assert.NoError(t, err, "could not start api component servers: %v", err)
+	getTestAPIServer(t, cfgOverride)
 }
 
 func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
@@ -156,31 +124,26 @@ func TestStartBothServersWithObservability(t *testing.T) {
 	err = authToken.Close()
 	require.NoError(t, err)
 
-	deps := getComponentDependencies(t)
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port":             0,
+		"agent_ipc.port":       56789,
+		"auth_token_file_path": authToken.Name(),
+	}}
 
-	cfg := config.Mock(t)
-	cfg.Set("cmd_port", 0, model.SourceFile)
-	cfg.Set("agent_ipc.port", 56789, model.SourceFile)
-	cfg.Set("auth_token_file_path", authToken.Name(), model.SourceFile)
+	deps := getTestAPIServer(t, cfgOverride)
 
-	srv := getTestAPIServer(deps)
-	err = srv.StartServer()
-	require.NoError(t, err)
-	defer srv.StopServer()
-
-	telemetryMock := deps.Telemetry.(telemetry.Mock)
-	registry := telemetryMock.GetRegistry()
+	registry := deps.Telemetry.GetRegistry()
 
 	testCases := []struct {
 		addr       string
 		serverName string
 	}{
 		{
-			addr:       cmdListener.Addr().String(),
+			addr:       deps.API.CMDServerAddress().String(),
 			serverName: cmdServerShortName,
 		},
 		{
-			addr:       ipcListener.Addr().String(),
+			addr:       deps.API.IPCServerAddress().String(),
 			serverName: ipcServerShortName,
 		},
 	}

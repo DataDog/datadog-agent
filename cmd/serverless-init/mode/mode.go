@@ -17,7 +17,7 @@ import (
 // Conf contains the configuration for the mode in which the serverless-init agent should run
 type Conf struct {
 	LoggerName     string
-	Runner         func(logConfig *serverlessLog.Config)
+	Runner         func(logConfig *serverlessLog.Config) error
 	TagVersionMode string
 	EnvDefaults    map[string]string
 }
@@ -31,16 +31,16 @@ const (
 func DetectMode() Conf {
 
 	envToSet := map[string]string{
+		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
 		"DD_REMOTE_CONFIGURATION_ENABLED":      "false",
 		"DD_HOSTNAME":                          "none",
 		"DD_APM_ENABLED":                       "true",
 		"DD_TRACE_ENABLED":                     "true",
-		"DD_LOGS_ENABLED":                      "true",
-		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
 	}
 
 	if len(os.Args) == 1 {
 		log.Infof("No arguments provided, launching in Sidecar mode")
+		envToSet["DD_LOGS_ENABLED"] = "true"
 		envToSet["DD_APM_NON_LOCAL_TRAFFIC"] = "true"
 		envToSet["DD_DOGSTATSD_NON_LOCAL_TRAFFIC"] = "true"
 		return Conf{

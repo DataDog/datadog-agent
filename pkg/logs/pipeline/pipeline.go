@@ -26,13 +26,13 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan     chan *message.Message
-	flushChan     chan struct{}
-	processor     *processor.Processor
-	strategy      sender.Strategy
-	sender        *sender.Sender
-	serverless    bool
-	flushDoneChan chan struct{}
+	InputChan  chan *message.Message
+	flushChan  chan struct{}
+	processor  *processor.Processor
+	strategy   sender.Strategy
+	sender     *sender.Sender
+	serverless bool
+	flushWg    *sync.WaitGroup
 }
 
 // NewPipeline returns a new Pipeline
@@ -48,10 +48,10 @@ func NewPipeline(outputChan chan *message.Payload,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
 	var senderDoneChan chan *sync.WaitGroup
-	var flushDoneChan chan struct{}
+	var flushWg *sync.WaitGroup
 	if serverless {
 		senderDoneChan = make(chan *sync.WaitGroup)
-		flushDoneChan = make(chan struct{})
+		flushWg = &sync.WaitGroup{}
 	}
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, senderDoneChan, status, cfg)
@@ -73,20 +73,22 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushDoneChan, pipelineID)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushDoneChan)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
+	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname, pipelineID)
+
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &Pipeline{
-		InputChan:     inputChan,
-		flushChan:     flushChan,
-		processor:     processor,
-		strategy:      strategy,
-		sender:        logsSender,
-		serverless:    serverless,
-		flushDoneChan: flushDoneChan,
+		InputChan:  inputChan,
+		flushChan:  flushChan,
+		processor:  processor,
+		strategy:   strategy,
+		sender:     logsSender,
+		serverless: serverless,
+		flushWg:    flushWg,
 	}
 }
 
@@ -110,8 +112,8 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 
 	if p.serverless {
-		// Wait for the logs sender to finish sending payloads
-		<-p.flushDoneChan
+		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
+		p.flushWg.Wait()
 	}
 }
 
@@ -149,13 +151,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushDoneChan chan struct{}, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushDoneChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }

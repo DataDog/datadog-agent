@@ -15,7 +15,7 @@
 '@datadog/processes': '#process-agent-ops'
 '@datadog/agent-metrics-logs': '#agent-metrics-logs'
 '@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
-'@datadog/agent-shared-components': '#agent-shared-components'
+'@datadog/agent-shared-components': '#agent-shared-components-ops'
 '@datadog/container-app': '#container-app'
 '@datadog/metrics-aggregation': '#metrics-aggregation'
 '@datadog/serverless': '#serverless-agent'
@@ -41,3 +41,4 @@
 '@datadog/agent-devx-infra': '#agent-devx-ops'
 '@datadog/agent-devx-loops': '#agent-devx-ops'
 '@datadog/apm-onboarding': '#apm-onboarding'
+'@datadog/apm-reliability-and-performance': '#apm-ecosystems-reliability-and-performance'

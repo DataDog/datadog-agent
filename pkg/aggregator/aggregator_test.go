@@ -28,11 +28,11 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -56,7 +56,7 @@ func initF() {
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
+	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
@@ -305,6 +305,8 @@ func TestSeriesTooManyTags(t *testing.T) {
 			}
 			AddRecurrentSeries(ser)
 
+			s.On("AreSeriesEnabled").Return(true)
+			s.On("AreSketchesEnabled").Return(true)
 			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
 			s.On("SendIterableSeries", mock.Anything).Return(nil).Times(1)
 
@@ -371,6 +373,8 @@ func TestDistributionsTooManyTags(t *testing.T) {
 
 			time.Sleep(1 * time.Second)
 
+			s.On("AreSeriesEnabled").Return(true)
+			s.On("AreSketchesEnabled").Return(true)
 			s.On("SendServiceChecks", mock.Anything).Return(nil).Times(1)
 			s.On("SendIterableSeries", mock.Anything).Return(nil).Times(1)
 			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
@@ -401,6 +405,8 @@ func TestRecurrentSeries(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
 	deps := createAggrDeps(t)
 	demux := deps.Demultiplexer
 
@@ -569,8 +575,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -580,11 +586,13 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
 	deps := createAggrDeps(t)
 	demux := deps.Demultiplexer
@@ -599,9 +607,9 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 
-	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
-	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
-	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+	djmEnabled := pkgconfigsetup.Datadog().GetBool("djm_config.enabled")
+	pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
@@ -626,7 +634,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 // It also overrides `SendSeries` for simplificy.
 type MockSerializerIterableSerie struct {
 	series []*metrics.Serie
-	serializer.MockSerializer
+	serializermock.MetricSerializer
 }
 
 func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {

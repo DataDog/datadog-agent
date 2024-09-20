@@ -18,10 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -46,7 +47,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "config",
 		Short: "Print the runtime configuration of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
@@ -62,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "list-runtime",
 			Short: "List settings that can be changed at runtime",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
@@ -77,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "set [setting] [value]",
 			Short: "Set, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, args []string) error {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
@@ -91,7 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "get [setting]",
 			Short: "Get, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, args []string) error {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
@@ -179,9 +180,9 @@ func getConfigValue(deps dependencies, args []string) error {
 	return nil
 }
 
-func getClient(cfg ddconfig.Reader) (settings.Client, error) {
+func getClient(cfg model.Reader) (settings.Client, error) {
 	httpClient := apiutil.GetClient(false)
-	ipcAddress, err := ddconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	port := cfg.GetInt("process_config.cmd_port")
 	if port <= 0 {

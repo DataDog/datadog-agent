@@ -23,7 +23,7 @@ func TestIsNodeMetadata(t *testing.T) {
 		{
 			name: "node metadata",
 			metadataEntity: KubernetesMetadata{
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Version:  "v1",
 					Resource: "nodes",
 				},
@@ -34,7 +34,7 @@ func TestIsNodeMetadata(t *testing.T) {
 		{
 			name: "node metadata, but not native group",
 			metadataEntity: KubernetesMetadata{
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "customgroup",
 					Version:  "v1",
 					Resource: "nodes",
@@ -294,7 +294,7 @@ func TestFilter_MatchEntity(t *testing.T) {
 		},
 		{
 			name: "unmatched entity due to entity filter func returning false",
-			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(entity Entity) bool {
+			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(_ Entity) bool {
 				return false
 			}}},
 			entity: &Container{

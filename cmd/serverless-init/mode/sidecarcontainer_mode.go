@@ -9,19 +9,20 @@
 package mode
 
 import (
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
-func RunSidecar(logConfig *serverlessLog.Config) {
+func RunSidecar(_ *serverlessLog.Config) error {
 	stopCh := make(chan struct{})
 	go handleTerminationSignals(stopCh, signal.Notify)
 	<-stopCh
-
+	return nil
 }
 
 func handleTerminationSignals(stopCh chan struct{}, notify func(c chan<- os.Signal, sig ...os.Signal)) {

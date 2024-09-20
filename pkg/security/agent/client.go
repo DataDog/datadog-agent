@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -33,6 +33,7 @@ type RuntimeSecurityClient struct {
 type SecurityModuleClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool) (string, error)
+	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
 	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
@@ -72,6 +73,11 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 // ListActivityDumps lists the active activity dumps
 func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
 	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
+}
+
+// GenerateActivityDump send a dump activity request
+func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	return c.apiClient.DumpActivity(context.Background(), request)
 }
 
 // StopActivityDump stops an active dump if it exists
@@ -176,7 +182,7 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := coreconfig.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
@@ -190,7 +196,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
-		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial(family, url)
 		}),
 		grpc.WithConnectParams(grpc.ConnectParams{

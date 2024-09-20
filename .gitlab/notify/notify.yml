@@ -25,9 +25,8 @@ notify:
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - !reference [.setup_python_mirror_linux]
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - |
       # Do not send notifications if this is a child pipeline of another repo
@@ -54,10 +53,8 @@ send_pipeline_stats:
   when: always
   dependencies: []
   script:
-    - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - !reference [.setup_python_mirror_linux]
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - invoke -e notify.send-stats
 
 notify_github:
@@ -81,7 +78,6 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
-    - source /root/.bashrc
     - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
@@ -92,6 +88,33 @@ notify_github:
     - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
     - rm "$messagefile"
 
+notify_gitlab_ci_changes:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: notify
+  needs: []
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push"
+      when: never
+    - changes:
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  before_script:
+    # Get main history
+    - git fetch origin main
+    - git checkout main
+    - git checkout -
+  script:
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - |
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
+      GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - inv -e notify.gitlab-ci-diff --pr-comment
+
 .failure_summary_job:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
@@ -101,10 +124,9 @@ notify_github:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 
 .failure_summary_setup:
-  - source /root/.bashrc
-  - export SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN_SSM_NAME)
-  - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
-  - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+  - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT_CI_TOKEN) || exit $?; export SLACK_API_TOKEN
+  - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
 # Upload failure summary data to S3 at the end of each main pipeline

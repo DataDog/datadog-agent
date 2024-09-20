@@ -117,8 +117,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
+| [`cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
+| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
@@ -132,8 +137,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -207,8 +217,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -273,8 +288,13 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`process.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -501,11 +521,11 @@ A DNS request was sent
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | size in bytes of the network packet |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
@@ -521,8 +541,13 @@ A process was executed or forked
 | [`exec.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`exec.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -604,9 +629,14 @@ A process was terminated
 | [`exit.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exit.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`exit.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
@@ -690,6 +720,15 @@ An IMDS event was captured
 | [`imds.type`](#imds-type-doc) | the type of IMDS event |
 | [`imds.url`](#imds-url-doc) | the queried IMDS URL |
 | [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `link`
 
@@ -847,6 +886,9 @@ A filesystem was mounted
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
+| [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
+| [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
+| [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
 
 ### Event `mprotect`
 
@@ -905,8 +947,13 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -980,8 +1027,13 @@ A ptrace command was executed
 | [`ptrace.tracee.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1046,8 +1098,13 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`ptrace.tracee.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1202,6 +1259,8 @@ A file/directory was renamed
 | [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`rename.syscall.destination.path`](#rename-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`rename.syscall.path`](#rename-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `rmdir`
 
@@ -1312,8 +1371,13 @@ A signal was sent
 | [`signal.target.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.ancestors.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1387,8 +1451,13 @@ A signal was sent
 | [`signal.target.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1453,8 +1522,13 @@ A signal was sent
 | [`signal.target.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
+| [`signal.target.parent.cgroup.manager`](#common-cgroupcontext-manager-doc) | Lifecycle manager of the cgroup |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1735,6 +1809,15 @@ Definition: First argument of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.auid` {#common-credentials-auid-doc}
+Type: int
+
+Definition: Login UID of the process
+
+`*.auid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
 ### `*.cap_effective` {#common-credentials-cap_effective-doc}
 Type: int
 
@@ -1966,6 +2049,15 @@ Definition: [Experimental] List of cryptographic hashes computed for this file
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.id` {#common-cgroupcontext-id-doc}
+Type: string
+
+Definition: ID of the cgroup
+
+`*.id` has 12 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
 Type: bool
 
@@ -1980,8 +2072,8 @@ Type: int
 
 Definition: Inode of the file
 
-`*.inode` has 39 possible prefixes:
-`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.inode` has 51 possible prefixes:
+`cgroup.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.ip` {#common-ipportcontext-ip-doc}
@@ -2047,6 +2139,15 @@ Definition: Length of the corresponding string
 `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
+### `*.manager` {#common-cgroupcontext-manager-doc}
+Type: string
+
+Definition: Lifecycle manager of the cgroup
+
+`*.manager` has 12 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.mode` {#common-filefields-mode-doc}
 Type: int
 
@@ -2073,8 +2174,8 @@ Type: int
 
 Definition: Mount ID of the file
 
-`*.mount_id` has 39 possible prefixes:
-`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+`*.mount_id` has 51 possible prefixes:
+`cgroup.file` `chdir.file` `chmod.file` `chown.file` `exec.cgroup.file` `exec.file` `exec.interpreter.file` `exit.cgroup.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.cgroup.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.cgroup.file` `process.file` `process.interpreter.file` `process.parent.cgroup.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.cgroup.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.cgroup.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.cgroup.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.cgroup.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.cgroup.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.cgroup.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
 ### `*.name` {#common-fileevent-name-doc}
@@ -2464,6 +2565,13 @@ Definition: ID of the container
 
 
 
+### `container.runtime` {#container-runtime-doc}
+Type: string
+
+Definition: Runtime managing the container
+
+
+
 ### `container.tags` {#container-tags-doc}
 Type: string
 
@@ -2755,6 +2863,27 @@ Definition: Source path of a bind mount
 
 
 
+### `mount.syscall.fs_type` {#mount-syscall-fs_type-doc}
+Type: string
+
+Definition: File system type argument of the syscall
+
+
+
+### `mount.syscall.mountpoint.path` {#mount-syscall-mountpoint-path-doc}
+Type: string
+
+Definition: Mount point path argument of the syscall
+
+
+
+### `mount.syscall.source.path` {#mount-syscall-source-path-doc}
+Type: string
+
+Definition: Source path argument of the syscall
+
+
+
 ### `mprotect.req_protection` {#mprotect-req_protection-doc}
 Type: int
 
@@ -2778,21 +2907,21 @@ Constants: [Virtual Memory flags](#virtual-memory-flags)
 ### `network.device.ifindex` {#network-device-ifindex-doc}
 Type: int
 
-Definition: interface ifindex
+Definition: Interface ifindex
 
 
 
 ### `network.device.ifname` {#network-device-ifname-doc}
 Type: string
 
-Definition: interface ifname
+Definition: Interface ifname
 
 
 
 ### `network.l3_protocol` {#network-l3_protocol-doc}
 Type: int
 
-Definition: l3 protocol of the network packet
+Definition: L3 protocol of the network packet
 
 
 Constants: [L3 protocols](#l3-protocols)
@@ -2802,7 +2931,7 @@ Constants: [L3 protocols](#l3-protocols)
 ### `network.l4_protocol` {#network-l4_protocol-doc}
 Type: int
 
-Definition: l4 protocol of the network packet
+Definition: L4 protocol of the network packet
 
 
 Constants: [L4 protocols](#l4-protocols)
@@ -2812,7 +2941,7 @@ Constants: [L4 protocols](#l4-protocols)
 ### `network.size` {#network-size-doc}
 Type: int
 
-Definition: size in bytes of the network packet
+Definition: Size in bytes of the network packet
 
 
 
@@ -2864,6 +2993,20 @@ Definition: ptrace request
 
 
 Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `rename.syscall.destination.path` {#rename-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `rename.syscall.path` {#rename-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

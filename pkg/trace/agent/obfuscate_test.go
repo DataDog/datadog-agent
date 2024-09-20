@@ -21,8 +21,6 @@ import (
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
-	_, ok := pb.MetaHook()
-	assert.False(t, ok)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cfg := config.New()

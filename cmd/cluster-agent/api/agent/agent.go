@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -144,7 +144,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		}
 	}
 
-	logFile := config.Datadog().GetString("log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
@@ -162,12 +162,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	verbose := r.URL.Query().Get("verbose") == "true"
-	noColor := r.URL.Query().Get("nocolor") == "true"
-	bytes := ac.GetConfigCheck(verbose, noColor)
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
+	w.Header().Set("Content-Type", "application/json")
 
-	w.Write(bytes)
+	configCheck := ac.GetConfigCheck()
+
+	configCheckBytes, err := json.Marshal(configCheck)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Write(configCheckBytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter

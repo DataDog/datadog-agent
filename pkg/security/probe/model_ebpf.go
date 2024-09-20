@@ -19,7 +19,7 @@ import (
 // NewEBPFModel returns a new model with some extra field validation
 func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	return &model.Model{
-		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
+		ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
 			switch field {
 			case "bpf.map.name":
 				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {

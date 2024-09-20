@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -78,7 +77,6 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
@@ -121,7 +119,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	saddr = native.Endian.Uint32(net.ParseIP(saddrStr).To4())
+	saddr = binary.NativeEndian.Uint32(net.ParseIP(saddrStr).To4())
 	sportn, err := strconv.Atoi(sportStr)
 	if err != nil {
 		return
@@ -132,7 +130,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	daddr = native.Endian.Uint32(net.ParseIP(daddrStr).To4())
+	daddr = binary.NativeEndian.Uint32(net.ParseIP(daddrStr).To4())
 	dportn, err := strconv.Atoi(dportStr)
 	if err != nil {
 		return
@@ -250,7 +248,7 @@ func compareIPv6(a [4]uint32, b [4]uint32) bool {
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
-	return native.Endian.Uint16(arr[:])
+	return binary.NativeEndian.Uint16(arr[:])
 }
 
 func generateRandomIPv6Address() net.IP {
@@ -278,17 +276,16 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 		return
 	}
 
-	addr[0] = native.Endian.Uint32(buf[0:4])
-	addr[1] = native.Endian.Uint32(buf[4:8])
-	addr[2] = native.Endian.Uint32(buf[8:12])
-	addr[3] = native.Endian.Uint32(buf[12:16])
+	addr[0] = binary.NativeEndian.Uint32(buf[0:4])
+	addr[1] = binary.NativeEndian.Uint32(buf[4:8])
+	addr[2] = binary.NativeEndian.Uint32(buf[8:12])
+	addr[3] = binary.NativeEndian.Uint32(buf[12:16])
 	return
 }
 
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
-//nolint:revive // TODO(NET) Fix revive linter
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -678,10 +675,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			if !t.guessTCPv6 && !t.guessUDPv6 {
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
 				return t.setReadyState(mp)
-			} else { //nolint:revive // TODO(NET) Fix revive linter
-				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
-				break
 			}
+			t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
+			break
 		}
 		t.status.Offset_sk_buff_head++
 		t.status.Offset_sk_buff_head, _ = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
@@ -1089,8 +1085,6 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -1155,7 +1149,6 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {

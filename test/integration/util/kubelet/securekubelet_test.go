@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -38,7 +39,7 @@ func (suite *SecureTestSuite) SetupTest() {
 // - cacert
 func (suite *SecureTestSuite) TestWithTLSCA() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
@@ -77,7 +78,7 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 // - tls_verify
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureTestSuite) TestTLSWithoutCA() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
@@ -100,7 +101,7 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 // - certificate
 func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
@@ -139,7 +140,7 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 }
 
 func TestSecureKubeletSuite(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	compose, certsConfig, err := initSecureKubelet()
 	defer os.Remove(certsConfig.CertFilePath)

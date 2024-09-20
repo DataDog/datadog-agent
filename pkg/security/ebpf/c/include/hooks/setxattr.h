@@ -7,11 +7,11 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
-    struct policy_t policy = fetch_policy(EVENT_SETXATTR);
-    if (is_discarded_by_process(policy.mode, EVENT_SETXATTR)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_SETXATTR);
     struct syscall_cache_t syscall = {
         .type = EVENT_SETXATTR,
         .policy = policy,
@@ -39,10 +39,6 @@ HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
-    if (is_discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
         .policy = policy,
@@ -92,7 +88,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->xattr.dentry;
     syscall->resolver.key = syscall->xattr.file.path_key;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? event_type : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_SETXATTR_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -114,7 +110,7 @@ int tail_call_target_dr_setxattr_callback(ctx_t *ctx) {
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         monitor_discarded(EVENT_SETXATTR);
-        return discard_syscall(syscall);
+        pop_syscall(EVENT_SETXATTR);
     }
 
     return 0;

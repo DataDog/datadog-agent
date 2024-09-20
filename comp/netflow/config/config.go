@@ -8,9 +8,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 

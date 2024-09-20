@@ -21,15 +21,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func skipOnFentry(t *testing.T) {
-	if os.Getenv("DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY") == "true" {
-		t.Skip("fentry is not supported for on-demand yet")
-	}
-}
-
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -91,7 +84,6 @@ func TestOnDemandOpen(t *testing.T) {
 
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{
@@ -141,7 +133,6 @@ func TestOnDemandChdir(t *testing.T) {
 
 func TestOnDemandMprotect(t *testing.T) {
 	SkipIfNotAvailable(t)
-	skipOnFentry(t)
 
 	onDemands := []rules.OnDemandHookPoint{
 		{

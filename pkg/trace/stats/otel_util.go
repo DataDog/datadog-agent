@@ -33,6 +33,7 @@ func OTLPTracesToConcentratorInputs(
 	traces ptrace.Traces,
 	conf *config.AgentConfig,
 	containerTagKeys []string,
+	peerTagKeys []string,
 ) []Input {
 	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
@@ -48,7 +49,8 @@ func OTLPTracesToConcentratorInputs(
 		if _, exists := ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
 			continue
 		}
-		env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeDeploymentEnvironment)
+		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+		env := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
 		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
 		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
@@ -76,7 +78,7 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, conf))
+		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf, peerTagKeys))
 	}
 
 	inputs := make([]Input, 0, len(chunks))
@@ -105,8 +107,9 @@ func otelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
-	isTopLevel bool,
+	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
+	peerTagKeys []string,
 ) *pb.Span {
 	ddspan := &pb.Span{
 		Service:  traceutil.GetOTelService(otelspan, otelres, true),
@@ -119,7 +122,8 @@ func otelSpanToDDSpan(
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
 		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
 	}
-	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(otelspan.Kind()))
+	spanKind := otelspan.Kind()
+	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(spanKind))
 	code := traceutil.GetOTelStatusCode(otelspan)
 	if code != 0 {
 		traceutil.SetMetric(ddspan, tagStatusCode, float64(code))
@@ -130,12 +134,15 @@ func otelSpanToDDSpan(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if conf.PeerTagsAggregation {
-		peerTagKeys := preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
-		for _, peerTagKey := range peerTagKeys {
-			if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-				traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-			}
+	if isMeasured := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "_dd.measured"); isMeasured == "1" {
+		traceutil.SetMeasured(ddspan, true)
+	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
+		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
+		traceutil.SetMeasured(ddspan, true)
+	}
+	for _, peerTagKey := range peerTagKeys {
+		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
 		}
 	}
 	return ddspan

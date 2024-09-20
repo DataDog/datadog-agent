@@ -9,53 +9,70 @@ package kubeapiserver
 
 import (
 	"fmt"
-	"regexp"
+	"slices"
+	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
-	for key := range mapInput {
-		for _, filter := range keyFilters {
-			if filter.MatchString(key) {
-				delete(mapInput, key)
-				// we can break now since the key is already excluded.
-				break
-			}
+// groupResourceToGVRString is a helper function that converts a group resource string to
+// a group-version-resource string
+// a group resource string is in the form `{resource}.{group}` or `{resource}` (example: deployments.apps, pods)
+// a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
+// if the groupResource argument is not in the correct format, an empty string is returned
+func groupResourceToGVRString(groupResource string) string {
+	parts := strings.Split(groupResource, ".")
+
+	if len(parts) > 2 {
+		// incorrect format
+		log.Errorf("unexpected group resource format %q. correct format should be `{resource}.{group}` or `{resource}`", groupResource)
+	} else if len(parts) == 1 {
+		// format is `{resource}`
+		return parts[0]
+	} else {
+		// format is `{resource}/{group}`
+		return fmt.Sprintf("%s//%s", parts[1], parts[0])
+	}
+
+	return ""
+}
+
+// cleanDuplicateVersions detects if different versions are requested for the same resource within the same group
+// it logs an error for each occurrence, and a clean slice that doesn't contain any such duplication
+func cleanDuplicateVersions(resources []string) []string {
+	groupResourceToVersions := map[schema.GroupResource][]string{}
+	cleanedResources := make([]string, 0, len(resources))
+
+	for _, requestedResource := range resources {
+		group, version, resourceType := parseRequestedResource(requestedResource)
+
+		versions, found := groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}]
+		if found {
+			groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}] = append(versions, version)
+		} else {
+			groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}] = []string{version}
 		}
 	}
 
-	return mapInput
-}
+	for gr, versions := range groupResourceToVersions {
+		// remove duplicates
+		sort.Strings(versions)
+		versions = slices.Compact(versions)
 
-func parseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
-	var parsedFilters []*regexp.Regexp
-	var errors []error
-	for _, exclude := range annotationsExclude {
-		filter, err := filterToRegex(exclude)
-		if err != nil {
-			errors = append(errors, err)
-			continue
+		if len(versions) > 1 {
+			// there are duplicate versions for the same group/resource
+			log.Errorf("can't collect metadata for different versions of the same group and resource: versions requested for %s.%s: %q", gr.Resource, gr.Group, versions)
+		} else {
+			// only one version requested for the same group/resource
+			cleanedResources = append(cleanedResources, fmt.Sprintf("%s/%s/%s", gr.Group, versions[0], gr.Resource))
 		}
-		parsedFilters = append(parsedFilters, filter)
 	}
 
-	return parsedFilters, utilserror.NewAggregate(errors)
-}
-
-// filterToRegex checks a filter's regex
-func filterToRegex(filter string) (*regexp.Regexp, error) {
-	r, err := regexp.Compile(filter)
-	if err != nil {
-		errormsg := fmt.Errorf("invalid regex '%s': %s", filter, err)
-		return nil, errormsg
-	}
-	return r, nil
+	return cleanedResources
 }
 
 func parseRequestedResource(requestedResource string) (group string, version string, resource string) {

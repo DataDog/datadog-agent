@@ -7,15 +7,16 @@ package config
 
 import (
 	"fmt"
+	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
 	maxHTTPFrag = 512 // matches hard limit currently imposed in NPM driver
 )
 
-func adjustUSM(cfg config.Config) {
+func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
 		applyDefault(cfg, netNS("enable_http_monitoring"), true)
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
@@ -44,10 +45,18 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
 	deprecateBool(cfg, smNS("process_service_inference", "enabled"), spNS("process_service_inference", "enabled"))
 	deprecateBool(cfg, smNS("process_service_inference", "use_windows_service_name"), spNS("process_service_inference", "use_windows_service_name"))
-	applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
+
+	// default on windows is now enabled; default on linux is still disabled
+	if runtime.GOOS == "windows" {
+		applyDefault(cfg, spNS("process_service_inference", "enabled"), true)
+	} else {
+		applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
+	}
+
 	applyDefault(cfg, spNS("process_service_inference", "use_windows_service_name"), true)
 	applyDefault(cfg, smNS("enable_ring_buffers"), true)
 	applyDefault(cfg, smNS("max_postgres_stats_buffered"), 100000)
+	applyDefault(cfg, smNS("max_redis_stats_buffered"), 100000)
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("max_tracked_http_connections"))
