@@ -263,6 +263,10 @@ new-e2e-unit-tests:
   extends: .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
+  needs:
+    - !reference [ .needs_new_e2e_template ]
+    - go_deps
+    - go_tools_deps
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
