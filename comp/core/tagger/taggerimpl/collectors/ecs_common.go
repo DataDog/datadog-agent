@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func addResourceTags(t *taglist.TagList, m map[string]string) {
@@ -19,7 +19,7 @@ func addResourceTags(t *taglist.TagList, m map[string]string) {
 			continue
 		}
 
-		if config.Datadog().GetBool("ecs_resource_tags_replace_colon") {
+		if pkgconfigsetup.Datadog().GetBool("ecs_resource_tags_replace_colon") {
 			k = strings.ReplaceAll(k, ":", "_")
 		}
 

@@ -26,7 +26,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -66,8 +66,8 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		logger:    logger,
 		queue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
-				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
-				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
 				Name:            subsystem,

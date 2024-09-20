@@ -16,7 +16,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
@@ -29,14 +29,14 @@ import (
 // GetStatus returns status info for the secret and webhook controllers.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	if !config.Datadog().GetBool("admission_controller.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
 		status["Disabled"] = "The admission controller is not enabled on the Cluster Agent"
 		return status
 	}
 
 	ns := common.GetResourcesNamespace()
-	webhookName := config.Datadog().GetString("admission_controller.webhook_name")
-	secretName := config.Datadog().GetString("admission_controller.certificate.secret_name")
+	webhookName := pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name")
+	secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 	status["WebhookName"] = webhookName
 	status["SecretName"] = fmt.Sprintf("%s/%s", ns, secretName)
 

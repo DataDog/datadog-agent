@@ -30,12 +30,13 @@ var openCapabilities = rules.FieldCapabilities{
 	{
 		Field:        "open.file.name",
 		TypeBitmask:  eval.ScalarValueType,
-		FilterWeight: 10,
+		FilterWeight: 300,
 	},
+	processCapabilities,
 }
 
-func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
-	openKFilters, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
+func openKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	kfilters, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
@@ -44,17 +45,21 @@ func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "open.file.name", "open.file.path": // already handled by getBasenameKFilters
 		case "open.flags":
-			kfilter, err := getFlagsKFilters("open_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("open_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			openKFilters = append(openKFilters, kfilter)
-
+			kfilters = append(kfilters, kfilter)
+		case "process.auid":
+			kfs, err := getProcessKFilters(model.FileOpenEventType, approvers)
+			if err != nil {
+				return nil, err
+			}
+			kfilters = append(kfilters, kfs...)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
-
 	}
 
-	return newActiveKFilters(openKFilters...), nil
+	return newActiveKFilters(kfilters...), nil
 }

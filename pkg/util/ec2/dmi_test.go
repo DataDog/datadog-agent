@@ -8,15 +8,16 @@ package ec2
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/stretchr/testify/assert"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
 func TestIsBoardVendorEC2(t *testing.T) {
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForNotEC2(t)
 	assert.False(t, isBoardVendorEC2())
@@ -25,13 +26,13 @@ func TestIsBoardVendorEC2(t *testing.T) {
 	assert.True(t, isBoardVendorEC2())
 
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", false)
 	assert.False(t, isBoardVendorEC2())
 }
 
 func TestGetInstanceIDFromDMI(t *testing.T) {
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForNotEC2(t)
 	instanceID, err := getInstanceIDFromDMI()
@@ -44,14 +45,14 @@ func TestGetInstanceIDFromDMI(t *testing.T) {
 	assert.Equal(t, "i-myinstance", instanceID)
 
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", false)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", false)
 	_, err = getInstanceIDFromDMI()
 	assert.Error(t, err)
 }
 
 func TestIsEC2UUID(t *testing.T) {
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	// no UUID
 	dmi.SetupMock(t, "", "", "", "")
@@ -78,7 +79,7 @@ func TestIsEC2UUID(t *testing.T) {
 
 func TestIsEC2UUIDSwapEndian(t *testing.T) {
 	configmock.New(t)
-	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
+	pkgconfigsetup.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	// hypervisor
 	dmi.SetupMock(t, "45E12AEC-DCD1-B213-94ED-012345ABCDEF", "", "", "")

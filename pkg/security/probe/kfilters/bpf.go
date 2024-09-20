@@ -22,20 +22,20 @@ var bpfCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func bpfKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
-	var bpfKFilters []activeKFilter
+func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	var kfilters []activeKFilter
 
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
-			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", intValues[int64](values)...)
+			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", uintValues[uint64](values)...)
 			if err != nil {
 				return nil, err
 			}
-			bpfKFilters = append(bpfKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(bpfKFilters...), nil
+	return newActiveKFilters(kfilters...), nil
 }

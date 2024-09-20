@@ -14,7 +14,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,7 @@ import (
 
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
-	config.Datadog().SetWithoutSource("ignore_autoconf", []string{"ignored"})
+	pkgconfigsetup.Datadog().SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
 
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())

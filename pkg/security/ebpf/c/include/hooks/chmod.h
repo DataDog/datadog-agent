@@ -7,6 +7,10 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mode) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_CHMOD);
     struct syscall_cache_t syscall = {
         .type = EVENT_CHMOD,

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -45,10 +45,10 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
-	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog(), deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(pkgconfigsetup.Datadog(), deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog(), deps.Log, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
 

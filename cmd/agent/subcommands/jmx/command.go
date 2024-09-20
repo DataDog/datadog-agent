@@ -156,8 +156,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
-			agent.Bundle(),
-			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
 	}
 

@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -88,7 +89,7 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port   int
 	filter *workloadmeta.Filter
-	config.Config
+	model.Config
 }
 
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
@@ -102,7 +103,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			StreamHandler: &streamHandler{
 				filter: deps.Params.Filter,
-				Config: config.Datadog(),
+				Config: pkgconfigsetup.Datadog(),
 			},
 			Catalog: workloadmeta.Remote,
 		},

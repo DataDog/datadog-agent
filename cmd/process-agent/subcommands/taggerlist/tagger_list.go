@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -62,7 +62,7 @@ func taggerList(deps dependencies) error {
 }
 
 func getTaggerURL() (string, error) {
-	addressPort, err := ddconfig.GetProcessAPIAddressPort()
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

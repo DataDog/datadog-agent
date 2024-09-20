@@ -13,7 +13,7 @@ import (
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +25,7 @@ type KubeNodeTagsProvider struct {
 }
 
 // NewKubeNodeTagsProvider creates and returns a new kube node tags provider object
-func NewKubeNodeTagsProvider(conf config.Reader) KubeNodeTagsProvider {
+func NewKubeNodeTagsProvider(conf model.Reader) KubeNodeTagsProvider {
 	return KubeNodeTagsProvider{configutils.GetMetadataAsTags(conf)}
 }
 

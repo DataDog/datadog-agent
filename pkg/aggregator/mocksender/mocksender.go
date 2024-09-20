@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -40,7 +40,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog(), log, forwarder.NewOptions(config.Datadog(), log, nil))
+	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, forwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), compressionimpl.NewCompressorFactory()))
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")

@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -61,7 +61,7 @@ func newReporter(hostname string, stopper startstop.Stopper, sourceName, sourceT
 		context,
 		agentimpl.NewStatusProvider(),
 		hostnameimpl.NewHostnameService(),
-		pkgconfig.Datadog(),
+		pkgconfigsetup.Datadog(),
 		compressionFactory,
 	)
 

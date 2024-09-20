@@ -12,7 +12,7 @@ import (
 	"net"
 	"strings"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -100,7 +100,7 @@ func (t *Tailer) readForever() {
 			}
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
-			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+			if ipAddress != "" && pkgconfigsetup.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				lastColonIndex := strings.LastIndex(ipAddress, ":")
 				var ipAddressWithoutPort string
 				if lastColonIndex != -1 {
