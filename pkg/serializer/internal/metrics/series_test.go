@@ -383,7 +383,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 			series := makeSeries(10000, 50)
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			require.NoError(t, err)
 			// check that we got multiple payloads, so splitting occurred
@@ -421,7 +421,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 			// ten series, each with 50 points, so two should fit in each payload
 			series := makeSeries(10, 50)
 
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.FromConfig(mockConfig))
 			require.NoError(t, err)
 			require.Equal(t, 5, len(payloads))
 		})
@@ -462,7 +462,7 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 			}
 			series := CreateIterableSeries(CreateSerieSource(rawSeries))
 
-			payloads, filteredPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.NewCompressor(mockConfig), func(s *metrics.Serie) bool {
+			payloads, filteredPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.FromConfig(mockConfig), func(s *metrics.Serie) bool {
 				return s.Name == "test.metrics42"
 			})
 			require.NoError(t, err)
@@ -487,7 +487,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
 			series := makeSeries(1, 2)
-			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, compressionimpl.FromConfig(mockConfig))
 			require.NoError(t, err)
 			require.Len(t, payloads, 0)
 		})
@@ -534,7 +534,7 @@ func TestPayloadsSeries(t *testing.T) {
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			originalLength := len(testSeries)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			builder := stream.NewJSONPayloadBuilder(true, mockConfig, strategy)
 			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
@@ -582,7 +582,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 
 	var r transaction.BytesPayloads
 	mockConfig := mock.New(b)
-	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.FromConfig(mockConfig))
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

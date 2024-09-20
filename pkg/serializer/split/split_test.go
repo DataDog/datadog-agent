@@ -86,7 +86,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 
 			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
@@ -136,7 +136,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	}
 
 	mockConfig := mock.New(b)
-	strategy := compressionimpl.NewCompressor(mockConfig)
+	strategy := compressionimpl.FromConfig(mockConfig)
 	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
@@ -215,7 +215,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
 
@@ -294,7 +294,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 
 			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
 
