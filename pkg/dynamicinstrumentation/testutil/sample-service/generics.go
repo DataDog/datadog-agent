@@ -9,6 +9,7 @@ type TypeWithGenerics[V comparable] struct {
 	Value V
 }
 
+//nolint:all
 //go:noinline
 func (x TypeWithGenerics[V]) Guess(value V) bool {
 	return x.Value == value

@@ -9,18 +9,23 @@ type structWithMap struct {
 	m map[int]int
 }
 
+//nolint:all
 //go:noinline
 func test_struct_with_map(s structWithMap) {}
 
+//nolint:all
 //go:noinline
 func test_map_string_to_struct(m map[string]nestedStruct) {}
 
+//nolint:all
 //go:noinline
 func test_map_string_to_int(m map[string]int) {}
 
+//nolint:all
 //go:noinline
 func test_array_of_maps(m [2]map[string]int) {}
 
+//nolint:all
 //go:noinline
 func test_pointer_to_map(m *map[string]int) {}
 

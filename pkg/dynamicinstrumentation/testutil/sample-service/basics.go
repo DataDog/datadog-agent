@@ -5,53 +5,69 @@
 
 package main
 
+//nolint:all
 //go:noinline
 func test_single_byte(x byte) {}
 
+//nolint:all
 //go:noinline
 func test_single_rune(x rune) {}
 
+//nolint:all
 //go:noinline
 func test_single_bool(x bool) {}
 
+//nolint:all
 //go:noinline
 func test_single_int(x int) {}
 
+//nolint:all
 //go:noinline
 func test_single_int8(x int8) {}
 
+//nolint:all
 //go:noinline
 func test_single_int16(x int16) {}
 
+//nolint:all
 //go:noinline
 func test_single_int32(x int32) {}
 
+//nolint:all
 //go:noinline
 func test_single_int64(x int64) {}
 
+//nolint:all
 //go:noinline
 func test_single_uint(x uint) {}
 
+//nolint:all
 //go:noinline
 func test_single_uint8(x uint8) {}
 
+//nolint:all
 //go:noinline
 func test_single_uint16(x uint16) {}
 
+//nolint:all
 //go:noinline
 func test_single_uint32(x uint32) {}
 
+//nolint:all
 //go:noinline
 func test_single_uint64(x uint64) {}
 
+//nolint:all
 //go:noinline
 func test_single_float32(x float32) {}
 
+//nolint:all
 //go:noinline
 func test_single_float64(x float64) {}
 
 type typeAlias uint16
 
+//nolint:all
 //go:noinline
 func test_type_alias(x typeAlias) {}
 

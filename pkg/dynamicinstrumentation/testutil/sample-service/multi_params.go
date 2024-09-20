@@ -9,51 +9,67 @@ package main
 /* Multiple Parameters */
 /***********************/
 
+//nolint:all
 //go:noinline
 func test_combined_byte(w byte, x byte, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_rune(w byte, x rune, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_string(w byte, x string, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_bool(w byte, x bool, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_int(w byte, x int, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_int8(w byte, x int8, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_int16(w byte, x int16, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_int32(w byte, x int32, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_int64(w byte, x int64, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_uint(w byte, x uint, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_uint8(w byte, x uint8, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_uint16(w byte, x uint16, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_uint32(w byte, x uint32, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_combined_uint64(w byte, x uint64, y float32) {}
 
+//nolint:all
 //go:noinline
 func test_multiple_simple_params(a bool, b byte, c rune, d uint, e string) {}
 
+//nolint:all
 //go:noinline
 func test_multiple_composite_params(a [3]string, b aStruct, c []int, d map[string]string, e []nestedStruct) {
 }

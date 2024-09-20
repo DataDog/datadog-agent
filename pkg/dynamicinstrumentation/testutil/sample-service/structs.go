@@ -5,39 +5,51 @@
 
 package main
 
+//nolint:all
 //go:noinline
 func test_struct_with_array(a structWithAnArray) {}
 
+//nolint:all
 //go:noinline
 func test_struct(x aStruct) {}
 
+//nolint:all
 //go:noinline
 func test_nonembedded_struct(x nStruct) {}
 
+//nolint:all
 //go:noinline
 func test_multiple_embedded_struct(b bStruct) {}
 
+//nolint:all
 //go:noinline
 func test_no_string_struct(c cStruct) {}
 
+//nolint:all
 //go:noinline
 func test_struct_and_byte(w byte, x aStruct) {}
 
+//nolint:all
 //go:noinline
 func test_nested_pointer(x *anotherStruct) {}
 
+//nolint:all
 //go:noinline
 func test_ten_strings(x tenStrings) {}
 
+//nolint:all
 //go:noinline
 func test_string_struct(t threestrings) {}
 
+//nolint:all
 //go:noinline
 func test_deep_struct(t deepStruct1) {}
 
+//nolint:all
 //go:noinline
 func test_empty_struct(e emptyStruct) {}
 
+//nolint:all
 //go:noinline
 func test_lots_of_fields(l lotsOfFields) {}
 

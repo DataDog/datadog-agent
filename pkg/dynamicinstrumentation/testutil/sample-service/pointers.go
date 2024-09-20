@@ -28,6 +28,7 @@ type reallyComplexType struct {
 	aStringPtr                           *string
 }
 
+//nolint:all
 //go:noinline
 func test_linked_list(a node) {}
 
@@ -36,27 +37,35 @@ type node struct {
 	b   *node
 }
 
+//nolint:all
 //go:noinline
 func test_unsafe_pointer(x unsafe.Pointer) {}
 
+//nolint:all
 //go:noinline
 func test_uint_pointer(x *uint) {}
 
+//nolint:all
 //go:noinline
 func test_struct_pointer(x *nStruct) {}
 
+//nolint:all
 //go:noinline
 func test_complex_type(z *reallyComplexType) {}
 
+//nolint:all
 //go:noinline
 func test_struct_with_pointer(x structWithPointer) {}
 
+//nolint:all
 //go:noinline
 func test_struct_with_struct_pointer(b swsp) {}
 
+//nolint:all
 //go:noinline
 func test_struct_with_string_pointer(z spws) {}
 
+//nolint:all
 //go:noinline
 func test_string_pointer(z *string) {}
 
