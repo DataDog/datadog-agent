@@ -454,6 +454,8 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
+    process_agent=False,
+    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -491,6 +493,16 @@ def hacky_dev_image_build(
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
+
+    copy_extra_agents = ""
+    if process_agent:
+        from tasks.process_agent import build as process_agent_build
+        process_agent_build(ctx, bundle=False)
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        from tasks.trace_agent import build as trace_agent_build
+        trace_agent_build(ctx)
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -533,6 +545,7 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
