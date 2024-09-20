@@ -24,7 +24,6 @@ import (
 
 const (
 	host = "test-host"
-	site = "test-site"
 	k    = "test"
 )
 
@@ -267,7 +266,7 @@ func getRequestMatcher(storeType, p, apiKey, token string) interface{} {
 		return req.Method == "GET" &&
 			req.URL.Scheme == "https" &&
 			req.URL.Host == host &&
-			req.URL.Path == "/"+path.Join(site, storeType, p) &&
+			req.URL.Path == "/"+path.Join("test-site", storeType, p) &&
 			req.Host == host &&
 			req.Header.Get("X-Dd-Api-Key") == apiKey &&
 			req.Header.Get("Authorization") == token
@@ -297,7 +296,7 @@ func TestCDNRemoteStore(t *testing.T) {
 	cdnStore := &cdnRemoteStore{
 		httpClient:     httpClient,
 		host:           host,
-		site:           site,
+		pathPrefix:     "test-site",
 		apiKey:         k,
 		repositoryType: storeType,
 	}
@@ -316,6 +315,7 @@ func TestCDNRemoteStore(t *testing.T) {
 
 	root3 := "path/to/3.root.json"
 	body3 := "body3"
+	length = len(body3)
 	// For the second GetMeta request, we still expect to only pass the api key, since the first request's response did not contain a token
 	apiKeyMatcher = getRequestMatcher(storeType, root3, k, "")
 
@@ -407,7 +407,7 @@ func TestGetMetaNotFound(t *testing.T) {
 	cdnStore := &cdnRemoteStore{
 		httpClient:     httpClient,
 		host:           host,
-		site:           site,
+		pathPrefix:     "test-site",
 		apiKey:         k,
 		repositoryType: storeType,
 	}
@@ -435,7 +435,7 @@ func TestGetMetaError(t *testing.T) {
 	cdnStore := &cdnRemoteStore{
 		httpClient:     httpClient,
 		host:           host,
-		site:           site,
+		pathPrefix:     "test-site",
 		apiKey:         k,
 		repositoryType: storeType,
 	}
@@ -462,7 +462,7 @@ func TestGetTargetNotFound(t *testing.T) {
 	cdnStore := &cdnRemoteStore{
 		httpClient:     httpClient,
 		host:           host,
-		site:           site,
+		pathPrefix:     "test-site",
 		apiKey:         k,
 		repositoryType: "director",
 	}
@@ -489,7 +489,7 @@ func TestGetTargetError(t *testing.T) {
 	cdnStore := &cdnRemoteStore{
 		httpClient:     httpClient,
 		host:           host,
-		site:           site,
+		pathPrefix:     "test-site",
 		apiKey:         k,
 		repositoryType: "director",
 	}

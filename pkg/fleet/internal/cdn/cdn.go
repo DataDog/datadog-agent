@@ -114,13 +114,6 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		}
 	}
 
-	var signedTargets data.Signed
-	err = json.Unmarshal(agentConfigUpdate.TUFTargets, &signedTargets)
-	if err == nil {
-		var targets data.Targets
-		err = json.Unmarshal(signedTargets.Signed, &targets)
-	}
-
 	// Unmarshal RC results
 	configLayers := map[string]*layer{}
 	var configOrder *orderConfig
