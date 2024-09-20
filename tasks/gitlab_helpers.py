@@ -10,6 +10,7 @@ import tempfile
 
 from invoke import task
 
+from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
@@ -62,7 +63,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
 
 
 def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
-    return {
+    links = {
         "CI Visibility": [
             {
                 "external_link": {
@@ -90,6 +91,12 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
             },
         ]
     }
+
+    kmt_links = get_kmt_dashboard_links()
+    if kmt_links:
+        links["KMT Dashboard"] = kmt_links
+
+    return links
 
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
