@@ -138,14 +138,15 @@ def get_omnibus_env(
     kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
-    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    deploy_agent = os.environ.get('DEPLOY_AGENT')
-    if deploy_agent:
-        env['DEPLOY_AGENT'] = deploy_agent
-    if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
-    if 'INSTALL_DIR' in os.environ:
-        env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
+    env_to_forward = [
+        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+        'DEPLOY_AGENT',
+        'PACKAGE_ARCH',
+        'INSTALL_DIR',
+    ]
+    for key in env_to_forward:
+        if key in os.environ:
+            env[key] = os.environ[key]
 
     return env
 
