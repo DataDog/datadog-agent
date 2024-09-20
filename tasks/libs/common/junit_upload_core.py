@@ -29,12 +29,18 @@ from tasks.modules import DEFAULT_MODULES
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
-if platform.system() == "Windows":
-    DATADOG_CI_COMMAND = [r"c:\devtools\datadog-ci\datadog-ci", "junit", "upload"]
-else:
-    DATADOG_CI_COMMAND = [which("datadog-ci"), "junit", "upload"]
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
+
+
+def get_datadog_ci_command():
+    if platform.system() == "Windows":
+        return r"c:\devtools\datadog-ci\datadog-ci"
+    else:
+        path_datadog_ci = which("datadog-ci")
+        if path_datadog_ci is None:
+            raise FileNotFoundError("datadog-ci command not found")
+        return path_datadog_ci
 
 
 def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
@@ -228,6 +234,7 @@ def upload_junitxmls(team_dir: Path):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
+    datadog_ci_command = [get_datadog_ci_command(), "junit", "upload"]
     additional_tags = read_additional_tags(team_dir.parent)
     process_env = _update_environ(team_dir.parent)
     processes = []
@@ -238,7 +245,7 @@ def upload_junitxmls(team_dir: Path):
     for flags, files in xml_files.items():
         args = set_tags(owner, flavor, flags, additional_tags, files[0])
         args.extend(files)
-        processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
+        processes.append(Popen(datadog_ci_command + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
 
     for process in processes:
         stdout, stderr = process.communicate()
@@ -246,7 +253,7 @@ def upload_junitxmls(team_dir: Path):
         print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
             print(f"Failed uploading junit:\n{stderr.decode()}", file=sys.stderr)
-            raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
+            raise CalledProcessError(process.returncode, datadog_ci_command)
     return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
 
 
