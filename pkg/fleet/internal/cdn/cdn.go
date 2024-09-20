@@ -92,9 +92,9 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		return nil, err
 	}
 
-	// We always expect configurations.
+	orderedLayers := []*layer{}
 	if agentConfigUpdate == nil {
-		return nil, fmt.Errorf("no configurations found for AGENT_CONFIG")
+		return orderedLayers, nil
 	}
 
 	// Update CDN root versions
@@ -135,22 +135,26 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		}
 		configName := matched[1]
 
-		file := targetFiles[path]
-		if configName != configOrderID {
-			configLayer := &layer{}
-			err = json.Unmarshal(file, configLayer)
-			if err != nil {
-				// If a layer is wrong, fail later to parse the rest and check them all
-				layersErr = multierr.Append(layersErr, err)
-				continue
-			}
-			configLayers[configName] = configLayer
+		if file, ok := targetFiles[path]; !ok {
+			layersErr = multierr.Append(layersErr, fmt.Errorf("missing expected target file in update response: %s", path))
+			continue
 		} else {
-			configOrder = &orderConfig{}
-			err = json.Unmarshal(file, configOrder)
-			if err != nil {
-				// Return first - we can't continue without the order
-				return nil, err
+			if configName != configOrderID {
+				configLayer := &layer{}
+				err = json.Unmarshal(file, configLayer)
+				if err != nil {
+					// If a layer is wrong, fail later to parse the rest and check them all
+					layersErr = multierr.Append(layersErr, err)
+					continue
+				}
+				configLayers[configName] = configLayer
+			} else {
+				configOrder = &orderConfig{}
+				err = json.Unmarshal(file, configOrder)
+				if err != nil {
+					// Return first - we can't continue without the order
+					return nil, err
+				}
 			}
 		}
 	}
@@ -162,7 +166,6 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	if configOrder == nil {
 		return nil, fmt.Errorf("no configuration_order found")
 	}
-	orderedLayers := []*layer{}
 	for _, configName := range configOrder.Order {
 		if configLayer, ok := configLayers[configName]; ok {
 			orderedLayers = append(orderedLayers, configLayer)

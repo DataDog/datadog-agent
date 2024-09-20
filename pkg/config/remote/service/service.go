@@ -95,6 +95,69 @@ type Service struct {
 	db     *bbolt.DB
 }
 
+func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+	var roots [][]byte
+	for i := currentVersion + 1; i <= newVersion; i++ {
+		root, err := s.uptane.DirectorRoot(i)
+		if err != nil {
+			return nil, err
+		}
+		canonicalRoot, err := enforceCanonicalJSON(root)
+		if err != nil {
+			return nil, err
+		}
+		roots = append(roots, canonicalRoot)
+	}
+	return roots, nil
+}
+
+func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
+	productSet := make(map[rdata.Product]struct{})
+	for _, product := range products {
+		productSet[product] = struct{}{}
+	}
+	targets, err := s.uptane.Targets()
+	if err != nil {
+		return nil, err
+	}
+	cachedTargets := make(map[string]data.FileMeta)
+	for _, cachedTarget := range cachedTargetFiles {
+		hashes := make(data.Hashes)
+		for _, hash := range cachedTarget.Hashes {
+			h, err := hex.DecodeString(hash.Hash)
+			if err != nil {
+				return nil, err
+			}
+			hashes[hash.Algorithm] = h
+		}
+		cachedTargets[cachedTarget.Path] = data.FileMeta{
+			Hashes: hashes,
+			Length: cachedTarget.Length,
+		}
+	}
+	var configFiles []*pbgo.File
+	for targetPath, targetMeta := range targets {
+		configPathMeta, err := rdata.ParseConfigPath(targetPath)
+		if err != nil {
+			return nil, err
+		}
+		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
+			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
+				continue
+			}
+			fileContents, err := s.uptane.TargetFile(targetPath)
+			if err != nil {
+				return nil, err
+			}
+			configFiles = append(configFiles, &pbgo.File{
+				Path: targetPath,
+				Raw:  fileContents,
+			})
+		}
+	}
+	return configFiles, nil
+}
+
 // CoreAgentService fetches  Remote Configurations from the RC backend
 type CoreAgentService struct {
 	Service
@@ -782,69 +845,6 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 	}
 
 	return response, nil
-}
-
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
-	var roots [][]byte
-	for i := currentVersion + 1; i <= newVersion; i++ {
-		root, err := s.uptane.DirectorRoot(i)
-		if err != nil {
-			return nil, err
-		}
-		canonicalRoot, err := enforceCanonicalJSON(root)
-		if err != nil {
-			return nil, err
-		}
-		roots = append(roots, canonicalRoot)
-	}
-	return roots, nil
-}
-
-func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
-	productSet := make(map[rdata.Product]struct{})
-	for _, product := range products {
-		productSet[product] = struct{}{}
-	}
-	targets, err := s.uptane.Targets()
-	if err != nil {
-		return nil, err
-	}
-	cachedTargets := make(map[string]data.FileMeta)
-	for _, cachedTarget := range cachedTargetFiles {
-		hashes := make(data.Hashes)
-		for _, hash := range cachedTarget.Hashes {
-			h, err := hex.DecodeString(hash.Hash)
-			if err != nil {
-				return nil, err
-			}
-			hashes[hash.Algorithm] = h
-		}
-		cachedTargets[cachedTarget.Path] = data.FileMeta{
-			Hashes: hashes,
-			Length: cachedTarget.Length,
-		}
-	}
-	var configFiles []*pbgo.File
-	for targetPath, targetMeta := range targets {
-		configPathMeta, err := rdata.ParseConfigPath(targetPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, inClientProducts := productSet[rdata.Product(configPathMeta.Product)]; inClientProducts {
-			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
-				continue
-			}
-			fileContents, err := s.uptane.TargetFile(targetPath)
-			if err != nil {
-				return nil, err
-			}
-			configFiles = append(configFiles, &pbgo.File{
-				Path: targetPath,
-				Raw:  fileContents,
-			})
-		}
-	}
-	return configFiles, nil
 }
 
 func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
