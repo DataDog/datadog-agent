@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 
@@ -134,7 +135,7 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
 
-     if custom_config_dir:
+    if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
