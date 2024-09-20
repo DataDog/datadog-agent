@@ -18,7 +18,8 @@ else
 }
 
 $installer = New-TemporaryFile
-[System.Net.WebClient]::new().DownloadFile("https://s3.amazonaws.com/ddagent-windows-stable/datadog-installer.exe", $filePath)
+# Replace with https://s3.amazonaws.com/ddagent-windows-stable/datadog-installer-x86_64.exe when ready
+[System.Net.WebClient]::new().DownloadFile("https://s3.amazonaws.com/dd-agent-omnibus/datadog-installer-x86_64.exe", $filePath)
 
 # If not set the `default-packages` won't contain the Datadog Agent
 $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT="True"
