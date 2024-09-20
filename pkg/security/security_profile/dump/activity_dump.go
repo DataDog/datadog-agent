@@ -103,8 +103,16 @@ type ActivityDumpHeader struct {
 	DNSNames *utils.StringKeys `json:"dns_names"`
 }
 
-// SECLRuleOpts see sub type
-type SECLRuleOpts = activity_tree.SECLRuleOpts
+// SECLRuleOpts defines SECL rules options
+type SECLRuleOpts struct {
+	EnableKill bool
+	AllowList  bool
+	Lineage    bool
+	ImageName  string
+	ImageTag   string
+	Service    string
+	FIM        bool
+}
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
 func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
@@ -890,7 +898,7 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 }
 
 // LoadActivityDumpsFromFiles load ads from a file or a directory
-func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
+func LoadActivityDumpsFromFiles(path string) ([]*ActivityDump, error) {
 
 	fileInfo, err := os.Stat(path)
 	if os.IsNotExist(err) {
@@ -941,11 +949,76 @@ func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
 	}
-	return ad, nil
+	return []*ActivityDump{ad}, nil
 
 }
 
-// ToSECLRules return SECL rules matching the activity of the given tree
-func (ad *ActivityDump) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
-	return ad.ActivityTree.ToSECLRules(opts)
+// GenerateRules return rules from activity dumps
+func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefinition {
+
+	var ruleDefs []*rules.RuleDefinition
+	groupID := getGroupID(opts)
+
+	var execs []string
+	lineage := make(map[string][]string)
+	fims := make(map[string][]string)
+
+	for _, ad := range ads {
+		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths()
+
+		for execPath, fimPaths := range fimPathsperExecPath {
+			execs = append(execs, execPath)
+			tmp, ok := fims[execPath]
+			if ok {
+				fims[execPath] = append(tmp, fimPaths...)
+			} else {
+				fims[execPath] = fimPaths
+			}
+		}
+
+		for p, pp := range execAndParent {
+			tmp, ok := lineage[p]
+			if ok {
+				lineage[p] = append(tmp, pp...)
+			} else {
+				lineage[p] = pp
+			}
+		}
+	}
+
+	// add exec rules
+	if opts.AllowList {
+		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in [%s]`, strings.Join(execs, ", ")), groupID, opts))
+	}
+
+	// add fim rules
+	if opts.FIM {
+		for exec, paths := range fims {
+			if len(paths) != 0 {
+				ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`open.file.path not in [%s] && process.file.path == %s`, strings.Join(paths, ", "), exec), groupID, opts))
+			}
+		}
+	}
+
+	// add lineage
+	if opts.Lineage {
+		var (
+			parentOp = "=="
+			ctxOp    = "!="
+		)
+		var expressions []string
+		for p, pp := range lineage {
+			for _, ppp := range pp {
+				if ppp == "" {
+					parentOp = "!="
+					ctxOp = "=="
+				}
+				expressions = append(expressions, fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path %s "%s" && process.parent.container.id %s ""`, p, parentOp, ppp, ctxOp))
+			}
+		}
+
+		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`!(%s)`, strings.Join(expressions, " || ")), groupID, opts))
+
+	}
+	return ruleDefs
 }

@@ -639,8 +639,9 @@ func activityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []
 	}
 
 	ActivityDumpWorkloadPolicyCmd := &cobra.Command{
-		Use:   "workload-policy",
-		Short: "convert an activity dump to a workload policy",
+		Use:    "workload-policy",
+		Hidden: true,
+		Short:  "convert an activity dump to a workload policy",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(activityDumpToWorkloadPolicy,
 				fx.Supply(cliParams),
@@ -721,34 +722,39 @@ func activityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []
 
 func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpToWorkloadPolicyCliParams) error {
 
+	opts := dump.SECLRuleOpts{
+		EnableKill: args.kill,
+		AllowList:  args.allowlist,
+		Lineage:    args.lineage,
+		Service:    args.service,
+		ImageName:  args.imageName,
+		ImageTag:   args.imageTag,
+		FIM:        args.fim,
+	}
+
 	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
 	if err != nil {
 		return err
 	}
-	var mergedRules []*rules.RuleDefinition
-	switch ads := ads.(type) {
-	case *dump.ActivityDump:
-		rules, err := generateRules(ads, args)
-		if err != nil {
-			return err
-		}
-		mergedRules = rules
-	case []*dump.ActivityDump:
 
-		for _, ad := range ads {
+	generatedRules := dump.GenerateRules(ads, opts)
+	generatedRules = utils.BuildPatterns(generatedRules)
 
-			rules, err := generateRules(ad, args)
-			if err != nil {
-				return err
-			}
-			mergedRules = append(mergedRules, rules...)
-
-		}
+	policyDef := rules.PolicyDef{
+		Rules: generatedRules,
 	}
-	mergedRules = utils.BuildPatterns(mergedRules)
 
-	policy := rules.PolicyDef{
-		Rules: mergedRules,
+	// Verify policy syntax
+	var policyName string
+	if len(args.imageName) > 0 {
+		policyName = fmt.Sprintf("%s_policy", args.imageName)
+	} else {
+		policyName = "workload_policy"
+	}
+	policy, err := rules.LoadPolicyFromDefinition(policyName, "workload", &policyDef, nil, nil)
+
+	if err != nil {
+		return fmt.Errorf("error in generated ruleset's syntax: '%s'", err)
 	}
 
 	b, err := yaml.Marshal(policy)
@@ -768,22 +774,4 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	fmt.Fprint(output, string(b))
 
 	return nil
-}
-
-func generateRules(ad interface{}, args *activityDumpToWorkloadPolicyCliParams) ([]*rules.RuleDefinition, error) {
-	opts := dump.SECLRuleOpts{
-		EnableKill: args.kill,
-		AllowList:  args.allowlist,
-		Lineage:    args.lineage,
-		Service:    args.service,
-		ImageName:  args.imageName,
-		ImageTag:   args.imageTag,
-		FIM:        args.fim,
-	}
-
-	rules, err := ad.(*dump.ActivityDump).ToSECLRules(opts)
-	if err != nil {
-		return nil, err
-	}
-	return rules, nil
 }

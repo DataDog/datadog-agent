@@ -23,9 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
@@ -99,17 +97,6 @@ const (
 	// MaxNodeGenerationType is the maximum node type
 	MaxNodeGenerationType NodeGenerationType = 4
 )
-
-// SECLRuleOpts defines SECL rules options
-type SECLRuleOpts struct {
-	EnableKill bool
-	AllowList  bool
-	Lineage    bool
-	ImageName  string
-	ImageTag   string
-	Service    string
-	FIM        bool
-}
 
 func (genType NodeGenerationType) String() string {
 	switch genType {
@@ -892,89 +879,10 @@ func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 	}
 }
 
-func applyKillAction(ruleDef *rules.RuleDefinition) {
-	ruleDef.Actions = []*rules.ActionDefinition{
-		{
-			Kill: &rules.KillDefinition{
-				Signal: "SIGKILL",
-			},
-		},
-	}
-}
+func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
 
-func applyContext(ruleDef *rules.RuleDefinition, opts SECLRuleOpts) {
-	var context []string
-
-	if opts.ImageName != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_name:%s"`, opts.ImageName))
-	}
-	if opts.ImageTag != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_tag:%s"`, opts.ImageTag))
-	}
-	if opts.Service != "" {
-		context = append(context, fmt.Sprintf(`process.envp == "DD_SERVICE=%s"`, opts.Service))
-	}
-
-	if len(context) == 0 {
-		return
-	}
-
-	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, strings.Join(context, " && "))
-}
-
-func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.RuleDefinition {
-	processPath := processNode.Process.FileEvent.PathnameStr
-
-	var parentPath string
-	if parent := processNode.GetParent(); parent != nil {
-		if parentNode, ok := parent.(*ProcessNode); ok {
-			parentPath = parentNode.Process.FileEvent.PathnameStr
-		}
-	}
-
-	var (
-		parentOp = "=="
-		ctxOp    = "!="
-	)
-
-	if parentPath == "" {
-		parentOp = "!="
-		ctxOp = "=="
-	}
-
-	ruleDef := &rules.RuleDefinition{
-		Expression: fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path %s "%s" && process.parent.container.id %s ""`, processPath, parentOp, parentPath, ctxOp),
-	}
-
-	if opts.EnableKill {
-		applyKillAction(ruleDef)
-	}
-
-	return ruleDef
-}
-
-func getGroupID(opts SECLRuleOpts) string {
-	groupID := "rules_"
-	if len(opts.ImageName) != 0 {
-		groupID = fmt.Sprintf("%s%s", groupID, opts.ImageName)
-	} else {
-		groupID = fmt.Sprintf("%s%s", groupID, uuid.GetUUID()) // It should be unique so that we can target it at least, but ImageName should be always set
-	}
-	if len(opts.ImageTag) != 0 {
-		groupID = fmt.Sprintf("%s:%s", groupID, opts.ImageTag)
-	}
-
-	return groupID
-}
-
-// ToSECLRules return SECL rules matching the activity of the given tree
-func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
-	groupID := getGroupID(opts)
 	fimPathsperExecPath := make(map[string][]string)
-	var (
-		ruleDefs    []*rules.RuleDefinition
-		execRuleExp []string
-	)
+	execAndParent := make(map[string][]string)
 
 	at.visit(func(processNode *ProcessNode) {
 		var fimPaths []string
@@ -990,40 +898,21 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 				}
 			})
 		}
-		paths, ok := fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr]
+		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+		paths, ok := fimPathsperExecPath[execPath]
 		if ok {
-			fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr] = append(paths, fimPaths...)
-		}else{
-			fimPathsperExecPath[processNode.Process.FileEvent.PathnameStr] = fimPaths
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
 		}
-		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
-
+		p, pp := extractExecAndParent(processNode)
+		tmp, ok := execAndParent[p]
+		if ok {
+			execAndParent[p] = append(tmp, pp)
+		} else {
+			execAndParent[p] = []string{pp}
+		}
 	})
 
-	for execPath, fimPaths := range fimPathsperExecPath {
-		if opts.AllowList {
-			ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in ["%s"]`, execPath), groupID, opts))
-		}
-		if opts.FIM && len(fimPaths) != 0 {
-			ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`open.file.path not in [%s] && process.file.path == "%s"`, strings.Join(fimPaths, ", "), execPath),groupID, opts))
-		}
-	}
-
-	if opts.Lineage {
-		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),groupID, opts))
-	}
-
-	return ruleDefs, nil
-}
-
-func addRule(expression string, groupID string, opts SECLRuleOpts) *rules.RuleDefinition {
-	ruleDef := &rules.RuleDefinition{
-		Expression: expression,
-		GroupID:    groupID,
-	}
-	applyContext(ruleDef, opts)
-		if opts.EnableKill {
-			applyKillAction(ruleDef)
-		}
-	return ruleDef
+	return fimPathsperExecPath, execAndParent
 }
