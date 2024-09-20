@@ -67,19 +67,6 @@ jobs:
           command: |
             inv -e deps
       - run:
-          name: build rtloader
-          command: |
-            inv rtloader.make --install-prefix=/go/src/github.com/DataDog/datadog-agent/dev
-            inv rtloader.install
-      - run:
-          name: lint rtloader
-          command: |
-            inv rtloader.format --raise-if-changed
-      - run:
-          name: test rtloader
-          command: |
-            inv rtloader.test
-      - run:
           name: install go tooling
           command: |
             inv -e install-tools
@@ -202,31 +189,6 @@ jobs:
           name: run docker image integration tests
           command: inv -e docker.integration-tests
 
-  build_binaries:
-    <<: *job_template
-    resource_class: large
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build dogstatsd
-          command: inv -e dogstatsd.build --static
-      - run:
-          name: build agent
-          command: inv -e agent.build --exclude-rtloader
-
-  build_iot_agent:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: build iot agent
-          command: inv -e agent.build --flavor iot
-      - run:
-          name: test iot agent
-          command: DD_HOSTNAME=test-circleci-hostname ./bin/agent/agent -c ./bin/agent/dist check cpu
-
   documentation_generation:
     <<: *job_template
     steps:
@@ -277,13 +239,3 @@ workflows:
       - documentation_generation:
           requires:
             - dependencies
-      - build_binaries:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
-      - build_iot_agent:
-          requires:
-            - unit_tests
-            - integration_tests
-            - docker_tests
