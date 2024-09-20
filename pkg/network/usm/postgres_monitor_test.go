@@ -478,7 +478,6 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
-		// This test validates that the SHOW command is currently not supported.
 		{
 			name: "show command",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
