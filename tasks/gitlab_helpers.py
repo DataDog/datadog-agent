@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import tempfile
 
 import yaml
@@ -27,6 +26,7 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import experimental
 
 
 @task
@@ -141,18 +141,23 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
 
 
 @task
+@experimental(
+    'This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored'
+)
 def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     """
-    Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
-    """
+    Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs `jobs`.
+    That is, the resulting pipeline will have `jobs` as last jobs to run.
 
-    print(
-        color_message(
-            'Warning: This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored',
-            Color.ORANGE,
-        ),
-        file=sys.stderr,
-    )
+    Warning: This doesn't take implicit dependencies into account (stages order), only explicit dependencies (job `needs` / `dependencies`).
+
+    - dry_run: Print only the new configuration without writing it to the .gitlab-ci.yml file.
+    - force: Force the update of the .gitlab-ci.yml file even if it has been modified.
+
+    Example:
+    $ inv gitlab.gen-config-subset tests_deb-arm64-py3
+    $ inv gitlab.gen-config-subset tests_rpm-arm64-py3,tests_deb-arm64-py3 --dry-run
+    """
 
     jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
     attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
