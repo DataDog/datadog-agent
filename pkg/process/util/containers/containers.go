@@ -75,15 +75,27 @@ type containerProvider struct {
 	metricsProvider metrics.Provider
 	metadataStore   workloadmeta.Component
 	filter          *containers.Filter
+
+	mu                sync.Mutex
+	containersCreated map[string]*workloadmeta.Container
+	stopCh            chan struct{}
 }
 
 // NewContainerProvider returns a ContainerProvider instance
 func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.Component, filter *containers.Filter) ContainerProvider {
-	return &containerProvider{
+	cp := &containerProvider{
 		metricsProvider: provider,
 		metadataStore:   metadataStore,
 		filter:          filter,
+
+		containersCreated: make(map[string]*workloadmeta.Container),
+		stopCh:            make(chan struct{}),
 	}
+
+	// TODO: Not the right place to start the container provider
+	cp.Run()
+
+	return cp
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
@@ -99,14 +111,23 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
-	containersMetadata := p.metadataStore.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
-		if _, found := previousContainers[container.ID]; found {
-			return container.State.Running
+	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+
+	// Get Created Containers
+	p.mu.Lock()
+
+	for _, cm := range containersMetadata {
+		if _, ok := p.containersCreated[cm.ID]; ok {
+			delete(p.containersCreated, cm.ID)
 		}
-		// this is a new container, let's collect it regardless of its state
-		log.Infof("New Container found: %+v", container)
-		return true
-	})
+	}
+	for _, cont := range p.containersCreated {
+		containersMetadata = append(containersMetadata, cont)
+		log.Infof("Container created: %+v", cont)
+	}
+
+	clear(p.containersCreated)
+	p.mu.Unlock()
 
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
@@ -231,6 +252,40 @@ func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]str
 	}
 
 	return pidToCid
+}
+
+func (p *containerProvider) Run() {
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKind(workloadmeta.KindContainer).
+		Build()
+
+	contEventsCh := p.metadataStore.Subscribe(
+		"container-provider-new-cont",
+		workloadmeta.NormalPriority,
+		filter,
+	)
+	for {
+		select {
+		case eventBundle, ok := <-contEventsCh:
+			if !ok {
+				return
+			}
+			for _, event := range eventBundle.Events {
+				container, ok := event.Entity.(*workloadmeta.Container)
+				if !ok {
+					log.Debugf("Expected workloadmeta.Container got %T, skipping", event.Entity)
+					continue
+				}
+				p.mu.Lock()
+				p.containersCreated[container.ID] = container
+				p.mu.Unlock()
+			}
+		case <-p.stopCh:
+			return
+		}
+	}
 }
 
 func computeContainerStats(container *workloadmeta.Container, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
