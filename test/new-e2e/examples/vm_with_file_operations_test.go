@@ -49,6 +49,11 @@ func (v *vmSuiteWithFileOperations) TestCommandResults() {
 	_, err = vm.Execute("not-a-command")
 	v.Assert().Error(err, "invalid command should return an error")
 
+	// specific exit code should be returned
+	_, err = vm.Execute("exit 2")
+	v.Assert().Error(err, "non-zero exit code should return an error")
+	assertExitCodeEqual(v.T(), err, 2, "specific exit code should be returned")
+
 	if vm.OSFamily == os.WindowsFamily {
 		v.testWindowsCommandResults()
 	}
