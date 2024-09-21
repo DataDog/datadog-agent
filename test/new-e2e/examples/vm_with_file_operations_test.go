@@ -6,6 +6,7 @@
 package examples
 
 import (
+	"golang.org/x/crypto/ssh"
 	"io/fs"
 	"testing"
 
@@ -14,6 +15,8 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type vmSuiteWithFileOperations struct {
@@ -22,8 +25,70 @@ type vmSuiteWithFileOperations struct {
 
 // TestVMSuiteWithFileOperations runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuiteWithFileOperations(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
 	e2e.Run(t, &vmSuiteWithFileOperations{}, suiteParams...)
+}
+
+func assertExitCodeEqual(t *testing.T, err error, expected int, msgAndArgs ...interface{}) {
+	t.Helper()
+	var exitErr *ssh.ExitError
+	assert.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, expected, exitErr.ExitStatus(), msgAndArgs)
+}
+
+// TestCommandResults tests that commands return output or errors in the expected way
+func (v *vmSuiteWithFileOperations) TestCommandResults() {
+	vm := v.Env().RemoteHost
+
+	// successful command should return the output
+	out, err := vm.Execute("echo hello")
+	v.Assert().NoError(err)
+	v.Assert().Contains(out, "hello")
+
+	// invalid commands should return an error
+	_, err = vm.Execute("not-a-command")
+	v.Assert().Error(err, "invalid command should return an error")
+
+	if vm.OSFamily == os.WindowsFamily {
+		v.testWindowsCommandResults()
+	}
+}
+
+func (v *vmSuiteWithFileOperations) testWindowsCommandResults() {
+	vm := v.Env().RemoteHost
+
+	// invalid commands should return an error
+	_, err := vm.Execute("not-a-command")
+	v.Assert().Error(err, "invalid command should return an error")
+	assertExitCodeEqual(v.T(), err, 1, "generic poewrshell error should return exit code 1")
+
+	// native commands should return the exit status
+	_, err = vm.Execute("cmd.exe /c exit 2")
+	v.Assert().Error(err, "native command failure should return an error")
+	assertExitCodeEqual(v.T(), err, 2, "specific exit code should be returned")
+
+	// a failing native command should continue to execute the rest of the command
+	// and the result should be from the lsat command
+	out, err := vm.Execute("cmd.exe /c exit 2; echo hello")
+	v.Assert().NoError(err, "result should come from the last command")
+	v.Assert().Contains(out, "hello", "native command failure should continue to execute the rest of the command")
+
+	// Execute should auto-set $ErrorActionPreference to 'Stop', so
+	// a failing PowerShell cmdlet should fail immediately and not
+	// execute the rest of the command, so the output should not contain "hello"
+	out, err = vm.Execute(`Write-Error 'error'; echo he""llo`)
+	v.Assert().Error(err, "Execute should add ErrorActionPreference='Stop' to stop command execution on error")
+	v.Assert().NotContains(err.Error(), "hello")
+	v.Assert().NotContains(out, "hello")
+	assertExitCodeEqual(v.T(), err, 1, "failing PowerShell cmdlet should return exit code 1")
+
+	// Execute should auto-set $ErrorActionPreference to 'Stop', so subcommands return an error
+	_, err = vm.Execute(`(Get-Service -Name 'not-a-service').Status`)
+	v.Assert().Error(err, "Execute should add ErrorActionPreference='Stop' to stop subcommand execution on error")
+	assertExitCodeEqual(v.T(), err, 1, "failing PowerShell cmdlet should return exit code 1")
+	// Sanity check default 'Continue' behavior does not return an error
+	_, err = vm.Execute(`$ErrorActionPreference='Continue'; (Get-Service -Name 'not-a-service').Status`)
+	v.Assert().NoError(err, "explicit ErrorActionPreference='Continue' should ignore subcommand error")
 }
 
 func (v *vmSuiteWithFileOperations) TestFileOperations() {
