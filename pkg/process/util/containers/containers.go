@@ -280,6 +280,7 @@ func (p *containerProvider) Run() {
 				p.containersCreated[container.ID] = container
 				p.mu.Unlock()
 			}
+			eventBundle.Acknowledge()
 		case <-p.stopCh:
 			return
 		}
