@@ -117,9 +117,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	p.mu.Lock()
 
 	for _, cm := range containersMetadata {
-		if _, ok := p.containersCreated[cm.ID]; ok {
-			delete(p.containersCreated, cm.ID)
-		}
+		delete(p.containersCreated, cm.ID)
 	}
 	for _, cont := range p.containersCreated {
 		containersMetadata = append(containersMetadata, cont)
