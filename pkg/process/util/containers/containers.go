@@ -93,7 +93,7 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 	}
 
 	// TODO: Not the right place to start the container provider
-	cp.Run()
+	go cp.Run()
 
 	return cp
 }
