@@ -28,6 +28,7 @@ type Operator struct {
 	ArrayType      string
 	ValueType      string
 	Commutative    bool
+	RangeLimit     string
 }
 
 func main() {
@@ -360,7 +361,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             stdCompare(">"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "GreaterOrEqualThan",
@@ -369,7 +370,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             stdCompare(">="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "LesserThan",
@@ -378,7 +379,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             stdCompare("<"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "LesserOrEqualThan",
@@ -387,7 +388,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             stdCompare("<="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationLesserThan",
@@ -396,7 +397,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompare("<"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationLesserOrEqualThan",
@@ -405,7 +406,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompare("<="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationGreaterThan",
@@ -414,7 +415,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompare(">"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationGreaterOrEqualThan",
@@ -423,7 +424,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompare(">="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationEqual",
@@ -441,7 +442,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation("<"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationLesserOrEqualThanArithmeticOperation",
@@ -450,7 +451,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation("<="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationGreaterThanArithmeticOperation",
@@ -459,7 +460,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation(">"),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationGreaterOrEqualThanArithmeticOperation",
@@ -468,7 +469,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				FuncReturnType: "BoolEvaluator",
 				EvalReturnType: "bool",
 				Op:             durationCompareArithmeticOperation(">="),
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationEqualArithmeticOperation",
@@ -509,7 +510,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare(">"),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "IntArrayGreaterOrEqualThan",
@@ -519,7 +520,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare(">="),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "IntArrayLesserThan",
@@ -529,7 +530,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("<"),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "IntArrayLesserOrEqualThan",
@@ -539,7 +540,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             stdCompare("<="),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationArrayLesserThan",
@@ -549,7 +550,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare("<"),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationArrayLesserOrEqualThan",
@@ -559,7 +560,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare("<="),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationArrayGreaterThan",
@@ -569,7 +570,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare(">"),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 			{
 				FuncName:       "DurationArrayGreaterOrEqualThan",
@@ -579,7 +580,7 @@ func {{ .FuncName }}(a *{{ .Arg1Type }}, b *{{ .Arg2Type }}, state *State) (*{{ 
 				EvalReturnType: "bool",
 				Op:             durationCompare(">="),
 				ArrayType:      "int",
-				ValueType:      "ScalarValueType",
+				ValueType:      "RangeValueType",
 			},
 		},
 	}

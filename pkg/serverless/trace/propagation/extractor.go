@@ -45,9 +45,10 @@ type Extractor struct {
 
 // TraceContext stores the propagated trace context values.
 type TraceContext struct {
-	TraceID          uint64
-	ParentID         uint64
-	SamplingPriority sampler.SamplingPriority
+	TraceID           uint64
+	TraceIDUpper64Hex string
+	ParentID          uint64
+	SamplingPriority  sampler.SamplingPriority
 }
 
 // TraceContextExtended stores the propagated trace context values plus other
@@ -114,6 +115,11 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		carrier, err = headersCarrier(ev.Headers)
 	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
+	case events.StepFunctionPayload:
+		tc, err := extractTraceContextFromStepFunctionContext(ev)
+		if err == nil {
+			return tc, nil
+		}
 	default:
 		err = errorUnsupportedExtractionType
 	}
