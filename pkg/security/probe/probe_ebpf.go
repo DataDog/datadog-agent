@@ -1108,16 +1108,20 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+// setApprovers applies approvers and removes the unused ones
+func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newKFilters, err := kfiltersGetter(approvers)
+	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+		return err
+	}
+
+	if len(approvers) != len(fieldHandled) {
+		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
@@ -1566,11 +1570,16 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
-			return nil, err
-		}
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
+			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+
+			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+				return nil, err
+			}
 		}
 	}
 

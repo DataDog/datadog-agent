@@ -9,8 +9,6 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -36,30 +34,29 @@ var mmapCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func mmapKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
-	kfilters, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
+func mmapKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	kfilters, fieldHandled, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "mmap.file.name", "mmap.file.path": // already handled by getBasenameKFilters
 		case "mmap.flags":
 			kfilter, err := getFlagsKFilter("mmap_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		case "mmap.protection":
 			kfilter, err := getFlagsKFilter("mmap_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), nil
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }
