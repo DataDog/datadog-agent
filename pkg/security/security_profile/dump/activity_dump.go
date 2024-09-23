@@ -922,24 +922,26 @@ func LoadActivityDumpsFromFiles(path string) ([]*ActivityDump, error) {
 
 		ads := []*ActivityDump{}
 		for _, file := range files {
-			f, err := os.Open(filepath.Join(path, file.Name()))
-			if err != nil {
-				return nil, fmt.Errorf("couldn't open secdump: %w", err)
-			}
-			defer f.Close()
-			ad := NewEmptyActivityDump(nil)
-			err = ad.DecodeProtobuf(f)
+			ad, err := fileToActivityDump(filepath.Join(path, file.Name()))
 			if err != nil {
 				return nil, fmt.Errorf("couldn't decode secdump: %w", err)
 			}
-
 			ads = append(ads, ad)
 		}
 		return ads, nil
 
 	}
 	// It's a file otherwise
-	f, err := os.Open(path)
+	ad, err := fileToActivityDump(path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+	}
+	return []*ActivityDump{ad}, nil
+
+}
+
+func fileToActivityDump(filepath string) (*ActivityDump, error) {
+	f, err := os.Open(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open secdump: %w", err)
 	}
@@ -949,8 +951,7 @@ func LoadActivityDumpsFromFiles(path string) ([]*ActivityDump, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
 	}
-	return []*ActivityDump{ad}, nil
-
+	return ad, nil
 }
 
 // GenerateRules return rules from activity dumps
