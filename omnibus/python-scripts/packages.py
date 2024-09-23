@@ -111,15 +111,17 @@ def install_diff_packages_file(pip, filename, exclude_filename):
         exclude_packages = load_requirements(exclude_filename)
         for line in f:
             stripped_line = line.strip()
-            if not stripped_line.startswith('#'):
+            if stripped_line.startswith('#') or stripped_line.startswith('--'):
+                print(f"Skipping line: '{stripped_line}'")
+            else:
                 requirement = pkg_resources.Requirement(stripped_line)
                 if requirement.name in exclude_packages:
                     print(f"Skipping '{requirement.name}' as it's included in '{exclude_filename}' file")
-                    continue
-                if stripped_line.startswith('datadog-'):
-                    install_datadog_package(stripped_line)
                 else:
-                    install_dependency_package(pip, stripped_line)
+                    if stripped_line.startswith('datadog-'):
+                        install_datadog_package(stripped_line)
+                    else:
+                        install_dependency_package(pip, stripped_line)
 
 def load_requirements(filename):
     """
