@@ -14,7 +14,6 @@ single-machine-performance-regression_detector:
       - submission_metadata # for provenance, debugging
       - ${CI_COMMIT_SHA}-baseline_sha # for provenance, debugging
       - outputs/report.md # for debugging, also on S3
-      - outputs/report.html # for debugging, also on S3
     when: always
   variables:
     SMP_VERSION: 0.16.0
@@ -33,7 +32,6 @@ single-machine-performance-regression_detector:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     - touch outputs/report.md # Will be emitted by smp job sync
-    - touch outputs/report.html # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
