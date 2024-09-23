@@ -278,7 +278,7 @@ func (s *Launcher) createFile(source string) (*FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	ddLog.Info("Successfully created integrations log file.")
+	ddLog.Info("Successfully created integrations log file:", file.Name())
 
 	err = file.Close()
 	if err != nil {
