@@ -1206,7 +1206,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 
 
 def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
-    assert vms is not None and alien_vms is not None, "target VMs can be either KMT VMs or alien VMs, not both"
+    assert not (vms is not None and alien_vms is not None), "target VMs can be either KMT VMs or alien VMs, not both"
 
     if alien_vms is not None and vms is None:
         stack = check_and_get_stack("alien-stack")
@@ -1279,8 +1279,17 @@ def build(
 
     assert len(domains) > 0, err_msg
 
+    llc_path = paths.tools / "llc-bpf"
+    clang_path = paths.tools / "clang-bpf"
+    setup_runtime_clang(ctx, arch_obj, paths.tools)
+
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
+        # Copy embedded tools, make them
+        embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
+        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
+        d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
+
         if override_agent:
             d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
             d.copy(ctx, f"./bin/{component}/{component}", f"/opt/datadog-agent/embedded/bin/{component}")
