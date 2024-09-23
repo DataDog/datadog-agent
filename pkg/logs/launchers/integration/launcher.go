@@ -153,6 +153,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 
 	// If there is no file to write to, skip writing to it
 	if fileToUpdate == nil {
+		ddLog.Warn("Failed to write log to file, file is nil")
 		return
 	}
 
@@ -191,10 +192,11 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
 	if err != nil {
 		ddLog.Warn("Error writing log to file:", err)
+		return
 	}
-	s.combinedUsageSize += logSize
 
-	// Update information for the modified file
+	// Update information for the launcher and modified file
+	s.combinedUsageSize += logSize
 	fileToUpdate.lastModified = time.Now()
 	fileToUpdate.size += logSize
 }
