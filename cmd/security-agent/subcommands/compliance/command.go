@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -176,7 +177,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, eventArgs *eventCliParams) error {
+func eventRun(log log.Component, eventArgs *eventCliParams, compressionFactory compression.Factory) error {
 	hostnameDetected, err := secutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
@@ -187,7 +188,7 @@ func eventRun(log log.Component, eventArgs *eventCliParams) error {
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext, compressionFactory)
 	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})

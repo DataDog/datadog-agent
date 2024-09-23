@@ -156,6 +156,9 @@ RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 # Copy agent from extract stage
 COPY --from=extract /output/ /
 
+# Copy libjemalloc compiled with je_cv_madv_free=no
+COPY libjemalloc.so.2 /lib/libjemalloc.so
+
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/

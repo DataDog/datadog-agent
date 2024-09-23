@@ -172,7 +172,16 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, deps.Compressor, "")
+
+	// TODO Could this be the MockCompressor?
+	compressor := deps.CompressionFactory.NewCompressor(
+		deps.Config.GetString("serializer_compressor_kind"),
+		deps.Config.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string{"zstd", "zlib"},
+	)
+
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorFwd, opts, deps.EventPlatformFwd, compressor, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)

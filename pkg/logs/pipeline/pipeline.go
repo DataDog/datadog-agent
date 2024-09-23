@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	//"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -45,7 +47,9 @@ func NewPipeline(outputChan chan *message.Payload,
 	pipelineID int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
-	cfg pkgconfigmodel.Reader) *Pipeline {
+	cfg pkgconfigmodel.Reader,
+	compressionFactory compression.Factory,
+) *Pipeline {
 
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -73,7 +77,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID, compressionFactory)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
@@ -151,13 +155,23 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message,
+	outputChan chan *message.Payload,
+	flushChan chan struct{},
+	endpoints *config.Endpoints,
+	serverless bool,
+	flushWg *sync.WaitGroup,
+	_ int,
+	compressionFactory compression.Factory,
+) sender.Strategy {
+
 	if endpoints.UseHTTP || serverless {
-		encoder := sender.IdentityContentType
+		var encoder compression.Component
+		encoder = compressionFactory.NewNoopCompressor()
 		if endpoints.Main.UseCompression {
-			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+			encoder = compressionFactory.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
+	return sender.NewStreamStrategy(inputChan, outputChan, compressionFactory.NewNoopCompressor())
 }

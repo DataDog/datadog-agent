@@ -108,6 +108,10 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
+func (l *LogsConfigKeys) compressionKind() string {
+	return l.getConfig().GetString(l.getConfigKey("compression_kind"))
+}
+
 func (l *LogsConfigKeys) compressionLevel() int {
 	return l.getConfig().GetInt(l.getConfigKey("compression_level"))
 }

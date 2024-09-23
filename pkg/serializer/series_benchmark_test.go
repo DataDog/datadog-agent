@@ -80,10 +80,10 @@ func BenchmarkSeries(b *testing.B) {
 	mockConfig := mock.New(b)
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, compressionimpl.NewCompressor(mockConfig))
+		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, compressionimpl.FromConfig(mockConfig))
 	}
 
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.FromConfig(mockConfig))
 	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)

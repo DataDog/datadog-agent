@@ -16,6 +16,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -41,17 +42,19 @@ const (
 type Dependencies struct {
 	fx.In
 
-	Lc       fx.Lifecycle
-	Log      log.Component
-	Config   configComponent.Component
-	Hostname hostnameinterface.Component
+	Lc                 fx.Lifecycle
+	Log                log.Component
+	Config             configComponent.Component
+	Hostname           hostnameinterface.Component
+	CompressionFactory compression.Factory
 }
 
 // Agent represents the data pipeline that collects, decodes, processes and sends logs to the backend.
 type Agent struct {
-	log      log.Component
-	config   pkgconfigmodel.Reader
-	hostname hostnameinterface.Component
+	log                log.Component
+	config             pkgconfigmodel.Reader
+	hostname           hostnameinterface.Component
+	compressionFactory compression.Factory
 
 	endpoints        *config.Endpoints
 	auditor          auditor.Auditor
@@ -77,9 +80,10 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		}
 
 		logsAgent := &Agent{
-			log:      deps.Log,
-			config:   deps.Config,
-			hostname: deps.Hostname,
+			log:                deps.Log,
+			config:             deps.Config,
+			hostname:           deps.Hostname,
+			compressionFactory: deps.CompressionFactory,
 		}
 		if deps.Lc != nil {
 			deps.Lc.Append(fx.Hook{
@@ -210,7 +214,7 @@ func (a *Agent) SetupPipeline(
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config, a.compressionFactory)
 
 	a.auditor = auditor
 	a.destinationsCtx = destinationsCtx

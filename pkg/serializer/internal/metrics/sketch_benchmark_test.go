@@ -30,7 +30,7 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	mockConfig := mock.New(b)
-	strategy := compressionimpl.NewCompressor(mockConfig)
+	strategy := compressionimpl.FromConfig(mockConfig)
 	for n := 0; n < b.N; n++ {
 		split.Payloads(serializer, true, split.ProtoMarshalFct, strategy)
 	}
@@ -45,7 +45,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	mockConfig := mock.New(b)
-	strategy := compressionimpl.NewCompressor(mockConfig)
+	strategy := compressionimpl.FromConfig(mockConfig)
 
 	for n := 0; n < b.N; n++ {
 		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
