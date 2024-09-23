@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require "./lib/fips_compliance.rb"
 require 'pathname'
 
 name 'datadog-agent'
@@ -241,5 +242,26 @@ build do
   # final package
   unless windows_target?
     delete "#{install_dir}/uselessfile"
+  end
+
+  # TODO: move this to omnibus-ruby::health-check.rb
+  # check that linux binaries contains OpenSSL symbols when building to support FIPS
+  if fips_mode? && linux_target?
+      command "ls -R #{install_dir}"
+
+      block do
+        LINUX_BINARIES = [
+          "#{install_dir}/bin/agent/agent",
+          "#{install_dir}/embedded/bin/trace-agent",
+          "#{install_dir}/embedded/bin/process-agent",
+          "#{install_dir}/embedded/bin/security-agent",
+          "#{install_dir}/embedded/bin/system-probe",
+        ]
+
+        linux_symbol_checker = FIPSComplianceChecker.new("_Cfunc_go_openssl")
+        LINUX_BINARIES.each do |bin|
+          linux_symbol_checker.check(bin)
+        end
+      end
   end
 end

@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/fips_compliance.rb"
 flavor = ENV['AGENT_FLAVOR']
 
 if flavor.nil? || flavor == 'base'
@@ -323,6 +324,16 @@ if windows_target?
     end
   }
 
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+      count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+      if count == 0
+        puts "Checking for FIPS symbols: '#{symbols}'"
+        raise FIPSSymbolsNotFound.new("Expected to find symbol 'cng' but no symbol was found.")
+      else
+        puts "Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary."
+      end
+  }
+
   GO_BINARIES = [
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
@@ -336,6 +347,9 @@ if windows_target?
   GO_BINARIES.each do |bin|
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    # Check that CNG symbols are present
+    inspect_binary(bin, &raise_if_fips_symbol_not_found)
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
