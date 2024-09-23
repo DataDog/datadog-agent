@@ -6,13 +6,15 @@
 package examples
 
 import (
-	"golang.org/x/crypto/ssh"
 	"io/fs"
 	"testing"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
@@ -94,6 +96,14 @@ func (v *vmSuiteWithFileOperations) testWindowsCommandResults() {
 	// Sanity check default 'Continue' behavior does not return an error
 	_, err = vm.Execute(`$ErrorActionPreference='Continue'; (Get-Service -Name 'not-a-service').Status`)
 	v.Assert().NoError(err, "explicit ErrorActionPreference='Continue' should ignore subcommand error")
+
+	// env vars should not leak between commands
+	_, err = vm.Execute(`$env:MYVAR1 = 'banana'`, client.WithEnvVariables(map[string]string{"MYVAR2": "orange"}))
+	v.Assert().NoError(err, "setting env vars should not return an error")
+	out, err = vm.Execute(`echo $env:MYVAR1; echo $env:MYVAR2`)
+	v.Assert().NoError(err)
+	v.Assert().NotContains(out, "banana", "env vars should not leak between commands")
+	v.Assert().NotContains(out, "orange", "env vars should not leak between commands")
 }
 
 func (v *vmSuiteWithFileOperations) TestFileOperations() {

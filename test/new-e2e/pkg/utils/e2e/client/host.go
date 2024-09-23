@@ -507,14 +507,7 @@ func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
 	cmd += "$ErrorActionPreference='Stop'; "
 
-	envVarSave := map[string]string{}
 	for envName, envValue := range envVar {
-		previousEnvVar, err := h.executeAndReconnectOnError(fmt.Sprintf("$env:%s", envName))
-		if err != nil || previousEnvVar == "" {
-			previousEnvVar = "null"
-		}
-		envVarSave[envName] = previousEnvVar
-
 		cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
 	}
 	// By default, powershell will just exit with 0 or 1, so we call exit to preserve
