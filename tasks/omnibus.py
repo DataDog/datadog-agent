@@ -387,12 +387,13 @@ def manifest(
         log_level=log_level,
     )
 
+
 @task
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     # Since bash and sh don't support **/* we are using glob
     # to get all datadog files inside of one `file --mime-type` command
     datadog_files = glob.glob(f"{install_path}/**/*", recursive=True)
-    with open("/tmp/ddargs","w") as f:
+    with open("/tmp/ddargs", "w") as f:
         f.write(" ".join(datadog_files))
     files = ctx.run("cat /tmp/ddargs | xargs file --mime-type", hide=True).stdout
 
@@ -422,5 +423,9 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
                 exit_code = 0
                 rpath_line_number = binary_rpath.count('\n') // 3
                 while rpath_line_number > 0 and exit_code == 0:
-                    exit_code = ctx.run(f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}", warn=True, hide=True).exited
+                    exit_code = ctx.run(
+                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                        warn=True,
+                        hide=True,
+                    ).exited
                     rpath_line_number -= 1
