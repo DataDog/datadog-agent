@@ -57,7 +57,7 @@ go_deps:
         files:
           - \**/go.mod
           - .gitlab/deps_fetch/deps_fetch.yml
-        prefix: "go_deps_v2"
+        prefix: "go_deps_modcache"
       paths:
         - modcache.tar.xz
 
@@ -76,7 +76,7 @@ go_tools_deps:
         files:
           - ./**/go.mod
           - .gitlab/deps_fetch/deps_fetch.yml
-        prefix: "go_tools_deps_v2"
+        prefix: "go_tools_deps_modcache"
       paths:
         - modcache_tools.tar.xz
 
@@ -95,6 +95,6 @@ go_e2e_deps:
         files:
           - ./test/new-e2e/go.mod
           - .gitlab/deps_fetch/deps_fetch.yml
-        prefix: "go_e2e_deps_v2"
+        prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz
