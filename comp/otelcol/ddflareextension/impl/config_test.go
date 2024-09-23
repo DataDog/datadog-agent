@@ -9,19 +9,13 @@ package ddflareextensionimpl
 import (
 	"testing"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func getTestConfig(t *testing.T) *Config {
-	conv, err := configstore.NewConfigStore()
-	require.NoError(t, err)
-
+func getTestConfig() *Config {
 	return &Config{
-		ConfigStore: conv,
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
@@ -29,7 +23,7 @@ func getTestConfig(t *testing.T) *Config {
 }
 
 func TestValidate(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	err := cfg.Validate()
 	assert.NoError(t, err)
@@ -44,7 +38,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfg := getTestConfig(t)
+	cfg := getTestConfig()
 
 	endpoint := "localhost:1234"
 

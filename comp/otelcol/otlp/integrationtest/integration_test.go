@@ -54,7 +54,6 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
-	configstorefx "github.com/DataDog/datadog-agent/comp/otelcol/configstore/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -96,7 +95,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
-		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
 			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
 			if err != nil {
