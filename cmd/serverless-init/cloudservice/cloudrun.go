@@ -102,6 +102,6 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	_ = log.Warn(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
+	log.Debug(fmt.Sprintf("cloud function mode SET TO: %t", cloudRunFunctionMode))
 	return cloudRunFunctionMode
 }
