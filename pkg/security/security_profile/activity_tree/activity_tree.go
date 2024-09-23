@@ -879,6 +879,7 @@ func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 	}
 }
 
+// ExtractPaths returns the exec / fim, exec / parent paths
 func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
 
 	fimPathsperExecPath := make(map[string][]string)
