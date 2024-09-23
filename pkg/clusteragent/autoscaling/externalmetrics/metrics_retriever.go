@@ -19,11 +19,11 @@ import (
 
 const (
 	invalidMetricErrorMessage                  string = "%v, query was: %s"
-	invalidMetricErrorWithRetriesMessage       string = "%v, query was: %s, will retry after %s."
+	invalidMetricErrorWithRetriesMessage       string = "%v, query was: %s, will retry after %s"
 	invalidMetricOutdatedErrorMessage          string = "Query returned outdated result, check MaxAge setting, query: %s"
 	invalidMetricNotFoundErrorMessage          string = "Unexpected error, query data not found in result, query: %s. Query error: %v"
 	invalidMetricGlobalErrorMessage            string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Query error: %v"
-	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Query error: %v. Will retry after %s."
+	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Query error: %v. Will retry after %s"
 	metricRetrieverStoreID                     string = "mr"
 )
 
@@ -75,7 +75,8 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValues() {
-	if mr.splitBatchBackoffOnErrors {
+	// If any metric encountered a Rate Limit error, do not split up the batch
+	if mr.splitBatchBackoffOnErrors && !mr.store.ContainsErrorType(autoscalers.IsRateLimitError) {
 		// We only update active DatadogMetrics
 		// We split metrics in two slices, those with errors and those without.
 		// Query first slice one by one, other as batch.
@@ -84,23 +85,18 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			return datadogMetric.Active && datadogMetric.Error == nil
 		})
 
-		// Handle 429 Rate Limit errors separately from other errors, breaking up the batch makes the problem worse
-		datadogMetricsRateLimitErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
-			return datadogMetric.Active && datadogMetric.Error != nil && autoscalers.IsRateLimitError(datadogMetric.Error)
-		})
-
 		// Do all errors warrant separate query? probably no, but we run them separately because:
 		// Backoff should be applied to each metrics separately.
 		// Only way to differentiate error from a global error is via comparing error strings.
-		datadogMetricsOtherErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
-			return datadogMetric.Active && datadogMetric.Error != nil && !autoscalers.IsRateLimitError(datadogMetric.Error)
+		datadogMetricsErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
+			return datadogMetric.Active && datadogMetric.Error != nil
 		})
 
 		// First split then query because store state is shared and query mutates it
-		mr.retrieveMetricsValuesSlice(append(datadogMetrics, datadogMetricsRateLimitErr...))
+		mr.retrieveMetricsValuesSlice(datadogMetrics)
 
 		// Now test each metric query separately respecting its backoff retry duration elapse value.
-		for _, metrics := range datadogMetricsOtherErr {
+		for _, metrics := range datadogMetricsErr {
 			if time.Now().After(metrics.RetryAfter) {
 				singleton := []model.DatadogMetricInternal{metrics}
 				mr.retrieveMetricsValuesSlice(singleton)

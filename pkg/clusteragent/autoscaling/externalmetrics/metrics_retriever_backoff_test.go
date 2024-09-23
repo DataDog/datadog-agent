@@ -10,6 +10,7 @@ package externalmetrics
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"testing"
@@ -109,8 +110,11 @@ func (f *metricsFixtureWithBackoff) runWithBackoff(t *testing.T, testTime time.T
 			if expectedDatadogMetric.ddm.Retries > 0 {
 				expectedDatadogMetric.ddm.RetryAfter = datadogMetric.RetryAfter
 				// Align errors and verify prefix is expected
-				expectedDatadogMetric.ddm.Error = datadogMetric.Error
+				// expectedDatadogMetric.ddm.Error = datadogMetric.Error
+				log.Debugf("Actual Error: %v", datadogMetric.Error.Error())
+				log.Debugf("Expected Error: %v", expectedDatadogMetric.ddm.Error.Error())
 				assert.True(t, strings.HasPrefix(datadogMetric.Error.Error(), expectedDatadogMetric.ddm.Error.Error()))
+				expectedDatadogMetric.ddm.Error = datadogMetric.Error
 			}
 		}
 
@@ -478,7 +482,7 @@ func TestRetrieveMetricsErrorCasesWithBackoff(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, ""),
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, "Backend error 500", ""),
 						Retries:  1,
 					},
 					query: "query-metric0",
@@ -490,7 +494,7 @@ func TestRetrieveMetricsErrorCasesWithBackoff(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, ""),
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, "Backend error 500", ""),
 						Retries:  1,
 					},
 					query: "query-metric1",
@@ -553,7 +557,7 @@ func TestRetrieveMetricsErrorCasesWithBackoff(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf(invalidMetricNotFoundErrorMessage, "query-metric1"),
+						Error:    fmt.Errorf(invalidMetricNotFoundErrorMessage, "query-metric1", "Backend error 500"),
 						Retries:  0,
 					},
 					query: "query-metric1",
@@ -1311,6 +1315,138 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
 			fixture.runQueryOnly(t)
+		})
+	}
+}
+func Test429TooManyRequestsErrorHandling(t *testing.T) {
+	// At the end we'll check that update time has been updated, giving 10s to run the tests
+	// We truncate down to the second as that's the granularity we have from the backend
+	defaultTestTime := time.Now().Add(time.Duration(-1) * time.Second).UTC().Truncate(time.Second)
+	defaultPreviousUpdateTime := time.Now().Add(time.Duration(-11) * time.Second).UTC().Truncate(time.Second)
+
+	fixtures := []metricsFixtureWithBackoff{
+		{
+			desc:          "Test once global 429 error is appended to metric after first query, batch is not split up",
+			maxAge:        30,
+			extQueryCount: 1, // Even though there's a 429 error, it should still be one batch
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf("429 Too Many Requests"),
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf("429 Too Many Requests"),
+					},
+					query: "query-metric1",
+				},
+			},
+			queryResults: map[string]autoscalers.Point{}, // No valid results due to the global 429 error
+			queryError: []error{
+				fmt.Errorf("429 Too Many Requests"),
+			}, // Simulating a 429 error in the batch query
+			expected: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false, // Invalid due to the 429 error
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, "429 Too Many Requests", ""),
+						Retries:  1, // Retries incremented
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false, // Invalid due to the 429 error
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 2, "429 Too Many Requests", ""),
+						Retries:  1, // Retries incremented
+					},
+					query: "query-metric1",
+				},
+			},
+		},
+		{
+			desc:          "Test that global 429 Too Many Requests error is added to metrics error on retry",
+			maxAge:        30,
+			extQueryCount: 2, // One batch for the global error
+			storeContent: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    nil,
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false,
+						Error:    fmt.Errorf("Backend error 500"), // Individual error
+					},
+					query: "query-metric1",
+				},
+			},
+			queryResults: map[string]autoscalers.Point{}, // No valid results due to the global 429 error
+			queryError: []error{
+				fmt.Errorf("429 Too Many Requests"), // Simulating the global 429 error
+			},
+			expected: []ddmWithQuery{
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric0",
+						Active:   true,
+						Value:    1.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false, // Invalid due to the global 429 error
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 1, "429 Too Many Requests", ""),
+						Retries:  1, // Retry incremented
+					},
+					query: "query-metric0",
+				},
+				{
+					ddm: model.DatadogMetricInternal{
+						ID:       "metric1",
+						Active:   true,
+						Value:    2.0,
+						DataTime: defaultPreviousUpdateTime,
+						Valid:    false, // Also invalid due to the global 429 error (even though it had another error)
+						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 1, "429 Too Many Requests", ""),
+						Retries:  1, // Retry incremented
+					},
+					query: "query-metric1",
+				},
+			},
+		},
+	}
+	for i, fixture := range fixtures {
+		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
+			fixture.runWithBackoff(t, defaultTestTime)
 		})
 	}
 }

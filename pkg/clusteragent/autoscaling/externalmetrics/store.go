@@ -99,6 +99,20 @@ func (ds *DatadogMetricsInternalStore) GetFiltered(filter func(model.DatadogMetr
 	return datadogMetrics
 }
 
+// ContainsErrorType returns true if any metric in the store has the specified error type
+func (ds *DatadogMetricsInternalStore) ContainsErrorType(isErrorType func(err error) bool) bool {
+	ds.lock.RLock()
+	defer ds.lock.RUnlock()
+
+	for _, datadogMetric := range ds.store {
+		if isErrorType(datadogMetric.Error) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Count returns number of elements in store
 func (ds *DatadogMetricsInternalStore) Count() int {
 	ds.lock.RLock()
