@@ -34,13 +34,10 @@ TAGS_FILE_NAME = "tags.txt"
 
 
 def get_datadog_ci_command():
-    if platform.system() == "Windows":
-        return r"c:\devtools\datadog-ci\datadog-ci"
-    else:
-        path_datadog_ci = which("datadog-ci")
-        if path_datadog_ci is None:
-            raise FileNotFoundError("datadog-ci command not found")
-        return path_datadog_ci
+    path_datadog_ci = which("datadog-ci")
+    if path_datadog_ci is None:
+        raise FileNotFoundError("datadog-ci command not found")
+    return path_datadog_ci
 
 
 def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
