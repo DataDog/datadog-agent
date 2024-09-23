@@ -389,11 +389,18 @@ def manifest(
 
 @task
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
-    for file in glob.iglob(f"{install_path}/**/*", recursive=True):
-        ext = os.path.splitext(file)[1]
-        if not os.path.isfile(file) or not any(tocheck in ext for tocheck in ["", "so", "dylib"]):
+    # Since bash and sh don't support **/* we are using glob 
+    # to get all datadog files inside of one `file --mime-type` command
+    datadog_files = glob.glob(f"{install_path}/**/*", recursive=True)
+    with open("/tmp/ddargs","w") as f:
+        f.write(" ".join(datadog_files))
+    files = ctx.run("cat /tmp/ddargs | xargs file --mime-type", hide=True).stdout
+
+    for line in files.split('\n'):
+        if not line:
             continue
-        file_type = ctx.run(f"file -b --mime-type {file}",hide=True).stdout.strip()
+        file, file_type = line.split(":")
+        file_type = file_type.strip()
 
         if platform == "linux":
             if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
