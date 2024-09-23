@@ -44,6 +44,7 @@ type orderConfig struct {
 
 // New creates a new CDN.
 func New(env *env.Env) (*CDN, error) {
+
 	client, err := remoteconfig.NewHTTPClient(
 		"/opt/datadog-agent",
 		env.Site,
@@ -128,26 +129,26 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		}
 		configName := matched[1]
 
-		if file, ok := targetFiles[path]; !ok {
+		file, ok := targetFiles[path]
+		if !ok {
 			layersErr = multierr.Append(layersErr, fmt.Errorf("missing expected target file in update response: %s", path))
 			continue
+		}
+		if configName != configOrderID {
+			configLayer := &layer{}
+			err = json.Unmarshal(file, configLayer)
+			if err != nil {
+				// If a layer is wrong, fail later to parse the rest and check them all
+				layersErr = multierr.Append(layersErr, err)
+				continue
+			}
+			configLayers[configName] = configLayer
 		} else {
-			if configName != configOrderID {
-				configLayer := &layer{}
-				err = json.Unmarshal(file, configLayer)
-				if err != nil {
-					// If a layer is wrong, fail later to parse the rest and check them all
-					layersErr = multierr.Append(layersErr, err)
-					continue
-				}
-				configLayers[configName] = configLayer
-			} else {
-				configOrder = &orderConfig{}
-				err = json.Unmarshal(file, configOrder)
-				if err != nil {
-					// Return first - we can't continue without the order
-					return nil, err
-				}
+			configOrder = &orderConfig{}
+			err = json.Unmarshal(file, configOrder)
+			if err != nil {
+				// Return first - we can't continue without the order
+				return nil, err
 			}
 		}
 	}
