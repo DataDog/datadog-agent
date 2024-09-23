@@ -531,6 +531,13 @@ FROM golang:latest AS dlv
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
+FROM {base_image} AS bash_completion
+
+RUN apt-get update && \
+    apt-get install -y gawk
+
+RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable bash completion/ {{uncomment=1}} {{print}}' /etc/bash.bashrc
+
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -541,6 +548,7 @@ RUN apt-get update && \
 ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=bash_completion /etc/bash.bashrc /etc/bash.bashrc
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
