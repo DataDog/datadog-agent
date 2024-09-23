@@ -18,8 +18,8 @@ import (
 
 	"github.com/opencontainers/image-spec/identity"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -91,9 +91,9 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	// (workloadmeta, checks, etc.) might need to fetch info from different
 	// namespaces at the same time.
 	containerdUtil := &ContainerdUtil{
-		queryTimeout:      config.Datadog().GetDuration("cri_query_timeout") * time.Second,
-		connectionTimeout: config.Datadog().GetDuration("cri_connection_timeout") * time.Second,
-		socketPath:        config.Datadog().GetString("cri_socket_path"),
+		queryTimeout:      pkgconfigsetup.Datadog().GetDuration("cri_query_timeout") * time.Second,
+		connectionTimeout: pkgconfigsetup.Datadog().GetDuration("cri_connection_timeout") * time.Second,
+		socketPath:        pkgconfigsetup.Datadog().GetString("cri_socket_path"),
 	}
 	if containerdUtil.socketPath == "" {
 		log.Info("No socket path was specified, defaulting to /var/run/containerd/containerd.sock")

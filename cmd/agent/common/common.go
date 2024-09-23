@@ -15,9 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -28,8 +28,8 @@ func GetPythonPaths() []string {
 	return []string{
 		path.GetDistPath(), // common modules are shipped in the dist path directly or under the "checks/" sub-dir
 		path.PyChecksPath,  // integrations-core legacy checks
-		filepath.Join(path.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
-		config.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
+		filepath.Join(path.GetDistPath(), "checks.d"),            // custom checks in the "checks.d/" sub-dir of the dist path
+		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}
 }
 
@@ -43,10 +43,10 @@ func GetVersion(w http.ResponseWriter, _ *http.Request) {
 
 // NewSettingsClient returns a configured runtime settings client.
 func NewSettingsClient() (settings.Client, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

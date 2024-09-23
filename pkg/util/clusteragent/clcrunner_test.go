@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -50,7 +50,7 @@ func newDummyCLCRunner() (*dummyCLCRunner, error) {
 			"/api/v1/clcrunner/stats":   `{"http_check:My Nginx Service:b0041608e66d20ba":{"AverageExecutionTime":241,"MetricSamples":3},"kube_apiserver_metrics:c5d2d20ccb4bb880":{"AverageExecutionTime":858,"MetricSamples":1562},"":{"AverageExecutionTime":100,"MetricSamples":10}}`,
 			"/api/v1/clcrunner/workers": `{"Count":2,"Instances":{"worker_1":{"Utilization":0.1},"worker_2":{"Utilization":0.2}}}`,
 		},
-		token:    config.Datadog().GetString("cluster_agent.auth_token"),
+		token:    pkgconfigsetup.Datadog().GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
 	}
 	return clcRunner, nil
@@ -233,7 +233,7 @@ func TestCLCRunnerSuite(t *testing.T) {
 	})
 
 	s := &clcRunnerSuite{conf: configmock.New(t)}
-	config.Datadog().SetConfigFile(f.Name())
+	pkgconfigsetup.Datadog().SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clcRunnerAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

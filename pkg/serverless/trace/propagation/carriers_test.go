@@ -372,6 +372,72 @@ func TestSnsEntityCarrier(t *testing.T) {
 	}
 }
 
+func TestEventBridgeCarrier(t *testing.T) {
+	testcases := []struct {
+		name   string
+		event  events.EventBridgeEvent
+		expMap map[string]string
+		expErr string
+	}{
+		{
+			name: "valid_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: map[string]string{
+						"x-datadog-trace-id":          "123456789",
+						"x-datadog-parent-id":         "987654321",
+						"x-datadog-sampling-priority": "1",
+					},
+				},
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
+			expErr: "",
+		},
+		{
+			name: "missing_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: map[string]string{},
+				},
+			},
+			expMap: nil,
+			expErr: "No Datadog trace context found",
+		},
+		{
+			name: "nil_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: nil,
+				},
+			},
+			expMap: nil,
+			expErr: "No Datadog trace context found",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm, err := eventBridgeCarrier(tc.event)
+			t.Logf("eventBridgeCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			assert.Equal(t, tc.expErr != "", err != nil)
+			if tc.expErr != "" {
+				assert.ErrorContains(t, err, tc.expErr)
+			}
+			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
 func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
 	ctx := func(trace, parent, priority uint64) *TraceContext {
 		return &TraceContext{
@@ -732,6 +798,78 @@ func TestHeadersCarrier(t *testing.T) {
 				assert.Equal(t, tc.expErr.Error(), err.Error())
 			}
 			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
+func Test_stringToDdSpanId(t *testing.T) {
+	type args struct {
+		execArn          string
+		stateName        string
+		stateEnteredTime string
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"first Test Case",
+			args{
+				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"step-one",
+				"2022-12-08T21:08:19.224Z",
+			},
+			4340734536022949921,
+		},
+		{
+			"second Test Case",
+			args{
+				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"step-one",
+				"2022-12-08T21:08:19.224Y",
+			},
+			981693280319792699,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+		})
+	}
+}
+
+func Test_stringToDdTraceIds(t *testing.T) {
+	type args struct {
+		toHash string
+	}
+	tests := []struct {
+		name               string
+		args               args
+		expectedLower64    uint64
+		expectedUpper64Hex string
+	}{
+		{
+			"first Test Case",
+			args{
+				"arn:aws:states:sa-east-1:425362996713:stateMachine:MyStateMachine-b276uka1j",
+			},
+			1680583253837593461,
+			"60ee1db79e4803f8",
+		},
+		{
+			"lifecycle_test.go TestStartExecutionSpanStepFunctionEvent test case",
+			args{
+				"arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:bc9f281c-3daa-4e5a-9a60-471a3810bf44",
+			},
+			5744042798732701615,
+			"1914fe7789eb32be",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := stringToDdTraceIDs(tt.args.toHash)
+			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIDs(%v)", tt.args.toHash)
+			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tt.args.toHash)
 		})
 	}
 }
