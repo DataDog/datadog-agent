@@ -72,7 +72,6 @@ go_tools_deps:
     - go env -w GOPRIVATE="github.com/DataDog/*"
     - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
-
   artifacts:
     expire_in: 1 day
     paths:
