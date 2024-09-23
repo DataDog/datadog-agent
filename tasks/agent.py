@@ -17,7 +17,6 @@ from invoke.exceptions import Exit, ParseError
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -558,8 +557,6 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     """
     Run integration tests for the Agent
     """
-    if install_deps:
-        deps(ctx)
 
     if sys.platform == 'win32':
         return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
