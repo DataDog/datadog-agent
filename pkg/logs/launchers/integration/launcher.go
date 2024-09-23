@@ -336,29 +336,31 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 			return nil
 		}
 
-		if !info.IsDir() {
-			fileInfo := &FileInfo{
-				filename:     info.Name(),
-				size:         info.Size(),
-				lastModified: info.ModTime(),
-			}
-
-			integrationID := fileNameToID(fileInfo.filename)
-
-			s.integrationToFile[integrationID] = fileInfo
-
-			for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
-				leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
-
-				err := s.deleteFile(leastRecentlyModifiedFile)
-				if err != nil {
-					ddLog.Warn("Error deleting log file:", err)
-					break
-				}
-			}
-
-			s.combinedUsageSize += info.Size()
+		if info.IsDir() {
+			return nil
 		}
+
+		fileInfo := &FileInfo{
+			filename:     info.Name(),
+			size:         info.Size(),
+			lastModified: info.ModTime(),
+		}
+
+		integrationID := fileNameToID(fileInfo.filename)
+
+		s.integrationToFile[integrationID] = fileInfo
+
+		for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
+			leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+			err := s.deleteFile(leastRecentlyModifiedFile)
+			if err != nil {
+				ddLog.Warn("Error deleting log file:", err)
+				break
+			}
+		}
+
+		s.combinedUsageSize += info.Size()
 
 		return nil
 	})
