@@ -20,16 +20,16 @@ type configStore struct {
 	mu       sync.RWMutex
 }
 
-// addProvidedConf stores the config into configStoreImpl.
-func (c *configStore) addProvidedConf(config *otelcol.Config) {
+// setProvidedConf stores the config into configStoreImpl.
+func (c *configStore) setProvidedConf(config *otelcol.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.provided = config
 }
 
-// addEnhancedConf stores the config into configStoreImpl.
-func (c *configStore) addEnhancedConf(config *otelcol.Config) {
+// setEnhancedConf stores the config into configStoreImpl.
+func (c *configStore) setEnhancedConf(config *otelcol.Config) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

@@ -37,7 +37,7 @@ type ddExtension struct {
 	tlsListener net.Listener
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
-	configStore configStore
+	configStore *configStore
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
@@ -47,7 +47,6 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 	var err error
 
 	if cfg, err = unmarshal(conf, *ext.cfg.factories); err != nil {
-		fmt.Println(fmt.Errorf("cannot unmarshal the configuration: %w", err))
 		return fmt.Errorf("cannot unmarshal the configuration: %w", err)
 	}
 
@@ -60,7 +59,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 		Service:    cfg.Service,
 	}
 
-	ext.configStore.addEnhancedConf(config)
+	ext.configStore.setEnhancedConf(config)
 
 	// List configured Extensions
 	c, err := ext.configStore.getEnhancedConf()
@@ -138,13 +137,13 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		cfg:         cfg,
 		telemetry:   telemetry,
 		info:        info,
-		configStore: configStore{},
+		configStore: &configStore{},
 		debug: extensionDef.DebugSourceResponse{
 			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
 	}
 
-	ext.configStore.addProvidedConf(providedConf)
+	ext.configStore.setProvidedConf(providedConf)
 
 	ext.server, ext.tlsListener, err = buildHTTPServer(cfg.HTTPConfig.Endpoint, ext)
 	if err != nil {
