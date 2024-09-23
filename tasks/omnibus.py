@@ -420,12 +420,12 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
                 # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
                 # but just in case we're replacing them all.
                 # We're also avoiding unnecessary `install_name_tool` call as much as possible.
-                exit_code = 0
-                rpath_line_number = binary_rpath.count('\n') // 3
-                while rpath_line_number > 0 and exit_code == 0:
+                number_of_rpaths = binary_rpath.count('\n') // 3
+                for _ in range(number_of_rpaths):
                     exit_code = ctx.run(
                         f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
                         warn=True,
                         hide=True,
                     ).exited
-                    rpath_line_number -= 1
+                    if exit_code != 0:
+                        break
