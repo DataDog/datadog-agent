@@ -68,7 +68,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 	logsUsageRatio := pkgconfigsetup.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
 	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
 	if err != nil {
-		ddLog.Warn("Unable to compute integrations logs max disk usage, defaulting to set value: ", err)
+		ddLog.Warn("Unable to compute integrations logs max disk usage, defaulting to set value:", err)
 		maxDiskUsage = logsTotalUsageSetting
 	}
 
@@ -92,7 +92,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	err := s.scanInitialFiles(s.runPath)
 	if err != nil {
-		ddLog.Warn("Unable to scan existing log files: ", err)
+		ddLog.Warn("Unable to scan existing log files:", err)
 	}
 
 	go s.run()
@@ -151,6 +151,11 @@ func (s *Launcher) run() {
 func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	fileToUpdate := s.integrationToFile[log.IntegrationID]
 
+	// If there is no file to write to, skip writing to it
+	if fileToUpdate == nil {
+		return
+	}
+
 	// Ensure the individual file doesn't exceed integrations_logs_files_max_size
 	// Add 1 because we write the \n at the end as well
 	logSize := int64(len(log.Log)) + 1
@@ -185,7 +190,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 
 	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
 	if err != nil {
-		ddLog.Warn("Error writing log to file: ", err)
+		ddLog.Warn("Error writing log to file:", err)
 	}
 	s.combinedUsageSize += logSize
 
@@ -230,17 +235,17 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *FileInfo {
 func writeLogToFile(logFilePath, log string) error {
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		ddLog.Warn("Failed to open file to write log to: ", err)
+		ddLog.Warn("Failed to open file to write log to:", err)
 		return err
 	}
 
 	_, err = file.WriteString(log)
 	if err != nil {
-		ddLog.Warn("Failed to write integration log to file: ", err)
+		ddLog.Warn("Failed to write integration log to file:", err)
 		return err
 	}
 	if _, err = file.Write(endOfLine); err != nil {
-		ddLog.Warn("Failed to write integration log to file: ", err)
+		ddLog.Warn("Failed to write integration log to file:", err)
 		return err
 	}
 
