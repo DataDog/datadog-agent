@@ -73,6 +73,13 @@ func disableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
+
+	enabledErr := exec.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
+	if enabledErr != nil {
+		// unit is already disabled or doesn't exist, we can return fast
+		return nil
+	}
+
 	err = exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
