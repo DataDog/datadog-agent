@@ -364,17 +364,17 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
-	// test hash collision (same flow object) does not increment flow count
+	// test valid hash collision (same flow object) does not increment flow count
 	aggHash1 := flowA1.AggregationHash()
 	acc.detectHashCollision(aggHash1, *flowA1, *flowA1)
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
-	// test hash collision (same data, new flow object) does not increment flow count
+	// test valid hash collision (same data, new flow object) does not increment flow count
 	aggHash2 := flowA2.AggregationHash()
 	acc.detectHashCollision(aggHash2, *flowA1, *flowA2)
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
-	// test non hash collision does increment flow count
+	// test invalid hash collision (different flow context, same hash) increments flow count
 	aggHash3 := flowB1.AggregationHash()
 	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
 	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
