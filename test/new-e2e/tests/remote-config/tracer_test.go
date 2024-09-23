@@ -12,10 +12,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 type tracerSuite struct {
@@ -31,6 +32,7 @@ var tracerPayloadJSON string
 // TestRcTracerSuite tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
 // Requires a valid Datadog API key
 func TestRcTracerSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &tracerSuite{},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(

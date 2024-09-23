@@ -20,12 +20,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -40,7 +42,7 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T, network string) {
-	coreConfig.SetFeatures(t, coreConfig.Docker)
+	env.SetFeatures(t, env.Docker)
 
 	cfg := map[string]any{}
 
@@ -76,18 +78,25 @@ func testUDSOriginDetection(t *testing.T, network string) {
 		pidmapimpl.Module(),
 	))
 
+	telemetryComponent := fxutil.Test[telemetry.Component](t, fx.Options(
+		telemetryimpl.MockModule(),
+	))
+
 	// Start DSD
 	// The packet channel needs to be buffered, otherwise the sender will block and this
 	// will prevent disconnections.
 	packetsChannel := make(chan packets.Packets, 1024)
-	sharedPacketPool := packets.NewPool(32)
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComponent)
+	listenersTelemetryStore := listeners.NewTelemetryStore(nil, telemetryComponent)
+	sharedPacketPool := packets.NewPool(32, packetsTelemetryStore)
+	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
-		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, listenersTelemetryStore, packetsTelemetryStore, telemetryComponent)
 	} else if network == "unix" {
-		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, listenersTelemetryStore, packetsTelemetryStore, telemetryComponent)
 	}
 	require.NotNil(t, s)
 	require.Nil(t, err)

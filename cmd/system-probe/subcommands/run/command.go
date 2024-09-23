@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -44,11 +44,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -87,8 +89,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
+				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 				fx.Supply(optional.NewNoneOption[secrets.Component]()),
 				compstatsd.Module(),
@@ -103,11 +105,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				healthprobefx.Module(),
-				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return logimpl.NewLogger(lc, params, sysprobeconfig)
+				systemprobeloggerfx.Module(),
+				// workloadmeta setup
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType: workloadmeta.Remote,
 				}),
-				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -117,7 +120,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+							"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 							"internal_profiling_goroutines":   profilingGoRoutines,
@@ -137,7 +140,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, _ pid.Component, _ healthprobe.Component, _ autoexit.Component, settings settings.Component) error {
 	defer func() {
 		stopSystemProbe()
 	}()
@@ -223,7 +226,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, settings settings.Component) error {
+		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta workloadmeta.Component, _ healthprobe.Component, settings settings.Component) error {
 			defer StopSystemProbeWithDefaults()
 			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta, settings)
 			if err != nil {
@@ -250,7 +253,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		rcclientimpl.Module(),
@@ -265,18 +268,19 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 		}),
 		healthprobefx.Module(),
-		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-		// use system-probe config instead of agent config for logging
-		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-			return logimpl.NewLogger(lc, params, sysprobeconfig)
+		// workloadmeta setup
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
+		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix
 
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+					"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 					"internal_profiling_goroutines":   profilingGoRoutines,
@@ -296,7 +300,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta workloadmeta.Component, settings settings.Component) error {
 	var err error
 	cfg := sysprobeconfig.SysProbeObject()
 
@@ -317,7 +321,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		memoryPressureLevels := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
 		memoryThresholds := sysprobeconfig.GetStringMapString("system_probe_config.memory_controller.thresholds")
 		hierarchy := sysprobeconfig.GetString("system_probe_config.memory_controller.hierarchy")
-		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
+		common.MemoryMonitor, err = utils.NewMemoryMonitor(hierarchy, env.IsContainerized(), memoryPressureLevels, memoryThresholds)
 		if err != nil {
 			log.Warnf("cannot set up memory controller: %s", err)
 		} else {
@@ -340,6 +344,9 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 			}
 			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
 				telemetry.RegisterCollector(lcc)
+			}
+			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {
+				telemetry.RegisterCollector(ec)
 			}
 		}
 		go func() {
@@ -376,7 +383,7 @@ func stopSystemProbe() {
 }
 
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(settings settings.Component, cfg ddconfig.Reader, configPrefix string, log log.Component) {
+func setupInternalProfiling(settings settings.Component, cfg model.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)

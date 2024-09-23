@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	coreconfig.Datadog().SetDefault("network_devices.namespace", "my-namespace")
+	setup.Datadog().SetDefault("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -33,6 +35,8 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
 			},
 		},
 		{
@@ -67,6 +71,8 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
 			},
 		},
 		{
@@ -81,6 +87,8 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(10) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
 			},
 		},
 		{
@@ -92,6 +100,8 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
 				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
 			},
 		},
 		{
@@ -108,6 +118,195 @@ destination_service: service-b
 				DestinationService:    "service-b",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: udp
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolUDP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: UDP
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolUDP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: TCP
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "timeout from instance config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+timeout: 50000
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               50000 * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "timeout from instance config preferred over init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+timeout: 50000
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: 70000
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               50000 * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "timeout from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: 70000
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               70000 * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "default timeout",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
+			},
+		},
+		{
+			name: "negative timeout returns an error",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: -1
+`),
+			expectedError: "timeout must be > 0",
+		},
+		{
+			name: "maxTTL from instance config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+max_ttl: 50
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                50,
+			},
+		},
+		{
+			name: "maxTTL from instance config preferred over init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+max_ttl: 50
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+max_ttl: 64
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                50,
+			},
+		},
+		{
+			name: "maxTTL from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+max_ttl: 64
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                64,
 			},
 		},
 	}

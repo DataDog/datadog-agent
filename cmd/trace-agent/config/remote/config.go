@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -27,16 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
+var bufferPool = ddsync.NewDefaultTypedPool[bytes.Buffer]()
 
 func getBuffer() *bytes.Buffer {
-	buffer := bufferPool.Get().(*bytes.Buffer)
+	buffer := bufferPool.Get()
 	buffer.Reset()
 	return buffer
 }

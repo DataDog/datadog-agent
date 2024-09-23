@@ -15,7 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,10 +47,11 @@ type UDPListener struct {
 	buffer          []byte
 	trafficCapture  replay.Component // Currently ignored
 	listenWg        sync.WaitGroup
+	telemetryStore  *TelemetryStore
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -62,7 +64,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%s", port)
 	} else {
-		url = net.JoinHostPort(config.GetBindHostFromConfig(cfg), port)
+		url = net.JoinHostPort(pkgconfigsetup.GetBindHostFromConfig(cfg), port)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)
@@ -85,7 +87,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp")
+	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp", packetsTelemetryStore)
 	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
@@ -94,6 +96,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
 		trafficCapture:  capture,
+		telemetryStore:  telemetryStore,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -130,19 +133,19 @@ func (l *UDPListener) listen() {
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
 			udpPacketReadingErrors.Add(1)
-			tlmUDPPackets.Inc("error")
+			l.telemetryStore.tlmUDPPackets.Inc("error")
 		} else {
-			tlmUDPPackets.Inc("ok")
+			l.telemetryStore.tlmUDPPackets.Inc("ok")
 
 			udpBytes.Add(int64(n))
-			tlmUDPPacketsBytes.Add(float64(n))
+			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n))
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
 	}
 }
 

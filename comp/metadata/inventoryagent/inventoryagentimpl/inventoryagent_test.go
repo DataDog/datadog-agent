@@ -20,14 +20,15 @@ import (
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -39,12 +40,12 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 	return newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -120,9 +121,11 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http2_monitoring":          true,
 		"service_monitoring_config.enable_kafka_monitoring":          true,
 		"service_monitoring_config.enable_postgres_monitoring":       true,
+		"service_monitoring_config.enable_redis_monitoring":          true,
 		"service_monitoring_config.tls.istio.enabled":                true,
 		"service_monitoring_config.enable_http_stats_by_status_code": true,
 		"service_monitoring_config.tls.go.enabled":                   true,
+		"discovery.enabled":                                          true,
 		"system_probe_config.enable_tcp_queue_length":                true,
 		"system_probe_config.enable_oom_kill":                        true,
 		"windows_crash_detection.enabled":                            true,
@@ -211,11 +214,13 @@ func TestInitData(t *testing.T) {
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
+		"feature_usm_redis_enabled":                    true,
 		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
 		"feature_usm_http_by_status_code_enabled":      true,
 		"feature_usm_go_tls_enabled":                   true,
+		"feature_discovery_enabled":                    true,
 		"feature_tcp_queue_length_enabled":             true,
 		"feature_oom_kill_enabled":                     true,
 		"feature_windows_crash_detection_enabled":      true,
@@ -268,7 +273,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -483,11 +488,13 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -515,10 +522,10 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -540,6 +547,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -596,8 +604,12 @@ service_monitoring_config:
   enabled: true
   enable_kafka_monitoring: true
   enable_postgres_monitoring: true
+  enable_redis_monitoring: true
   enable_http2_monitoring: true
   enable_http_stats_by_status_code: true
+
+discovery:
+  enabled: true
 
 windows_crash_detection:
   enabled: true
@@ -630,11 +642,13 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.True(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.True(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -704,7 +718,7 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 	}
 
 	sort.Strings(keys)
-	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "fleet_policies_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
 	sort.Strings(expected)
 
 	assert.Equal(t, expected, keys)

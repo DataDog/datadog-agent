@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -output event_common_string.go -type=ConnectionType,ConnectionFamily,ConnectionDirection,EphemeralPortType -linecomment
+
 package network
 
 import (
 	"encoding/binary"
 	"fmt"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -19,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -27,6 +31,9 @@ const (
 	maxByteCountChange uint64 = 375 << 30
 	// use typical small MTU size, 1300, to get max packet count
 	maxPacketCountChange uint64 = maxByteCountChange / 1300
+
+	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
+	ConnectionByteKeyMaxLen = 41
 )
 
 // ConnectionType will be either TCP or UDP
@@ -40,85 +47,64 @@ const (
 	UDP ConnectionType = 1
 )
 
-func (c ConnectionType) String() string {
-	if c == TCP {
-		return "TCP"
+var (
+	tcpLabels = map[string]string{"ip_proto": TCP.String()}
+	udpLabels = map[string]string{"ip_proto": UDP.String()}
+)
+
+// Tags returns `ip_proto` tags for use in hot-path telemetry
+func (c ConnectionType) Tags() map[string]string {
+	switch c {
+	case TCP:
+		return tcpLabels
+	case UDP:
+		return udpLabels
+	default:
+		return nil
 	}
-	return "UDP"
 }
 
 const (
 	// AFINET represents v4 connections
-	AFINET ConnectionFamily = 0
+	AFINET ConnectionFamily = 0 // v4
 
 	// AFINET6 represents v6 connections
-	AFINET6 ConnectionFamily = 1
+	AFINET6 ConnectionFamily = 1 // v6
 )
 
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
-
-func (c ConnectionFamily) String() string {
-	if c == AFINET {
-		return "v4"
-	}
-	return "v6"
-}
 
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
 
 const (
 	// INCOMING represents connections inbound to the host
-	INCOMING ConnectionDirection = 1
+	INCOMING ConnectionDirection = 1 // incoming
 
 	// OUTGOING represents outbound connections from the host
-	OUTGOING ConnectionDirection = 2
+	OUTGOING ConnectionDirection = 2 // outgoing
 
 	// LOCAL represents connections that don't leave the host
-	LOCAL ConnectionDirection = 3
+	LOCAL ConnectionDirection = 3 // local
 
 	// NONE represents connections that have no direction (udp, for example)
-	NONE ConnectionDirection = 4
+	NONE ConnectionDirection = 4 // none
 )
-
-func (d ConnectionDirection) String() string {
-	switch d {
-	case OUTGOING:
-		return "outgoing"
-	case LOCAL:
-		return "local"
-	case NONE:
-		return "none"
-	default:
-		return "incoming"
-	}
-}
 
 // EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
 type EphemeralPortType uint8
 
 const (
 	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
-	EphemeralUnknown EphemeralPortType = 0
+	EphemeralUnknown EphemeralPortType = 0 // unspecified
 
 	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
-	EphemeralTrue EphemeralPortType = 1
+	EphemeralTrue EphemeralPortType = 1 // ephemeral
 
 	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
-	EphemeralFalse EphemeralPortType = 2
+	EphemeralFalse EphemeralPortType = 2 // not ephemeral
 )
-
-func (e EphemeralPortType) String() string {
-	switch e {
-	case EphemeralTrue:
-		return "ephemeral"
-	case EphemeralFalse:
-		return "not ephemeral"
-	default:
-		return "unspecified"
-	}
-}
 
 // BufferedData encapsulates data whose underlying memory can be recycled
 type BufferedData struct {
@@ -137,8 +123,9 @@ type Connections struct {
 	PrebuiltAssets              []string
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStat
+	Kafka                       map[kafka.Key]*kafka.RequestStats
 	Postgres                    map[postgres.Key]*postgres.RequestStat
+	Redis                       map[redis.Key]*redis.RequestStat
 }
 
 // NewConnections create a new Connections object
@@ -240,7 +227,9 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// StatCookie A 64-bit hash designed to uniquely identify a connection.
+// In eBPF this is 32 bits but it gets re-hashed to 64 bits in userspace to
+// reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
@@ -274,7 +263,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[*intern.Value]struct{}
+	Tags             []*intern.Value
 
 	IntraHost bool
 	IsAssured bool
@@ -319,6 +308,17 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
+// IsEmpty returns whether the connection has any statistics
+func (c ConnectionStats) IsEmpty() bool {
+	// TODO why does this not include TCPEstablished and TCPClosed?
+	return c.Monotonic.RecvBytes == 0 &&
+		c.Monotonic.RecvPackets == 0 &&
+		c.Monotonic.SentBytes == 0 &&
+		c.Monotonic.SentPackets == 0 &&
+		c.Monotonic.Retransmits == 0 &&
+		len(c.TCPFailures) == 0
+}
+
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
@@ -338,6 +338,15 @@ func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
 }
 
+// IsValid returns `true` if the connection has a valid source and dest
+// ports and IPs
+func (c ConnectionStats) IsValid() bool {
+	return c.Source.IsValid() &&
+		c.Dest.IsValid() &&
+		c.SPort > 0 &&
+		c.DPort > 0
+}
+
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
@@ -345,10 +354,8 @@ const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 // Note: This is only used in /debug/* endpoints
 func BeautifyKey(key string) string {
 	bytesToAddress := func(buf []byte) util.Address {
-		if len(buf) == 4 {
-			return util.V4AddressFromBytes(buf)
-		}
-		return util.V6AddressFromBytes(buf)
+		addr, _ := netip.AddrFromSlice(buf)
+		return util.Address{Addr: addr}
 	}
 
 	raw := []byte(key)
@@ -456,8 +463,8 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 	buf[n] = uint8(c.Family)<<4 | uint8(c.Type)
 	n++
 
-	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
-	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+	n += copy(buf[n:], laddr.AsSlice()) // 4 or 16 bytes
+	n += copy(buf[n:], raddr.AsSlice()) // 4 or 16 bytes
 
 	return buf[:n]
 }
@@ -475,32 +482,16 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 	}
 }
 
-func maxUint64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxUint32(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
 // Max returns max(s, other)
 func (s StatCounters) Max(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
-		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
-		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
-		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
-		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
-		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
-		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+		RecvBytes:      max(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    max(s.RecvPackets, other.RecvPackets),
+		Retransmits:    max(s.Retransmits, other.Retransmits),
+		SentBytes:      max(s.SentBytes, other.SentBytes),
+		SentPackets:    max(s.SentPackets, other.SentPackets),
+		TCPClosed:      max(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: max(s.TCPEstablished, other.TCPEstablished),
 	}
 }
 

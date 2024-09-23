@@ -10,8 +10,7 @@ package kubeapiserver
 
 import (
 	"context"
-	"slices"
-	"sort"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,11 +43,19 @@ type dependencies struct {
 type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	hasPodLabelsAsTags := len(metadataAsTags.GetPodLabelsAsTags()) > 0
+	hasPodAnnotationsAsTags := len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
+
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags
 }
 
 func shouldHaveDeploymentStore(cfg config.Reader) bool {
-	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	hasDeploymentsLabelsAsTags := len(metadataAsTags.GetResourcesLabelsAsTags()["deployments.apps"]) > 0
+	hasDeploymentsAnnotationsAsTags := len(metadataAsTags.GetResourcesAnnotationsAsTags()["deployments.apps"]) > 0
+
+	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
 }
 
 func storeGenerators(cfg config.Reader) []storeGenerator {
@@ -65,7 +73,7 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
-	return discoverGVRs(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
+	return getGVRsForRequestedResources(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
 }
 
 func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
@@ -74,9 +82,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
 	)
 
-	// Remove duplicates
-	sort.Strings(resources)
-	return slices.Compact(resources)
+	// Remove duplicates and return
+	return cleanDuplicateVersions(resources)
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
@@ -84,10 +91,27 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	res := []string{"nodes"} // nodes are always needed
 
-	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
-	if namespaceLabelsAsTagsEnabled || namespaceAnnotationsAsTagsEnabled {
-		res = append(res, "namespaces")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+
+	for groupResource, labelsAsTags := range metadataAsTags.GetResourcesLabelsAsTags() {
+
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(labelsAsTags) == 0 {
+			continue
+		}
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
+	for groupResource, annotationsAsTags := range metadataAsTags.GetResourcesAnnotationsAsTags() {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(annotationsAsTags) == 0 {
+			continue
+		}
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
 	}
 
 	return res
@@ -106,12 +130,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 	var resources []string
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 	for _, resource := range requestedResources {
-		if resource == "pods" && shouldHavePodStore(cfg) {
+		if strings.HasSuffix(resource, "pods") {
 			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
 			continue
 		}
 
-		if resource == "deployments" && shouldHaveDeploymentStore(cfg) {
+		if strings.HasSuffix(resource, "deployments") {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
 			continue
 		}
@@ -176,7 +200,9 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
-	go startReadiness(ctx, objectStores)
+
+	go runStartupCheck(ctx, objectStores)
+
 	return nil
 }
 
@@ -192,21 +218,15 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func startReadiness(ctx context.Context, stores []*reflectorStore) {
-	log.Infof("Starting readiness waiting for %d k8s reflectors to sync", len(stores))
+func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
+	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
 	// inner loop of Reflector.
-	// However we add Readiness when we got at least some data.
-	health := health.RegisterReadiness(componentName)
-	defer func() {
-		err := health.Deregister()
-		if err != nil {
-			log.Criticalf("Unable to deregister component: %s, readiness will likely fail until POD is replaced err: %v", componentName, err)
-		}
-	}()
+	// However, we add Startup when we got at least some data.
+	startupHealthCheck := health.RegisterStartup(componentName)
 
-	// Checked synced, in its own scope to cleanly unreference the syncTimer
+	// Checked synced, in its own scope to cleanly un-reference the syncTimer
 	{
 		syncTimer := time.NewTicker(time.Second)
 	OUTER:
@@ -229,14 +249,7 @@ func startReadiness(ctx context.Context, stores []*reflectorStore) {
 		syncTimer.Stop()
 	}
 
-	// Once synced, start answering to readiness probe
+	// Once synced, validate startup health check
 	log.Infof("All (%d) K8S reflectors synced to workloadmeta", len(stores))
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-health.C:
-		}
-	}
+	<-startupHealthCheck.C
 }

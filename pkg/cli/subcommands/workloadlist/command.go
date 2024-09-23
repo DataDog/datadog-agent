@@ -14,11 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -38,10 +37,11 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath       string
-	ExtraConfFilePaths []string
-	ConfigName         string
-	LoggerName         string
+	ConfFilePath         string
+	ExtraConfFilePaths   []string
+	ConfigName           string
+	LoggerName           string
+	FleetPoliciesDirPath string
 }
 
 // MakeCommand returns a `workload-list` command to be used by agent binaries.
@@ -52,7 +52,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "workload-list",
 		Short: "Print the workload content of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
@@ -64,8 +64,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
+						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
-					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
@@ -111,16 +112,16 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 }
 
 func workloadURL(verbose bool) (string, error) {
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
 
 	var prefix string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
 	if verbose {

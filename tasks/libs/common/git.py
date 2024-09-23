@@ -1,16 +1,33 @@
 from __future__ import annotations
 
-import os.path
+import os
+import tempfile
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+
+@contextmanager
+def clone(ctx, repo, branch, options=""):
+    """
+    Context manager to clone a git repository and checkout a specific branch.
+    """
+    current_dir = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as clone_dir:
+            ctx.run(f"git clone -b {branch} {options} https://github.com/DataDog/{repo} {clone_dir}")
+            os.chdir(clone_dir)
+            yield
+    finally:
+        os.chdir(current_dir)
 
 
 def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
@@ -28,13 +45,17 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_modified_files(ctx) -> list[str]:
-    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+def get_modified_files(ctx, base_branch="main") -> list[str]:
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
 
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def get_common_ancestor(ctx, branch) -> str:
+    return ctx.run(f"git merge-base {branch} main", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -132,3 +153,56 @@ def check_clean_branch_state(ctx, github, branch):
             ),
             code=1,
         )
+
+
+def get_last_commit(ctx, repo, branch):
+    # Repo is only the repo name, e.g. "datadog-agent"
+    return (
+        ctx.run(
+            rf'git ls-remote -h https://github.com/DataDog/{repo} "refs/heads/{branch}"',
+            hide=True,
+        )
+        .stdout.strip()
+        .split()[0]
+    )
+
+
+def get_last_release_tag(ctx, repo, pattern):
+    import re
+    from functools import cmp_to_key
+
+    import semver
+
+    tags = ctx.run(
+        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
+        hide=True,
+    ).stdout.strip()
+    if not tags:
+        raise Exit(
+            color_message(
+                f"No tag found for pattern {pattern} in {repo}",
+                Color.RED,
+            ),
+            code=1,
+        )
+
+    release_pattern = re.compile(r'.*7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$')
+    tags_without_suffix = [
+        line for line in tags.splitlines() if not line.endswith("^{}") and release_pattern.match(line)
+    ]
+    last_tag = max(tags_without_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1]))
+    last_tag_commit, last_tag_name = last_tag.split()
+    tags_with_suffix = [line for line in tags.splitlines() if line.endswith("^{}") and release_pattern.match(line)]
+    if tags_with_suffix:
+        last_tag_with_suffix = max(
+            tags_with_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1].removesuffix("^{}"))
+        )
+        last_tag_commit_with_suffix, last_tag_name_with_suffix = last_tag_with_suffix.split()
+        if (
+            semver.compare(last_tag_name_with_suffix.split('/')[-1].removesuffix("^{}"), last_tag_name.split("/")[-1])
+            >= 0
+        ):
+            last_tag_commit = last_tag_commit_with_suffix
+            last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
+    last_tag_name = last_tag_name.removeprefix("refs/tags/")
+    return last_tag_commit, last_tag_name

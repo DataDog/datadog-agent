@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 /*
@@ -387,7 +387,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)

@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -327,7 +327,7 @@ func createNotifyIcon(s *systrayImpl, mw *walk.MainWindow) (ni *walk.NotifyIcon,
 	}
 
 	// When the left mouse button is pressed, bring up our balloon.
-	ni.MouseDown().Attach(func(x, y int, button walk.MouseButton) {
+	ni.MouseDown().Attach(func(_, _ int, button walk.MouseButton) {
 		if button != walk.LeftButton {
 			return
 		}

@@ -9,7 +9,7 @@ package module
 import (
 	"fmt"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
@@ -73,7 +73,7 @@ func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Secur
 
 // NewDirectMsgSender returns a new direct sender
 func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
-	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
+	useSecRuntimeTrack := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
 	if err != nil {

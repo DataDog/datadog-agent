@@ -11,7 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
@@ -37,7 +38,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 			expected: []apicfg.Endpoint{
 				{
 					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 		},
@@ -62,7 +63,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 			},
 			expected: []apicfg.Endpoint{
 				{
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 					APIKey:   "test",
 				},
 				{
@@ -85,7 +86,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock(t)
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("api_key", tc.apiKey)
 			if tc.ddURL != "" {
 				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
@@ -140,7 +141,7 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock(t)
+			cfg := configmock.New(t)
 			if tc.site != "" {
 				cfg.SetWithoutSource("site", tc.site)
 			}
@@ -182,13 +183,13 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			expectedEndpoints: []apicfg.Endpoint{
 				{
 					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
 					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 				},
 			},
 		},
@@ -205,7 +206,7 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
 					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 				},
 			},
 		},
@@ -216,7 +217,7 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			expectedEndpoints: []apicfg.Endpoint{
 				{
 					APIKey:   "test",
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 				},
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
@@ -248,7 +249,7 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			},
 			expectedEndpoints: []apicfg.Endpoint{
 				{
-					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEndpoint),
 					APIKey:   "test",
 				},
 				{
@@ -266,7 +267,7 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 			},
 			expectedEventsEndpoints: []apicfg.Endpoint{
 				{
-					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+					Endpoint: mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 					APIKey:   "test",
 				},
 				{
@@ -281,7 +282,7 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock(t)
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("api_key", tc.apiKey)
 			if tc.ddURL != "" {
 				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)

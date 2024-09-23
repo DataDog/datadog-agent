@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,7 +54,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 		return
 	}
 
-	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1, config.Datadog()); err != nil {
+	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1, pkgconfigsetup.Datadog()); err != nil {
 		log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
 	}
 }

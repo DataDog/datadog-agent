@@ -13,30 +13,45 @@ from invoke.exceptions import Exit
 
 from tasks.libs.types.copyright import COPYRIGHT_HEADER
 
-Component = namedtuple('Component', ['path', 'doc', 'team'])
-Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
+# Component represents a directory defining a component
+#  version=1 is the classic style using:
+#    comp/<name>/component.go
+#    comp/<name>/<name>impl/*
+#  version=2 is the new style using:
+#    comp/<name>/def/component.go
+#    comp/<name>/fx/fx.go
+#    comp/<name>/impl/*
+Component = namedtuple('Component', ['name', 'def_file', 'path', 'doc', 'team', 'version'])
+# Bundle represents a bundle of components, defined using:
+#    comp/<group>/bundle.go
+Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'content', 'components'])
 
 
-def find_team(content: Iterable[str]) -> str:
+def find_team(content: Iterable[str]) -> str | None:
     for line in content:
         if line.startswith('// team: '):
             return line.split(':', 2)[1].strip()
 
+    return None
+
 
 def find_doc(content) -> str:
     comment_block = []
+    first_paragraph_only = True
+
     for line in content:
         if line.startswith('//'):
-            comment_block.append(line[3:])
+            text = line[3:].strip()
+            if not text:
+                first_paragraph_only = False
+            if first_paragraph_only:
+                comment_block.append(text + '\n')
         elif line.startswith('package '):
-            try:
-                i = comment_block.index('')
-                comment_block = comment_block[:i]
-            except ValueError:
-                pass
-            return ''.join(comment_block).strip() + '\n'
+            break
         else:
             comment_block = []
+            first_paragraph_only = True
+    return ''.join(comment_block).strip() + '\n'
 
 
 def has_type_component(content) -> bool:
@@ -50,18 +65,101 @@ components_to_migrate = [
     "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
-    "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
-    "comp/core/workloadmeta/component.go",
 ]
+
+
+# List of components that use the classic style, where `comp/<component>/<component>impl` exists
+# New components should use the new style of `def`, `impl`, `fx` folders
+components_classic_style = [
+    'comp/agent/autoexit/autoexitimpl',
+    'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
+    'comp/agent/expvarserver/expvarserverimpl',
+    'comp/agent/jmxlogger/jmxloggerimpl',
+    'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
+    'comp/api/api/apiimpl',
+    'comp/api/api/def',
+    'comp/api/authtoken/fetchonlyimpl',
+    'comp/api/authtoken/createandfetchimpl',
+    'comp/checks/agentcrashdetect/agentcrashdetectimpl',
+    'comp/checks/windowseventlog/windowseventlogimpl',
+    "comp/checks/winregistry/impl",
+    'comp/collector/collector/collectorimpl',
+    'comp/core/autodiscovery/autodiscoveryimpl',
+    'comp/core/configsync/configsyncimpl',
+    'comp/core/gui/guiimpl',
+    'comp/core/hostname/hostnameimpl',
+    'comp/core/log/logimpl',
+    'comp/core/log/tracelogimpl',
+    'comp/core/pid/pidimpl',
+    'comp/core/secrets/secretsimpl',
+    'comp/core/settings/settingsimpl',
+    'comp/core/status/statusimpl',
+    'comp/core/sysprobeconfig/sysprobeconfigimpl',
+    'comp/core/telemetry/telemetryimpl',
+    'comp/core/telemetry/noopsimpl',
+    'comp/dogstatsd/pidmap/pidmapimpl',
+    'comp/dogstatsd/serverDebug/serverdebugimpl',
+    'comp/dogstatsd/status/statusimpl',
+    'comp/etw/impl',
+    'comp/forwarder/eventplatform/eventplatformimpl',
+    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
+    'comp/forwarder/orchestrator/orchestratorimpl',
+    'comp/languagedetection/client/clientimpl',
+    'comp/logs/adscheduler/adschedulerimpl',
+    'comp/logs/agent/agentimpl',
+    'comp/metadata/host/hostimpl',
+    'comp/metadata/inventorychecks/inventorychecksimpl',
+    'comp/metadata/inventoryhost/inventoryhostimpl',
+    'comp/metadata/inventoryotel/inventoryotelimpl',
+    'comp/metadata/packagesigning/packagesigningimpl',
+    'comp/metadata/resources/resourcesimpl',
+    'comp/metadata/runner/runnerimpl',
+    'comp/ndmtmp/forwarder/forwarderimpl',
+    'comp/networkpath/npcollector/npcollectorimpl',
+    'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
+    'comp/process/agent/agentimpl',
+    'comp/process/connectionscheck/connectionscheckimpl',
+    'comp/process/containercheck/containercheckimpl',
+    'comp/process/expvars/expvarsimpl',
+    'comp/process/forwarders/forwardersimpl',
+    'comp/process/hostinfo/hostinfoimpl',
+    'comp/process/processcheck/processcheckimpl',
+    'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
+    'comp/process/processeventscheck/processeventscheckimpl',
+    'comp/process/profiler/profilerimpl',
+    'comp/process/rtcontainercheck/rtcontainercheckimpl',
+    'comp/process/runner/runnerimpl',
+    'comp/process/status/statusimpl',
+    'comp/process/submitter/submitterimpl',
+    'comp/remote-config/rcservice/rcserviceimpl',
+    'comp/remote-config/rcservicemrf/rcservicemrfimpl',
+    'comp/remote-config/rcstatus/rcstatusimpl',
+    'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
+    'comp/serializer/compression/compressionimpl',
+    'comp/snmptraps/config/configimpl',
+    'comp/snmptraps/formatter/formatterimpl',
+    'comp/snmptraps/forwarder/forwarderimpl',
+    'comp/snmptraps/listener/listenerimpl',
+    'comp/snmptraps/oidresolver/oidresolverimpl',
+    'comp/snmptraps/server/serverimpl',
+    'comp/snmptraps/status/statusimpl',
+    'comp/systray/systray/systrayimpl',
+    'comp/trace/etwtracer/etwtracerimpl',
+    'comp/trace/status/statusimpl',
+    'comp/updater/localapi/localapiimpl',
+    'comp/updater/localapiclient/localapiclientimpl',
+    'comp/updater/telemetry/telemetryimpl',
+    'comp/updater/updater/updaterimpl',
+]
+
 
 # // TODO: (components)
 # The migration of these components is in progresss.
@@ -73,48 +171,193 @@ components_missing_implementation_folder = [
     "comp/core/hostname/hostnameinterface",
 ]
 
-implementation_definitions = [
+ignore_fx_import = [
+    "comp/core/workloadmeta",
+    "comp/rdnsquerier",
+    "comp/trace/agent",
+]
+
+ignore_provide_component_constructor_missing = [
+    "comp/core/workloadmeta",
+    "comp/trace/agent",
+]
+
+mock_definitions = [
     "type Mock interface",
     "func Module() fxutil.Module",
     "func MockModule() fxutil.Module",
 ]
 
 
-def check_component_contents_and_file_hiearchy(entry_point):
-    content = entry_point.content
-    file = entry_point.file
-    directory = entry_point.dir
+def check_component_contents_and_file_hiearchy(comp):
+    """
+    Check validity of component, returning first error, if any found
+    """
+    def_content = read_file_content(comp.def_file).split('\n')
+    root_path = pathlib.Path(comp.path)
 
-    if not any(line.startswith('type Component interface') or line.startswith('type Component = ') for line in content):
-        return f"** {file} does not define a Component interface; skipping"
+    # Definition file `def/component.go` must define a component interface
+    if not any(
+        line.startswith('type Component interface') or line.startswith('type Component = ') for line in def_content
+    ):
+        return f"** {comp.def_file} does not define a Component interface"
 
-    if str(file) in components_to_migrate:
-        return ""
+    # Skip components that need to migrate
+    if str(comp.def_file) in components_to_migrate:
+        return
 
-    for implemenation_definition in implementation_definitions:
-        if any(line.startswith(implemenation_definition) for line in content):
-            return f"** {file} define '{implemenation_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
+    # Special case for api
+    if comp.def_file == 'comp/api/api/def/component.go':
+        return
 
-    component_name = directory.stem
-    missing_implementation_folder = True
+    # Definition file `component.go` (v1) or `def/component.go` (v2) must use `package <compname>`
+    pkgname = parse_package_name(comp.def_file)
+    if pkgname != comp.name:
+        return f"** {comp.def_file} has wrong package name '{pkgname}', must be '{comp.name}'"
 
-    if str(directory) in components_missing_implementation_folder:
-        return ""
+    # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
+    for mock_definition in mock_definitions:
+        if any(line.startswith(mock_definition) for line in def_content):
+            return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See docs/components/defining-components.md"
 
-    for folder in directory.iterdir():
-        if folder.match('*impl'):
-            missing_implementation_folder = False
-            # TODO: check that the implementation_definitions are present in any of the files of the impl folder
-            break
+    # Allowlist of components that do not use an implementation folder
+    if comp.path in components_missing_implementation_folder:
+        return
 
-    if missing_implementation_folder:
-        return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
+    # Implementation folder or folders must exist
+    impl_folders = locate_implementation_folders(comp)
+    if len(impl_folders) == 0:
+        return f"** {comp.name} is missing the implementation folder in {comp.path}. See docs/components/defining-components.md"
 
-    return ""  # no error
+    if comp.version == 2:
+        # Implementation source files should use correct package name, and shouldn't import fx (except tests)
+        for src_file in locate_nontest_source_files(impl_folders):
+            pkgname = parse_package_name(src_file)
+            expectname = comp.name + 'impl'
+            if pkgname != expectname:
+                return f"** {src_file} has wrong package name '{pkgname}', must be '{expectname}'"
+            if comp.path in ignore_fx_import:
+                continue
+            src_content = read_file_content(src_file)
+            if 'go.uber.org/fx' in src_content:
+                return f"** {src_file} should not import 'go.uber.org/fx' because it a component implementation"
+            if 'fxutil' in src_content:
+                return f"** {src_file} should not import 'fxutil' because it a component implementation"
+        # FX files should use correct filename and package name, and call ProvideComponentConstructor
+        for src_file in locate_fx_source_files(root_path):
+            if src_file.name != 'fx.go':
+                return f"** {src_file} should be named 'fx.go'"
+            pkgname = parse_package_name(src_file)
+            expectname = comp.name + 'fx'
+            if pkgname != 'fx' and pkgname != expectname:
+                return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
+            if comp.path in ignore_provide_component_constructor_missing:
+                continue
+            src_content = read_file_content(src_file)
+            if 'ProvideComponentConstructor' not in src_content:
+                return f"** {src_file} should call ProvideComponentConstructor to convert regular constructor into fx-aware"
+
+    return  # no error
+
+
+def parse_package_name(filename):
+    """
+    Return the package name from the given filename
+    """
+    lines = read_file_content(filename).split('\n')
+    pkgline = [line for line in lines if line.startswith('package ')][0]
+    results = pkgline.split(' ')
+    if len(results) < 2:
+        return None
+    return results[1]
+
+
+def locate_implementation_folders(comp):
+    """
+    Return all implementation folders from the component
+    """
+    root_path = pathlib.Path(comp.path)
+    folders = []
+
+    for entry in root_path.iterdir():
+        if entry.is_file():
+            continue
+
+        if str(entry) in components_missing_implementation_folder:
+            return 'skip'
+
+        if comp.version == 2:
+            # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
+            if entry.match('impl-*') or entry.match('impl'):
+                folders.append(entry)
+
+        if comp.version == 1:
+            # Check for component implementation using the classic style: comp/<component>/<component>impl
+            if str(entry) in components_classic_style:
+                folders.append(entry)
+
+    return folders
+
+
+def locate_nontest_source_files(folder_list):
+    """
+    Return all non-test source files from given list of folders
+    """
+    results = []
+    for folder in folder_list:
+        for entry in folder.iterdir():
+            if not entry.is_file():
+                continue
+            filename = str(entry)
+            if filename.endswith('.go') and not filename.endswith('_test.go'):
+                results.append(entry)
+    return results
+
+
+def locate_fx_source_files(root_path):
+    """
+    Return all source files from the fx subfolder in the component's path
+    """
+    results = []
+    for entry in root_path.iterdir():
+        if entry.is_file():
+            continue
+        if entry.name.startswith('fx'):
+            for subentry in entry.iterdir():
+                results.append(subentry)
+    return results
+
+
+def validate_components(components, errs=None):
+    if errs is None:
+        errs = []
+    for c in components:
+        e = check_component_contents_and_file_hiearchy(c)
+        if e is not None and len(e) > 0:
+            errs.append(e)
+        if c.team is None:
+            errs.append(f"** {c.path} does not specify a team owner")
+    return errs
+
+
+def validate_bundles(bundles, errs=None):
+    if errs is None:
+        errs = []
+    errs = []
+    for bundle in bundles:
+        # bundle should not declare an interface
+        if has_type_component(bundle.content):
+            errs.append(f"** {bundle.path} defines a Component interface (bundles should not do so)")
+        # bundle should declare team owner
+        if bundle.team is None:
+            errs.append(f"** {bundle.path} does not specify a team owner")
+    return errs
 
 
 def get_components_and_bundles():
-    ok = True
+    """
+    Traverse comp/ directory and return all components, plus all bundles
+    """
     components = []
     bundles = []
     for component_file in pathlib.Path('comp').glob('**'):
@@ -122,45 +365,20 @@ def get_components_and_bundles():
             continue
 
         component_directory = pathlib.Path(component_file)
-        for component_entry in component_directory.iterdir():
-            # If we encounter a file at the first level it could be a bundle
-            if component_entry.is_file() and component_entry.name == "bundle.go":
-                content = list(component_entry.open())
-                if has_type_component(content):
-                    print(f"** {component_entry} defines a Component interface (bundles should not do so)")
-                    ok = False
-                    pass
-
-                path = str(component_entry)[: -len('/bundle.go')]
+        for direntry in component_directory.iterdir():
+            if direntry.is_file() and direntry.name == "bundle.go":
+                # Found bundle definition
+                content = read_file_content(direntry).split('\n')
+                path = str(direntry)[: -len('/bundle.go')]
                 team = find_team(content)
                 doc = find_doc(content)
-
-                if team is None:
-                    print(f"** {component_entry} does not specify a team owner")
-                    ok = False
-
-                bundles.append(Bundle(path, doc, team, []))
+                bundles.append(Bundle(path, doc, team, content, []))
                 continue
 
-            component_root = locate_root(component_entry)
-            if component_root is not None:
-                # Found a component's root
-                # Let's check the file content and hierarchy
-                error = check_component_contents_and_file_hiearchy(component_root)
-                if error != "":
-                    print(error)
-                    ok = False
-                    pass
-
-                path = str(component_root.dir)
-                team = find_team(component_root.content)
-                doc = find_doc(component_root.content)
-
-                if team is None:
-                    print(f"** {path} does not specify a team owner")
-                    ok = False
-
-                components.append(Component(path, doc, team))
+            comp = locate_component_def(direntry)
+            if comp is not None:
+                # Found component definition
+                components.append(comp)
 
     # assign components to bundles
     sorted_bundles = []
@@ -169,39 +387,39 @@ def get_components_and_bundles():
         for c in components:
             if c.path.startswith(b.path):
                 bundle_components.append(c)
+        sorted_bundles.append(Bundle(b.path, b.doc, b.team, b.content, sorted(bundle_components)))
 
-        sorted_bundles.append(Bundle(b.path, b.doc, b.team, sorted(bundle_components)))
-
-    components_without_bundle = []
-    # look for un-bundled components
-    for c in components:
-        if not any(c in b.components for b in sorted_bundles):
-            components_without_bundle.append(c)
-
-    return sorted(sorted_bundles), sorted(components_without_bundle), ok
+    return sorted(components, key=lambda c: c.path), sorted(sorted_bundles)
 
 
-class ComponentRoot:
-    def __init__(self, file, dir, version):
-        self.file = file
-        self.dir = dir
-        self.version = version
-        self.content = list(self.file.open())
-
-
-def locate_root(dir):
+def locate_component_def(dir):
     """
-    Locate the root of the component, if this directory contains a component
+    Locate the component, if this directory contains a component
     """
+    component_name = dir.name.replace('-', '').lower()
+
     # v2 component: this folder is a component root if it contains 'def/component.go'
-    component_file = dir / 'def/component.go'
-    if component_file.is_file():
-        return ComponentRoot(component_file, dir, 2)
+    def_file = dir / 'def/component.go'
+    if def_file.is_file():
+        # comp/api/api/def/component.go is a special case, it's not a component using version 2
+        # PLEASE DO NOT ADD MORE EXCEPTIONS
+        if str(def_file) == "comp/api/api/def/component.go":
+            return construct_component(component_name, def_file, dir, 1)
+        else:
+            return construct_component(component_name, def_file, dir, 2)
+
     # v1 component: this folder is a component root if it contains '/component.go' but the path is not '/def/component.go'
-    #    in particular, the directory named 'def' should not be treated as a component root
-    component_file = dir / 'component.go'
-    if component_file.is_file() and '/def/component.go' not in str(component_file):
-        return ComponentRoot(component_file, dir, 1)
+    # in particular, the directory named 'def' should not be treated as a component root
+    def_file = dir / 'component.go'
+    if def_file.is_file() and '/def/component.go' not in str(def_file):
+        return construct_component(component_name, def_file, dir, 1)
+
+
+def construct_component(compname, def_file, path, version):
+    def_content = read_file_content(str(def_file)).split('\n')
+    team = find_team(def_content)
+    doc = find_doc(def_content)
+    return Component(compname, str(def_file), str(path), doc, team, version)
 
 
 def make_components_md(bundles, components_without_bundle):
@@ -284,8 +502,25 @@ def lint_components(_, fix=False):
     """
     Verify (or with --fix, ensure) component-related things are correct.
     """
-    bundles, components_without_bundle, ok = get_components_and_bundles()
+    components, bundles = get_components_and_bundles()
+    ok = True
     fixable = False
+    errs = []
+
+    errs = validate_components(components, errs)
+    if len(errs) > 0:
+        for err in errs:
+            ok = False
+            print(err)
+
+    errs = validate_bundles(bundles, errs)
+    if len(errs) > 0:
+        for err in errs:
+            ok = False
+            print(err)
+
+    # Filter just components that are not included in any bundles
+    components_without_bundle = without_bundle(components, bundles)
 
     # Check comp/README.md
     filename = "comp/README.md"
@@ -318,6 +553,14 @@ def lint_components(_, fix=False):
         if fixable:
             print("Run `inv components.lint-components --fix` to fix errors")
         raise Exit(code=1)
+
+
+def without_bundle(comps, bundles):
+    ans = []
+    for c in comps:
+        if not any(c in b.components for b in bundles):
+            ans.append(c)
+    return sorted(ans, key=lambda c: c.path)
 
 
 @task

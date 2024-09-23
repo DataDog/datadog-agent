@@ -50,12 +50,6 @@ func (k *KnownFlakyTests) IsFlaky(pkg string, testName string) bool {
 		}
 	}
 
-	// check if any subtests are marked as flaky
-	for test := range k.packageTestList[pkg] {
-		if strings.HasPrefix(test, testName+"/") {
-			return true
-		}
-	}
 	return false
 }
 

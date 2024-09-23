@@ -35,12 +35,10 @@ func TestStartEnabledFalse(t *testing.T) {
 	setupTraceAgentTest(t)
 
 	lambdaSpanChan := make(chan *pb.Span)
-	var agent = &ServerlessTraceAgent{}
-	agent.Start(false, nil, lambdaSpanChan, random.Random.Uint64())
+	agent := StartServerlessTraceAgent(false, nil, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.Nil(t, agent.ta)
-	assert.Nil(t, agent.Get())
-	assert.Nil(t, agent.cancel)
+	assert.NotNil(t, agent)
+	assert.IsType(t, noopTraceAgent{}, agent)
 }
 
 type LoadConfigMocked struct {
@@ -54,40 +52,34 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
-	agent.Start(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
+	agent := StartServerlessTraceAgent(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.Nil(t, agent.ta)
-	assert.Nil(t, agent.Get())
-	assert.Nil(t, agent.cancel)
+	assert.NotNil(t, agent)
+	assert.IsType(t, noopTraceAgent{}, agent)
 }
 
-func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
+func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
 
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &LoadConfig{Path: "invalid.yml"}, lambdaSpanChan, random.Random.Uint64())
+	agent := StartServerlessTraceAgent(true, &LoadConfig{Path: "invalid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.NotNil(t, agent.ta)
-	assert.NotNil(t, agent.Get())
-	assert.NotNil(t, agent.cancel)
+	assert.NotNil(t, agent)
+	assert.IsType(t, &serverlessTraceAgent{}, agent)
 }
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	var agent = &ServerlessTraceAgent{}
 	lambdaSpanChan := make(chan *pb.Span)
 
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
+	agent := StartServerlessTraceAgent(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.NotNil(t, agent.ta)
-	assert.NotNil(t, agent.Get())
-	assert.NotNil(t, agent.cancel)
+	assert.NotNil(t, agent)
+	assert.IsType(t, &serverlessTraceAgent{}, agent)
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
@@ -97,8 +89,7 @@ func TestLoadConfigShouldBeFast(t *testing.T) {
 	startTime := time.Now()
 	lambdaSpanChan := make(chan *pb.Span)
 
-	agent := &ServerlessTraceAgent{}
-	agent.Start(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
+	agent := StartServerlessTraceAgent(true, &LoadConfig{Path: "./testdata/valid.yml"}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
 	assert.True(t, time.Since(startTime) < time.Second)
 }
@@ -195,7 +186,7 @@ func TestFilterServerlessSpanFromTracer(t *testing.T) {
 func TestGetDDOriginCloudServices(t *testing.T) {
 	serviceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
-		"appservice":   cloudservice.RunZip,
+		"appservice":   cloudservice.WebsiteStack,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
 		"lambda":       functionNameEnvVar,
 	}

@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -17,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // TraceAgent specifies a minimal trace agent instance that is able to process traces and output stats.
@@ -36,6 +39,31 @@ type TraceAgent struct {
 	exit chan struct{}
 }
 
+// OtelStatsWriter implements the trace-agent's `stats.Writer` interface via an `out` channel
+// This provides backwards compatibility for otel components that do not yet use the latest agent version
+// where these channels have been dropped
+type OtelStatsWriter struct {
+	out chan *pb.StatsPayload
+}
+
+// Write this payload to the `out` channel
+func (a *OtelStatsWriter) Write(payload *pb.StatsPayload) {
+	a.out <- payload
+}
+
+// NewOtelStatsWriter makes an OtelStatsWriter that writes to the given `out` chan
+func NewOtelStatsWriter(out chan *pb.StatsPayload) *OtelStatsWriter {
+	return &OtelStatsWriter{out}
+}
+
+type noopTraceWriter struct{}
+
+func (n *noopTraceWriter) Stop() {}
+
+func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
+
+func (n *noopTraceWriter) FlushSync() error { return nil }
+
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
 func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
@@ -45,7 +73,7 @@ func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient stat
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
 func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
-	cfg.ReceiverPort = 0
+	cfg.ReceiverEnabled = false
 	// set the API key to succeed startup; it is never used nor needed
 	cfg.Endpoints[0].APIKey = "skip_check"
 	// set the default hostname to the translator's placeholder; in the case where no hostname
@@ -55,16 +83,20 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	// Ingest). This gives a better user experience.
 	cfg.Hostname = "__unset__"
 	pchan := make(chan *api.Payload, 1000)
-	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
+	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient, gzip.NewComponent())
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
-	a.Concentrator = stats.NewConcentrator(cfg, out, time.Now(), metricsClient)
+	statsWriter := NewOtelStatsWriter(out)
+	a.Concentrator = stats.NewConcentrator(cfg, statsWriter, time.Now(), metricsClient)
 	// ...and the same for the ClientStatsAggregator; we don't use it here, but it is also a source
 	// of stats which should be available to us.
-	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, out, metricsClient)
+	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, statsWriter, metricsClient)
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)
+	// we want to discard all traces that would be written out so replace traceWriter with noop
+	a.TraceWriter = &noopTraceWriter{}
+
 	return &TraceAgent{
 		Agent: a,
 		exit:  make(chan struct{}),
@@ -89,8 +121,6 @@ func (p *TraceAgent) Start() {
 	} {
 		starter.Start()
 	}
-
-	p.goDrain()
 	p.goProcess()
 }
 
@@ -108,23 +138,6 @@ func (p *TraceAgent) Stop() {
 	}
 	close(p.exit)
 	p.wg.Wait()
-}
-
-// goDrain drains the TraceWriter channel, ensuring it won't block. We don't need the traces,
-// nor do we have a running TraceWrite. We just want the outgoing stats.
-func (p *TraceAgent) goDrain() {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-p.TraceWriter.In:
-				// we don't write these traces anywhere; drain the channel
-			case <-p.exit:
-				return
-			}
-		}
-	}()
 }
 
 // Ingest processes the given spans within the traceagent and outputs stats through the output channel

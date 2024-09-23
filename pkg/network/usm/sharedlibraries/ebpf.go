@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
@@ -19,7 +20,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,13 +38,31 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
-type ebpfProgram struct {
-	cfg         *config.Config
+// EbpfProgram represents the shared libraries eBPF program.
+type EbpfProgram struct {
+	cfg         *ddebpf.Config
 	perfHandler *ddebpf.PerfHandler
 	*ddebpf.Manager
 }
 
-func newEBPFProgram(c *config.Config) *ebpfProgram {
+// IsSupported returns true if the shared libraries monitoring is supported on the current system.
+func IsSupported(cfg *ddebpf.Config) bool {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. shared libraries monitoring disabled.")
+		return false
+	}
+
+	if strings.HasPrefix(runtime.GOARCH, "arm") {
+		return kversion >= kernel.VersionCode(5, 5, 0) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
+	}
+
+	// Minimum version for shared libraries monitoring is 4.14
+	return kversion >= kernel.VersionCode(4, 14, 0)
+}
+
+// NewEBPFProgram creates a new EBPFProgram to monitor shared libraries
+func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -74,14 +92,15 @@ func newEBPFProgram(c *config.Config) *ebpfProgram {
 		)
 	}
 
-	return &ebpfProgram{
+	return &EbpfProgram{
 		cfg:         c,
 		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
 
-func (e *ebpfProgram) Init() error {
+// Init initializes the eBPF program.
+func (e *EbpfProgram) Init() error {
 	var err error
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
@@ -110,17 +129,19 @@ func (e *ebpfProgram) Init() error {
 	return e.initPrebuilt()
 }
 
-func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
+// GetPerfHandler returns the perf handler
+func (e *EbpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 	return e.perfHandler
 }
 
-func (e *ebpfProgram) Stop() {
+// Stop stops the eBPF program
+func (e *EbpfProgram) Stop() {
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
 }
 
-func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	options.RLimit = &unix.Rlimit{
 		Cur: math.MaxUint64,
 		Max: math.MaxUint64,
@@ -134,17 +155,16 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		)
 	}
 
-	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 	options.BypassEnabled = e.cfg.BypassEnabled
 	return e.InitWithOptions(buf, &options)
 }
 
-func (e *ebpfProgram) initCORE() error {
+func (e *EbpfProgram) initCORE() error {
 	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(assetName, e.init)
 }
 
-func (e *ebpfProgram) initRuntimeCompiler() error {
+func (e *EbpfProgram) initRuntimeCompiler() error {
 	bc, err := getRuntimeCompiledSharedLibraries(e.cfg)
 	if err != nil {
 		return err
@@ -153,7 +173,7 @@ func (e *ebpfProgram) initRuntimeCompiler() error {
 	return e.init(bc, manager.Options{})
 }
 
-func (e *ebpfProgram) initPrebuilt() error {
+func (e *EbpfProgram) initPrebuilt() error {
 	bc, err := netebpf.ReadSharedLibrariesModule(e.cfg.BPFDir, e.cfg.BPFDebug)
 	if err != nil {
 		return err

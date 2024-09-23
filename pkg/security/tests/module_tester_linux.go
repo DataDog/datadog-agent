@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -56,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -102,13 +101,25 @@ runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
   internal_monitoring:
     enabled: true
+{{ if gt .EventServerRetention 0 }}
+  event_server:
+    retention: {{ .EventServerRetention }}
+{{ end }}
   remote_configuration:
     enabled: false
+  on_demand:
+    enabled: true
+    rate_limiter:
+      enabled: {{ .OnDemandRateLimiterEnabled}}
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
+    host:
+      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
+    syscall_monitor:
+      period: {{ .ActivityDumpSyscallMonitorPeriod }}
 {{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
@@ -177,50 +188,20 @@ runtime_security_config:
     enabled: {{.EBPFLessEnabled}}
   hash_resolver:
     enabled: true
-`
-
-const testPolicy = `---
-version: 1.2.3
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    disabled: {{$Rule.Disabled}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
-{{end}}
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
+    disarmer:
+      container:
+        enabled: {{.EnforcementDisarmerContainerEnabled}}
+        max_allowed: {{.EnforcementDisarmerContainerMaxAllowed}}
+        period: {{.EnforcementDisarmerContainerPeriod}}
+      executable:
+        enabled: {{.EnforcementDisarmerExecutableEnabled}}
+        max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
+        period: {{.EnforcementDisarmerExecutablePeriod}}
 `
 
 const (
@@ -605,10 +586,20 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
+}
+
+func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
+	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
 
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
@@ -642,9 +633,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if opts.staticOpts.disableBundledRules {
+	if opts.dynamicOpts.disableBundledRules {
 		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
-			ID:       events.NeedRefreshSBOMRuleID,
+			ID:       bundled.NeedRefreshSBOMRuleID,
 			Disabled: true,
 			Combine:  rules.OverridePolicy,
 		})
@@ -655,7 +646,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -756,7 +747,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
+
+	if opts.staticOpts.discardRuntime {
+		emopts.ProbeOpts.DontDiscardRuntime = false
+	}
+
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -766,10 +762,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		// disable containers telemetry
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
@@ -835,7 +834,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if ebpfLessEnabled {
+	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
@@ -1139,41 +1138,7 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
-func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return nil, errors.New("no manager")
-	}
-	params := &api.ActivityDumpParams{
-		Comm:              comm,
-		Timeout:           "1m",
-		DifferentiateArgs: true,
-		Storage: &api.StorageRequestParams{
-			LocalStorageDirectory:    outputDir,
-			LocalStorageFormats:      formats,
-			LocalStorageCompression:  false,
-			RemoteStorageFormats:     []string{},
-			RemoteStorageCompression: false,
-		},
-	}
-	mess, err := managers.DumpActivity(params)
-	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
-	}
-
-	var files []string
-	for _, s := range mess.Storage {
-		files = append(files, s.File)
-	}
-	return files, nil
-}
-
-func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1186,7 +1151,6 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
-		Comm:        comm,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1588,7 +1552,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
+		_ = tm.StopActivityDump(dump.Name, "")
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {

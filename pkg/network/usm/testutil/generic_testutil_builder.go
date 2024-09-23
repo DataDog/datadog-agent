@@ -13,12 +13,16 @@ import (
 	"path"
 )
 
-// BuildGoBinaryWrapper builds a Go binary and returns the path to it.
+const (
+	baseLDFlags = "-ldflags=-extldflags '-static'"
+)
+
+// buildGoBinary builds a Go binary and returns the path to it.
 // If the binary is already built (meanly in the CI), it returns the
 // path to the binary.
-func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
-	serverSrcDir := path.Join(curDir, binaryDir)
-	cachedServerBinaryPath := path.Join(serverSrcDir, binaryDir)
+func buildGoBinary(srcDir, outPath, buildFlags string) (string, error) {
+	serverSrcDir := srcDir
+	cachedServerBinaryPath := outPath
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
@@ -26,11 +30,29 @@ func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
 		return cachedServerBinaryPath, nil
 	}
 
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test", "-ldflags=-extldflags '-static'", "-o", cachedServerBinaryPath, serverSrcDir)
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %s\noutput: %s", err, string(out))
 	}
 
 	return cachedServerBinaryPath, nil
+}
+
+// BuildGoBinaryWrapper builds a Go binary and returns the path to it.
+// If the binary is already built (meanly in the CI), it returns the
+// path to the binary.
+func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
+	srcDir := path.Join(curDir, binaryDir)
+	outPath := path.Join(srcDir, binaryDir)
+	return buildGoBinary(srcDir, outPath, baseLDFlags)
+}
+
+// BuildGoBinaryWrapperWithoutSymbols builds a Go binary without symbols and returns the path to it.
+// If the binary is already built (meanly in the CI), it returns the
+// path to the binary.
+func BuildGoBinaryWrapperWithoutSymbols(curDir, binaryDir string) (string, error) {
+	srcDir := path.Join(curDir, binaryDir)
+	outPath := path.Join(srcDir, binaryDir+"-nosymbols")
+	return buildGoBinary(srcDir, outPath, baseLDFlags+" -s -w")
 }

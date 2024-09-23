@@ -1,6 +1,5 @@
 ---
 title: CSM Threats Windows Events Formats
-kind: documentation
 description: JSON schema documentation of the CSM Threats Windows backend event
 disable_edit: true
 ---

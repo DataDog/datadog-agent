@@ -18,6 +18,10 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
+const (
+	procPIDMapperID = "proc"
+)
+
 // IdentiferFromCgroupReferences returns cgroup identifier extracted from <proc>/<pid>/cgroup after applying the filter.
 func IdentiferFromCgroupReferences(procPath, pid, baseCgroupController string, filter ReaderFilter) (string, error) {
 	var identifier string
@@ -57,31 +61,38 @@ type pidMapper interface {
 }
 
 // cgroupRoot is cgroup base directory (like /host/sys/fs/cgroup/<baseController>)
-func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter) pidMapper {
-	// Checking if we are in host pid. If that's the case `cgroup.procs` in any controller will contain PIDs
-	// In cgroupv2, the file contains 0 values, filtering for that
-	cgroupProcsTestFilePath := filepath.Join(cgroupRoot, cgroupProcsFile)
-	cgroupProcsUsable := false
-	err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s string) error {
-		if s != "" && s != "0" {
-			cgroupProcsUsable = true
-		}
+func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilter, pidMapperID string) pidMapper {
+	// Empty pidMapperID means auto select. Only possible value is to force /proc usage.
+	if pidMapperID == "" {
+		// Checking if we are in host pid. If that's the case `cgroup.procs` in any controller will contain PIDs
+		// In cgroupv2, the file contains 0 values, filtering for that
+		cgroupProcsTestFilePath := filepath.Join(cgroupRoot, cgroupProcsFile)
+		cgroupProcsUsable := false
+		err := parseFile(defaultFileReader, cgroupProcsTestFilePath, func(s string) error {
+			if s != "" && s != "0" {
+				cgroupProcsUsable = true
+			}
 
-		return nil
-	})
+			return nil
+		})
 
-	if cgroupProcsUsable {
-		return &cgroupProcsPidMapper{
-			fr: defaultFileReader,
-			cgroupProcsFilePathBuilder: func(relativeCgroupPath string) string {
-				return filepath.Join(cgroupRoot, relativeCgroupPath, cgroupProcsFile)
-			},
+		if cgroupProcsUsable {
+			log.Debug("Using cgroup.procs for pid mapping")
+			return &cgroupProcsPidMapper{
+				fr: defaultFileReader,
+				cgroupProcsFilePathBuilder: func(relativeCgroupPath string) string {
+					return filepath.Join(cgroupRoot, relativeCgroupPath, cgroupProcsFile)
+				},
+			}
 		}
+		log.Debugf("cgroup.procs file at: %s is empty or unreadable, considering we're not running in host PID namespace, err: %v", cgroupProcsTestFilePath, err)
+	} else if pidMapperID != procPIDMapperID {
+		log.Warnf("Unknown PID mapper ID: %s, falling back to using proc PID mapper", pidMapperID)
 	}
-	log.Debugf("cgroup.procs file at: %s is empty or unreadable, considering we're not running in host PID namespace, err: %v", cgroupProcsTestFilePath, err)
 
 	// Checking if we're in host cgroup namespace, other the method below cannot be used either
 	// (we'll still return it in case the cgroup namespace detection failed but log a warning)
+	log.Debug("Using proc/pid for pid mapping")
 	pidMapper := &procPidMapper{
 		procPath:         procPath,
 		cgroupController: baseController,
@@ -111,8 +122,7 @@ type cgroupProcsPidMapper struct {
 	cgroupProcsFilePathBuilder func(string) string
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (pm *cgroupProcsPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string, cacheValidity time.Duration) []int {
+func (pm *cgroupProcsPidMapper) getPIDsForCgroup(_, relativeCgroupPath string, _ time.Duration) []int {
 	var pids []int
 
 	if err := parseFile(pm.fr, pm.cgroupProcsFilePathBuilder(relativeCgroupPath), func(s string) error {
@@ -153,7 +163,7 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	err := godirwalk.Walk(pm.procPath, &godirwalk.Options{
 		AllowNonDirectory: true,
 		Unsorted:          true,
-		Callback: func(fullPath string, de *godirwalk.Dirent) error {
+		Callback: func(_ string, de *godirwalk.Dirent) error {
 			// The callback will be first called with the directory itself
 			if de.Name() == "proc" {
 				return nil

@@ -5,8 +5,6 @@
 
 //go:build linux
 
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
-
 // Package dump holds dump related files
 package dump
 
@@ -33,6 +31,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -66,24 +65,34 @@ const (
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
 // the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
 // is used to generate the activity dump metadata sent to the event platform.
-// easyjson:json
 type ActivityDump struct {
 	sync.Mutex
+
+	ActivityDumpHeader
+
 	state    ActivityDumpStatus
 	adm      *ActivityDumpManager
 	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
 
-	// standard attributes used by the intake
-	Host    string   `json:"host,omitempty"`
-	Service string   `json:"service,omitempty"`
-	Source  string   `json:"ddsource,omitempty"`
-	Tags    []string `json:"-"`
-	DDTags  string   `json:"ddtags,omitempty"`
+	Tags            []string
+	ActivityTree    *activity_tree.ActivityTree
+	StorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	ActivityTree    *activity_tree.ActivityTree                      `json:"-"`
-	StorageRequests map[config.StorageFormat][]config.StorageRequest `json:"-"`
+	// Load config
+	LoadConfig       *model.ActivityDumpLoadConfig
+	LoadConfigCookie uint64
+}
+
+// ActivityDumpHeader holds the header of an activity dump
+type ActivityDumpHeader struct {
+	// standard attributes used by the intake
+	Host    string `json:"host,omitempty"`
+	Service string `json:"service,omitempty"`
+	Source  string `json:"ddsource,omitempty"`
+
+	DDTags string `json:"ddtags,omitempty"`
 
 	// Dump metadata
 	mtdt.Metadata
@@ -92,10 +101,17 @@ type ActivityDump struct {
 	// this is a hack used to provide this global list to the backend in the JSON header
 	// instead of in the protobuf payload.
 	DNSNames *utils.StringKeys `json:"dns_names"`
+}
 
-	// Load config
-	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
-	LoadConfigCookie uint64                        `json:"-"`
+// SECLRuleOpts defines SECL rules options
+type SECLRuleOpts struct {
+	EnableKill bool
+	AllowList  bool
+	Lineage    bool
+	ImageName  string
+	ImageTag   string
+	Service    string
+	FIM        bool
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
@@ -116,8 +132,10 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
 func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
+		ActivityDumpHeader: ActivityDumpHeader{
+			DNSNames: utils.NewStringKeys(nil),
+		},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
-		DNSNames:        utils.NewStringKeys(nil),
 	}
 	ad.ActivityTree = activity_tree.NewActivityTree(ad, pathsReducer, "activity_dump")
 	return ad
@@ -191,7 +209,6 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 		Name:              metadata.GetName(),
 		ProtobufVersion:   metadata.GetProtobufVersion(),
 		DifferentiateArgs: metadata.GetDifferentiateArgs(),
-		Comm:              metadata.GetComm(),
 		ContainerID:       metadata.GetContainerID(),
 		Start:             startTime,
 		End:               startTime.Add(timeout),
@@ -318,11 +335,6 @@ func (ad *ActivityDump) updateTracedPid(pid uint32) {
 	}
 }
 
-// commMatches returns true if the ActivityDump comm matches the provided comm
-func (ad *ActivityDump) commMatches(comm string) bool {
-	return ad.Metadata.Comm == comm
-}
-
 // nameMatches returns true if the ActivityDump name matches the provided name
 func (ad *ActivityDump) nameMatches(name string) bool {
 	return ad.Metadata.Name == name
@@ -333,20 +345,14 @@ func (ad *ActivityDump) containerIDMatches(containerID string) bool {
 	return ad.Metadata.ContainerID == containerID
 }
 
-// MatchesSelector returns true if the provided list of tags and / or the provided comm match the current ActivityDump
+// MatchesSelector returns true if the provided list of tags match the current ActivityDump
 func (ad *ActivityDump) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	if entry == nil {
 		return false
 	}
 
 	if len(ad.Metadata.ContainerID) > 0 {
-		if !ad.containerIDMatches(entry.ContainerID) {
-			return false
-		}
-	}
-
-	if len(ad.Metadata.Comm) > 0 {
-		if !ad.commMatches(entry.Comm) {
+		if !ad.containerIDMatches(string(entry.ContainerID)) {
 			return false
 		}
 	}
@@ -384,15 +390,6 @@ func (ad *ActivityDump) enable() error {
 				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
 				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
 			}
-		}
-	}
-
-	if len(ad.Metadata.Comm) > 0 {
-		commB := make([]byte, 16)
-		copy(commB, ad.Metadata.Comm)
-		err := ad.adm.tracedCommsMap.Put(commB, ad.LoadConfigCookie)
-		if err != nil {
-			return fmt.Errorf("couldn't push activity dump comm %s: %v", ad.Metadata.Comm, err)
 		}
 	}
 	return nil
@@ -437,16 +434,6 @@ func (ad *ActivityDump) disable() error {
 		return err
 	}
 
-	// remove comm from kernel space
-	if len(ad.Metadata.Comm) > 0 {
-		commB := make([]byte, 16)
-		copy(commB, ad.Metadata.Comm)
-		err := ad.adm.tracedCommsMap.Delete(commB)
-		if err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			return fmt.Errorf("couldn't delete activity dump filter comm(%s): %v", ad.Metadata.Comm, err)
-		}
-	}
-
 	// remove container ID from kernel space
 	if len(ad.Metadata.ContainerID) > 0 {
 		containerIDB := make([]byte, model.ContainerIDLen)
@@ -470,10 +457,14 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
+	if ad.state == Stopped {
+		return
+	}
+
 	ad.Metadata.End = time.Now()
 	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 
-	if releaseTracedCgroupSpot || len(ad.Metadata.Comm) > 0 {
+	if releaseTracedCgroupSpot {
 		if err := ad.disable(); err != nil {
 			seclog.Errorf("couldn't disable activity dump: %v", err)
 		}
@@ -489,7 +480,13 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 
 	// add the container ID in a tag
 	if len(ad.ContainerID) > 0 {
-		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+		// make sure we are not adding the same tag twice
+		newTag := fmt.Sprintf("container_id:%s", ad.ContainerID)
+		if !slices.Contains(ad.Tags, newTag) {
+			ad.Tags = append(ad.Tags, newTag)
+		} else {
+			seclog.Errorf("container_id tag already present in tags (is finalize called multiple times?): %s", newTag)
+		}
 	}
 
 	// scrub processes and retain args envs now
@@ -564,9 +561,6 @@ func (ad *ActivityDump) getSelectorStr() string {
 	tags := make([]string, 0, len(ad.Tags)+2)
 	if len(ad.Metadata.ContainerID) > 0 {
 		tags = append(tags, fmt.Sprintf("container_id:%s", ad.Metadata.ContainerID))
-	}
-	if len(ad.Metadata.Comm) > 0 {
-		tags = append(tags, fmt.Sprintf("comm:%s", ad.Metadata.Comm))
 	}
 	if len(ad.Tags) > 0 {
 		for _, tag := range ad.Tags {
@@ -647,7 +641,6 @@ func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage
 			Name:              ad.Metadata.Name,
 			ProtobufVersion:   ad.Metadata.ProtobufVersion,
 			DifferentiateArgs: ad.Metadata.DifferentiateArgs,
-			Comm:              ad.Metadata.Comm,
 			ContainerID:       ad.Metadata.ContainerID,
 			Start:             ad.Metadata.Start.Format(time.RFC822),
 			Timeout:           ad.LoadConfig.Timeout.String(),
@@ -902,4 +895,131 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 	protoToActivityDump(ad, reducer, inter)
 
 	return nil
+}
+
+// LoadActivityDumpsFromFiles load ads from a file or a directory
+func LoadActivityDumpsFromFiles(path string) ([]*ActivityDump, error) {
+
+	fileInfo, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("the path %s does not exist", path)
+	} else if err != nil {
+		return nil, fmt.Errorf("error checking the path: %s", err)
+	}
+
+	if fileInfo.IsDir() {
+		dir, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open directory: %s", err)
+		}
+		defer dir.Close()
+
+		// Read the directory contents
+		files, err := dir.Readdir(-1)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read directory: %s", err)
+		}
+
+		ads := []*ActivityDump{}
+		for _, file := range files {
+			ad, err := fileToActivityDump(filepath.Join(path, file.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+			}
+			ads = append(ads, ad)
+		}
+		return ads, nil
+
+	}
+	// It's a file otherwise
+	ad, err := fileToActivityDump(path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+	}
+	return []*ActivityDump{ad}, nil
+
+}
+
+func fileToActivityDump(filepath string) (*ActivityDump, error) {
+	f, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open secdump: %w", err)
+	}
+	defer f.Close()
+	ad := NewEmptyActivityDump(nil)
+	err = ad.DecodeProtobuf(f)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode secdump: %w", err)
+	}
+	return ad, nil
+}
+
+// GenerateRules return rules from activity dumps
+func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefinition {
+
+	var ruleDefs []*rules.RuleDefinition
+	groupID := getGroupID(opts)
+
+	var execs []string
+	lineage := make(map[string][]string)
+	fims := make(map[string][]string)
+
+	for _, ad := range ads {
+		fimPathsperExecPath, execAndParent := ad.ActivityTree.ExtractPaths()
+
+		for execPath, fimPaths := range fimPathsperExecPath {
+			execs = append(execs, execPath)
+			tmp, ok := fims[execPath]
+			if ok {
+				fims[execPath] = append(tmp, fimPaths...)
+			} else {
+				fims[execPath] = fimPaths
+			}
+		}
+
+		for p, pp := range execAndParent {
+			tmp, ok := lineage[p]
+			if ok {
+				lineage[p] = append(tmp, pp...)
+			} else {
+				lineage[p] = pp
+			}
+		}
+	}
+
+	// add exec rules
+	if opts.AllowList {
+		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`exec.file.path not in [%s]`, strings.Join(execs, ", ")), groupID, opts))
+	}
+
+	// add fim rules
+	if opts.FIM {
+		for exec, paths := range fims {
+			if len(paths) != 0 {
+				ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`open.file.path not in [%s] && process.file.path == %s`, strings.Join(paths, ", "), exec), groupID, opts))
+			}
+		}
+	}
+
+	// add lineage
+	if opts.Lineage {
+		var (
+			parentOp = "=="
+			ctxOp    = "!="
+		)
+		var expressions []string
+		for p, pp := range lineage {
+			for _, ppp := range pp {
+				if ppp == "" {
+					parentOp = "!="
+					ctxOp = "=="
+				}
+				expressions = append(expressions, fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path %s "%s" && process.parent.container.id %s ""`, p, parentOp, ppp, ctxOp))
+			}
+		}
+
+		ruleDefs = append(ruleDefs, addRule(fmt.Sprintf(`!(%s)`, strings.Join(expressions, " || ")), groupID, opts))
+
+	}
+	return ruleDefs
 }

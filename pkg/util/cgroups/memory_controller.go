@@ -45,14 +45,14 @@ func MemoryPercentageThresholdMonitor(cb func(), percentage uint64, swap bool) M
 
 // MemoryThresholdMonitor monitors memory usage above a specified threshold
 func MemoryThresholdMonitor(cb func(), limit uint64, swap bool) MemoryMonitor {
-	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+	return func(_ cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
 		return cgroupsv1.MemoryThresholdEvent(limit, swap), cb, nil
 	}
 }
 
 // MemoryPressureMonitor monitors memory pressure levels
 func MemoryPressureMonitor(cb func(), level string) MemoryMonitor {
-	return func(cgroup cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
+	return func(_ cgroupsv1.Cgroup) (cgroupsv1.MemoryEvent, func(), error) {
 		return cgroupsv1.MemoryPressureEvent(cgroupsv1.MemoryPressureLevel(level), cgroupsv1.LocalMode), cb, nil
 	}
 }

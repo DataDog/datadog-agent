@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import traceback
 from collections import Counter
@@ -18,15 +19,12 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+import requests
 from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import (
-    ALLOWED_REPO_ALL_BRANCHES,
-    DEFAULT_BRANCH,
-    REPO_PATH,
-)
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
@@ -521,13 +519,18 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False):
+def gitlab_section(section_name, collapsed=False, echo=False):
+    """
+    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
+    """
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+        elif echo:
+            print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
@@ -694,3 +697,31 @@ def team_to_label(team):
         'asm-go': "agent-security",
     }
     return dico.get(team, team)
+
+
+@contextmanager
+def download_to_tempfile(url, checksum=None):
+    """
+    Download a file from @url to a temporary file and yields the path.
+
+    The temporary file is removed when the context manager exits.
+
+    if @checksum is provided it will be updated with each chunk of the file
+    """
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with os.fdopen(fd, "wb") as f:
+                # fd will be closed by context manager, so we no longer need it
+                fd = None
+                for chunk in r.iter_content(chunk_size=8192):
+                    if checksum:
+                        checksum.update(chunk)
+                    f.write(chunk)
+        yield tmp_path
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)

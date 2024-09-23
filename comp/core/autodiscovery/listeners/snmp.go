@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -66,7 +67,7 @@ type snmpJob struct {
 }
 
 // NewSNMPListener creates a SNMPListener
-func NewSNMPListener(Config) (ServiceListener, error) {
+func NewSNMPListener(Config, *telemetry.Store) (ServiceListener, error) {
 	snmpConfig, err := snmp.NewListenerConfig()
 	if err != nil {
 		return nil, err
@@ -219,7 +220,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
-
+	defer discoveryTicker.Stop()
 	for {
 		var subnet *snmpSubnet
 		for i := range subnets {
@@ -314,13 +315,21 @@ func (l *SNMPListener) Stop() {
 	l.stop <- true
 }
 
-// GetServiceID returns the unique entity ID linked to that service
-func (s *SNMPService) GetServiceID() string {
-	return s.entityID
+// Equal returns whether the two SNMPService are equal
+func (s *SNMPService) Equal(o Service) bool {
+	s2, ok := o.(*SNMPService)
+	if !ok {
+		return false
+	}
+
+	return s.entityID == s2.entityID &&
+		s.deviceIP == s2.deviceIP &&
+		s.config.Port == s2.config.Port &&
+		s.adIdentifier == s2.adIdentifier
 }
 
-// GetTaggerEntity returns the unique entity ID linked to that service
-func (s *SNMPService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity ID linked to that service
+func (s *SNMPService) GetServiceID() string {
 	return s.entityID
 }
 
@@ -363,15 +372,10 @@ func (s *SNMPService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns nil
-func (s *SNMPService) GetCheckNames(context.Context) []string {
-	return nil
-}
-
 // HasFilter returns false on SNMP
 //
 //nolint:revive // TODO(NDM) Fix revive linter
-func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
+func (s *SNMPService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
@@ -445,7 +449,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(NDM) Fix revive linter
-func (s *SNMPService) FilterTemplates(configs map[string]integration.Config) {
+func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
 }
 
 func convertToCommaSepTags(tags []string) string {

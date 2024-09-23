@@ -14,6 +14,7 @@
 #define SYSCALL_CTX_ARG(type, pos) (type << (pos * 2))
 #define SYSCALL_CTX_ARG_STR(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_STR_TYPE, pos)
 #define SYSCALL_CTX_ARG_INT(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_INT_TYPE, pos)
+#define SYSCALL_CTX_ARG_MASK(pos) (SYSCALL_CTX_ARG_STR(pos) | SYSCALL_CTX_ARG_INT(pos))
 
 #define IS_SYSCALL_CTX_ARG(types, type, pos) (types & (type << (pos * 2)))
 #define IS_SYSCALL_CTX_ARG_STR(types, pos) IS_SYSCALL_CTX_ARG(types, SYSCALL_CTX_STR_TYPE, pos)
@@ -36,9 +37,10 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     u32 *id_ptr = (u32 *)&data[0];
     id_ptr[0] = *id;
 
-    data[4] = types;
+    u8 effective_types = 0;
 
     if (arg1) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(0));
         if (IS_SYSCALL_CTX_ARG_STR(types, 0)) {
             bpf_probe_read_str(&data[5], MAX_SYSCALL_ARG_MAX_SIZE, arg1);
         } else {
@@ -48,6 +50,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     }
 
     if (arg2) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(1));
         if (IS_SYSCALL_CTX_ARG_STR(types, 1)) {
             bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE], MAX_SYSCALL_ARG_MAX_SIZE, arg2);
         } else {
@@ -57,6 +60,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     }
 
     if (arg3) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(2));
         if (IS_SYSCALL_CTX_ARG_STR(types, 2)) {
             bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE * 2], MAX_SYSCALL_ARG_MAX_SIZE, arg3);
         } else {
@@ -64,6 +68,8 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
             addr[0] = *(s64 *)arg3;
         }
     }
+
+    data[4] = effective_types;
 
     syscall->ctx_id = *id;
 }
@@ -178,54 +184,12 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = pop_task_syscall(key, type);
-#ifdef DEBUG
+#if defined(DEBUG_SYSCALLS)
     if (!syscall) {
         bpf_printk("Failed to pop syscall with type %d", type);
     }
 #endif
     return syscall;
-}
-
-int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid();
-    bpf_map_delete_elem(&syscalls, &key);
-    monitor_syscalls(syscall->type, -1);
-    return 0;
-}
-
-int __attribute__((always_inline)) mark_as_discarded(struct syscall_cache_t *syscall) {
-    syscall->discarded = 1;
-    return 0;
-}
-
-int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscall, int (*check_approvers)(struct syscall_cache_t *syscall)) {
-    if (syscall->policy.mode == NO_FILTER) {
-        return 0;
-    }
-
-    char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
-
-    if (syscall->policy.mode == DENY) {
-        pass_to_userspace = check_approvers(syscall);
-    }
-
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
-    if (cookie != NULL) {
-        u64 now = bpf_ktime_get_ns();
-        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
-        if (config != NULL) {
-            // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
-                if (!pass_to_userspace) {
-                    syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
-                }
-                return 0;
-            }
-        }
-    }
-
-    return !pass_to_userspace;
 }
 
 // the following functions must use the {peek,pop}_current_or_impersonated_exec_syscall to retrieve the syscall context

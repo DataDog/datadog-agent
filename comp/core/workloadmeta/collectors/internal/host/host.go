@@ -10,13 +10,12 @@ import (
 	"context"
 
 	"github.com/benbjohnson/clock"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/fx"
 )
 
 const id = "host"

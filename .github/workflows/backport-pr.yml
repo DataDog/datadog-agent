@@ -5,6 +5,8 @@ on:
       - closed
       - labeled
 
+permissions: {}
+
 jobs:
   backport:
     name: Backport PR
@@ -18,8 +20,11 @@ jobs:
           && contains(github.event.label.name, 'backport')
         )
       )
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/create-github-app-token@7bfa3a4717ef143a604ee0a99d859b8886a96d00 # v1.9.3
+      - uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}

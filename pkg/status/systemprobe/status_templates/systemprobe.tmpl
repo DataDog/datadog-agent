@@ -21,6 +21,9 @@
   {{- if .network_tracer.universal_service_monitoring.traced_programs }}
     Traced Programs: {{ formatJSON .network_tracer.universal_service_monitoring.traced_programs 4 }}
   {{- end }}
+  {{- if .network_tracer.universal_service_monitoring.blocked_processes }}
+    Blocked Processes: {{ formatJSON .network_tracer.universal_service_monitoring.blocked_processes 4 }}
+  {{- end }}
 
   NPM
   ===

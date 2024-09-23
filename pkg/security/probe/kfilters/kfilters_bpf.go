@@ -9,6 +9,9 @@
 package kfilters
 
 import (
+	"encoding"
+	"encoding/hex"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -18,12 +21,14 @@ type activeKFilter interface {
 	Apply(*manager.Manager) error
 	Key() interface{}
 	GetTableName() string
+	GetApproverType() string
 }
 
-type activeKFilters map[interface{}]activeKFilter
+// ActiveKFilters defines kfilter map
+type ActiveKFilters map[interface{}]activeKFilter
 
-func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
-	ak = make(map[interface{}]activeKFilter)
+func newActiveKFilters(kfilters ...activeKFilter) (ak ActiveKFilters) {
+	ak = make(ActiveKFilters)
 	for _, kfilter := range kfilters {
 		if kfilter != nil {
 			ak.Add(kfilter)
@@ -32,12 +37,14 @@ func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
 	return
 }
 
-func (ak activeKFilters) HasKey(key interface{}) bool {
+// HasKey returns if a filter exists
+func (ak ActiveKFilters) HasKey(key interface{}) bool {
 	_, found := ak[key]
 	return found
 }
 
-func (ak activeKFilters) Sub(ak2 activeKFilters) {
+// Sub remove filters of the given filters
+func (ak ActiveKFilters) Sub(ak2 ActiveKFilters) {
 	for key := range ak {
 		if _, found := ak2[key]; found {
 			delete(ak, key)
@@ -45,35 +52,56 @@ func (ak activeKFilters) Sub(ak2 activeKFilters) {
 	}
 }
 
-func (ak activeKFilters) Add(a activeKFilter) {
+// Add a filter
+func (ak ActiveKFilters) Add(a activeKFilter) {
 	ak[a.Key()] = a
 }
 
-func (ak activeKFilters) Remove(a activeKFilter) {
+// Remove a filter
+func (ak ActiveKFilters) Remove(a activeKFilter) {
 	delete(ak, a.Key())
 }
 
-type mapHash struct {
+type entryKey struct {
 	tableName string
 	key       interface{}
 }
 
+func makeEntryKey(tableName string, tableKey interface{}) entryKey {
+	mb, ok := tableKey.(encoding.BinaryMarshaler)
+	if !ok {
+		return entryKey{
+			tableName: tableName,
+			key:       tableKey,
+		}
+	}
+
+	data, _ := mb.MarshalBinary()
+
+	return entryKey{
+		tableName: tableName,
+		key:       hex.EncodeToString(data),
+	}
+}
+
 type arrayEntry struct {
-	tableName string
-	index     interface{}
-	value     interface{}
-	zeroValue interface{}
+	approverType string
+	tableName    string
+	index        interface{}
+	value        interface{}
+	zeroValue    interface{}
 }
 
 func (e *arrayEntry) Key() interface{} {
-	return mapHash{
-		tableName: e.tableName,
-		key:       e.index,
-	}
+	return makeEntryKey(e.tableName, e.index)
 }
 
 func (e *arrayEntry) GetTableName() string {
 	return e.tableName
+}
+
+func (e *arrayEntry) GetApproverType() string {
+	return e.approverType
 }
 
 func (e *arrayEntry) Remove(manager *manager.Manager) error {
@@ -92,25 +120,26 @@ func (e *arrayEntry) Apply(manager *manager.Manager) error {
 	return table.Put(e.index, e.value)
 }
 
-type mapEventMask struct {
-	tableName string
-	tableKey  interface{}
-	key       interface{}
-	eventMask uint64
+type eventMaskEntry struct {
+	approverType string
+	tableName    string
+	tableKey     interface{}
+	eventMask    uint64
 }
 
-func (e *mapEventMask) Key() interface{} {
-	return mapHash{
-		tableName: e.tableName,
-		key:       e.key,
-	}
+func (e *eventMaskEntry) Key() interface{} {
+	return makeEntryKey(e.tableName, e.tableKey)
 }
 
-func (e *mapEventMask) GetTableName() string {
+func (e *eventMaskEntry) GetTableName() string {
 	return e.tableName
 }
 
-func (e *mapEventMask) Remove(manager *manager.Manager) error {
+func (e *eventMaskEntry) GetApproverType() string {
+	return e.approverType
+}
+
+func (e *eventMaskEntry) Remove(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
@@ -125,7 +154,7 @@ func (e *mapEventMask) Remove(manager *manager.Manager) error {
 	return table.Put(e.tableKey, eventMask)
 }
 
-func (e *mapEventMask) Apply(manager *manager.Manager) error {
+func (e *eventMaskEntry) Apply(manager *manager.Manager) error {
 	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
@@ -136,4 +165,39 @@ func (e *mapEventMask) Apply(manager *manager.Manager) error {
 		return table.Delete(e.tableKey)
 	}
 	return table.Put(e.tableKey, eventMask)
+}
+
+type hashEntry struct {
+	approverType string
+	tableName    string
+	tableKey     interface{}
+	value        interface{}
+}
+
+func (e *hashEntry) Key() interface{} {
+	return makeEntryKey(e.tableName, e.tableKey)
+}
+
+func (e *hashEntry) GetTableName() string {
+	return e.tableName
+}
+
+func (e *hashEntry) GetApproverType() string {
+	return e.approverType
+}
+
+func (e *hashEntry) Remove(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Delete(e.tableKey)
+}
+
+func (e *hashEntry) Apply(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.tableKey, e.value)
 }

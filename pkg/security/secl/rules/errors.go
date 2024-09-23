@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 var (
@@ -24,9 +26,6 @@ var (
 
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
-
-	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
-	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
 
 	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
 	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
@@ -105,22 +104,22 @@ func (e ErrPolicyLoad) Error() string {
 
 // ErrMacroLoad is on macro definition error
 type ErrMacroLoad struct {
-	Definition *MacroDefinition
-	Err        error
+	Macro *PolicyMacro
+	Err   error
 }
 
 func (e ErrMacroLoad) Error() string {
-	return fmt.Sprintf("macro `%s` definition error: %s", e.Definition.ID, e.Err)
+	return fmt.Sprintf("macro `%s` definition error: %s", e.Macro.Def.ID, e.Err)
 }
 
 // ErrRuleLoad is on rule definition error
 type ErrRuleLoad struct {
-	Definition *RuleDefinition
-	Err        error
+	Rule *PolicyRule
+	Err  error
 }
 
 func (e ErrRuleLoad) Error() string {
-	return fmt.Sprintf("rule `%s` error: %s", e.Definition.ID, e.Err)
+	return fmt.Sprintf("rule `%s` error: %s", e.Rule.Def.ID, e.Err)
 }
 
 // RuleLoadErrType defines an rule error type
@@ -151,7 +150,7 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	switch e.Err.(type) {
-	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax:
+	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
 		return SyntaxErrType
 	}
 
@@ -175,4 +174,25 @@ type ErrActionFilter struct {
 
 func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}
+
+// ErrFieldNotAvailable is returned when a field is not available
+type ErrFieldNotAvailable struct {
+	Field        eval.Field
+	EventType    eval.EventType
+	RestrictedTo []eval.EventType
+}
+
+func (e *ErrFieldNotAvailable) Error() string {
+	return fmt.Sprintf("field `%s` not available for event type `%v`, available for `%v`", e.Field, e.EventType, e.RestrictedTo)
+}
+
+// ErrActionNotAvailable is returned when an action is not available
+type ErrActionNotAvailable struct {
+	ActionName string
+	EventType  eval.EventType
+}
+
+func (e *ErrActionNotAvailable) Error() string {
+	return fmt.Sprintf("action `%s` not available for event type `%v`", e.ActionName, e.EventType)
 }

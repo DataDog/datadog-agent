@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -97,6 +98,7 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 		s.AgentPackage,
 		windowsAgent.WithAddLocal("NPM"),
 	)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(s.Env().RemoteHost), s.AgentPackage.AgentVersion())
 
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
@@ -109,6 +111,8 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 //
 // Old name: Scenario 10
 func TestNPMUpgradeFromBeta(t *testing.T) {
+	// incident-30584
+	flake.Mark(t)
 	s := &testNPMUpgradeFromBeta{}
 	s.previousVersion = "7.23.2-beta1-1"
 	s.url = "https://ddagent-windows-unstable.s3.amazonaws.com/datadog-agent-7.23.2-beta1-1-x86_64.msi"
@@ -146,7 +150,7 @@ func (s *testNPMInstallSuite) TearDownSuite() {
 	s.cleanupOnSuccessInDevMode()
 }
 
-func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) *Tester {
+func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) {
 	if s.url == "" {
 		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64")
 		s.Require().NoError(err, "should get MSI URL for version %s", s.previousVersion)
@@ -156,7 +160,7 @@ func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteH
 		Version: s.previousVersion,
 		URL:     s.url,
 	}
-	return s.baseAgentMSISuite.installPreviousAgentVersion(vm, previousAgentPackage, options...)
+	s.baseAgentMSISuite.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 }
 
 func (s *testNPMInstallSuite) isNPMInstalled() bool {
@@ -223,17 +227,8 @@ func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPac
 	}
 
 	if !s.Run(fmt.Sprintf("test %s", agentPackage.AgentVersion()), func() {
-		// check version
 		client := s.NewTestClientForHost(host)
-		if !s.Run("running expected agent version", func() {
-			installedVersion, err := client.GetAgentVersion()
-			s.Require().NoError(err, "should get agent version")
-			windowsAgent.TestAgentVersion(s.T(), agentPackage.AgentVersion(), installedVersion)
-		}) {
-			s.T().FailNow()
-		}
-		// check no errors
-		RequireAgentRunningWithNoErrors(s.T(), client)
+		RequireAgentVersionRunningWithNoErrors(s.T(), client, agentPackage.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}

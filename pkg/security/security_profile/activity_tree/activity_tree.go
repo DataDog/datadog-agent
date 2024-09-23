@@ -27,20 +27,50 @@ import (
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
-type NodeDroppedReason string
+type NodeDroppedReason byte
 
-var (
-	eventTypeReason       NodeDroppedReason = "event_type"
-	invalidRootNodeReason NodeDroppedReason = "invalid_root_node"
-	bindFamilyReason      NodeDroppedReason = "bind_family"
-	brokenEventReason     NodeDroppedReason = "broken_event"
-	allDropReasons                          = []NodeDroppedReason{
-		eventTypeReason,
-		invalidRootNodeReason,
-		bindFamilyReason,
-		brokenEventReason,
-	}
+const (
+	eventTypeReason NodeDroppedReason = iota
+	invalidRootNodeReason
+	bindFamilyReason
+	brokenEventReason
+
+	minNodeDroppedReason   = eventTypeReason
+	maxNodeDroppedReason   = brokenEventReason
+	nodeDroppedReasonCount = maxNodeDroppedReason - minNodeDroppedReason + 1
 )
+
+func (reason NodeDroppedReason) String() string {
+	switch reason {
+	case eventTypeReason:
+		return "event_type"
+	case invalidRootNodeReason:
+		return "invalid_root_node"
+	case bindFamilyReason:
+		return "bind_family"
+	case brokenEventReason:
+		return "broken_event"
+	default:
+		return "unknown"
+	}
+}
+
+// Tag returns the metric tag associated with this dropped reason, it's basically
+// fmt.Sprintf("reason:%s", reason)
+func (reason NodeDroppedReason) Tag() string {
+	switch reason {
+	case eventTypeReason:
+		return "reason:event_type"
+	case invalidRootNodeReason:
+		return "reason:invalid_root_node"
+	case bindFamilyReason:
+		return "reason:bind_family"
+	case brokenEventReason:
+		return "reason:broken_event"
+	default:
+		return "reason:unknown"
+	}
+}
 
 var (
 	// ErrBrokenLineage is returned when the given process don't have a full lineage
@@ -80,6 +110,23 @@ func (genType NodeGenerationType) String() string {
 		return "workload_warmup"
 	default:
 		return "unknown"
+	}
+}
+
+// Tag returns the metric tag associated with this generation type, it's basically
+// fmt.Sprintf("generation_type:%s", genType)
+func (genType NodeGenerationType) Tag() string {
+	switch genType {
+	case Runtime:
+		return "generation_type:runtime"
+	case Snapshot:
+		return "generation_type:snapshot"
+	case ProfileDrift:
+		return "generation_type:profile_drift"
+	case WorkloadWarmup:
+		return "generation_type:workload_warmup"
+	default:
+		return "generation_type:unknown"
 	}
 }
 
@@ -806,4 +853,67 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		}
 	}
 	at.ProcessNodes = newProcessNodes
+}
+
+func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
+	for _, pn := range processNode.Children {
+		at.visitProcessNode(pn, cb)
+	}
+	cb(processNode)
+}
+
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+	if len(fileNode.Children) == 0 {
+		cb(fileNode)
+		return
+	}
+
+	for _, file := range fileNode.Children {
+		at.visitFileNode(file, cb)
+	}
+}
+
+func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
+	for _, pn := range at.ProcessNodes {
+		at.visitProcessNode(pn, cb)
+	}
+}
+
+// ExtractPaths returns the exec / fim, exec / parent paths
+func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
+
+	fimPathsperExecPath := make(map[string][]string)
+	execAndParent := make(map[string][]string)
+
+	at.visit(func(processNode *ProcessNode) {
+		var fimPaths []string
+		for _, file := range processNode.Files {
+			at.visitFileNode(file, func(fileNode *FileNode) {
+				path := fileNode.File.PathnameStr
+				if len(path) > 0 {
+					if strings.Contains(path, "*") {
+						fimPaths = append(fimPaths, `~"`+path+`"`)
+					} else {
+						fimPaths = append(fimPaths, `"`+path+`"`)
+					}
+				}
+			})
+		}
+		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+		paths, ok := fimPathsperExecPath[execPath]
+		if ok {
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
+		}
+		p, pp := extractExecAndParent(processNode)
+		tmp, ok := execAndParent[p]
+		if ok {
+			execAndParent[p] = append(tmp, pp)
+		} else {
+			execAndParent[p] = []string{pp}
+		}
+	})
+
+	return fimPathsperExecPath, execAndParent
 }

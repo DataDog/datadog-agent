@@ -97,8 +97,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))

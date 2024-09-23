@@ -910,6 +910,11 @@ void Three::setGetHostnameCb(cb_get_hostname_t cb)
     _set_get_hostname_cb(cb);
 }
 
+void Three::setGetHostTagsCb(cb_get_host_tags_t cb)
+{
+    _set_get_host_tags_cb(cb);
+}
+
 void Three::setGetClusternameCb(cb_get_clustername_t cb)
 {
     _set_get_clustername_cb(cb);
@@ -923,6 +928,11 @@ void Three::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Three::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Three::setSendLogCb(cb_send_log_t cb)
+{
+    _set_send_log_cb(cb);
 }
 
 void Three::setSetCheckMetadataCb(cb_set_check_metadata_t cb)

@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -48,7 +49,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"metrics with different granularities Datadog",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.
@@ -109,7 +110,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"retrieved multiple series for query",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.
@@ -184,7 +185,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"missing queryIndex",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.
@@ -247,11 +248,10 @@ func TestDatadogExternalQuery(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cl := &fakeDatadogClient{
-				queryMetricsFunc: test.queryfunc,
-			}
-			p := Processor{datadogClient: cl}
-			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetQueryMetricsFunc(test.queryfunc)
+			p := Processor{datadogClient: datadogClientComp}
+			points, err := p.queryDatadogExternal(test.metricName, time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}
@@ -300,6 +300,42 @@ func TestIsRateLimitError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, isRateLimitError(test.err), test.isRateLimit)
+		})
+	}
+}
+
+func TestIsUnprocessableEntityError(t *testing.T) {
+
+	tests := []struct {
+		name                  string
+		err                   error
+		isUnprocessableEntity bool
+	}{
+		{
+			name:                  "nil error",
+			err:                   nil,
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "empty error",
+			err:                   errors.New(""),
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "unprocessable entity error",
+			err:                   errors.New("422 Unprocessable Entity"),
+			isUnprocessableEntity: true,
+		},
+		{
+			name:                  "unprocessable entity error variant",
+			err:                   errors.New("API error 422 Unprocessable Entity: "),
+			isUnprocessableEntity: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, isUnprocessableEntityError(test.err), test.isUnprocessableEntity)
 		})
 	}
 }

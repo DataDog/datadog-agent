@@ -3,56 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
 package util
 
 import (
 	"encoding/binary"
 	"net"
 	"net/netip"
-	"sync"
 
 	"go4.org/netipx"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address struct {
 	netip.Addr
-}
-
-// WriteTo writes the address byte representation into the supplied buffer
-func (a Address) WriteTo(b []byte) int {
-	if a.Is4() {
-		v := a.As4()
-		return copy(b, v[:])
-	}
-
-	v := a.As16()
-	return copy(b, v[:])
-
-}
-
-// Bytes returns a byte slice representing the Address.
-// You may want to consider using `WriteTo` instead to avoid allocations
-func (a Address) Bytes() []byte {
-	// Note: this implicitly converts IPv4-in-6 to IPv4
-	if a.Is4() || a.Is4In6() {
-		v := a.As4()
-		return v[:]
-	}
-
-	v := a.As16()
-	return v[:]
-}
-
-// Len returns the number of bytes required to represent this IP
-func (a Address) Len() int {
-	return int(a.BitLen()) / 8
-}
-
-// IsZero reports whether a is its zero value
-func (a Address) IsZero() bool {
-	return a.Addr == netip.Addr{}
 }
 
 // AddressFromNetIP returns an Address from a provided net.IP
@@ -71,7 +36,7 @@ func AddressFromString(s string) Address {
 // Warning: the returned `net.IP` will share the same underlying
 // memory as the given `buf` argument.
 func NetIPFromAddress(addr Address, buf []byte) net.IP {
-	n := addr.WriteTo(buf)
+	n := copy(buf, addr.AsSlice())
 	return net.IP(buf[:n])
 }
 
@@ -115,11 +80,6 @@ func V4Address(ip uint32) Address {
 	}
 }
 
-// V4AddressFromBytes creates an Address using the byte representation of an v4 IP
-func V4AddressFromBytes(buf []byte) Address {
-	return Address{netip.AddrFrom4(*(*[4]byte)(buf))}
-}
-
 // V6Address creates an Address using the uint128 representation of an v6 IP
 func V6Address(low, high uint64) Address {
 	var a [16]byte
@@ -128,15 +88,5 @@ func V6Address(low, high uint64) Address {
 	return Address{netip.AddrFrom16(a)}
 }
 
-// V6AddressFromBytes creates an Address using the byte representation of an v6 IP
-func V6AddressFromBytes(buf []byte) Address {
-	return Address{netip.AddrFrom16(*(*[16]byte)(buf))}
-}
-
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
-var IPBufferPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, net.IPv6len)
-		return &b
-	},
-}
+var IPBufferPool = ddsync.NewSlicePool[byte](net.IPv6len, net.IPv6len)

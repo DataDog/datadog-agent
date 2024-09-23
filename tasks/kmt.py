@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import io
 import itertools
 import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
@@ -14,6 +16,7 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import yaml
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -27,6 +30,7 @@ from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
     LibvirtDomain,
+    build_alien_infrastructure,
     build_infrastructure,
     ensure_key_in_ec2,
     get_ssh_agent_key_names,
@@ -34,14 +38,18 @@ from tasks.kernel_matrix_testing.infra import (
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -108,6 +116,8 @@ def create_stack(ctx, stack=None):
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
         "yes": "Do not ask for confirmation",
+        "ci": "Generate a vmconfig.json file for the KMT CI, that is, with all available VMs for the given architecture.",
+        "arch": "(Only when --ci is used) Architecture to select when generating the vmconfig for all posible VMs.",
     }
 )
 def gen_config(
@@ -130,6 +140,13 @@ def gen_config(
     """
     Generate a vmconfig.json file with the given VMs.
     """
+    if not ci and arch != "":
+        # The argument is not used later on, so better notify the user early to avoid confusion
+        raise Exit(
+            "Error: Architecture (--arch argument) can only be specified when generating from a CI pipeline (--ci argument). "
+            "To specify the architecture of the VMs, use the VM specifier (e.g., x64-ubuntu_22-distro or local-ubuntu_22-distro for local VMs)"
+        )
+
     if from_ci_pipeline is not None:
         return gen_config_from_ci_pipeline(
             ctx,
@@ -196,15 +213,62 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
-    for job in test_jobs:
-        if job.status == "failed" and job.component == vmconfig_template:
-            vm_arch = job.arch
+    failed_tests: set[str] = set()
+    successful_tests: set[str] = set()
+    for test_job in test_jobs:
+        if test_job.status == "failed" and job.component == vmconfig_template:
+            vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = job.get_test_results()
-            failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{job.distro}-distro")
+            results = test_job.get_test_results()
+            for test, result in results.items():
+                if result is False:
+                    package, test = test.split(":", maxsplit=1)
+                    failed_tests.add(test)
+                    failed_packages.add(package)
+                elif result is True:  # It can also be None if the test was skipped
+                    successful_tests.add(test)
+
+            vm_name = f"{vm_arch}-{test_job.distro}-distro"
+            info(f"[+] Adding {vm_name} from failed job {test_job.name}")
+            vms.add(vm_name)
+
+    # Simplify the failed tests so that we show only the parent tests with all failures below
+    # and not all child tests that failed
+    # Not at all the most efficient way to do this, but it works for the amount of data we have
+    # and is simple enough
+    successful_tests = successful_tests.difference(failed_tests)
+    coalesced_failed_tests: set[str] = set()
+    non_coalesced_failed_tests: set[str] = set()
+    for test in sorted(failed_tests):  # Sort to have parent tests first
+        is_included = False
+
+        # Check if this test is already included in some parent test
+        for already_coalesced in coalesced_failed_tests:
+            if test.startswith(already_coalesced):
+                is_included = True
+                break
+        else:
+            # If not, check if there is a subtest that succeeded. If there is not,
+            # we assume all children tests of this one failed and we can coalesce them
+            # into a single one
+            for succesful_test in successful_tests:
+                if succesful_test.startswith(test):
+                    # There was a subtest of this one that succeeded, we cannot coalesce
+                    # Add it to the non-coalesced list so that it's not checked as a parent
+                    # and its children will be checked again
+                    non_coalesced_failed_tests.add(test)
+                    is_included = True
+                    break
+
+        if not is_included:
+            coalesced_failed_tests.add(test)
+
+    failed_tests = non_coalesced_failed_tests | {f"{t}/.*" for t in coalesced_failed_tests}
+
+    if len(vms) == 0:
+        raise Exit(f"No failed jobs found in pipeline {pipeline}")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -213,7 +277,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
+    print(f"inv kmt.test --packages=\"{','.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -224,8 +288,34 @@ def launch_stack(
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
+    provision_script: str | None = None,
 ):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if provision_script is not None:
+        provision_stack(ctx, provision_script, stack, ssh_key)
+
+
+@task
+def provision_stack(
+    ctx: Context,
+    provision_script: str,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    for arch in infra:
+        for domain in infra[arch].microvms:
+            domain.copy(ctx, provision_script, "/tmp/provision.sh")
+            domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
 
 
 @task
@@ -405,7 +495,7 @@ def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance
 def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> set[Arch]:
     archs: set[Arch] = set()
     for d in domains:
-        archs.add(Arch.from_str(d.instance.arch))
+        archs.add(Arch.from_str(d.arch))
     return archs
 
 
@@ -477,6 +567,19 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             inputs=[os.path.abspath(f)],
         )
 
+    vm_metrics_files = glob("test/new-e2e/system-probe/vm-metrics/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        outputs=[os.path.join(kmt_paths.dependencies, "vm-metrics")],
+        implicit=vm_metrics_files,
+        variables={
+            "go": go_path,
+            "chdir": "cd test/new-e2e/system-probe/vm-metrics",
+            "env": env_str,
+        },
+    )
+
     test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
     nw.build(
         rule="gobin",
@@ -510,6 +613,21 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
+    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
+        implicit=verifier_files,
+        variables={
+            "go": go_path,
+            "chdir": "true",
+            "env": env_str,
+            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+        },
+    )
+
 
 def ninja_copy_ebpf_files(
     nw: NinjaWriter,
@@ -539,10 +657,8 @@ def ninja_copy_ebpf_files(
 @task
 def kmt_secagent_prepare(
     ctx: Context,
-    vms: str | None = None,
     stack: str | None = None,
     arch: Arch | str = "local",
-    ssh_key: str | None = None,
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
@@ -592,6 +708,7 @@ def prepare(
     ctx: Context,
     component: Component,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     arch: str | Arch = "local",
     ssh_key: str | None = None,
@@ -600,35 +717,58 @@ def prepare(
     ci=False,
     compile_only=False,
 ):
-    if not ci:
-        stack = check_and_get_stack(stack)
-        assert stacks.stack_exists(
-            stack
-        ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
-    else:
-        stack = "ci"
-
     arch_obj = Arch.from_str(arch)
     if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
-    cc = get_compiler(ctx)
 
-    if arch_obj.is_cross_compiling():
-        cc.ensure_ready_for_cross_compile()
+    if ci:
+        domains = None
+        stack = "ci"
+        return _prepare(ctx, stack, component, arch_obj, packages, verbose, ci, compile_only)
+
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    assert len(domains) > 0, err_msg
+
+    _prepare(ctx, stack, component, arch, packages, verbose, ci, compile_only, domains=domains)
+
+
+def _prepare(
+    ctx: Context,
+    stack: str,
+    component: Component,
+    arch_obj: Arch,
+    packages=None,
+    verbose=True,
+    ci=False,
+    compile_only=False,
+    domains: list[LibvirtDomain] | None = None,
+):
+    if not ci:
+        cc = get_compiler(ctx)
+
+        if arch_obj.is_cross_compiling():
+            cc.ensure_ready_for_cross_compile()
 
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
 
+    inv_echo = "-e" if ctx.config.run["echo"] else ""
+
     info(f"[+] Compiling artifacts for {arch_obj}, component = {component}")
     if component == "security-agent":
         if ci:
-            kmt_secagent_prepare(ctx, vms, stack, arch_obj, ssh_key, packages, verbose, ci)
+            kmt_secagent_prepare(ctx, stack, arch_obj, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -636,7 +776,7 @@ def prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -659,6 +799,7 @@ def prepare(
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
+            ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
         for src, dst in copy_static_files.items():
@@ -679,14 +820,7 @@ def prepare(
     if ci or compile_only:
         return
 
-    if vms is None or vms == "":
-        raise Exit("No vms specified to sync with")
-
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
-
-    info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
+    info(f"[+] Preparing VMs in stack {stack} for {arch_obj}")
 
     target_instances: list[HostInstance] = []
     for d in domains:
@@ -743,6 +877,7 @@ def build_target_packages(filter_packages):
     if filter_packages == []:
         return all_packages
 
+    filter_packages = [os.path.relpath(p) for p in go_package_dirs(filter_packages, [NPM_TAG, BPF_TAG])]
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
@@ -805,7 +940,7 @@ def kmt_sysprobe_prepare(
 
     filter_pkgs = []
     if packages:
-        filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
+        filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
@@ -897,6 +1032,7 @@ def kmt_sysprobe_prepare(
                 "external_unix_proxy_server",
                 "fmapper",
                 "prefetch_file",
+                "fake_server",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -960,6 +1096,33 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     return len(not_matches) == 0
 
 
+def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[LibvirtDomain]:
+    def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
+        if alien_vms:
+            alien_vms_path = Path(alien_vms)
+            if not alien_vms_path.exists():
+                raise Exit(f"No alien VMs profile found @ {alien_vms_path}")
+            return build_alien_infrastructure(alien_vms_path)
+
+        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+        return build_infrastructure(stack, ssh_key_obj)
+
+    if vms is None and alien_vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+        info(f"[+] running tests on all vms in stack {stack}: vms={vms}")
+
+    infra = _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms)
+    if alien_vms is not None:
+        return infra["local"].microvms
+
+    domains = filter_target_domains(vms, infra, arch_obj)
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            raise Exit("[-] Aborting due to version mismatch")
+
+    return domains
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests. If None, run against all vms",
@@ -973,12 +1136,14 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
+        "test-extra-env": "Extra environment variables to pass to the test runner",
     }
 )
 def test(
     ctx: Context,
     component: str = "system-probe",
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     packages=None,
     run: str | None = None,
@@ -989,40 +1154,32 @@ def test(
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
+    test_extra_env=None,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
-
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
-        info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
-
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra)
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+    domains = get_target_domains(ctx, stack, ssh_key, None, vms, alien_vms)
     used_archs = get_archs_in_domains(domains)
 
-    if not images_matching_ci(ctx, domains):
-        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
-            return
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+    assert len(domains) > 0, err_msg
 
     info("[+] Detected architectures in target VMs: " + ", ".join(map(str, used_archs)))
 
     if not quick:
         for arch in used_archs:
             info(f"[+] Preparing {component} for {arch}")
-            prepare(ctx, component, stack=stack, vms=vms, packages=packages, ssh_key=ssh_key, arch=arch)
+            _prepare(ctx, stack, component, arch, packages=packages, verbose=verbose, domains=domains)
 
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
 
     pkgs = []
     if packages is not None:
-        pkgs = packages.split(",")
+        pkgs = [os.path.relpath(os.path.realpath(p)) for p in go_package_dirs(packages.split(","), [NPM_TAG, BPF_TAG])]
 
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
@@ -1044,6 +1201,7 @@ def test(
             f"-run-count {run_count}",
             f"-test-root /opt/{component}-tests",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
+            f"-extra-env {test_extra_env}" if test_extra_env is not None else "",
             "-test-tools /opt/testing-tools",
         ]
         for d in domains:
@@ -1068,12 +1226,11 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
-        mkdir = []
-        for dirs in todo["layout"]:
-            mkdir.append(f"mkdir -p {dirs} &&")
+        info(f"[+] apply layout to vm {d.name}")
 
-        cmd = ' '.join(mkdir)
-        d.run_cmd(ctx, cmd.rstrip('&'), verbose)
+        cmd = ' && '.join(f'mkdir -p {dirs}' for dirs in todo["layout"])
+        if len(cmd) > 0:
+            d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
@@ -1085,6 +1242,22 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
             d.run_cmd(ctx, cmd, verbose)
 
 
+def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
+    assert not (vms is not None and alien_vms is not None), "target VMs can be either KMT VMs or alien VMs, not both"
+
+    if alien_vms is not None and vms is None:
+        stack = check_and_get_stack("alien-stack")
+        if not stacks.stack_exists(stack):
+            stacks.create_stack(ctx, stack)
+        return stack
+
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    return stack
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests",
@@ -1093,58 +1266,73 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
         "layout": "Path to file specifying the expected layout on the target VMs",
+        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-ddagent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
     }
 )
 def build(
     ctx: Context,
     vms: str | None = None,
+    alien_vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
     arch: str | None = None,
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
+    compile_only=False,
+    override_agent=False,
 ):
-    stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(
-        stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
 
     if arch is None:
         arch = "local"
-
-    if vms is None:
-        vms = ",".join(stacks.get_all_vms_in_stack(stack))
-
-    assert os.path.exists(layout), f"File {layout} does not exist"
 
     arch_obj = Arch.from_str(arch)
     paths = KMTPaths(stack, arch_obj)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
-    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-    infra = build_infrastructure(stack, ssh_key_obj)
-    domains = filter_target_domains(vms, infra, arch_obj)
     cc = get_compiler(ctx)
 
-    if not images_matching_ci(ctx, domains):
-        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
-            return
-
-    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+    inv_echo = "-e" if ctx.config.run["echo"] else ""
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv {inv_echo} system-probe.object-files")
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
+    if compile_only:
+        return
+
+    assert os.path.exists(layout), f"File {layout} does not exist"
+
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+
+    assert len(domains) > 0, err_msg
+
+    llc_path = paths.tools / "llc-bpf"
+    clang_path = paths.tools / "clang-bpf"
+    setup_runtime_clang(ctx, arch_obj, paths.tools)
+
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, f"./bin/{component}", "/root/")
+        # Copy embedded tools, make them
+        embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
+        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
+        d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
+
+        if override_agent:
+            d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
+            d.copy(ctx, f"./bin/{component}/{component}", f"/opt/datadog-agent/embedded/bin/{component}")
+        else:
+            d.copy(ctx, f"./bin/{component}", "/root/")
+
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
         info(f"[+] {component} built for {d.name} @ /root")
@@ -1157,8 +1345,6 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    cc = get_compiler(ctx)
-    cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
@@ -1171,13 +1357,14 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
 
 @task(
     help={
-        "stacks": "Comma separated list of stacks to generate ssh config for. 'all' to generate for all stacks.",
+        "stack": "List of stacks to generate ssh config for. 'all' to generate for all stacks.",
         "ddvm_rsa": "Path to the ddvm_rsa file to use for connecting to the VMs. Defaults to the path in the ami-builder repo",
-    }
+    },
+    iterable=["stack"],
 )
 def ssh_config(
     ctx: Context,
-    stacks: str | None = None,
+    stack: Iterable[str] | None = None,
     ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
@@ -1191,29 +1378,26 @@ def ssh_config(
     without worrying about overriding existing configs.
     """
     stacks_dir = Path(get_kmt_os().stacks_dir)
-    stacks_to_print = None
+    stack = set(stack or [])
 
-    if stacks is not None and stacks != 'all':
-        stacks_to_print = set(stacks.split(','))
+    # Ensure correct permissions of the ddvm_rsa file if we're using
+    # it to connect to VMs. This attribute change doesn't seem to be tracked
+    # in git correctly
+    ctx.run(f"chmod 600 {ddvm_rsa}", echo=False)
 
-    for stack in stacks_dir.iterdir():
-        if not stack.is_dir():
+    for stack_dir in stacks_dir.iterdir():
+        if not stack_dir.is_dir():
             continue
 
-        output = stack / "stack.output"
+        output = stack_dir / "stack.output"
         if not output.exists():
             continue  # Invalid/removed stack, ignore it
 
-        stack_name = stack.name.replace('-ddvm', '')
-        if (
-            stacks_to_print is not None
-            and 'all' not in stacks_to_print
-            and stack_name not in stacks_to_print
-            and stack.name not in stacks_to_print
-        ):
+        stack_name = stack_dir.name.replace('-ddvm', '')
+        if len(stack) > 0 and 'all' not in stack and stack_name not in stack and stack_dir.name not in stack:
             continue
 
-        for _, instance in build_infrastructure(stack.name, try_get_ssh_key(ctx, None)).items():
+        for _, instance in build_infrastructure(stack_dir.name, try_get_ssh_key(ctx, None)).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
@@ -1240,6 +1424,7 @@ def ssh_config(
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
+                print("    IdentitiesOnly yes")
                 print("    User root")
 
                 for key, value in SSH_OPTIONS.items():
@@ -1395,7 +1580,7 @@ def update_platform_info(
             except KeyError as e:
                 raise Exit(f"[!] Invalid manifest {manifest}") from e
 
-            if arch not in platforms:
+            if arch.kmt_arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
                 continue
 
@@ -1490,12 +1675,25 @@ def validate_platform_info(ctx: Context):
 
 
 @task
-def explain_ci_failure(_, pipeline: str):
+def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     """Show a summary of KMT failures in the given pipeline."""
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
-    info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
+    gitlab = get_gitlab_repo()
+
+    if pipeline is None:
+        branch = get_current_branch(ctx)
+        info(f"[+] searching for the latest pipeline for this branch ({branch})")
+        pipelines = cast(list[Any], gitlab.pipelines.list(ref=branch, per_page=1))
+        if len(pipelines) != 1:
+            raise Exit(f"[!] Could not find a pipeline for branch {branch}")
+        pipeline = cast(str, pipelines[0].id)
+
+    pipeline_data = gitlab.pipelines.get(pipeline)
+    info(
+        f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
+    )
     setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
     failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
@@ -1515,12 +1713,12 @@ def explain_ci_failure(_, pipeline: str):
         return
 
     # Compute a reason for failure for each test run job
-    for job in failed_jobs:
-        if job.failure_reason == "script_failure":
+    for failed_job in failed_jobs:
+        if failed_job.failure_reason == "script_failure":
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job.artifacts:
+            for artifact in failed_job.job.artifacts:  # type: ignore
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
@@ -1529,13 +1727,13 @@ def explain_ci_failure(_, pipeline: str):
                         failreason = infrafail
                         break
         else:
-            failreason = job.failure_reason
+            failreason = failed_job.failure_reason
 
-        failreasons[job.name] = failreason
+        failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
-    for job in failed_setup_jobs:
-        for test_job in job.associated_test_jobs:
+    for setup_job in failed_setup_jobs:
+        for test_job in setup_job.associated_test_jobs:
             failreasons[test_job.name] = infrafail
             failed_jobs.append(test_job)
 
@@ -1555,14 +1753,14 @@ def explain_ci_failure(_, pipeline: str):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for job in test_jobs:
-            if job.component != component or job.vmset != vmset:
+        for test_job in test_jobs:
+            if test_job.component != component or test_job.vmset != vmset:
                 continue
 
-            failreason = failreasons.get(job.name, ok)
-            distros[job.distro][job.arch] = failreason
+            failreason = failreasons.get(test_job.name, ok)
+            distros[test_job.distro][test_job.arch] = failreason
             if failreason == testfail:
-                distro_arch_with_test_failures.append((job.distro, job.arch))
+                distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
         # Filter out distros with no failures
         distros = {d: v for d, v in distros.items() if any(r == testfail or r == infrafail for r in v.values())}
@@ -1744,9 +1942,11 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
-    results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
+    results: dict[str, dict[str, tuple[int, int, int, int]]] = defaultdict(dict)
     vm_list: list[str] = []
-    total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    total_by_vm: dict[str, tuple[int, int, int, int]] = defaultdict(lambda: (0, 0, 0, 0))
+    sum_failures = 0
+    sum_tests = 0
 
     for vm_folder in paths.test_results.iterdir():
         if not vm_folder.is_dir():
@@ -1754,47 +1954,85 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
         vm_name = "-".join(vm_folder.name.split('-')[:2])
         vm_list.append(vm_name)
+        test_results: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
 
         for file in vm_folder.glob("*.xml"):
             xml = ET.parse(file)
 
-            for testsuite in xml.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
-                if pkgname is None:
+            for testcase in xml.findall(".//testcase"):
+                pkgname = testcase.get("classname")
+                testname = testcase.get("name")
+                if pkgname is None or testname is None:
                     continue
+                failed = testcase.find("failure") is not None
+                skipped = testcase.find("skipped") is not None
 
-                tests = int(testsuite.get("tests") or "0")
-                failures = int(testsuite.get("failures") or "0")
-                errors = int(testsuite.get("errors") or "0")
-                skipped = int(testsuite.get("skipped") or "0")
-                successes = tests - failures - errors - skipped
-                result_tuple = (successes, failures, skipped)
+                if failed:
+                    result = "failed"
+                elif skipped:
+                    result = "skipped"
+                else:
+                    result = "success"
 
-                results[pkgname][vm_name] = result_tuple
-                total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+                test_results[pkgname][testname].add(result)
 
-    def _color_result(result: tuple[int, int, int]) -> str:
+        for pkgname, tests in test_results.items():
+            failures, successes_on_retry, successes, skipped = 0, 0, 0, 0
+
+            for testresults in tests.values():
+                if len(testresults) == 1:
+                    result = next(iter(testresults))
+                    sum_tests += 1
+                    if result == "failed":
+                        failures += 1
+                        sum_failures += 1
+                    elif result == "success":
+                        successes += 1
+                    elif result == "skipped":
+                        skipped += 1
+                elif "failed" in testresults and "success" in testresults:
+                    successes_on_retry += 1
+
+            result_tuple = (successes, successes_on_retry, failures, skipped)
+
+            results[pkgname][vm_name] = result_tuple
+            total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+
+    def _color_result(result: tuple[int, int, int, int]) -> str:
         success = colored(str(result[0]), "green" if result[0] > 0 else None)
-        failures = colored(str(result[1]), "red" if result[1] > 0 else None)
-        skipped = colored(str(result[2]), "yellow" if result[2] > 0 else None)
+        success_on_retry = colored(str(result[1]), "blue" if result[1] > 0 else None)
+        failures = colored(str(result[2]), "red" if result[2] > 0 else None)
+        skipped = colored(str(result[3]), "yellow" if result[3] > 0 else None)
 
-        return f"{success}/{failures}/{skipped}"
+        return f"{success}/{success_on_retry}/{failures}/{skipped}"
 
     table: list[list[str]] = []
     for package, vm_results in sorted(results.items(), key=lambda x: x[0]):
-        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0))) for vm in vm_list]
+        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0, 0))) for vm in vm_list]
         table.append(row)
 
     table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
 
-    print(tabulate(table, headers=["Package"] + vm_list))
-    print("\nLegend: Successes/Failures/Skipped")
+    print(tabulate(table, headers=["Package"] + vm_list) + "\n")
+
+    if sum_tests == 0:
+        warn("WARN: No test runs")
+    elif sum_failures > 0:
+        error("ERROR: Found failed tests")
+    else:
+        info("SUCCESS: All tests passed")
+
+    print("Legend: Successes/Successes on retry/Failures/Skipped")
+
+    if sum_failures:
+        sys.exit(1)
 
 
 @task
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
     tags: dict[str, str] = {}
+    metrics: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
@@ -1820,11 +2058,11 @@ def tag_ci_job(ctx: Context):
         job_type = "test"
     tags["job_type"] = job_type
 
+    agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
+    ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
+
     if job_type == "test":
         # Retrieve all data for the tests to detect a failure reason
-        agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
-        ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
-
         test_jobs_executed, tests_failed = False, False
         for candidate in agent_testing_dir.glob("junit-*.tar.gz"):
             tar = tarfile.open(candidate)
@@ -1849,6 +2087,17 @@ def tag_ci_job(ctx: Context):
             tags["failure_reason"] = "infra_ssh-config"
         else:
             tags["failure_reason"] = "infra-unknown"
+
+        # Tag complexity results
+        should_collect_complexity = os.getenv("COLLECT_COMPLEXITY") == "yes"
+        collected_complexity = any(agent_testing_dir.glob("verifier-complexity-*.tar.gz"))
+
+        if not should_collect_complexity:
+            tags["complexity_collection"] = "skipped"
+        elif collected_complexity:
+            tags["complexity_collection"] = "success"
+        else:
+            tags["complexity_collection"] = "failure"
     elif job_type == "setup":
         if "kmt_setup_env" in job_name:
             tags["setup_stage"] = "infra-provision"
@@ -1861,10 +2110,27 @@ def tag_ci_job(ctx: Context):
         elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
             tags["setup_stage"] = "tests"
 
+        instance_not_found_marker = ci_project_dir / "instance_not_found"
+        e2e_fail_marker = ci_project_dir / "e2e-error-reason"
+        if instance_not_found_marker.is_file():
+            tags["failure_reason"] = "infra_instance-not-found"
+        elif e2e_fail_marker.is_file():
+            e2e_fail = e2e_fail_marker.read_text().strip()
+            if e2e_fail != "":
+                tags["failure_reason"] = f"infra_e2e_{e2e_fail}"
+
+        e2e_retry_count = ci_project_dir / "e2e-retry-count"
+        if e2e_retry_count.is_file():
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
+
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+    if len(metrics) > 0:
+        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci metric --level job {metrics_str}")
 
 
 @task
@@ -1886,3 +2152,139 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+
+# by default the PyYaml dumper does not indent lists correctly using to problem when
+# starting the agent. The following solution is taken from
+# https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, indentless)
+
+
+@task
+def install_ddagent(
+    ctx: Context,
+    api_key: str,
+    vms: str | None = None,
+    alien_vms: str | None = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+    verbose=True,
+    arch: str | None = None,
+    version: str | None = None,
+    datadog_yaml: str | None = None,
+    layout: str | None = None,
+):
+    stack = get_kmt_or_alien_stack(ctx, stack, vms, alien_vms)
+
+    if arch is None:
+        arch = "local"
+
+    arch_obj = Arch.from_str(arch)
+
+    domains = get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms)
+    if alien_vms is not None:
+        err_msg = f"no alient VMs discovered from provided profile {alien_vms}."
+    else:
+        err_msg = f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+
+    assert len(domains) > 0, err_msg
+
+    if version is not None:
+        check_version(version)
+    else:
+        with open("release.json") as f:
+            release = json.load(f)
+        version = release["last_stable"]["7"]
+
+    match = VERSION_RE.match(version)
+    if not match:
+        raise Exit(f"Version {version} not of expected pattern")
+
+    groups = match.groups()
+    major = groups[1]
+    minor = groups[2]
+    env = [
+        f"DD_API_KEY={api_key}",
+        f"DD_AGENT_MAJOR_VERSION={major}",
+        f"DD_AGENT_MINOR_VERSION={minor}",
+        "DD_INSTALL_ONLY=true",
+    ]
+
+    if datadog_yaml is not None:
+        with open(datadog_yaml) as f:
+            ddyaml = yaml.load(f, Loader=yaml.SafeLoader)
+
+    for d in domains:
+        d.run_cmd(
+            ctx,
+            f"curl -L https://install.datadoghq.com/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            verbose=verbose,
+        )
+        d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
+
+        # setup datadog yaml
+        if datadog_yaml is not None:
+            # hostnames with '_' are not accepted according to RFC1123
+            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["api_key"] = api_key
+            with tempfile.NamedTemporaryFile(mode='w') as tmp:
+                yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
+                tmp.flush()
+                d.copy(ctx, tmp.name, "/etc/datadog-agent/datadog.yaml")
+
+    if layout is not None:
+        build_layout(ctx, domains, layout, verbose)
+
+
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
+    gitlab = get_gitlab_repo()
+    dest_path = Path(dest_path)
+
+    # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
+    commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
+    pipeline_ids = {status.pipeline_id for status in commit_statuses if 'pipeline_id' in status.asdict()}
+    print(f"Found pipelines {pipeline_ids}")
+
+    for pipeline_id in pipeline_ids:
+        pipeline = gitlab.pipelines.get(pipeline_id)
+        if pipeline.source != "push":
+            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+            continue
+
+        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
+        for job in test_jobs:
+            complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
+            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            if data is None:
+                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                continue
+
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
+
+            tar = tarfile.open(fileobj=io.BytesIO(data))
+            job_folder = dest_path / complexity_name
+            job_folder.mkdir(parents=True, exist_ok=True)
+            tar.extractall(dest_path / job_folder)
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+
+
+@task
+def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+    if dest_folder is None:
+        dest_folder = "."
+    dest_folder = Path(dest_folder)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)

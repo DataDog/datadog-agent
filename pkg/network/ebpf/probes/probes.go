@@ -192,8 +192,8 @@ const (
 	TCPStatsMap BPFMapName = "tcp_stats"
 	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
-	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
-	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
+	// TCPOngoingConnectPid is the map storing ongoing TCP connection PIDs by (socket + tuple)
+	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
 	// ConnCloseFlushed is the map storing closed connections that were already flushed
 	ConnCloseFlushed BPFMapName = "conn_close_flushed"
 	// ConnCloseEventMap is the map storing connection close events
@@ -224,10 +224,6 @@ const (
 	UDPSendPageArgsMap BPFMapName = "udp_sendpage_args"
 	// IPMakeSkbArgsMap is the map storing the arguments of the ip_make_skb() kernel function
 	IPMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
-	// MapErrTelemetryMap is the map storing the map error telemetry
-	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
-	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
 	// TCPRecvMsgArgsMap is the map storing the arguments of the tcp_recvmsg() kernel function
 	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
 	// ProtocolClassificationBufMap is the map storing the classification buffer

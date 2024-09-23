@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,7 +55,12 @@ func newPID(deps dependencies) (pid.Component, error) {
 
 		deps.Lc.Append(fx.Hook{
 			OnStop: func(context.Context) error {
-				_ = os.Remove(pidfilePath)
+				err = os.Remove(pidfilePath)
+				if err != nil {
+					deps.Log.Errorf("Error while removing PID file: %v", err)
+				} else {
+					deps.Log.Infof("Removed PID file: %s", pidfilePath)
+				}
 				return nil
 			}})
 	}

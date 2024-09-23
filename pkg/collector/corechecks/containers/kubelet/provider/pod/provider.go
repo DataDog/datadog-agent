@@ -11,7 +11,6 @@ package pod
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -117,7 +116,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -141,7 +140,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, _ *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}
@@ -211,7 +210,8 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	tagList, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podID), types.LowCardinality)
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID).String()
+	tagList, _ := tagger.Tag(entityID, types.LowCardinality)
 	if len(tagList) == 0 {
 		return
 	}

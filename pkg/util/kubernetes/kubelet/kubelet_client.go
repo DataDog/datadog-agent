@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -164,16 +164,16 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 	var err error
 
 	kubeletTimeout := 30 * time.Second
-	kubeletProxyEnabled := config.Datadog().GetBool("eks_fargate")
-	kubeletHost := config.Datadog().GetString("kubernetes_kubelet_host")
-	kubeletHTTPSPort := config.Datadog().GetInt("kubernetes_https_kubelet_port")
-	kubeletHTTPPort := config.Datadog().GetInt("kubernetes_http_kubelet_port")
-	kubeletTLSVerify := config.Datadog().GetBool("kubelet_tls_verify")
-	kubeletCAPath := config.Datadog().GetString("kubelet_client_ca")
-	kubeletTokenPath := config.Datadog().GetString("kubelet_auth_token_path")
-	kubeletClientCertPath := config.Datadog().GetString("kubelet_client_crt")
-	kubeletClientKeyPath := config.Datadog().GetString("kubelet_client_key")
-	kubeletNodeName := config.Datadog().Get("kubernetes_kubelet_nodename")
+	kubeletProxyEnabled := pkgconfigsetup.Datadog().GetBool("eks_fargate")
+	kubeletHost := pkgconfigsetup.Datadog().GetString("kubernetes_kubelet_host")
+	kubeletHTTPSPort := pkgconfigsetup.Datadog().GetInt("kubernetes_https_kubelet_port")
+	kubeletHTTPPort := pkgconfigsetup.Datadog().GetInt("kubernetes_http_kubelet_port")
+	kubeletTLSVerify := pkgconfigsetup.Datadog().GetBool("kubelet_tls_verify")
+	kubeletCAPath := pkgconfigsetup.Datadog().GetString("kubelet_client_ca")
+	kubeletTokenPath := pkgconfigsetup.Datadog().GetString("kubelet_auth_token_path")
+	kubeletClientCertPath := pkgconfigsetup.Datadog().GetString("kubelet_client_crt")
+	kubeletClientKeyPath := pkgconfigsetup.Datadog().GetString("kubelet_client_key")
+	kubeletNodeName := pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename")
 	var kubeletPathPrefix string
 	var kubeletToken string
 
@@ -209,7 +209,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		}
 		kubeletHTTPSPort = int(httpsPort)
 
-		if config.Datadog().Get("kubernetes_kubelet_nodename") != "" {
+		if pkgconfigsetup.Datadog().Get("kubernetes_kubelet_nodename") != "" {
 			kubeletPathPrefix = fmt.Sprintf("/api/v1/nodes/%s/proxy", kubeletNodeName)
 			apiServerIP := os.Getenv("KUBERNETES_SERVICE_HOST")
 

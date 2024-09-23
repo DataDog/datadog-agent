@@ -35,8 +35,7 @@ type Tester struct {
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
 
-	agentPackage      *windowsAgent.Package
-	isPreviousVersion bool
+	agentPackage *windowsAgent.Package
 
 	expectedUserName   string
 	expectedUserDomain string
@@ -106,14 +105,6 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 		t.agentPackage = agentPackage
 		t.expectedAgentVersion = agentPackage.AgentVersion()
 		t.expectedAgentMajorVersion = strings.Split(t.expectedAgentVersion, ".")[0]
-	}
-}
-
-// WithPreviousVersion sets the Tester to expect a previous version of the agent to be installed
-// and will not run all tests since expectations may have changed.
-func WithPreviousVersion() TesterOption {
-	return func(t *Tester) {
-		t.isPreviousVersion = true
 	}
 }
 
@@ -245,12 +236,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	assert.NoError(tt, err, "uninstall should not remove agent user")
 
 	for _, serviceName := range servicetest.ExpectedInstalledServices() {
-		conf, err := windows.GetServiceConfig(t.host, serviceName)
-		if err == nil && windows.IsKernelModeServiceType(conf.ServiceType) {
-			// TODO WKINT-410: kernel mode services are not removed on install rollback
-			tt.Logf("WKINT-410: Skipping known failure, kernel mode service not removed: %s", serviceName)
-			continue
-		}
+		_, err := windows.GetServiceConfig(t.host, serviceName)
 		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
 	}
 
@@ -260,17 +246,8 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	// don't need to check registry key permissions because the key is removed
 
 	tt.Run("file permissions", func(tt *testing.T) {
-		if strings.HasPrefix(tt.Name(), "TestInstallFail/") {
-			// TODO WINA-852: install rollback leaves different permissions behind
-			tt.Skip("WINA-852: skipping known failure, install rollback leaves different permissions behind")
-		}
 		t.testUninstalledFilePermissions(tt)
 	})
-}
-
-// Only do some basic checks on the agent since it's a previous version
-func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
-	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 }
 
 // More in depth checks on current version
@@ -576,6 +553,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
+
+	// ensure the agent user does not have an ACE on the install dir
+	out, err := windows.GetSecurityInfoForPath(t.host, t.expectedInstallPath)
+	require.NoError(tt, err)
+	if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+		assert.Empty(tt, windows.FilterRulesForIdentity(out.Access, ddAgentUserIdentity),
+			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
+	}
+	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester
@@ -588,10 +574,6 @@ func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
 		}) {
 			tt.FailNow()
 		}
-		if t.isPreviousVersion {
-			t.testPreviousVersionExpectations(tt)
-		} else {
-			t.testCurrentVersionExpectations(tt)
-		}
+		t.testCurrentVersionExpectations(tt)
 	})
 }

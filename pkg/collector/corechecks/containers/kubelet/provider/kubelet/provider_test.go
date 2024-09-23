@@ -128,8 +128,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
@@ -162,8 +161,9 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	p, err := NewProvider(
 		&containers.Filter{
-			Enabled:         true,
-			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+			Enabled:          true,
+			NameExcludeList:  []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+			ImageExcludeList: []*regexp.Regexp{regexp.MustCompile("^hkaj/demo-app$")},
 		},
 		config,
 		store,
@@ -285,6 +285,16 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
 	}
 
+	// namespace not filtered still shows up
+	podWithPVCNotFilteredTags := append(commontesting.InstanceTags, "persistentvolumeclaim:ddagent-pvc-ddagent-test-2", "namespace:unit-test")
+
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.capacity_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.used_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.available_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_used", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithPVCNotFilteredTags)
+
 	// pvc tags show up
 	podWithPVCTags := append(commontesting.InstanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")
 
@@ -328,7 +338,8 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounter() {
 
 func (suite *ProviderTestSuite) TestKubeletContainerLogFilesystemUsedBytes() {
 	// Get around floating point conversion issues during AssertCalled
-	expected, _ := strconv.ParseFloat("24576", 64)
+	expectedCalled, _ := strconv.ParseFloat("24576", 64)
+	expectedNotCalled, _ := strconv.ParseFloat("5227072", 64)
 
 	response := commontesting.NewEndpointResponse(
 		"../../testdata/kubelet_metrics_1_21.txt", 200, nil)
@@ -346,7 +357,9 @@ func (suite *ProviderTestSuite) TestKubeletContainerLogFilesystemUsedBytes() {
 	// container id has tags, so container tags show up
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", 5242822656, "", append(commontesting.InstanceTags, "kube_container_name:datadog-agent"))
 	// container id not found in tagger, so no container tags show up
-	suite.mockSender.AssertCalled(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", expected, "", commontesting.InstanceTags)
+	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", expectedCalled, "", commontesting.InstanceTags)
+	// container is excluded, so no metric should be emitted at all
+	suite.mockSender.AssertNotCalled(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.container.log_filesystem.used_bytes", expectedNotCalled, "", commontesting.InstanceTags)
 }
 
 func (suite *ProviderTestSuite) TestRestClientLatency() {

@@ -10,7 +10,7 @@ package pinger
 import (
 	"encoding/json"
 
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -42,7 +42,7 @@ func (p *LinuxPinger) Ping(host string) (*Result, error) {
 	}
 
 	tu, err := net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return nil, err

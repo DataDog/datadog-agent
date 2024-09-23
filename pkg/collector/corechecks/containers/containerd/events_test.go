@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -58,7 +58,7 @@ func TestCheckEvents(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, _ ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}
@@ -66,10 +66,10 @@ func TestCheckEvents(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
-		MockContainers: func(namespace string) ([]containerd.Container, error) {
+		MockContainers: func(string) ([]containerd.Container, error) {
 			return nil, nil
 		},
 	}
@@ -155,7 +155,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, _ ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}
@@ -166,7 +166,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
 		MockContainers: func(namespace string) ([]containerd.Container, error) {
@@ -246,8 +246,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
-			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -276,7 +276,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 

@@ -14,11 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const apiKey1 = "apiKey1"
@@ -39,7 +37,7 @@ func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
 func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resolver.DomainResolver) {
 	a := assert.New(t)
 	tr := createHTTPTransactionTests(d)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	serializer := NewHTTPTransactionsSerializer(log, r)
 
 	a.NoError(serializer.Add(tr))
@@ -65,7 +63,7 @@ func runTestHTTPSerializeDeserializeWithResolver(t *testing.T, d string, r resol
 func TestPartialDeserialize(t *testing.T) {
 	a := assert.New(t)
 	initialTransaction := createHTTPTransactionTests(domain)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, nil))
 
 	a.NoError(serializer.Add(initialTransaction))
@@ -87,7 +85,7 @@ func TestPartialDeserialize(t *testing.T) {
 
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	serializer := NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver(domain, []string{apiKey1, apiKey2}))
 
 	r.NoError(serializer.Add(createHTTPTransactionWithHeaderTests(http.Header{"Key": []string{apiKey1}}, domain)))
@@ -108,7 +106,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	tr := transaction.HTTPTransaction{}
 	transactionType := reflect.TypeOf(tr)
-	assert.Equalf(t, 12, transactionType.NumField(),
+	assert.Equalf(t, 13, transactionType.NumField(),
 		"A field was added or remove from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"HTTPTransactionsSerializer and then adjust this unit test.")
@@ -129,6 +127,7 @@ func createHTTPTransactionWithHeaderTests(header http.Header, domain string) *tr
 	tr.CreatedAt = time.Now()
 	tr.Retryable = true
 	tr.Priority = transaction.TransactionPriorityHigh
+	tr.Destination = transaction.PrimaryOnly
 	return tr
 }
 
@@ -139,6 +138,7 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 	a.Equal(tr1.Retryable, tr2.Retryable)
 	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
+	a.Equal(tr1.Destination, tr2.Destination)
 
 	a.NotNil(tr1.Payload)
 	a.NotNil(tr2.Payload)

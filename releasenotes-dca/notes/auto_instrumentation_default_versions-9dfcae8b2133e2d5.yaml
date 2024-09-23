@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Library package versions for auto-instrumentation are now set to the latest major
+    version of the library-package instead of `latest`.
+
+    * java:v1
+    * dotnet:v2
+    * python:v2
+    * ruby:v2
+    * js:v5

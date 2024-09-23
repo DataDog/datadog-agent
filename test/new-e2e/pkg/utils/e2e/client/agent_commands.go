@@ -58,7 +58,6 @@ func (agent *agentCommandRunner) executeCommandWithError(command string, command
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
-	agent.t.Logf("Running agent command: %+q", arguments)
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }

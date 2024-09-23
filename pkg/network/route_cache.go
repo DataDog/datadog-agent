@@ -169,10 +169,10 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
 	k := routeKey{netns: netns, source: source, dest: dest}
 
-	switch dest.Len() {
-	case 4:
+	switch {
+	case dest.Is4():
 		k.connFamily = AFINET
-	case 16:
+	case dest.Is6():
 		k.connFamily = AFINET6
 	}
 	return k
@@ -250,8 +250,8 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	var iifIndex int
 
-	srcBuf := util.IPBufferPool.Get().(*[]byte)
-	dstBuf := util.IPBufferPool.Get().(*[]byte)
+	srcBuf := util.IPBufferPool.Get()
+	dstBuf := util.IPBufferPool.Get()
 	defer func() {
 		util.IPBufferPool.Put(srcBuf)
 		util.IPBufferPool.Put(dstBuf)

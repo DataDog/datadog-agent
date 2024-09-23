@@ -7,7 +7,6 @@
 
 struct policy_t {
     char mode;
-    char flags;
 };
 
 // Approvers
@@ -15,14 +14,30 @@ struct policy_t {
 struct approver_stats_t {
     u64 event_approved_by_basename;
     u64 event_approved_by_flag;
+    u64 event_approved_by_auid;
 };
 
 struct basename_t {
     char value[BASENAME_FILTER_SIZE];
 };
 
-struct basename_filter_t {
+struct event_mask_filter_t {
     u64 event_mask;
+};
+
+struct u32_flags_filter_t {
+    u32 flags;
+    u8 is_set;
+};
+
+struct u64_flags_filter_t {
+    u64 flags;
+    u8 is_set;
+};
+
+struct u32_range_filter_t {
+    u32 min;
+    u32 max;
 };
 
 // Discarders
@@ -45,14 +60,6 @@ struct inode_discarder_params_t {
     u32 mount_revision;
 };
 
-struct pid_discarder_params_t {
-    struct discarder_params_t params;
-};
-
-struct pid_discarder_t {
-    u32 tgid;
-};
-
 struct inode_discarder_t {
     struct path_key_t path_key;
     u32 is_leaf;
@@ -60,7 +67,7 @@ struct inode_discarder_t {
 };
 
 struct is_discarded_by_inode_t {
-    u64 discarder_type;
+    u64 event_type;
     struct inode_discarder_t discarder;
     u64 now;
 };

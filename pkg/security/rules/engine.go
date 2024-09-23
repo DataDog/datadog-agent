@@ -28,12 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -61,6 +63,7 @@ type RuleEngine struct {
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
 	AutoSuppression  autosuppression.AutoSuppression
+	pid              uint32
 }
 
 // APIServer defines the API server
@@ -83,10 +86,13 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:     rules.NewPolicyLoader(),
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
+		pid:              utils.Getpid(),
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
 		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
 		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
 	})
@@ -125,7 +131,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel(e.probe.Origin())
+	ruleFilterModel, err := NewRuleFilterModel(e.probe.Config, e.probe.Origin())
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -187,10 +193,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 					constants.CardinalityTagPrefix + "none",
 				}
 
+				var (
+					runtimeMetric = metrics.MetricSecurityAgentRuntimeRunning
+					fimMetric     = metrics.MetricSecurityAgentFIMRunning
+				)
+
 				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_ecs")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_ecs",
+					}...)
+					runtimeMetric = metrics.MetricSecurityAgentFargateRuntimeRunning
+					fimMetric = metrics.MetricSecurityAgentFargateFIMRunning
 				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_eks")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_eks",
+					}...)
+					runtimeMetric = metrics.MetricSecurityAgentFargateRuntimeRunning
+					fimMetric = metrics.MetricSecurityAgentFargateFIMRunning
 				} else {
 					tags = append(tags, "mode:default")
 				}
@@ -202,9 +223,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				e.RUnlock()
 
 				if e.config.RuntimeEnabled {
-					_ = e.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
+					_ = e.statsdClient.Gauge(runtimeMetric, 1, tags, 1)
 				} else if e.config.FIMEnabled {
-					_ = e.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
+					_ = e.statsdClient.Gauge(fimMetric, 1, tags, 1)
 				}
 			}
 		}
@@ -281,7 +302,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 
 	// update current policies related module attributes
-	e.policiesVersions = getPoliciesVersions(rs)
+	e.policiesVersions = getPoliciesVersions(rs, e.config.PolicyMonitorReportInternalPolicies)
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -339,11 +360,11 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, NewBundledPolicyProvider(e.config))
+	policyProviders = append(policyProviders, bundled.NewPolicyProvider(e.config))
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -361,6 +382,15 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	return policyProviders
 }
 
+func (e *RuleEngine) rcStateCallback(state bool) {
+	if state {
+		seclog.Infof("Connection to remote config established")
+	} else {
+		seclog.Infof("Connection to remote config lost")
+	}
+	e.probe.EnableEnforcement(state)
+}
+
 // EventDiscarderFound is called by the ruleset when a new discarder discovered
 func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if e.reloading.Load() {
@@ -375,8 +405,8 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Def.Version))
 	}
 
 	if e.AutoSuppression.Suppresses(rule, ev) {
@@ -385,7 +415,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	e.probe.HandleActions(rule, event)
 
-	if rule.Definition.Silent {
+	if rule.Def.Silent {
 		return false
 	}
 
@@ -405,14 +435,14 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	var extTagsCb func() []string
 
-	if ev.ContainerContext.ID != "" {
+	if ev.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ID
+		containerID := ev.ContainerContext.ContainerID
 
 		// the container tags might not be resolved yet
 		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
 			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
+				return e.probe.GetEventTags(string(containerID))
 			}
 		}
 	}
@@ -488,6 +518,11 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	// don't eval event originating from myself
+	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
+		return
+	}
+
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return
@@ -524,12 +559,15 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 }
 
-func getPoliciesVersions(rs *rules.RuleSet) []string {
+func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []string {
 	var versions []string
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		version := rule.Definition.Policy.Version
+		if rule.Policy.IsInternal && !includeInternalPolicies {
+			continue
+		}
+		version := rule.Policy.Def.Version
 		if _, exists := cache[version]; !exists {
 			cache[version] = true
 

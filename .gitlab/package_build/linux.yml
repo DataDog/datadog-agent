@@ -4,10 +4,7 @@
     - when: on_success
   stage: package_build
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -20,7 +17,7 @@
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -64,6 +61,7 @@
   variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
+    FLAVOR: base
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
@@ -71,6 +69,15 @@
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
+    FLAVOR: base
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+.ot_agent_7_build:
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: "3"
+    FLAVOR: ot
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
@@ -90,13 +97,19 @@ datadog-agent-6-arm64:
 datadog-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .agent_7_build]
 
+# build Agent 7 binaries for x86_64
+datadog-ot-agent-7-x64:
+  extends: [.agent_build_common, .agent_build_x86, .ot_agent_7_build]
+
+# build Agent 7 binaries for arm64
+datadog-ot-agent-7-arm64:
+  extends: [.agent_build_common, .agent_build_arm64, .ot_agent_7_build]
+
 .iot-agent-common:
   extends: .agent_build_common
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -134,10 +147,7 @@ iot-agent-armhf:
     - when: on_success
   stage: package_build
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache

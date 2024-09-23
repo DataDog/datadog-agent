@@ -15,21 +15,20 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	autodiscoveryUtils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/utils"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer, checkName string) error {
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	if !config.Datadog().GetBool("cluster_checks.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") {
 		fmt.Fprintln(w, "Cluster-checks are not enabled")
 		return nil
 	}
@@ -37,7 +36,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog())
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -75,7 +74,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	if len(cr.Dangling) > 0 {
 		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
-			autodiscoveryUtils.PrintConfig(w, c, checkName)
+			PrintConfig(w, c, checkName)
 		}
 		fmt.Fprintln(w, "")
 	}
@@ -102,7 +101,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		}
 		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
-			autodiscoveryUtils.PrintConfig(w, c, checkName)
+			PrintConfig(w, c, checkName)
 		}
 	}
 
@@ -115,7 +114,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
@@ -124,7 +123,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	if err := util.SetAuthToken(config.Datadog()); err != nil {
+	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		return err
 	}
 
@@ -147,14 +146,14 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
-		autodiscoveryUtils.PrintConfig(w, c, checkName)
+		PrintConfig(w, c, checkName)
 	}
 
 	return nil
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range config.Datadog().GetStringSlice("extra_config_providers") {
+	for _, provider := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
 		if provider == names.KubeEndpointsRegisterName {
 			return true
 		}

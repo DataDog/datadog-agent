@@ -13,13 +13,11 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var recordPool = sync.Pool{
-	New: func() interface{} {
-		return new(perf.Record)
-	},
-}
+var recordPool = ddsync.NewDefaultTypedPool[perf.Record]()
 
 // PerfHandler implements EventHandler
 // this line is just a static check of the interface
@@ -29,7 +27,7 @@ var _ EventHandler = new(PerfHandler)
 type PerfHandler struct {
 	RecordGetter func() *perf.Record
 
-	dataChannel chan *DataEvent
+	dataChannel chan DataEvent
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
@@ -39,9 +37,9 @@ type PerfHandler struct {
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	return &PerfHandler{
 		RecordGetter: func() *perf.Record {
-			return recordPool.Get().(*perf.Record)
+			return recordPool.Get()
 		},
-		dataChannel: make(chan *DataEvent, dataChannelSize),
+		dataChannel: make(chan DataEvent, dataChannelSize),
 		lostChannel: make(chan uint64, 10),
 	}
 }
@@ -60,11 +58,11 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, _ *manager.PerfMap, _ *
 		return
 	}
 
-	c.dataChannel <- &DataEvent{Data: record.RawSample, pr: record}
+	c.dataChannel <- DataEvent{Data: record.RawSample, pr: record}
 }
 
 // DataChannel returns the channel with event data
-func (c *PerfHandler) DataChannel() <-chan *DataEvent {
+func (c *PerfHandler) DataChannel() <-chan DataEvent {
 	return c.dataChannel
 }
 

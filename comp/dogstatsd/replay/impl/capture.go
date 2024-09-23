@@ -4,7 +4,7 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //nolint:revive // TODO(AML) Fix revive linter
-package replay
+package replayimpl
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -31,7 +31,7 @@ type Requires struct {
 // trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer       *TrafficCaptureWriter
-	config       config.Reader
+	config       model.Reader
 	startUpError error
 
 	sync.RWMutex
@@ -99,14 +99,14 @@ func (tc *trafficCapture) StopCapture() {
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterSharedPoolManager(p)
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
-func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterOOBPoolManager(p)

@@ -41,6 +41,7 @@ func TestFromEnv(t *testing.T) {
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
 				envRemoteUpdates:                              "true",
+				envRemotePolicies:                             "true",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
 				envRegistryURL + "_IMAGE":                     "another.registry.example.com",
@@ -58,6 +59,7 @@ func TestFromEnv(t *testing.T) {
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
+				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -84,6 +86,55 @@ func TestFromEnv(t *testing.T) {
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
+			},
+		},
+		{
+			name: "APM libraries parsing",
+			envVars: map[string]string{
+				envApmLibraries: "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
+			},
+			expected: &Env{
+				APIKey:                         "",
+				Site:                           "datadoghq.com",
+				RegistryOverride:               "",
+				RegistryAuthOverride:           "",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "latest",
+					"ruby":   "1.2",
+					"python": "1.2.3",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+			},
+		},
+		{
+			name: "deprecated apm lang",
+			envVars: map[string]string{
+				envAPIKey:                    "123456",
+				envApmLanguages:              "java dotnet ruby",
+				envApmInstrumentationEnabled: "all",
+			},
+			expected: &Env{
+				APIKey: "123456",
+				Site:   "datadoghq.com",
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "",
+					"ruby":   "",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
 			},
 		},
 	}
@@ -117,6 +168,7 @@ func TestToEnv(t *testing.T) {
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
+				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -145,6 +197,7 @@ func TestToEnv(t *testing.T) {
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
+				"DD_REMOTE_POLICIES=true",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
 				"DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:latest,java,ruby:1.2",

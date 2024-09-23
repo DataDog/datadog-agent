@@ -10,11 +10,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const (
-	entityID = "foo://bar"
+var (
+	entityID = types.NewEntityID("foo", "bar")
 )
 
 func TestSubscriber(t *testing.T) {
@@ -32,8 +36,9 @@ func TestSubscriber(t *testing.T) {
 			EventType: types.EventTypeDeleted,
 		},
 	}
-
-	s := NewSubscriber()
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	s := NewSubscriber(telemetryStore)
 
 	prevCh := s.Subscribe(types.LowCardinality, nil)
 

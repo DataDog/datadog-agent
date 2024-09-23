@@ -150,7 +150,7 @@ func isEmptyCEdgeIP(ip string) bool {
 
 func parseCEdgeIP(ip string) (string, error) {
 	ipAddr := net.ParseIP(ip)
-	if ipAddr == nil {
+	if ipAddr == nil || ipAddr.IsUnspecified() {
 		return "", fmt.Errorf("invalid ip address")
 	}
 	return ipAddr.String(), nil

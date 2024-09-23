@@ -19,6 +19,7 @@ type linuxRunSuite struct {
 }
 
 func TestLinuxRunSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 

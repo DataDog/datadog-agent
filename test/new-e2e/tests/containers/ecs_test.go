@@ -186,7 +186,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 10*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }
 
@@ -374,6 +374,73 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^task_version:[[:digit:]]+$`,
 			},
 			AcceptUnexpectedTags: true,
+		},
+	})
+}
+
+func (suite *ecsSuite) TestWindowsFargate() {
+	suite.testCheckRun(&testCheckRunArgs{
+		Filter: testCheckRunFilterArgs{
+			Name: "http.can_connect",
+			Tags: []string{
+				"^ecs_launch_type:fargate$",
+				"^container_name:aspnetsample$",
+			},
+		},
+		Expect: testCheckRunExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:aspnetsample$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:aspnetsample$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:mcr.microsoft.com/dotnet/samples$`,
+				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
+				`^region:us-east-1$`,
+				`^short_image:samples$`,
+				`^task_arn:`,
+				`^task_family:.*-aspnet-fg$`,
+				`^task_name:.*-aspnet-fg*`,
+				`^task_version:[[:digit:]]+$`,
+				`^url:`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+
+	// Test container check
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"^ecs_container_name:aspnetsample$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:aspnetsample$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:aspnetsample$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:mcr.microsoft.com/dotnet/samples$`,
+				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
+				`^region:us-east-1$`,
+				`^runtime:ecsfargate$`,
+				`^short_image:samples$`,
+				`^task_arn:`,
+				`^task_family:.*-aspnet-fg$`,
+				`^task_name:.*-aspnet-fg*`,
+				`^task_version:[[:digit:]]+$`,
+			},
 		},
 	})
 }

@@ -19,7 +19,7 @@ import (
 
 // booleanTagEquals returns true if the given rule has the given tag set to a boolean and its value matches the given value
 func booleanTagEquals(rule *rules.Rule, tag string, value bool) bool {
-	if val, ok := rule.Definition.GetTag(tag); ok {
+	if val, ok := rule.Def.GetTag(tag); ok {
 		b, err := strconv.ParseBool(val)
 		return err == nil && b == value
 	}
@@ -38,7 +38,9 @@ const (
 
 // Opts holds options for auto suppression
 type Opts struct {
+	SecurityProfileEnabled                bool
 	SecurityProfileAutoSuppressionEnabled bool
+	ActivityDumpEnabled                   bool
 	ActivityDumpAutoSuppressionEnabled    bool
 	EventTypes                            []model.EventType
 }
@@ -67,8 +69,8 @@ func (as *AutoSuppression) Init(opts Opts) {
 
 // Suppresses returns true if the event should be suppressed for the given rule, false otherwise. It also counts statistics depending on this result
 func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool {
-	if isAllowAutosuppressionRule(rule) && event.ContainerContext.ID != "" && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
-		if as.opts.ActivityDumpAutoSuppressionEnabled {
+	if isAllowAutosuppressionRule(rule) && event.ContainerContext.ContainerID != "" && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
+		if as.opts.ActivityDumpEnabled && as.opts.ActivityDumpAutoSuppressionEnabled {
 			if event.HasActiveActivityDump() {
 				as.count(rule.ID, activityDumpSuppressionType)
 				return true
@@ -77,7 +79,7 @@ func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool
 				return true
 			}
 		}
-		if as.opts.SecurityProfileAutoSuppressionEnabled {
+		if as.opts.SecurityProfileEnabled && as.opts.SecurityProfileAutoSuppressionEnabled {
 			if event.IsInProfile() {
 				as.count(rule.ID, securityProfileSuppressionType)
 				return true

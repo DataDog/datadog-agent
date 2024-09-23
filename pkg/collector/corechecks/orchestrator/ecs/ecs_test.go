@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -153,18 +154,20 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
 	orchConfig.OrchestrationCollectionEnabled = true
-	orchConfig.OrchestrationECSCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{
 		EnableV4: v4,
 	}
 	sender := &fakeSender{}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
 	c := &Check{
 		sender:            sender,
 		workloadmetaStore: store,
 		config:            orchConfig,
 		groupID:           atomic.NewInt32(0),
+		systemInfo:        systemInfo,
 	}
 
 	c.isECSCollectionEnabledFunc = func() bool { return false }
@@ -338,6 +341,8 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		tasks = append(tasks, newTask)
 	}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
 	return &process.CollectorECSTask{
 		AwsAccountID: 123456789012,
 		ClusterName:  "ecs-cluster",
@@ -346,5 +351,6 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		GroupId:      groupID,
 		GroupSize:    1,
 		Tasks:        tasks,
+		Info:         systemInfo,
 	}
 }

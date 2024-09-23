@@ -13,9 +13,11 @@
 static cb_get_clustername_t cb_get_clustername = NULL;
 static cb_get_config_t cb_get_config = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
+static cb_get_host_tags_t cb_get_host_tags = NULL;
 static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
 static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
+static cb_send_log_t cb_send_log = NULL;
 static cb_set_check_metadata_t cb_set_check_metadata = NULL;
 static cb_set_external_tags_t cb_set_external_tags = NULL;
 static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
@@ -29,10 +31,12 @@ static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static PyObject *get_clustername(PyObject *self, PyObject *args);
 static PyObject *get_config(PyObject *self, PyObject *args);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
+static PyObject *get_host_tags(PyObject *self, PyObject *args);
 static PyObject *tracemalloc_enabled(PyObject *self, PyObject *args);
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *log_message(PyObject *self, PyObject *args);
+static PyObject *send_log(PyObject *self, PyObject *args);
 static PyObject *set_check_metadata(PyObject *self, PyObject *args);
 static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
@@ -46,10 +50,12 @@ static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
     { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
+    { "get_host_tags", get_host_tags, METH_NOARGS, "Get the host tags." },
     { "tracemalloc_enabled", tracemalloc_enabled, METH_VARARGS, "Gets if tracemalloc is enabled." },
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
     { "log", log_message, METH_VARARGS, "Log a message through the agent logger." },
+    { "send_log", send_log, METH_VARARGS, "Submit a log for Checks." },
     { "set_check_metadata", set_check_metadata, METH_VARARGS, "Send metadata for Checks." },
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
@@ -98,9 +104,19 @@ void _set_get_hostname_cb(cb_get_hostname_t cb)
     cb_get_hostname = cb;
 }
 
+void _set_get_host_tags_cb(cb_get_host_tags_t cb)
+{
+    cb_get_host_tags = cb;
+}
+
 void _set_get_clustername_cb(cb_get_clustername_t cb)
 {
     cb_get_clustername = cb;
+}
+
+void _set_send_log_cb(cb_send_log_t cb)
+{
+    cb_send_log = cb;
 }
 
 void _set_set_check_metadata_cb(cb_set_check_metadata_t cb)
@@ -323,6 +339,36 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+/*! \fn PyObject *get_host_tags(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_host_tags` method, collecting
+    the host tags from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the host tags. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_host_tags` python method, it uses
+    the `cb_get_host_tags()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
+PyObject *get_host_tags(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_get_host_tags == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *v = NULL;
+    cb_get_host_tags(&v);
+
+    if (v != NULL) {
+        PyObject *retval = PyStringFromCString(v);
+        cgo_free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
+}
+
 /*! \fn PyObject *get_clustername(PyObject *self, PyObject *args)
     \brief This function implements the `datadog-agent.get_clustername` method, collecting
     the K8s clustername from the agent.
@@ -408,6 +454,41 @@ static PyObject *log_message(PyObject *self, PyObject *args)
     PyGILState_Release(gstate);
 
     agent_log(log_level, message);
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *send_log(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog_agent.send_log` method, sending
+    a log for eventual submission.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a 2-ary tuple containing a log line and the
+    unique ID of a check instance.
+    \return A PyObject* pointer to `None`.
+
+    This function is callable as the `datadog_agent.send_log` Python method and
+    uses the `cb_send_log()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *send_log(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_send_log == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *log_line, *check_id;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // datadog_agent.send_log(log_line, check_id)
+    if (!PyArg_ParseTuple(args, "ss", &log_line, &check_id)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    PyGILState_Release(gstate);
+    cb_send_log(log_line, check_id);
+
     Py_RETURN_NONE;
 }
 

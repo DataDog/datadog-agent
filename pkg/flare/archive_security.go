@@ -11,7 +11,7 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +61,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 }
 
 func getComplianceFiles(fb flaretypes.FlareBuilder) error {
-	compDir := config.Datadog().GetString("compliance_config.dir")
+	compDir := pkgconfigsetup.Datadog().GetString("compliance_config.dir")
 
 	return fb.CopyDirTo(compDir, "compliance.d", func(path string) bool {
 		f, err := os.Lstat(path)
@@ -73,7 +73,7 @@ func getComplianceFiles(fb flaretypes.FlareBuilder) error {
 }
 
 func getRuntimeFiles(fb flaretypes.FlareBuilder) error {
-	runtimeDir := config.SystemProbe.GetString("runtime_security_config.policies.dir")
+	runtimeDir := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir")
 
 	return fb.CopyDirTo(runtimeDir, "runtime-security.d", func(path string) bool {
 		f, err := os.Lstat(path)

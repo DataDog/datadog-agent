@@ -7,36 +7,35 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_link(u8 async) {
+int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
-    if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_LINK,
         .policy = policy,
         .async = async,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(link) {
-    return trace__sys_link(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY2(link, const char *, oldpath, const char *, newpath) {
+    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(linkat) {
-    return trace__sys_link(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_linkat")
 int hook_do_linkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
-        return trace__sys_link(ASYNC_SYSCALL);
+        return trace__sys_link(ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -70,8 +69,9 @@ int hook_vfs_link(ctx_t *ctx) {
     // force a new path id to force path resolution
     set_file_inode(src_dentry, &syscall->link.src_file, 1);
 
-    if (filter_syscall(syscall, link_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, link_approvers) == DISCARDED) {
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
     }
 
     fill_file(src_dentry, &syscall->link.src_file);
@@ -86,7 +86,7 @@ int hook_vfs_link(ctx_t *ctx) {
 
     syscall->resolver.dentry = src_dentry;
     syscall->resolver.key = syscall->link.src_file.path_key;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_LINK : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_LINK_SRC_CALLBACK_KPROBE_KEY;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -108,7 +108,8 @@ int tail_call_target_dr_link_src_callback(ctx_t *ctx) {
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         monitor_discarded(EVENT_LINK);
-        return mark_as_discarded(syscall);
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        syscall->state = DISCARDED;
     }
 
     return 0;
@@ -125,18 +126,16 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, int dr_ty
         return 0;
     }
 
-    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_LINK);
-
     // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         // for hardlink we need to invalidate the discarders as the nlink counter in now > 1
         expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
     }
 
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && is_event_enabled(EVENT_LINK)) {
         syscall->resolver.dentry = syscall->link.target_dentry;
         syscall->resolver.key = syscall->link.target_file.path_key;
-        syscall->resolver.discarder_type = 0;
+        syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_LINK_DST_CALLBACK_KPROBE_KEY, DR_LINK_DST_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -187,6 +186,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .source = syscall->link.src_file,
         .target = syscall->link.target_file,

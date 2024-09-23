@@ -18,8 +18,8 @@ import (
 	"github.com/skydive-project/go-debouncer"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -41,35 +41,37 @@ type RCPolicyProvider struct {
 	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
 	dumpPolicies         bool
+	setEnforcementCb     func(bool)
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider(dumpPolicies bool) (*RCPolicyProvider, error) {
+func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (*RCPolicyProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
-		client.WithDirectorRootOverride(config.Datadog().GetString("site"), config.Datadog().GetString("remote_configuration.director_root")),
+		client.WithDirectorRootOverride(pkgconfigsetup.Datadog().GetString("site"), pkgconfigsetup.Datadog().GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &RCPolicyProvider{
-		client:       c,
-		dumpPolicies: dumpPolicies,
+		client:           c,
+		dumpPolicies:     dumpPolicies,
+		setEnforcementCb: setEnforcementCallback,
 	}
 	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
 
@@ -82,10 +84,16 @@ func (r *RCPolicyProvider) Start() {
 
 	r.debouncer.Start()
 
-	r.client.Subscribe(state.ProductCWSDD, r.rcDefaultsUpdateCallback)
-	r.client.Subscribe(state.ProductCWSCustom, r.rcCustomsUpdateCallback)
+	r.client.SubscribeAll(state.ProductCWSDD, client.NewListener(r.rcDefaultsUpdateCallback, r.rcStateChanged))
+	r.client.SubscribeAll(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
 
 	r.client.Start()
+}
+
+func (r *RCPolicyProvider) rcStateChanged(state bool) {
+	if r.setEnforcementCb != nil {
+		r.setEnforcementCb(state)
+	}
 }
 
 func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
@@ -191,6 +199,10 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 	defer r.RUnlock()
 
 	if r.onNewPoliciesReadyCb != nil {
+		if r.setEnforcementCb != nil {
+			r.setEnforcementCb(true)
+		}
+
 		r.onNewPoliciesReadyCb()
 	}
 }

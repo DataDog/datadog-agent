@@ -24,6 +24,8 @@ on:
         required: true
         type: boolean
 
+permissions: {}
+
 jobs:
   open-go-update-pr:
     runs-on: ubuntu-latest
@@ -52,13 +54,13 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Python and pip
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
           # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
           cache: "pip"
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR
@@ -112,7 +114,8 @@ jobs:
         run: |
           base_branch=${{ github.ref }} # Get the full ref
           base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
-          prs=$(gh pr list \ # prs variable contains the number of PRs already created that match head and base branches
+          # prs variable contains the number of PRs already created that match head and base branches
+          prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
               --head ${{ inputs.branch }} \
               --base $base_branch \
@@ -131,16 +134,18 @@ jobs:
           PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
           PR_LABELS: "go-update,team/agent-shared-components"
         run: |
-          inv -e buildimages.generate-pr-body \ # Generate the PR description
+          # Generate the PR description
+          inv -e buildimages.generate-pr-body \
           ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} \
           ${{ inputs.images_id }} \
           ${{ steps.current_go_version.outputs.GO_VERSION }} \
           ${{ inputs.go_version }} \
           ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
 
-          gh pr create \ # Create the PR
+          # Create the PR
+          gh pr create \
           --base ${{ github.ref }} \
-          --title $PR_TITLE \
+          --title "$PR_TITLE" \
           --body-file $TMP_PR_BODY_PATH \
-          --label $PR_LABELS \
+          --label "$PR_LABELS" \
           --draft \

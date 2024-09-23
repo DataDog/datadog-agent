@@ -7,7 +7,10 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-var NewZookeeperConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewZookeeperConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

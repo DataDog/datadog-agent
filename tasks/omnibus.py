@@ -15,7 +15,6 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
-from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
 def omnibus_run_task(
@@ -69,12 +68,15 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
-                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
-                if res.ok:
+                try:
+                    ctx.run(cmd, env=env, err_stream=sys.stdout)
                     return
-                if not should_retry_bundle_install(res):
-                    return
-                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+                except UnexpectedExit as e:
+                    if not should_retry_bundle_install(e.result):
+                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        raise
+                    print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        raise Exit('Too many failures while installing omnibus, giving up')
 
 
 def get_omnibus_env(
@@ -108,13 +110,6 @@ def get_omnibus_env(
         if value:
             env[key] = value
 
-    if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-        # get certificate and password from ssm
-        pfxfile = get_signing_cert(ctx)
-        pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = str(pfxfile)
-        env['SIGN_PFX_PW'] = str(pfxpass)
-
     if sys.platform == 'darwin':
         # Target MacOS 10.12
         env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
@@ -143,15 +138,15 @@ def get_omnibus_env(
     kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
     if kubernetes_cpu_request:
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
-    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    deploy_agent = os.environ.get('DEPLOY_AGENT')
-    if deploy_agent:
-        env['DEPLOY_AGENT'] = deploy_agent
-    if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
-    if 'INSTALL_DIR' in os.environ:
-        print('Forwarding INSTALL_DIR')
-        env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
+    env_to_forward = [
+        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+        'DEPLOY_AGENT',
+        'PACKAGE_ARCH',
+        'INSTALL_DIR',
+    ]
+    for key in env_to_forward:
+        if key in os.environ:
+            env[key] = os.environ[key]
 
     return env
 
@@ -288,6 +283,8 @@ def build(
                         )
 
     with timed(quiet=True) as durations['Omnibus']:
+        omni_flavor = env.get('AGENT_FLAVOR')
+        print(f'We are building omnibus with flavor: {omni_flavor}')
         omnibus_run_task(
             ctx=ctx,
             task="build",

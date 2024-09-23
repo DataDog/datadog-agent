@@ -77,6 +77,14 @@ func (ev *Event) GetContainerId() string {
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetContainerRuntime returns the value of the field, resolving if necessary
+func (ev *Event) GetContainerRuntime() string {
+	if ev.BaseEvent.ContainerContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
+}
+
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
 	if ev.BaseEvent.ContainerContext == nil {

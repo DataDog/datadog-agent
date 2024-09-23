@@ -15,7 +15,8 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -75,6 +76,10 @@ type RuntimeSecurityConfig struct {
 	LogTags []string
 	// HostServiceName string
 	HostServiceName string
+	// OnDemandEnabled defines whether the on-demand probes should be enabled
+	OnDemandEnabled bool
+	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	OnDemandRateLimiterEnabled bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -152,8 +157,6 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileCacheSize int
 	// SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
 	SecurityProfileMaxCount int
-	// SecurityProfileRCEnabled defines if remote-configuration is enabled
-	SecurityProfileRCEnabled bool
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
 
@@ -200,6 +203,8 @@ type RuntimeSecurityConfig struct {
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	SBOMResolverHostEnabled bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -227,8 +232,26 @@ type RuntimeSecurityConfig struct {
 	EBPFLessSocket string
 
 	// Enforcement capabilities
-	EnforcementEnabled           bool
+	// EnforcementEnabled defines if the enforcement capability should be enabled
+	EnforcementEnabled bool
+	// EnforcementRawSyscallEnabled defines if the enforcement should be performed using the sys_enter tracepoint
 	EnforcementRawSyscallEnabled bool
+	EnforcementBinaryExcluded    []string
+	EnforcementRuleSourceAllowed []string
+	// EnforcementDisarmerContainerEnabled defines if an enforcement rule should be disarmed when hitting too many different containers
+	EnforcementDisarmerContainerEnabled bool
+	// EnforcementDisarmerContainerMaxAllowed defines the maximum number of different containers that can trigger an enforcement rule
+	// within a period before the enforcement is disarmed for this rule
+	EnforcementDisarmerContainerMaxAllowed int
+	// EnforcementDisarmerContainerPeriod defines the period during which EnforcementDisarmerContainerMaxAllowed is checked
+	EnforcementDisarmerContainerPeriod time.Duration
+	// EnforcementDisarmerExecutableEnabled defines if an enforcement rule should be disarmed when hitting too many different executables
+	EnforcementDisarmerExecutableEnabled bool
+	// EnforcementDisarmerExecutableMaxAllowed defines the maximum number of different executables that can trigger an enforcement rule
+	// within a period before the enforcement is disarmed for this rule
+	EnforcementDisarmerExecutableMaxAllowed int
+	// EnforcementDisarmerExecutablePeriod defines the period during which EnforcementDisarmerExecutableMaxAllowed is checked
+	EnforcementDisarmerExecutablePeriod time.Duration
 
 	//WindowsFilenameCacheSize is the max number of filenames to cache
 	WindowsFilenameCacheSize int
@@ -277,7 +300,7 @@ func NewConfig() (*Config, error) {
 
 // NewRuntimeSecurityConfig returns the runtime security (CWS) config, build from the system probe one
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
-	sysconfig.Adjust(coreconfig.SystemProbe)
+	sysconfig.Adjust(pkgconfigsetup.SystemProbe())
 
 	eventTypeStrings := map[string]model.EventType{}
 
@@ -299,62 +322,65 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
-		WindowsFilenameCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
-		WindowsRegistryCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
-		ETWEventsChannelSize:           coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
-		ETWEventsMaxBuffers:            coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
-		WindowsProbeBlockOnChannelSend: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
+		RuntimeEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
+		WindowsFilenameCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_channel_size"),
+		ETWEventsMaxBuffers:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.etw_events_max_buffers"),
+		WindowsProbeBlockOnChannelSend: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
-		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
-		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
-		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),
+		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
 
-		SelfTestEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
-		SelfTestSendReport:              coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
+		SelfTestEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestSendReport:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.send_report"),
 		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
-		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
+		RemoteConfigurationDumpPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.remote_configuration.dump_policies"),
+
+		OnDemandEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.enabled"),
+		OnDemandRateLimiterEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
 
 		// policy & ruleset
-		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
-		WatchPoliciesDir:                    coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
-		PolicyMonitorEnabled:                coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.enabled"),
-		PolicyMonitorPerRuleEnabled:         coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
-		PolicyMonitorReportInternalPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
+		PoliciesDir:                         pkgconfigsetup.SystemProbe().GetString("runtime_security_config.policies.dir"),
+		WatchPoliciesDir:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.watch_dir"),
+		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
+		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
+		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
 
-		LogPatterns: coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_patterns"),
-		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
+		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
+		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
 
 		// custom events
-		InternalMonitoringEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.internal_monitoring.enabled"),
+		InternalMonitoringEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.internal_monitoring.enabled"),
 
 		// activity dump
-		ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
-		ActivityDumpCleanupPeriod:             coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cleanup_period"),
-		ActivityDumpTagsResolutionPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
-		ActivityDumpLoadControlPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.load_controller_period"),
-		ActivityDumpLoadControlMinDumpTimeout: coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.min_timeout"),
-		ActivityDumpTracedCgroupsCount:        coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
-		ActivityDumpCgroupDumpTimeout:         coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.dump_duration"),
-		ActivityDumpRateLimiter:               coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.rate_limiter"),
-		ActivityDumpCgroupWaitListTimeout:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
-		ActivityDumpCgroupDifferentiateArgs:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
-		ActivityDumpLocalStorageDirectory:     coreconfig.SystemProbe.GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
-		ActivityDumpLocalStorageMaxDumpsCount: coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
-		ActivityDumpLocalStorageCompression:   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpSyscallMonitorPeriod:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
-		ActivityDumpMaxDumpCountPerWorkload:   coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
-		ActivityDumpTagRulesEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
-		ActivityDumpSilentWorkloadsDelay:      coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
-		ActivityDumpSilentWorkloadsTicker:     coreconfig.SystemProbe.GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
-		ActivityDumpWorkloadDenyList:          coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
-		ActivityDumpAutoSuppressionEnabled:    coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
+		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
+		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
+		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
+		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
+		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
+		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
+		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
+		ActivityDumpRateLimiter:               pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter"),
+		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
+		ActivityDumpCgroupDifferentiateArgs:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
+		ActivityDumpLocalStorageDirectory:     pkgconfigsetup.SystemProbe().GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
+		ActivityDumpLocalStorageMaxDumpsCount: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
+		ActivityDumpLocalStorageCompression:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.local_storage.compression"),
+		ActivityDumpSyscallMonitorPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
+		ActivityDumpMaxDumpCountPerWorkload:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
+		ActivityDumpTagRulesEnabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
+		ActivityDumpSilentWorkloadsDelay:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
+		ActivityDumpSilentWorkloadsTicker:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
+		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
+		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			mds := coreconfig.SystemProbe.GetInt("runtime_security_config.activity_dump.max_dump_size")
+			mds := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size")
 			if mds < ADMinMaxDumSize {
 				mds = ADMinMaxDumSize
 			}
@@ -362,57 +388,65 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		},
 
 		// SBOM resolver
-		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
-		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
+		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
 
 		// Hash resolver
-		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
-		HashResolverEventTypes:     parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.event_types")),
-		HashResolverMaxFileSize:    coreconfig.SystemProbe.GetInt64("runtime_security_config.hash_resolver.max_file_size"),
-		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
-		HashResolverMaxHashBurst:   coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
-		HashResolverMaxHashRate:    coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
-		HashResolverCacheSize:      coreconfig.SystemProbe.GetInt("runtime_security_config.hash_resolver.cache_size"),
-		HashResolverReplace:        coreconfig.SystemProbe.GetStringMapString("runtime_security_config.hash_resolver.replace"),
+		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
+		HashResolverEventTypes:     parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.event_types")),
+		HashResolverMaxFileSize:    pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.hash_resolver.max_file_size"),
+		HashResolverHashAlgorithms: parseHashAlgorithmStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.hash_resolver.hash_algorithms")),
+		HashResolverMaxHashBurst:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_burst"),
+		HashResolverMaxHashRate:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.max_hash_rate"),
+		HashResolverCacheSize:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.hash_resolver.cache_size"),
+		HashResolverReplace:        pkgconfigsetup.SystemProbe().GetStringMapString("runtime_security_config.hash_resolver.replace"),
 
 		// security profiles
-		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileMaxImageTags:     coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_image_tags"),
-		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:         coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileRCEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.remote_configuration.enabled"),
-		SecurityProfileDNSMatchMaxDepth: coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileMaxImageTags:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
+		SecurityProfileDir:              pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileDNSMatchMaxDepth: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 
 		// auto suppression
-		SecurityProfileAutoSuppressionEnabled:    coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
-		SecurityProfileAutoSuppressionEventTypes: parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.auto_suppression.event_types")),
+		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
+		SecurityProfileAutoSuppressionEventTypes: parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.auto_suppression.event_types")),
 
 		// anomaly detection
-		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(coreconfig.SystemProbe.GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionDefaultMinimumStablePeriod:   coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
-		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(coreconfig.SystemProbe, "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
-		AnomalyDetectionWorkloadWarmupPeriod:         coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
-		AnomalyDetectionUnstableProfileTimeThreshold: coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
-		AnomalyDetectionUnstableProfileSizeThreshold: coreconfig.SystemProbe.GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiterPeriod:            coreconfig.SystemProbe.GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
-		AnomalyDetectionRateLimiterNumKeys:           coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
-		AnomalyDetectionRateLimiterNumEventsAllowed:  coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
-		AnomalyDetectionTagRulesEnabled:              coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
-		AnomalyDetectionSilentRuleEventsEnabled:      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
-		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
+		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
+		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
+		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
+		AnomalyDetectionUnstableProfileTimeThreshold: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
+		AnomalyDetectionUnstableProfileSizeThreshold: pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
+		AnomalyDetectionRateLimiterPeriod:            pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
+		AnomalyDetectionRateLimiterNumKeys:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
+		AnomalyDetectionRateLimiterNumEventsAllowed:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
+		AnomalyDetectionTagRulesEnabled:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
+		AnomalyDetectionSilentRuleEventsEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
+		AnomalyDetectionEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// enforcement
-		EnforcementEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.enabled"),
-		EnforcementRawSyscallEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
+		EnforcementBinaryExcluded:               pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.exclude_binaries"),
+		EnforcementRawSyscallEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
+		EnforcementRuleSourceAllowed:            pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.enforcement.rule_source_allowed"),
+		EnforcementDisarmerContainerEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.container.enabled"),
+		EnforcementDisarmerContainerMaxAllowed:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.container.max_allowed"),
+		EnforcementDisarmerContainerPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.container.period"),
+		EnforcementDisarmerExecutableEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.disarmer.executable.enabled"),
+		EnforcementDisarmerExecutableMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.enforcement.disarmer.executable.max_allowed"),
+		EnforcementDisarmerExecutablePeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
-		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
+		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
-		EBPFLessEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled"),
-		EBPFLessSocket:  coreconfig.SystemProbe.GetString("runtime_security_config.ebpfless.socket"),
+		EBPFLessEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessSocket:  pkgconfigsetup.SystemProbe().GetString("runtime_security_config.ebpfless.socket"),
 
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
@@ -432,7 +466,7 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 
 // parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
 func parseIMDSIPv4() uint32 {
-	ip := coreconfig.SystemProbe.GetString("runtime_security_config.imds_ipv4")
+	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
 		return 0
@@ -443,13 +477,13 @@ func parseIMDSIPv4() uint32 {
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
 func isRemoteConfigEnabled() bool {
 	// This value defaults to true
-	rcEnabledInSysprobeConfig := coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+	rcEnabledInSysprobeConfig := pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.remote_configuration.enabled")
 
 	if !rcEnabledInSysprobeConfig {
 		return false
 	}
 
-	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog()) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		return true
 	}
 
@@ -466,14 +500,24 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog(), true))
+	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = serviceName
 	}
 
 	if c.IMDSIPv4 == 0 {
-		return fmt.Errorf("invalid IPv4 address: got %v", coreconfig.SystemProbe.GetString("runtime_security_config.imds_ipv4"))
+		return fmt.Errorf("invalid IPv4 address: got %v", pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
 	}
+
+	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.container.max_allowed: %d", c.EnforcementDisarmerContainerMaxAllowed)
+	}
+
+	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
+	c.sanitizePlatform()
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
@@ -491,7 +535,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
 	}
 
-	if formats := coreconfig.SystemProbe.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
+	if formats := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
@@ -503,16 +547,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
 
-	hasProfileStorageFormat := false
-	for _, format := range c.ActivityDumpLocalStorageFormats {
-		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
-	}
-
-	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
-		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
-	}
-
-	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
 	}
 
@@ -521,13 +556,13 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 
 // ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config
 func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
-	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", coreconfig.Datadog())
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(coreconfig.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", pkgconfigsetup.Datadog())
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(coreconfig.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
+		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog())
-			endpoints, err = logsconfig.BuildEndpoints(coreconfig.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
+			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}
 
@@ -554,7 +589,7 @@ func ParseEvalEventType(eventType eval.EventType) model.EventType {
 }
 
 // parseEventTypeDurations converts a map of durations indexed by event types
-func parseEventTypeDurations(cfg coreconfig.Config, prefix string) map[model.EventType]time.Duration {
+func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) map[model.EventType]time.Duration {
 	eventTypeMap := cfg.GetStringMap(prefix)
 	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
 	for eventType := range eventTypeMap {

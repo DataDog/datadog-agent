@@ -46,7 +46,7 @@ message RuleSetReportMessage{
 message EventTypePolicy{
     string EventType = 1;
     uint32 Mode = 2;
-    uint32 Flags = 3;
+    // field 3 is deprecated
     Approvers Approvers = 4;
 }
 
@@ -142,11 +142,10 @@ message StorageRequestParams {
 }
 
 message ActivityDumpParams {
-    string Comm = 1;
-    string Timeout = 2;
-    bool DifferentiateArgs = 4;
-    StorageRequestParams Storage = 5;
-    string ContainerID = 6;
+    string Timeout = 1;
+    bool DifferentiateArgs = 2;
+    StorageRequestParams Storage = 3;
+    string ContainerID = 4;
 }
 
 message MetadataMessage {
@@ -159,7 +158,7 @@ message MetadataMessage {
     string Name = 6;
     string ProtobufVersion = 7;
     bool DifferentiateArgs = 8;
-    string Comm = 9;
+    string Comm = 9 [deprecated = true];
     string ContainerID = 10;
     string Start = 11;
     string Timeout = 12;
@@ -196,7 +195,6 @@ message ActivityDumpListMessage {
 message ActivityDumpStopParams {
     string Name = 1;
     string ContainerID = 2;
-    string Comm = 3;
 }
 
 message ActivityDumpStopMessage {

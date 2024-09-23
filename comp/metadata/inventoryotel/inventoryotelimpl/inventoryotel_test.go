@@ -18,10 +18,12 @@ import (
 
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -29,10 +31,10 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 	return newInventoryOtelProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -45,8 +47,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 
 func TestGetPayload(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":               true,
-		"otel.submit_dummy_metadata": true,
+		"otelcollector.enabled":               true,
+		"otelcollector.submit_dummy_metadata": true,
 	}
 
 	io := getTestInventoryPayload(t, overrides)
@@ -70,8 +72,8 @@ func TestGetPayload(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":               true,
-		"otel.submit_dummy_metadata": true,
+		"otelcollector.enabled":               true,
+		"otelcollector.submit_dummy_metadata": true,
 	}
 	io := getTestInventoryPayload(t, overrides)
 
@@ -99,7 +101,7 @@ func TestConfigRefresh(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 
 	assert.False(t, io.RefreshTriggered())
-	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, io.RefreshTriggered())
 }
 

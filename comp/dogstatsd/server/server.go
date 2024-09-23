@@ -19,7 +19,8 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
@@ -28,12 +29,13 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -50,18 +52,12 @@ var (
 	dogstatsdPacketsLastSec           = expvar.Int{}
 	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
-	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
-	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
-
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
 	// size of this cache for long-running agent or environment with a lot of
 	// different container IDs.
 	maxOriginCounters = 200
 
-	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
 )
@@ -73,13 +69,14 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log    logComponent.Component
-	Config configComponent.Component
-	Debug  serverdebug.Component
-	Replay replay.Component
-	PidMap pidmap.Component
-	Params Params
-	WMeta  optional.Option[workloadmeta.Component]
+	Log       log.Component
+	Config    configComponent.Component
+	Debug     serverdebug.Component
+	Replay    replay.Component
+	PidMap    pidmap.Component
+	Params    Params
+	WMeta     optional.Option[workloadmeta.Component]
+	Telemetry telemetry.Component
 }
 
 type provides struct {
@@ -101,8 +98,8 @@ type cachedOriginCounter struct {
 
 // Server represent a Dogstatsd server
 type server struct {
-	log    logComponent.Component
-	config config.Reader
+	log    log.Component
+	config model.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
 
@@ -119,7 +116,7 @@ type server struct {
 	captureChan             chan packets.Packets
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
-	sharedPacketPoolManager *packets.PoolManager
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
 	Statistics              *util.Stats
 	Started                 bool
@@ -161,9 +158,19 @@ type server struct {
 	enrichConfig enrichConfig
 
 	wmeta optional.Option[workloadmeta.Component]
+
+	// telemetry
+	telemetry               telemetry.Component
+	tlmProcessed            telemetry.Counter
+	tlmProcessedOk          telemetry.SimpleCounter
+	tlmProcessedError       telemetry.SimpleCounter
+	tlmChannel              telemetry.Histogram
+	listernersTelemetry     *listeners.TelemetryStore
+	packetsTelemetry        *packets.TelemetryStore
+	stringInternerTelemetry *stringInternerTelemetry
 }
 
-func initTelemetry(cfg config.Reader, logger logComponent.Component) {
+func initTelemetry() {
 	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
 	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
 	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
@@ -171,43 +178,11 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
-
-	get := func(option string) []float64 {
-		if !cfg.IsSet(option) {
-			return nil
-		}
-
-		buckets, err := cfg.GetFloat64SliceE(option)
-		if err != nil {
-			logger.Errorf("%s, falling back to default values", err)
-			return nil
-		}
-		if len(buckets) == 0 {
-			logger.Debugf("'%s' is empty, falling back to default values", option)
-			return nil
-		}
-		return buckets
-	}
-
-	buckets := get("telemetry.dogstatsd.aggregator_channel_latency_buckets")
-	if buckets == nil {
-		buckets = defaultChannelBuckets
-	}
-
-	tlmChannel = telemetry.NewHistogram(
-		"dogstatsd",
-		"channel_latency",
-		[]string{"shard", "message_type"},
-		"Time in nanosecond to push metrics to the aggregator input buffer",
-		buckets)
-
-	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
-	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -222,10 +197,9 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) *server {
+func newServerCompat(cfg model.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
-	once.Do(func() { initTelemetry(cfg, log) })
-
+	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
 	if cfg.GetBool("dogstatsd_stats_enable") {
 		buff := cfg.GetInt("dogstatsd_stats_buffer")
@@ -285,6 +259,9 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		}
 	}
 
+	dogstatsdTelemetryCount := telemetrycomp.NewCounter("dogstatsd", "processed",
+		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
+
 	s := &server{
 		log:                     log,
 		config:                  cfg,
@@ -294,7 +271,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		captureChan:             nil,
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
-		sharedFloat64List:       newFloat64ListPool(),
+		sharedFloat64List:       newFloat64ListPool(telemetrycomp),
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
@@ -323,8 +300,28 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta: wmeta,
+		wmeta:                   wmeta,
+		telemetry:               telemetrycomp,
+		tlmProcessed:            dogstatsdTelemetryCount,
+		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
+		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
+
+	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
+	if buckets == nil {
+		buckets = defaultChannelBuckets
+	}
+
+	s.tlmChannel = telemetrycomp.NewHistogram(
+		"dogstatsd",
+		"channel_latency",
+		[]string{"shard", "message_type"},
+		"Time in nanosecond to push metrics to the aggregator input buffer",
+		buckets)
+
+	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
+	s.packetsTelemetry = packets.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_channel_latency_buckets"), telemetrycomp)
 
 	return s
 }
@@ -349,15 +346,15 @@ func (s *server) start(context.Context) error {
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"))
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
+	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
 	udsListenerRunning := false
 
 	socketPath := s.config.GetString("dogstatsd_socket")
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
-	var sharedUDSOobPoolManager *packets.PoolManager
+	var sharedUDSOobPoolManager *packets.PoolManager[[]byte]
 	if originDetection {
 		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
 	}
@@ -374,9 +371,9 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
-			s.log.Errorf("Can't init listener: %s", err.Error())
+			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 			udsListenerRunning = true
@@ -385,7 +382,7 @@ func (s *server) start(context.Context) error {
 
 	if len(socketStreamPath) > 0 {
 		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -394,9 +391,9 @@ func (s *server) start(context.Context) error {
 	}
 
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
 		if err != nil {
-			s.log.Errorf(err.Error())
+			s.log.Errorf("%s", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, udpListener)
 			s.udpLocalAddr = udpListener.LocalAddr()
@@ -405,7 +402,7 @@ func (s *server) start(context.Context) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -455,9 +452,9 @@ func (s *server) start(context.Context) error {
 
 	cacheSize := s.config.GetInt("dogstatsd_mapper_cache_size")
 
-	mappings, err := config.GetDogstatsdMappingProfiles()
+	mappings, err := getDogstatsdMappingProfiles(s.config)
 	if err != nil {
-		s.log.Warnf("Could not parse mapping profiles: %v", err)
+		s.log.Warn(err)
 	} else if len(mappings) != 0 {
 		mapperInstance, err := mapper.NewMetricMapper(mappings, cacheSize)
 		if err != nil {
@@ -526,7 +523,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta)
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -722,8 +719,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 		origin: origin,
 		ok:     okMap,
 		err:    errorMap,
-		okCnt:  tlmProcessed.WithTags(okMap),
-		errCnt: tlmProcessed.WithTags(errorMap),
+		okCnt:  s.tlmProcessed.WithTags(okMap),
+		errCnt: s.tlmProcessed.WithTags(errorMap),
 	}
 
 	s.cachedOriginCounters[origin] = maps
@@ -735,8 +732,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 		delete(s.cachedOriginCounters, pop.origin)
 		s.cachedOrder = s.cachedOrder[1:]
 		// remove it from the telemetry metrics as well
-		tlmProcessed.DeleteWithTags(pop.ok)
-		tlmProcessed.DeleteWithTags(pop.err)
+		s.tlmProcessed.DeleteWithTags(pop.ok)
+		s.tlmProcessed.DeleteWithTags(pop.err)
 	}
 
 	return maps.okCnt, maps.errCnt
@@ -748,8 +745,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
-	okCnt := tlmProcessedOk
-	errorCnt := tlmProcessedError
+	okCnt := s.tlmProcessedOk
+	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
@@ -794,12 +791,12 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
-		tlmProcessed.Inc("events", "error", "")
+		s.tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
 	event := enrichEvent(sample, origin, s.enrichConfig)
 	event.Tags = append(event.Tags, s.extraTags...)
-	tlmProcessed.Inc("events", "ok", "")
+	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -808,12 +805,40 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
-		tlmProcessed.Inc("service_checks", "error", "")
+		s.tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, origin, s.enrichConfig)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
-	tlmProcessed.Inc("service_checks", "ok", "")
+	s.tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
+}
+
+func getBuckets(cfg model.Reader, logger log.Component, option string) []float64 {
+	if !cfg.IsSet(option) {
+		return nil
+	}
+
+	buckets, err := cfg.GetFloat64SliceE(option)
+	if err != nil {
+		logger.Errorf("%s, falling back to default values", err)
+		return nil
+	}
+	if len(buckets) == 0 {
+		logger.Debugf("'%s' is empty, falling back to default values", option)
+		return nil
+	}
+	return buckets
+}
+
+func getDogstatsdMappingProfiles(cfg model.Reader) ([]mapper.MappingProfileConfig, error) {
+	var mappings []mapper.MappingProfileConfig
+	if cfg.IsSet("dogstatsd_mapper_profiles") {
+		err := cfg.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
+		if err != nil {
+			return []mapper.MappingProfileConfig{}, fmt.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
+		}
+	}
+	return mappings, nil
 }

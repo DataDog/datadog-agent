@@ -356,3 +356,78 @@ def milestone_pr_team_stats(_: Context, milestone: str, team: str):
     print("qa done :", qa_done)
     print("with qa :", with_qa)
     print("proportion of PRs with code changes and QA done :", 100 * qa_done / (qa_done + with_qa), "%")
+
+
+@task
+def pr_commenter(
+    _,
+    title: str,
+    body: str = '',
+    pr_id: int | None = None,
+    verbose: bool = True,
+    delete: bool = False,
+    force_delete: bool = False,
+    echo: bool = False,
+):
+    """
+    Will comment or update current comment posted on the PR with the new data.
+    The title is used to identify the comment to update.
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
+    - delete: If True and the body is empty, will delete the comment.
+    - force_delete: Won't throw error if the comment to delete is not found.
+    - echo: Print comment content to stdout.
+
+    Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not body and not delete:
+        return
+
+    assert not delete or not body, "Use delete with an empty body to delete the comment"
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(pr_id)
+
+    # Created / updated / deleted comment
+    action = ''
+    header = f'## {title}'
+    content = f'{header}\n\n{body}'
+
+    comment = github.find_comment(pr, header)
+
+    if comment:
+        if delete:
+            comment.delete()
+            action = 'Deleted'
+        else:
+            comment.edit(content)
+            action = 'Updated'
+    else:
+        if delete and force_delete:
+            if verbose:
+                print('Comment to delete not found, skipping')
+            return
+        else:
+            assert not delete, 'Comment to delete not found'
+
+        github.publish_comment(pr, content)
+        action = 'Created'
+
+    if echo:
+        if verbose:
+            print('Content:\n')
+        print(content)
+        print()
+
+    if verbose:
+        print(f"{action} comment on PR #{pr.number} - {pr.title}")

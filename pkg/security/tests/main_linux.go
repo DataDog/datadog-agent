@@ -59,6 +59,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOpen",
 			"~TestUnlink",
 			"~TestActionKill",
+			"~TestActionHash",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
@@ -82,6 +83,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestOpenDiscarded",
 			"TestOpenDiscarded/pipefs",
 			"TestOpen/truncate",
+			"TestOpen/ftruncate",
 			"TestOpen/io_uring",
 			"TestProcessContext/inode",
 			"TestProcessContext/pid1",
@@ -97,6 +99,10 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown32",
 			"TestMountEvent/mount-in-container-root",
 			"TestChdir/syscall-context",
+			"TestLoginUID/login-uid-open-test",
+			"TestLoginUID/login-uid-exec-test",
+			"TestActionKillExcludeBinary",
+			"TestActionKillDisarm",
 		}
 
 		if disableSeccomp {
@@ -137,9 +143,10 @@ func preTestsHook() {
 		opts := ptracer.Opts{
 			Async:           true,
 			SeccompDisabled: disableSeccomp,
+			Debug:           true,
 		}
 
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

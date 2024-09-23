@@ -46,24 +46,6 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 	}, nil
 }
 
-// DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok {
-		return nil, fmt.Errorf("not supported")
-	}
-
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.DumpActivity(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
@@ -74,7 +56,7 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListActivityDumps(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -92,7 +74,7 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.StopActivityDump(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -110,7 +92,7 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.GenerateTranscoding(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -128,7 +110,7 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListSecurityProfiles(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}
@@ -146,7 +128,7 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.SaveSecurityProfile(params)
 		if err != nil {
-			seclog.Errorf(err.Error())
+			seclog.Errorf("%s", err.Error())
 		}
 		return msg, nil
 	}

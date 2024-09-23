@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/jellydator/ttlcache/v3"
 )
 
 var (
@@ -224,7 +224,7 @@ func (m *MutableIntVariable) Append(_ *Context, value interface{}) error {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableIntVariable) GetEvaluator() interface{} {
 	return &IntEvaluator{
-		EvalFnc: func(ctx *Context) int {
+		EvalFnc: func(*Context) int {
 			return m.Value
 		},
 	}
@@ -243,7 +243,7 @@ type MutableBoolVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableBoolVariable) GetEvaluator() interface{} {
 	return &BoolEvaluator{
-		EvalFnc: func(ctx *Context) bool {
+		EvalFnc: func(*Context) bool {
 			return m.Value
 		},
 	}
@@ -274,7 +274,7 @@ type MutableStringVariable struct {
 func (m *MutableStringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
 		ValueType: VariableValueType,
-		EvalFnc: func(ctx *Context) string {
+		EvalFnc: func(_ *Context) string {
 			return m.Value
 		},
 	}
@@ -304,7 +304,7 @@ func NewMutableStringVariable() *MutableStringVariable {
 
 // MutableStringArrayVariable describes a mutable string array variable
 type MutableStringArrayVariable struct {
-	*expirable.LRU[string, bool]
+	LRU *ttlcache.Cache[string, bool]
 }
 
 // Set the variable with the specified value
@@ -314,7 +314,7 @@ func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
 	}
 
 	for _, v := range values.([]string) {
-		m.LRU.Add(v, true)
+		m.LRU.Set(v, true, ttlcache.DefaultTTL)
 	}
 	return nil
 }
@@ -323,10 +323,10 @@ func (m *MutableStringArrayVariable) Set(_ *Context, values interface{}) error {
 func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error {
 	switch value := value.(type) {
 	case string:
-		m.LRU.Add(value, true)
+		m.LRU.Set(value, true, ttlcache.DefaultTTL)
 	case []string:
 		for _, v := range value {
-			m.LRU.Add(v, true)
+			m.LRU.Set(v, true, ttlcache.DefaultTTL)
 		}
 	default:
 		return errAppendNotSupported
@@ -337,7 +337,7 @@ func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableStringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
-		EvalFnc: func(ctx *Context) []string {
+		EvalFnc: func(*Context) []string {
 			return m.LRU.Keys()
 		},
 	}
@@ -349,7 +349,9 @@ func NewMutableStringArrayVariable(size int, ttl time.Duration) *MutableStringAr
 		size = defaultMaxVariables
 	}
 
-	lru := expirable.NewLRU[string, bool](size, nil, ttl)
+	lru := ttlcache.New(ttlcache.WithCapacity[string, bool](uint64(size)), ttlcache.WithTTL[string, bool](ttl))
+	go lru.Start()
+
 	return &MutableStringArrayVariable{
 		LRU: lru,
 	}
@@ -385,7 +387,7 @@ func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableIntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
-		EvalFnc: func(ctx *Context) []int {
+		EvalFnc: func(*Context) []int {
 			return m.Values
 		},
 	}
@@ -433,7 +435,7 @@ func (v *GlobalVariables) GetVariable(_ string, value interface{}, opts Variable
 
 // Variables holds a set of variables
 type Variables struct {
-	lru *expirable.LRU[string, interface{}]
+	lru *ttlcache.Cache[string, interface{}]
 	ttl time.Duration
 }
 
@@ -444,36 +446,46 @@ func NewVariables() *Variables {
 
 // GetBool returns the boolean value of the specified variable
 func (v *Variables) GetBool(name string) bool {
-	value, _ := v.lru.Get(name)
-	bval, _ := value.(bool)
+	var bval bool
+	if item := v.lru.Get(name); item != nil {
+		bval, _ = item.Value().(bool)
+	}
 	return bval
 }
 
 // GetInt returns the integer value of the specified variable
 func (v *Variables) GetInt(name string) int {
-	value, _ := v.lru.Get(name)
-	ival, _ := value.(int)
+	var ival int
+	if item := v.lru.Get(name); item != nil {
+		ival, _ = item.Value().(int)
+	}
 	return ival
 }
 
 // GetString returns the string value of the specified variable
 func (v *Variables) GetString(name string) string {
-	value, _ := v.lru.Get(name)
-	sval, _ := value.(string)
+	var sval string
+	if item := v.lru.Get(name); item != nil {
+		sval, _ = item.Value().(string)
+	}
 	return sval
 }
 
 // GetStringArray returns the string array value of the specified variable
 func (v *Variables) GetStringArray(name string) []string {
-	value, _ := v.lru.Get(name)
-	slval, _ := value.([]string)
+	var slval []string
+	if item := v.lru.Get(name); item != nil {
+		slval, _ = item.Value().([]string)
+	}
 	return slval
 }
 
 // GetIntArray returns the integer array value of the specified variable
 func (v *Variables) GetIntArray(name string) []int {
-	value, _ := v.lru.Get(name)
-	ilval, _ := value.([]int)
+	var ilval []int
+	if item := v.lru.Get(name); item != nil {
+		ilval, _ = item.Value().([]int)
+	}
 	return ilval
 }
 
@@ -483,12 +495,13 @@ const defaultMaxVariables = 100
 func (v *Variables) Set(name string, value interface{}) bool {
 	existed := false
 	if v.lru == nil {
-		v.lru = expirable.NewLRU[string, interface{}](defaultMaxVariables, nil, v.ttl)
+		v.lru = ttlcache.New(ttlcache.WithCapacity[string, interface{}](uint64(defaultMaxVariables)), ttlcache.WithTTL[string, interface{}](v.ttl))
+		go v.lru.Start()
 	} else {
-		_, existed = v.lru.Get(name)
+		existed = v.lru.Get(name) != nil
 	}
 
-	v.lru.Add(name, value)
+	v.lru.Set(name, value, ttlcache.DefaultTTL)
 	return !existed
 }
 

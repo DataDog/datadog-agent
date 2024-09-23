@@ -475,11 +475,6 @@ func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	if m.Flags != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Flags))
-		i--
-		dAtA[i] = 0x18
-	}
 	if m.Mode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Mode))
 		i--
@@ -1471,7 +1466,7 @@ func (m *ActivityDumpParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.ContainerID)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ContainerID)))
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x22
 	}
 	if m.Storage != nil {
 		size, err := m.Storage.MarshalToSizedBufferVT(dAtA[:i])
@@ -1481,7 +1476,7 @@ func (m *ActivityDumpParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x1a
 	}
 	if m.DifferentiateArgs {
 		i--
@@ -1491,19 +1486,12 @@ func (m *ActivityDumpParams) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			dAtA[i] = 0
 		}
 		i--
-		dAtA[i] = 0x20
+		dAtA[i] = 0x10
 	}
 	if len(m.Timeout) > 0 {
 		i -= len(m.Timeout)
 		copy(dAtA[i:], m.Timeout)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Timeout)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.Comm) > 0 {
-		i -= len(m.Comm)
-		copy(dAtA[i:], m.Comm)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Comm)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -1931,13 +1919,6 @@ func (m *ActivityDumpStopParams) MarshalToSizedBufferVT(dAtA []byte) (int, error
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.Comm) > 0 {
-		i -= len(m.Comm)
-		copy(dAtA[i:], m.Comm)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Comm)))
-		i--
-		dAtA[i] = 0x1a
 	}
 	if len(m.ContainerID) > 0 {
 		i -= len(m.ContainerID)
@@ -3024,9 +3005,6 @@ func (m *EventTypePolicy) SizeVT() (n int) {
 	if m.Mode != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Mode))
 	}
-	if m.Flags != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.Flags))
-	}
 	if m.Approvers != nil {
 		l = m.Approvers.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
@@ -3392,10 +3370,6 @@ func (m *ActivityDumpParams) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Comm)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	l = len(m.Timeout)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
@@ -3597,10 +3571,6 @@ func (m *ActivityDumpStopParams) SizeVT() (n int) {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	l = len(m.ContainerID)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Comm)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -4897,25 +4867,6 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Mode |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Flags", wireType)
-			}
-			m.Flags = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Flags |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -7100,38 +7051,6 @@ func (m *ActivityDumpParams) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Comm", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Comm = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Timeout", wireType)
 			}
 			var stringLen uint64
@@ -7162,7 +7081,7 @@ func (m *ActivityDumpParams) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Timeout = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		case 2:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field DifferentiateArgs", wireType)
 			}
@@ -7182,7 +7101,7 @@ func (m *ActivityDumpParams) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.DifferentiateArgs = bool(v != 0)
-		case 5:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Storage", wireType)
 			}
@@ -7218,7 +7137,7 @@ func (m *ActivityDumpParams) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 6:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerID", wireType)
 			}
@@ -8522,38 +8441,6 @@ func (m *ActivityDumpStopParams) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.ContainerID = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Comm", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Comm = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

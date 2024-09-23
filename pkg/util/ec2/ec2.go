@@ -14,7 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -136,7 +137,7 @@ func IsRunningOn(ctx context.Context) bool {
 		return true
 	}
 
-	return config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate)
+	return env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate)
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
@@ -191,7 +192,7 @@ func GetNTPHosts(ctx context.Context) []string {
 
 // GetClusterName returns the name of the cluster containing the current EC2 instance
 func GetClusterName(ctx context.Context) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 	tags, err := fetchTagsFromCache(ctx)
@@ -221,7 +222,7 @@ func extractClusterName(tags []string) (string, error) {
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
-	return isDefaultHostname(hostname, config.Datadog().GetBool("ec2_use_windows_prefix_detection"))
+	return isDefaultHostname(hostname, pkgconfigsetup.Datadog().GetBool("ec2_use_windows_prefix_detection"))
 }
 
 // IsDefaultHostnameForIntake returns whether the given hostname is a default one for EC2 for the intake

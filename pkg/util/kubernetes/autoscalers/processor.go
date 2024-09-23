@@ -16,14 +16,14 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
+	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,12 +33,6 @@ const (
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
 )
-
-// DatadogClient abstracts the dependency on the Datadog api
-type DatadogClient interface {
-	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
-	GetRateLimitStats() map[string]datadog.RateLimit
-}
 
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
@@ -50,7 +44,7 @@ type ProcessorInterface interface {
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
 	externalMaxAge time.Duration
-	datadogClient  DatadogClient
+	datadogClient  datadogclientcomp.Component
 }
 
 // queryResponse ensures that we capture all the signals from the call to Datadog's backend.
@@ -60,8 +54,8 @@ type queryResponse struct {
 }
 
 // NewProcessor returns a new Processor
-func NewProcessor(datadogCl DatadogClient) *Processor {
-	externalMaxAge := math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog().GetFloat64("external_metrics_provider.rollup"))
+func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
+	externalMaxAge := math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
@@ -114,24 +108,24 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 
 // GetDefaultMaxAge returns the configured default max age.
 func GetDefaultMaxAge() time.Duration {
-	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.max_age")) * time.Second
+	return time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.max_age")) * time.Second
 }
 
 // GetDefaultTimeWindow returns the configured default time window
 func GetDefaultTimeWindow() time.Duration {
-	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size")) * time.Second
+	return time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size")) * time.Second
 }
 
 // GetDefaultMaxTimeWindow returns the configured max time window
 func GetDefaultMaxTimeWindow() time.Duration {
-	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.max_time_window")) * time.Second
+	return time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.max_time_window")) * time.Second
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 // TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
-	aggregator := config.Datadog().GetString("external_metrics.aggregator")
-	rollup := config.Datadog().GetInt("external_metrics_provider.rollup")
+	aggregator := pkgconfigsetup.Datadog().GetString("external_metrics.aggregator")
+	rollup := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.rollup")
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
@@ -227,7 +221,7 @@ func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 		return true, fmt.Errorf("Query is too long, could yield a server side error. Dropping")
 	}
 
-	chunkSize := config.Datadog().GetInt("external_metrics_provider.chunk_size")
+	chunkSize := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.chunk_size")
 
 	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
 }
@@ -243,7 +237,7 @@ func makeChunks(batch []string) (chunks [][]string) {
 		uriLength = uriLength + tempSize
 		beyond, err := isURLBeyondLimits(uriLength, len(tempBucket))
 		if err != nil {
-			log.Errorf(fmt.Sprintf("%s: %s", err.Error(), val))
+			log.Errorf("%v: %s", err, val)
 			continue
 		}
 		if beyond {

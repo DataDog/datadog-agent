@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	statsdComp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -48,7 +48,7 @@ type dependencies struct {
 	fx.In
 
 	Lc             fx.Lifecycle
-	Log            logComponent.Component
+	Log            log.Component
 	Config         config.Component
 	Checks         []types.CheckComponent `group:"check"`
 	Runner         runner.Component
@@ -61,7 +61,7 @@ type dependencies struct {
 type processAgent struct {
 	enabled     bool
 	Checks      []checks.Check
-	Log         logComponent.Component
+	Log         log.Component
 	flarehelper *agent.FlareHelper
 }
 
@@ -100,7 +100,7 @@ func newProcessAgent(deps dependencies) (provides, error) {
 		}, nil
 	}
 
-	if err := processStatsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
+	if err := processStatsd.Configure(pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog()), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
 		deps.Log.Criticalf("Error configuring statsd for process-agent: %s", err)
 		return provides{
 			Comp: processAgent{

@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +58,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		emittedEvents.Inc(string(alertType))
 
 		tags, err := tagger.Tag(
-			containers.BuildTaggerEntityName(ev.ContainerID),
+			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
 			types.HighCardinality,
 		)
 		if err != nil {

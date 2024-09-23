@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -18,7 +20,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getPidList(procPath string) []int {
+const (
+	ProcStatPath           = "/proc/stat"
+	ProcUptimePath         = "/proc/uptime"
+	ProcNetDevPath         = "/proc/net/dev"
+	ProcPath               = "/proc"
+	PidLimitsPathFormat    = "/%d/limits"
+	PidFdPathFormat        = "/%d/fd"
+	PidTaskPathFormat      = "/%d/task"
+	lambdaNetworkInterface = "vinternal_1"
+)
+
+func GetPidList(procPath string) []int {
 	files, err := os.ReadDir(procPath)
 	pids := []int{}
 	if err != nil {
@@ -62,7 +75,7 @@ func getEnvVariablesFromPid(procPath string, pid int) map[string]string {
 // it returns a slice since a value could be found in more than one process
 func SearchProcsForEnvVariable(procPath string, envName string) []string {
 	result := []string{}
-	pidList := getPidList(procPath)
+	pidList := GetPidList(procPath)
 	for _, pid := range pidList {
 		envMap := getEnvVariablesFromPid(procPath, pid)
 		if value, ok := envMap[envName]; ok {
@@ -72,45 +85,279 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 	return result
 }
 
-// GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
-func GetCPUData(path string) (float64, float64, error) {
+type CPUData struct {
+	TotalUserTimeMs   float64
+	TotalSystemTimeMs float64
+	TotalIdleTimeMs   float64
+	// Maps CPU core name (e.g. "cpu1") to time in ms that the CPU spent in the idle process
+	IndividualCPUIdleTimes map[string]float64
+}
+
+// GetCPUData collects aggregated and per-core CPU usage data
+func GetCPUData() (*CPUData, error) {
+	return getCPUData(ProcStatPath)
+}
+
+func getCPUData(path string) (*CPUData, error) {
+	cpuData := CPUData{}
+
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	defer file.Close()
 
-	reader := bufio.NewReader(file)
-	readLine, _, err := reader.ReadLine()
+	var label string
+	var user, nice, system, idle, iowait, irq, softirq, steal, guest, guestNice float64
+	_, err = fmt.Fscanln(file, &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
 	if err != nil {
-		return 0, 0, err
-	}
-
-	// The first line contains CPU totals aggregated across all CPUs
-	lineString := string(readLine)
-	cpuTotals := strings.Split(lineString, " ")
-	if len(cpuTotals) != 12 {
-		return 0, 0, errors.New("incorrect number of columns in file")
+		return nil, err
 	}
 
 	// SC_CLK_TCK is the system clock frequency in ticks per second
 	// We'll use this to convert CPU times from user HZ to milliseconds
 	clcktck, err := getClkTck()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	userCPUTime, err := strconv.ParseFloat(cpuTotals[2], 64)
+	cpuData.TotalUserTimeMs = (1000 * user) / float64(clcktck)
+	cpuData.TotalSystemTimeMs = (1000 * system) / float64(clcktck)
+	cpuData.TotalIdleTimeMs = (1000 * idle) / float64(clcktck)
+
+	// Scan for cpuN lines
+	perCPUDataMap := map[string]float64{}
+	for {
+		_, err = fmt.Fscanln(file, &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
+		if err != nil && !strings.HasPrefix(label, "cpu") {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		perCPUDataMap[label] = (1000 * idle) / float64(clcktck)
+	}
+	if len(perCPUDataMap) == 0 {
+		return nil, fmt.Errorf("per-core CPU data not found in file %s", path)
+	}
+	cpuData.IndividualCPUIdleTimes = perCPUDataMap
+
+	return &cpuData, nil
+}
+
+// GetUptime collects uptime data
+func GetUptime() (float64, error) {
+	return getUptime(ProcUptimePath)
+}
+
+func getUptime(path string) (float64, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	userCPUTimeMs := (1000 * userCPUTime) / float64(clcktck)
+	defer file.Close()
 
-	systemCPUTime, err := strconv.ParseFloat(cpuTotals[4], 64)
+	var uptime, idleTime float64
+	_, err = fmt.Fscanln(file, &uptime, &idleTime)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	systemCPUTimeMs := (1000 * systemCPUTime) / float64(clcktck)
 
-	return userCPUTimeMs, systemCPUTimeMs, nil
+	// Convert from seconds to milliseconds
+	return uptime * 1000, nil
+}
+
+type NetworkData struct {
+	RxBytes float64
+	TxBytes float64
+}
+
+// GetNetworkData collects bytes sent and received by the function
+func GetNetworkData() (*NetworkData, error) {
+	return getNetworkData(ProcNetDevPath)
+}
+
+func getNetworkData(path string) (*NetworkData, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var interfaceName string
+	var rxBytes, rxPackets, rxErrs, rxDrop, rxFifo, rxFrame, rxCompressed, rxMulticast, txBytes,
+		txPackets, txErrs, txDrop, txFifo, txColls, txCarrier, txCompressed float64
+	for {
+		_, err = fmt.Fscanln(file, &interfaceName, &rxBytes, &rxPackets, &rxErrs, &rxDrop, &rxFifo, &rxFrame,
+			&rxCompressed, &rxMulticast, &txBytes, &txPackets, &txErrs, &txDrop, &txFifo, &txColls, &txCarrier,
+			&txCompressed)
+		if errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("network data not found in file '%s'", path)
+		}
+		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
+			return &NetworkData{
+				RxBytes: rxBytes,
+				TxBytes: txBytes,
+			}, nil
+		}
+	}
+
+}
+
+type FileDescriptorMaxData struct {
+	MaximumFileHandles float64
+}
+
+// GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
+func GetFileDescriptorMaxData(pids []int) (*FileDescriptorMaxData, error) {
+	return getFileDescriptorMaxData(ProcPath, pids)
+}
+
+func getFileDescriptorMaxData(path string, pids []int) (*FileDescriptorMaxData, error) {
+	fdMax := math.Inf(1)
+
+	for _, pid := range pids {
+		limitsPath := fmt.Sprint(path + fmt.Sprintf(PidLimitsPathFormat, pid))
+		file, err := os.Open(limitsPath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Max open files") {
+				fields := strings.Fields(line)
+				if len(fields) < 6 {
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				fdMaxPidStr := fields[3]
+				fdMaxPid, err := strconv.Atoi(fdMaxPidStr)
+				if err != nil {
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				fdMax = math.Min(float64(fdMax), float64(fdMaxPid))
+				break
+			}
+		}
+	}
+
+	if fdMax != math.Inf(1) {
+		return &FileDescriptorMaxData{
+			MaximumFileHandles: fdMax,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("file descriptor max data not found")
+}
+
+type FileDescriptorUseData struct {
+	UseFileHandles float64
+}
+
+// GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
+func GetFileDescriptorUseData(pids []int) (*FileDescriptorUseData, error) {
+	return getFileDescriptorUseData(ProcPath, pids)
+}
+
+func getFileDescriptorUseData(path string, pids []int) (*FileDescriptorUseData, error) {
+	fdUse := 0
+
+	for _, pid := range pids {
+		fdPath := fmt.Sprint(path + fmt.Sprintf(PidFdPathFormat, pid))
+		files, err := os.ReadDir(fdPath)
+		if err != nil {
+			return nil, fmt.Errorf("file descriptor use data not found in file '%s'", fdPath)
+		}
+		fdUse += len(files)
+	}
+
+	return &FileDescriptorUseData{
+		UseFileHandles: float64(fdUse),
+	}, nil
+}
+
+type ThreadsMaxData struct {
+	ThreadsMax float64
+}
+
+// GetThreadsMaxData returns the maximum limit of threads the function can use
+func GetThreadsMaxData(pids []int) (*ThreadsMaxData, error) {
+	return getThreadsMaxData(ProcPath, pids)
+}
+
+func getThreadsMaxData(path string, pids []int) (*ThreadsMaxData, error) {
+	threadsMax := math.Inf(1)
+
+	for _, pid := range pids {
+		limitsPath := fmt.Sprint(path + fmt.Sprintf(PidLimitsPathFormat, pid))
+		file, err := os.Open(limitsPath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Max processes") {
+				fields := strings.Fields(line)
+				if len(fields) < 5 {
+					log.Debugf("threads max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				threadsMaxPidStr := fields[2]
+				threadsMaxPid, err := strconv.Atoi(threadsMaxPidStr)
+				if err != nil {
+					log.Debugf("file descriptor max data not found in file '%s'", limitsPath)
+					break
+				}
+
+				threadsMax = math.Min(float64(threadsMax), float64(threadsMaxPid))
+				break
+			}
+		}
+	}
+
+	if threadsMax != math.Inf(1) {
+		return &ThreadsMaxData{
+			ThreadsMax: threadsMax,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("threads max data not found")
+}
+
+type ThreadsUseData struct {
+	ThreadsUse float64
+}
+
+// GetThreadsUseData returns the maximum number of threads the function has used at a time
+func GetThreadsUseData(pids []int) (*ThreadsUseData, error) {
+	return getThreadsUseData(ProcPath, pids)
+}
+
+func getThreadsUseData(path string, pids []int) (*ThreadsUseData, error) {
+	threadCount := 0
+	for _, pid := range pids {
+		taskPath := fmt.Sprint(path + fmt.Sprintf(PidTaskPathFormat, pid))
+		files, err := os.ReadDir(taskPath)
+		if err != nil {
+			return nil, fmt.Errorf("threads use data not found in directory '%s'", taskPath)
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				threadCount++
+			}
+		}
+	}
+
+	return &ThreadsUseData{
+		ThreadsUse: float64(threadCount),
+	}, nil
 }

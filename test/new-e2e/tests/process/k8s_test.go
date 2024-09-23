@@ -40,9 +40,11 @@ import (
 var helmTemplate string
 
 type helmConfig struct {
-	ProcessAgentEnabled        bool
-	ProcessCollection          bool
-	ProcessDiscoveryCollection bool
+	ProcessCollection            bool
+	ProcessDiscoveryCollection   bool
+	ContainerCollection          bool
+	RunInCoreAgent               bool
+	NetworkPerformanceMonitoring bool
 }
 
 func createHelmValues(cfg helmConfig) (string, error) {
@@ -65,8 +67,7 @@ type K8sSuite struct {
 func TestK8sTestSuite(t *testing.T) {
 	t.Parallel()
 	helmValues, err := createHelmValues(helmConfig{
-		ProcessAgentEnabled: true,
-		ProcessCollection:   true,
+		ProcessCollection: true,
 	})
 	require.NoError(t, err)
 
@@ -83,14 +84,12 @@ func TestK8sTestSuite(t *testing.T) {
 }
 
 func (s *K8sSuite) TestProcessCheck() {
-	// https://datadoghq.atlassian.net/browse/PROCS-4184
-	flake.Mark(s.T())
 	t := s.T()
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -104,39 +103,6 @@ func (s *K8sSuite) TestProcessCheck() {
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
-}
-
-func (s *K8sSuite) TestProcessDiscoveryCheck() {
-	s.T().Skip("WIP: test is failing as process collection is still enabled with 'DD_PROCESS_AGENT_ENABLED=true'." +
-		"The bug appears to be in test-infra-definitions and it's default helm values taking precedence")
-	t := s.T()
-	helmValues, err := createHelmValues(helmConfig{
-		ProcessAgentEnabled:        true,
-		ProcessDiscoveryCollection: true,
-	})
-	require.NoError(t, err)
-
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-	))
-
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
-		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
-
-	var payloads []*aggregator.ProcessDiscoveryPayload
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcessDiscoveries()
-		assert.NoError(c, err, "failed to get process discovery payloads from fakeintake")
-		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	assertProcessDiscoveryCollected(t, payloads, "stress-ng-cpu [run]")
 }
 
 func (s *K8sSuite) TestManualProcessCheck() {
@@ -154,9 +120,154 @@ func (s *K8sSuite) TestManualContainerCheck() {
 	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
 }
 
+func (s *K8sSuite) TestProcessDiscoveryCheck() {
+	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
+	helmValues, err := createHelmValues(helmConfig{
+		ProcessDiscoveryCollection: true,
+	})
+	require.NoError(t, err)
+
+	s.UpdateEnv(awskubernetes.KindProvisioner(
+		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+		}),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	))
+
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
+		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessDiscoveryPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcessDiscoveries()
+		assert.NoError(c, err, "failed to get process discovery payloads from fakeintake")
+		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessDiscoveryCollected(t, payloads, "stress-ng-cpu [run]")
+}
+
+func (s *K8sSuite) TestProcessCheckInCoreAgent() {
+	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
+	helmValues, err := createHelmValues(helmConfig{
+		ProcessCollection: true,
+		RunInCoreAgent:    true,
+	})
+	require.NoError(t, err)
+
+	s.UpdateEnv(awskubernetes.KindProvisioner(
+		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+		}),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	))
+
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
+
+		// verify the standalone process-agent is not running
+		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
+		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+
+		// Verify the process component is running in the core agent
+		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
+	assertContainersCollected(t, payloads, []string{"stress-ng"})
+	requireProcessNotCollected(t, payloads, "process-agent")
+	assertContainersNotCollected(t, payloads, []string{"process-agent"})
+}
+
+func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
+	t := s.T()
+	// PROCS-4327: The process-agent container either fails to start or
+	// does not seem to run the connections check as expected.
+	flake.Mark(t)
+
+	helmValues, err := createHelmValues(helmConfig{
+		ProcessCollection:            true,
+		RunInCoreAgent:               true,
+		NetworkPerformanceMonitoring: true,
+	})
+	require.NoError(t, err)
+
+	s.UpdateEnv(awskubernetes.KindProvisioner(
+		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+		}),
+		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	))
+
+	var status AgentStatus
+	defer func() {
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}()
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
+		status = k8sAgentStatus(t, s.Env().KubernetesCluster)
+		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+	}, 4*time.Minute, 10*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
+	assertProcessCollected(t, payloads, false, "process-agent")
+	assertContainersCollected(t, payloads, []string{"stress-ng", "process-agent"})
+}
+
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
 	agent := getAgentPod(t, cluster.Client())
-	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 5s --json", check)
+	// set the wait interval as workloadmeta takes some time to initialize for container data
+	// https://datadoghq.atlassian.net/browse/PROCS-4157
+	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 10s --json", check)
 
 	// The log level needs to be overridden as the pod has an ENV var set.
 	// This is so we get just json back from the check

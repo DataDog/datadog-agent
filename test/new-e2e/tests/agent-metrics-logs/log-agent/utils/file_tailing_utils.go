@@ -117,9 +117,8 @@ func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 }
 
 // FetchAndFilterLogs fetches logs from the fake intake server and filters them by service and content.
-func FetchAndFilterLogs(t *testing.T, fakeIntake *components.FakeIntake, service, content string) ([]*aggregator.Log, error) {
+func FetchAndFilterLogs(fakeIntake *components.FakeIntake, service, content string) ([]*aggregator.Log, error) {
 	client := fakeIntake.Client()
-	t.Helper()
 
 	names, err := client.GetLogServiceNames()
 	if err != nil {
@@ -127,7 +126,19 @@ func FetchAndFilterLogs(t *testing.T, fakeIntake *components.FakeIntake, service
 	}
 
 	if len(names) == 0 {
-		return nil, fmt.Errorf("no service %s found", service)
+		return nil, fmt.Errorf("the fake intake has no logs for any services")
+	}
+
+	var contains bool
+	for _, v := range names {
+		if v == service {
+			contains = true
+		}
+	}
+	if !contains {
+		return nil,
+			fmt.Errorf("the fake intake has no logs for service '%s'. Only found logs for the following services %v",
+				service, names)
 	}
 
 	logs, err := client.FilterLogs(service, fi.WithMessageMatching(content))
@@ -142,7 +153,8 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 	t.Helper()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		logs, err := FetchAndFilterLogs(t, fakeIntake, service, content)
+		logs, err := FetchAndFilterLogs(fakeIntake, service, content)
+
 		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
 			intakeLog := logsToString(logs)
 			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
@@ -159,11 +171,11 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 // CheckLogsNotExpected verifies the absence of unexpected logs.
 func CheckLogsNotExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string) {
 	t.Helper()
-
+	t.Logf("Checking for logs from service: '%s' with content: '%s' are not collected", service, content)
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		logs, err := FetchAndFilterLogs(t, fakeIntake, service, content)
-		intakeLog := logsToString(logs)
+		logs, err := FetchAndFilterLogs(fakeIntake, service, content)
 		if assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			intakeLog := logsToString(logs)
 			if assert.Empty(c, logs, "Unexpected logs with content: '%s' found. Instead, found: %s", content, intakeLog) {
 				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", service, content)
 			}

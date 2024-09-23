@@ -172,13 +172,17 @@ func (ms *Controller) processNextWorkItem() bool {
 		if desiredState == Scheduled {
 			//to be scheduled
 			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
-			ms.scheduledConfigs[configDigest] = desiredConfigState.config
 		} else {
 			//to be unscheduled
 			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
-			delete(ms.scheduledConfigs, configDigest)
-			ms.configStateStore.Cleanup(configDigest)
 		}
+	}
+	if desiredState == Scheduled {
+		// add the config to scheduled
+		ms.scheduledConfigs[configDigest] = desiredConfigState.config
+	} else {
+		delete(ms.scheduledConfigs, configDigest)
+		ms.configStateStore.Cleanup(configDigest)
 	}
 	ms.m.Unlock()
 	ms.queue.Done(item)

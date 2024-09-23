@@ -15,27 +15,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var bpfCapabilities = Capabilities{
-	"bpf.cmd": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+var bpfCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "bpf.cmd",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func bpfOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	var bpfApprovers []activeApprover
+func bpfKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	var kfilters []activeKFilter
 
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
-			approver, err := approveEnums("bpf_cmd_approvers", intValues[int64](values)...)
+			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", uintValues[uint64](values)...)
 			if err != nil {
 				return nil, err
 			}
-			bpfApprovers = append(bpfApprovers, approver)
+			kfilters = append(kfilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(bpfApprovers...), nil
+	return newActiveKFilters(kfilters...), nil
 }

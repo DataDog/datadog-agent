@@ -95,6 +95,16 @@ type LogsConfig struct {
 
 	// DumpPayloads report whether payloads should be dumped when logging level is debug.
 	DumpPayloads bool `mapstructure:"dump_payloads"`
+
+	// UseCompression enables the logs agent to compress logs before sending them.
+	UseCompression bool `mapstructure:"use_compression"`
+
+	// CompressionLevel accepts values from 0 (no compression) to 9 (maximum compression but higher resource usage).
+	// Only takes effect if UseCompression is set to true.
+	CompressionLevel int `mapstructure:"compression_level"`
+
+	// BatchWait represents the maximum time the logs agent waits to fill each batch of logs before sending.
+	BatchWait int `mapstructure:"batch_wait"`
 }
 
 // TagsConfig defines the tag-related configuration
@@ -387,15 +397,19 @@ func (c *Config) Unmarshal(configMap *confmap.Conf) error {
 
 	c.API.Key = configopaque.String(strings.TrimSpace(string(c.API.Key)))
 
+	// If an endpoint is not explicitly set, override it based on the site.
+	if !configMap.IsSet("metrics::endpoint") {
+		c.Metrics.TCPAddrConfig.Endpoint = fmt.Sprintf("https://api.%s", c.API.Site)
+	}
 	if !configMap.IsSet("traces::endpoint") {
 		c.Traces.TCPAddrConfig.Endpoint = fmt.Sprintf("https://trace.agent.%s", c.API.Site)
 	}
 	if !configMap.IsSet("logs::endpoint") {
-		c.Logs.TCPAddrConfig.Endpoint = fmt.Sprintf("https://http-intake.logs.%s", c.API.Site)
+		c.Logs.TCPAddrConfig.Endpoint = fmt.Sprintf("https://agent-http-intake.logs.%s", c.API.Site)
 	}
 
 	// Return an error if an endpoint is explicitly set to ""
-	if c.Traces.TCPAddrConfig.Endpoint == "" || c.Logs.TCPAddrConfig.Endpoint == "" {
+	if c.Metrics.TCPAddrConfig.Endpoint == "" || c.Traces.TCPAddrConfig.Endpoint == "" || c.Logs.TCPAddrConfig.Endpoint == "" {
 		return errEmptyEndpoint
 	}
 

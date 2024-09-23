@@ -22,10 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -61,7 +62,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(s)
@@ -78,7 +79,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -98,12 +99,12 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	j, err := json.Marshal(av)
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -118,7 +119,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, err := json.Marshal(hname)
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -143,7 +144,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		}
 	}
 
-	logFile := config.Datadog().GetString("log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
@@ -154,19 +155,25 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		} else {
 			log.Warnf("The flare failed to be created")
 		}
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write([]byte(filePath))
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	verbose := r.URL.Query().Get("verbose") == "true"
-	noColor := r.URL.Query().Get("nocolor") == "true"
-	bytes := ac.GetConfigCheck(verbose, noColor)
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
+	w.Header().Set("Content-Type", "application/json")
 
-	w.Write(bytes)
+	configCheck := ac.GetConfigCheck()
+
+	configCheckBytes, err := json.Marshal(configCheck)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Write(configCheckBytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -175,7 +182,7 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
 		return
 	}
 	w.Write(jsonTags)
@@ -193,15 +200,9 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
 	w.Write(jsonDump)
-}
-
-func setJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
 }

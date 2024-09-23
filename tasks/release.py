@@ -2,9 +2,13 @@
 Release helper tasks
 """
 
+import json
 import os
 import re
+import sys
 import tempfile
+import time
+from collections import defaultdict
 from datetime import date
 from time import sleep
 
@@ -14,19 +18,41 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
-from tasks.libs.common.git import check_base_branch, check_clean_branch_state, get_current_branch, try_git_command
+from tasks.libs.common.git import (
+    check_base_branch,
+    check_clean_branch_state,
+    clone,
+    get_current_branch,
+    get_last_commit,
+    get_last_release_tag,
+    try_git_command,
+)
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate
-from tasks.libs.releasing.documentation import create_release_page, get_release_page_info
+from tasks.libs.pipeline.notifications import (
+    DEFAULT_JIRA_PROJECT,
+    DEFAULT_SLACK_CHANNEL,
+    load_and_validate,
+    warn_new_commits,
+)
+from tasks.libs.releasing.documentation import (
+    create_release_page,
+    get_release_page_info,
+    list_not_closed_qa_cards,
+    release_manager,
+)
 from tasks.libs.releasing.json import (
+    UNFREEZE_REPO_AGENT,
+    UNFREEZE_REPOS,
     _get_release_json_value,
-    _load_release_json,
     _save_release_json,
+    generate_repo_data,
+    load_release_json,
+    set_new_release_branch,
     update_release_json,
 )
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
@@ -45,19 +71,12 @@ from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
-UNFREEZE_REPO_AGENT = "datadog-agent"
-UNFREEZE_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-build", UNFREEZE_REPO_AGENT]
-RELEASE_JSON_FIELDS_TO_UPDATE = [
-    "INTEGRATIONS_CORE_VERSION",
-    "OMNIBUS_SOFTWARE_VERSION",
-    "OMNIBUS_RUBY_VERSION",
-    "MACOS_BUILD_VERSION",
-]
-
 GITLAB_FILES_TO_UPDATE = [
     ".gitlab-ci.yml",
     ".gitlab/notify/notify.yml",
 ]
+
+BACKPORT_LABEL_COLOR = "5319e7"
 
 
 @task
@@ -384,7 +403,9 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
+    ok = try_git_command(
+        ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+    )
     if not ok:
         raise Exit(
             color_message(
@@ -395,7 +416,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
     if res.exited is None or res.exited > 0:
         raise Exit(
             color_message(
@@ -506,7 +527,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
 def set_release_json(_, key, value):
-    release_json = _load_release_json()
+    release_json = load_release_json()
     path = key.split('::')
     current_node = release_json
     for key_idx in range(len(path)):
@@ -553,10 +574,11 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             )
 
 
-@task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"):
+# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
+@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", check_state=True):
     """
-    Performs set of tasks required for the main branch unfreeze during the agent release cycle.
+    Create and push release branches in Agent repositories and update them.
     That includes:
     - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
@@ -569,23 +591,25 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     list_major_versions = parse_major_versions(major_versions)
 
     current = current_version(ctx, max(list_major_versions))
     next = current.next_version(bump_minor=True)
-    next.devel = True
+    current.rc = False
+    current.devel = False
+    next.devel = False
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
 
     # Step 0: checks
-
-    print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
-    check_clean_branch_state(ctx, github, release_branch)
+    if check_state:
+        print(color_message("Checking repository state", "bold"))
+        check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
@@ -599,23 +623,50 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     for repo in UNFREEZE_REPOS:
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
+    # create the backport label in the Agent repo
+    print(color_message("Creating backport label in the Agent repository", Color.BOLD))
+    github.create_label(
+        f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
+    )
+
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
         # Step 2.0 - Create milestone update
-        milestone_branch = "release_milestone"
+        milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = _load_release_json()
-        next.devel = False
+        rj = load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
         create_release_pr(
             f"[release] Update current milestone to {next}",
             "main",
             milestone_branch,
-            current,
+            next,
         )
-        next.devel = True
 
         # Step 2.1 - Update release.json
         update_branch = f"{release_branch}-updates"
@@ -623,15 +674,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         ctx.run(f"git checkout {release_branch}")
         ctx.run(f"git checkout -b {update_branch}")
 
-        rj = _load_release_json()
-
-        rj["base_branch"] = release_branch
-
-        for nightly in ["nightly", "nightly-a7"]:
-            for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-                rj[nightly][field] = f"{release_branch}"
-
-        _save_release_json(rj)
+        set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
         for file in GITLAB_FILES_TO_UPDATE:
@@ -679,11 +722,11 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         )
 
 
-def _update_last_stable(_, version, major_versions="6,7"):
+def _update_last_stable(_, version, major_versions="7"):
     """
     Updates the last_release field(s) of release.json
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
     for major in list_major_versions:
@@ -743,7 +786,7 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version, patch_version=False):
+def update_build_links(_, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
@@ -787,7 +830,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
     content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
 
     title = content["title"]
-    current_version = title[-11:]
+    current_version = title.split()[-1].strip()
     body = content["body"]["storage"]["value"]
 
     title = title.replace(current_version, new_version)
@@ -827,21 +870,34 @@ def _create_build_links_patterns(current_version, new_version):
 
 
 @task
-def get_active_release_branch(_ctx):
+def get_active_release_branch(_):
     """
     Determine what is the current active release branch for the Agent.
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
     gh = GithubAPI()
-    latest_release = gh.latest_release()
-    version = _create_version_from_match(VERSION_RE.search(latest_release))
-    next_version = version.next_version(bump_minor=True)
+    next_version = get_next_version(gh)
     release_branch = gh.get_branch(next_version.branch())
     if release_branch:
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+@task
+def get_unreleased_release_branches(_):
+    """
+    Determine what are the current active release branches for the Agent.
+    """
+    gh = GithubAPI()
+    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
+
+
+def get_next_version(gh):
+    latest_release = gh.latest_release()
+    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
+    return current_version.next_version(bump_minor=True)
 
 
 @task
@@ -897,12 +953,99 @@ def create_schedule(_, version, freeze_date):
 @task
 def chase_release_managers(_, version):
     url, missing_teams = get_release_page_info(version)
-    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
-    message = f"Hello :wave:\n Could you please update the `datadog-agent` [release coordination page]({url}) with the RM for your team?\nThanks in advance"
+    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    channels = set()
+
+    for team in missing_teams:
+        channel = github_slack_map.get(f"@datadog/{team}")
+        if channel:
+            channels.add(channel)
+        else:
+            print(color_message(f"Missing slack channel for {team}", Color.RED))
+
+    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
 
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    for channel in channels:
+    for channel in sorted(channels):
+        print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def chase_for_qa_cards(_, version):
+    from slack_sdk import WebClient
+
+    cards = list_not_closed_qa_cards(version)
+    if not cards:
+        print(f"[{color_message('OK', Color.GREEN)}] No QA cards to chase")
+        return
+    grouped_cards = defaultdict(list)
+    for card in cards:
+        grouped_cards[card["fields"]["project"]["key"]].append(card)
+    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    print(f"Found {len(cards)} QA cards to chase")
+    for project, cards in grouped_cards.items():
+        team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
+        channel = GITHUB_SLACK_MAP[team]
+        print(f" - {channel} for {[card['key'] for card in cards]}")
+        card_links = ", ".join(
+            [f"<https://datadoghq.atlassian.net/browse/{card['key']}|{card['key']}>" for card in cards]
+        )
+        message = f"Hello :wave:\nCould you please update the QA cards {card_links} for the {version} release?\nThanks in advance"
+        client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def check_for_changes(ctx, release_branch, warning_mode=False):
+    """
+    Check if there was any modification on the release repositories since last release candidate.
+    """
+    next_version = next_rc_version(ctx, "7")
+    repo_data = generate_repo_data(warning_mode, next_version, release_branch)
+    changes = 'false'
+    for repo_name, repo in repo_data.items():
+        head_commit = get_last_commit(ctx, repo_name, repo['branch'])
+        last_tag_commit, last_tag_name = get_last_release_tag(ctx, repo_name, next_version.tag_pattern())
+        if last_tag_commit != "" and last_tag_commit != head_commit:
+            changes = 'true'
+            print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
+            if warning_mode:
+                team = "agent-integrations"
+                emails = release_manager(next_version.clone(), team)
+                warn_new_commits(emails, team, repo['branch'], next_version)
+            else:
+                if repo_name not in ["datadog-agent", "integrations-core"]:
+                    with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
+                        # We can add the new commit now to be used by release candidate creation
+                        print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
+                        ctx.run(f"git tag {next_version}")
+                        ctx.run(f"git push origin tag {next_version}")
+            # This repo has changes, the next check is not needed
+            continue
+        if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
+            changes = 'true'
+            print(
+                f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
+                file=sys.stderr,
+            )
+    # Send a value for the create_rc_pr.yml workflow
+    print(changes)
+
+
+@task
+def create_qa_cards(ctx, tag):
+    """
+    Automate the call to ddqa
+    """
+    from tasks.libs.releasing.qa import get_labels, setup_ddqa
+
+    version = _create_version_from_match(RC_VERSION_RE.match(tag))
+    if not version.rc:
+        print(f"{tag} is not a release candidate, skipping")
+        return
+    setup_ddqa(ctx)
+    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
