@@ -124,9 +124,6 @@ datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
-  env:
-    - name: DD_EXPECTED_TAGS_DURATION
-      value: 30m
 agents:
   useHostNetwork: true
 `, kindClusterName)
