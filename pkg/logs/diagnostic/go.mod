@@ -17,6 +17,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
@@ -113,4 +114,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure
