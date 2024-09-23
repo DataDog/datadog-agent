@@ -1,0 +1,6 @@
+# liont stage
+# Include job that run linters on the Agent code.
+
+include:
+  - .gitlab/lint/technical_linters.yml
+
