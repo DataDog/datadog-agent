@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
@@ -49,8 +50,12 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	cmd.Cancel = func() error {
-		return cmd.Process.Signal(os.Interrupt)
+	if runtime.GOOS != "windows" {
+		// os.Interrupt is not support on Windows
+		// It gives " run failed: exec: canceling Cmd: not supported by windows"
+		cmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
 	}
 	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
 	cmd.Env = env
