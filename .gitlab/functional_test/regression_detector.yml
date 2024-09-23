@@ -110,7 +110,7 @@ single-machine-performance-regression_detector:
     ## metadata added to JUnit tarballs by invoke. Runners are x86_64 and always
     ## run Linux; this information may change in the future.
     - touch tags.txt
-    - printf '--tags os.architecture:x86_64 --tags os.platform:linux ' >> tags.txt
+    - printf "%s" '--tags os.architecture:x86_64 --tags os.platform:linux ' >> tags.txt
     ## This block of 3 lines reverse engineers the "job_env.txt" part of JUnit
     ## XML metadata added to JUnit tarballs by invoke.
     - touch job_env.txt
