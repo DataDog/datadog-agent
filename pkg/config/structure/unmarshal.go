@@ -17,6 +17,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// features allowed for handling edge-cases
+type featureSet struct {
+	allowSquash        bool
+	convertEmptyStrNil bool
+}
+
+// UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
+type UnmarshalKeyOption func(*featureSet)
+
+// EnableSquash allows UnmarshalKey to take advantage of `mapstructure`s `squash` feature
+// a squashed field hoists its fields up a level in the marshalled representation and directly embeds them
+var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
+	fs.allowSquash = true
+}
+
+// ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
+var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertEmptyStrNil = true
+}
+
+// error for when a key is not found
+var errNotFound = fmt.Errorf("not found")
+
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct. It is implemented entirely using reflection, and
 // does not depend upon details of the data model of the config.
@@ -54,29 +77,6 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 		return fmt.Errorf("can only UnmarshalKey to struct, map, or slice, got %v", outValue.Kind())
 	}
 }
-
-// features allowed for handling edge-cases
-
-type featureSet struct {
-	allowSquash        bool
-	convertEmptyStrNil bool
-}
-
-// UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
-type UnmarshalKeyOption func(*featureSet)
-
-// EnableSquash allows UnmarshalKey to take advantage of `mapstructure`s `squash` feature
-// a squashed field hoists its fields up a level in the marshalled representation and directly embeds them
-var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
-	fs.allowSquash = true
-}
-
-// ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
-var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
-	fs.convertEmptyStrNil = true
-}
-
-var errNotFound = fmt.Errorf("not found")
 
 // leafNode represents a leaf with a scalar value
 
