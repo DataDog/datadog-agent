@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
+// GzipStrategy is the strategy for when serializer_compression_kind is gzip
 type GzipStrategy struct {
 	level int
 }

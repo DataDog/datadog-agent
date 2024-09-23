@@ -4,11 +4,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
-// TODO: This may not be needed.
+// Compressor wraps the compression component.
+// (TODO: This may not be needed)
 type Compressor struct {
 	compression compression.Component
 }
 
+// NewCompressor creates a new Compressor.
 func NewCompressor(compression compression.Component) *Compressor {
 	return &Compressor{
 		compression: compression,

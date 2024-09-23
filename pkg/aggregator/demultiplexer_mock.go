@@ -27,6 +27,7 @@ type TestDeps struct {
 	Hostname           hostname.Component
 	SharedForwarder    defaultforwarder.Component
 	CompressionFactory compression.Factory
+	Compressor         compression.Component
 	Config             config.Component
 }
 
@@ -35,13 +36,5 @@ func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultipl
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, deps.CompressionFactory))
 
-	// TODO Could this be the MockCompressor?
-	compressor := deps.CompressionFactory.NewCompressor(
-		deps.Config.GetString("serializer_compressor_kind"),
-		deps.Config.GetInt("serializer_zstd_compressor_level"),
-		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
-	)
-
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.Compressor, hostname)
 }

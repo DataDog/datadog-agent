@@ -15,6 +15,6 @@ import (
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
-func (_ *CompressorFactory) NewCompressor(_kind string, _level int, _option string, _valid []string) compression.Component {
+func (*CompressorFactory) NewCompressor(_kind string, _level int, _option string, _valid []string) compression.Component {
 	return strategy.NewNoopStrategy()
 }

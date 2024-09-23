@@ -33,10 +33,10 @@ func FakeSamplerMockModule() fxutil.Module {
 
 type fakeSamplerMockDependencies struct {
 	fx.In
-	Lc         fx.Lifecycle
-	Log        log.Component
-	Hostname   hostname.Component
-	Compressor compression.Component
+	Lc                 fx.Lifecycle
+	Log                log.Component
+	Hostname           hostname.Component
+	CompressionFactory compression.Factory
 }
 
 type fakeSamplerMock struct {
@@ -56,7 +56,9 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.Compressor, time.Hour)
+	compressor := deps.CompressionFactory.NewNoopCompressor()
+
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, compressor, deps.CompressionFactory, time.Hour)
 	mock := &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

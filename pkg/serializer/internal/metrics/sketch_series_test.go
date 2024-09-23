@@ -101,7 +101,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 			payload, _ := sl.Marshal()
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := sl.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
 			assert.Nil(t, err)
@@ -143,7 +143,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			})
 
 			serializer := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 
 			assert.Nil(t, err)
@@ -184,7 +184,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := serializer2.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			require.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 			}
 
 			serializer := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
 			assert.Nil(t, err)
 
@@ -307,7 +307,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 
 			sl.Reset()
 			serializer2 := SketchSeriesList{SketchesSource: sl}
-			strategy := compressionimpl.NewCompressor(mockConfig)
+			strategy := compressionimpl.FromConfig(mockConfig)
 			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, strategy, func(ss *metrics.SketchSeries) bool {
 				return ss.Name == "name.0"
 			})

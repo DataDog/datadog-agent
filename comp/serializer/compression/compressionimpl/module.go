@@ -16,12 +16,16 @@ func Module() fxutil.Module {
 	)
 }
 
+// CompressorFactory is used to create a Compression strategy.
 type CompressorFactory struct{}
 
+// NewCompressorFactory creates a new compression factory.
 func NewCompressorFactory() compression.Factory {
 	return &CompressorFactory{}
 }
 
+// FromConfig is used to create a compressor based on fields defined
+// in the given configuration.
 func FromConfig(cfg config.Component) compression.Component {
 	return NewCompressorFactory().NewCompressor(
 		cfg.GetString("serializer_compressor_kind"),
@@ -31,6 +35,7 @@ func FromConfig(cfg config.Component) compression.Component {
 	)
 }
 
-func (_ *CompressorFactory) NewNoopCompressor() compression.Component {
+// NewNoopCompressor creates a noop compressor that performs no compression.
+func (*CompressorFactory) NewNoopCompressor() compression.Component {
 	return strategy.NewNoopStrategy()
 }
