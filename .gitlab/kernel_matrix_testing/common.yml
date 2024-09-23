@@ -191,7 +191,7 @@
       - $CI_PROJECT_DIR/stack.output
       - $CI_PROJECT_DIR/libvirt
       - $VMCONFIG_FILE
-  reports:
+    reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
 
