@@ -1,0 +1,31 @@
+---
+.fips-compliance-e2e:
+  stage: check_fips_compliance
+  extends:
+    - .new_e2e_template
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/fips_compliance
+    TEAM: agent-shared-components
+
+fips-compliance-e2e-linux:
+  extends: .fips-compliance-e2e
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestLinuxFIPSComplianceSuite"
+      - EXTRA_PARAMS: --run "TestFIPSCiphersSuite"
+
+
+fips-compliance-e2e-windows:
+  extends: .fips-compliance-e2e
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestWindowsFIPSComplianceSuite"
