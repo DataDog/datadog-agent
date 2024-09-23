@@ -10,7 +10,7 @@ require (
 replace github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../def
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.58.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.58.0-rc.6
 	gopkg.in/yaml.v2 v2.4.0
 )
 
