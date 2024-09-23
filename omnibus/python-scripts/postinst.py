@@ -24,7 +24,8 @@ def main():
                 if env_var_value:
                     diff_python_installed_packages_file = packages.diff_python_installed_packages_file(install_directory)
                     if os.path.exists(diff_python_installed_packages_file):
-                        packages.install_diff_packages_file(f"{install_directory}/embedded/bin/pip", diff_python_installed_packages_file)
+                        requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
+                        packages.install_diff_packages_file(f"{install_directory}/embedded/bin/pip", diff_python_installed_packages_file, requirements_agent_release_file)
                         packages.cleanup_files(diff_python_installed_packages_file)
                     else:
                         print(f"File {diff_python_installed_packages_file} does not exist.")

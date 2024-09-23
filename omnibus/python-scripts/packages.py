@@ -47,6 +47,12 @@ def diff_python_installed_packages_file(directory):
     """
     return os.path.join(directory, '.diff_python_installed_packages.txt')
 
+def requirements_agent_release_file(directory):
+    """
+    Create requirements agent release file path.
+    """
+    return os.path.join(directory, 'requirements-agent-release.txt')
+
 def create_python_installed_packages_file(filename):
     """
     Create a file listing the currently installed Python dependencies.
@@ -96,21 +102,24 @@ def install_dependency_package(pip, package):
     print(f"Installing python dependency: '{package}'")
     run_command(f'{pip} install {package}')
 
-def install_diff_packages_file(pip, filename):
+def install_diff_packages_file(pip, filename, exclude_filename):
     """
     Install all Datadog integrations and python dependencies from a file
     """
     print(f"Installing python packages from: '{filename}'")
     with open(filename, 'r', encoding='utf-8') as f:
+        exclude_packages = load_requirements(exclude_filename)
         for line in f:
             stripped_line = line.strip()
             if not stripped_line.startswith('#'):
+                requirement = pkg_resources.Requirement(stripped_line)
+                if requirement.name in exclude_packages:
+                    print(f"Skipping '{requirement.name}' as it's included in '{exclude_filename}' file")
+                    continue
                 if stripped_line.startswith('datadog-'):
                     install_datadog_package(stripped_line)
                 else:
                     install_dependency_package(pip, stripped_line)
-
-
 
 def load_requirements(filename):
     """
@@ -119,7 +128,7 @@ def load_requirements(filename):
     print(f"Loading requirements from file: '{filename}'")
     with open(filename, 'r', encoding='utf-8') as f:
         return {req.name: req for req in pkg_resources.parse_requirements(f)}
-    
+
 def cleanup_files(*files):
     """
     Remove the specified files.
