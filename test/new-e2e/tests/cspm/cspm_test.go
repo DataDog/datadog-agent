@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -178,15 +179,15 @@ func (s *cspmTestSuite) TestFindings() {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
-	assert.NoError(s.T(), err)
-	assert.Len(s.T(), res.Items, 1)
+	require.NoError(s.T(), err)
+	require.Len(s.T(), res.Items, 1)
 	agentPod := res.Items[0]
 	_, _, err = s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"security-agent", "compliance", "check", "--dump-reports", "/tmp/reports", "--report"})
-	assert.NoError(s.T(), err)
+	require.NoError(s.T(), err)
 	dumpContent, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Name, "security-agent", []string{"cat", "/tmp/reports"})
-	assert.NoError(s.T(), err)
+	require.NoError(s.T(), err)
 	findings, err := parseFindingOutput(dumpContent)
-	assert.NoError(s.T(), err)
+	require.NoError(s.T(), err)
 	s.checkFindings(findings, mergeFindings(expectedFindingsMasterEtcdNode, expectedFindingsWorkerNode))
 }
 
@@ -195,17 +196,23 @@ func (s *cspmTestSuite) TestMetrics() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.running")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-		s.T().Log("Metrics found: datadog.security_agent.compliance.running")
+		if !assert.NoError(c, err) {
+			return
+		}
+		if assert.NotEmpty(c, metrics) {
+			s.T().Log("Metrics found: datadog.security_agent.compliance.running")
+		}
 	}, 2*time.Minute, 10*time.Second)
 
 	s.T().Log("Waiting for datadog.security_agent.compliance.containers_running metrics")
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("datadog.security_agent.compliance.containers_running")
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-		s.T().Log("Metrics found: datadog.security_agent.compliance.containers_running")
+		if !assert.NoError(c, err) {
+			return
+		}
+		if assert.NotEmpty(c, metrics) {
+			s.T().Log("Metrics found: datadog.security_agent.compliance.containers_running")
+		}
 	}, 2*time.Minute, 10*time.Second)
 
 }
@@ -247,7 +254,7 @@ func (s *cspmTestSuite) checkFindings(findings, expectedFindings findings) {
 
 func isSubset(a, b map[string]string) bool {
 	for k, v := range a {
-		if b[k] != v {
+		if vb, found := b[k]; !found || vb != v {
 			return false
 		}
 	}
