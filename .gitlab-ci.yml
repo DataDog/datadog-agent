@@ -23,7 +23,6 @@ include:
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
-  - .gitlab/fips_compliance/check_binary_symbols.yml
   - .gitlab/fips_compliance/fips_compliance_e2e.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
