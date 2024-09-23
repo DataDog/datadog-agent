@@ -20,11 +20,11 @@ function Update-ConfigFile($regex, $replacement) {
    if (-Not $configFile) {
       $configFile = "C:\\ProgramData\\datadog.yaml"
    }
-   if  (-Not Test-Path $configFile) {
+   if  (-Not (Test-Path $configFile)) {
       Write-Warning "datadog.yaml doesn't exist"
       return
    }
-   (Get-Content $configFile) -replace $regex, $replacement Out-File configFile
+   (Get-Content $configFile) -replace $regex, $replacement | Out-File configFile
 }
 
 Write-Host "Welcome to the Datadog Install Script"
