@@ -111,7 +111,7 @@ func (s *Launcher) run() {
 
 			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
-				ddLog.Warn("Failed to create source ", err)
+				ddLog.Error("Failed to create source ", err)
 				continue
 			}
 
@@ -125,7 +125,7 @@ func (s *Launcher) run() {
 					if !exists {
 						logFile, err = s.createFile(cfg.IntegrationID)
 						if err != nil {
-							ddLog.Warn("Failed to create integration log file:", err)
+							ddLog.Error("Failed to create integration log file:", err)
 							continue
 						}
 
