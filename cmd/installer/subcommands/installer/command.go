@@ -388,7 +388,7 @@ func listSSIProcesses() *cobra.Command {
 		Use:     "list-ssi-processes",
 		Short:   "List all processes instrumented with Single Step Injection",
 		GroupID: "installer",
-		RunE: func(_ *cobra.Command, args []string) (err error) {
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("list_ssi_processes")
 			if err != nil {
 				return err

@@ -90,6 +90,11 @@ func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *testPackageManager) ListSSIProcesses(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
 	return args.Error(0)
