@@ -21,9 +21,9 @@ const (
 	invalidMetricErrorMessage                  string = "%v, query was: %s"
 	invalidMetricErrorWithRetriesMessage       string = "%v, query was: %s, will retry after %s."
 	invalidMetricOutdatedErrorMessage          string = "Query returned outdated result, check MaxAge setting, query: %s"
-	invalidMetricNotFoundErrorMessage          string = "Unexpected error, query data not found in result, query: %s"
-	invalidMetricGlobalErrorMessage            string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
-	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Will retry after %s."
+	invalidMetricNotFoundErrorMessage          string = "Unexpected error, query data not found in result, query: %s. Query error: %v"
+	invalidMetricGlobalErrorMessage            string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Query error: %v"
+	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Query error: %v. Will retry after %s."
 	metricRetrieverStoreID                     string = "mr"
 )
 
@@ -84,7 +84,7 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 			return datadogMetric.Active && datadogMetric.Error == nil
 		})
 
-		// Handle 429 Rate Limit errors separately, breaking up the batch makes the problem worse
+		// Handle 429 Rate Limit errors separately from other errors, breaking up the batch makes the problem worse
 		datadogMetricsRateLimitErr := mr.store.GetFiltered(func(datadogMetric model.DatadogMetricInternal) bool {
 			return datadogMetric.Active && datadogMetric.Error != nil && autoscalers.IsRateLimitError(datadogMetric.Error)
 		})
@@ -98,9 +98,6 @@ func (mr *MetricsRetriever) retrieveMetricsValues() {
 
 		// First split then query because store state is shared and query mutates it
 		mr.retrieveMetricsValuesSlice(append(datadogMetrics, datadogMetricsRateLimitErr...))
-
-		// Might want to backoff if we hit a rate limit error
-		// mr.retrieveMetricsValuesSlice(datadogMetricsRateLimitErr)
 
 		// Now test each metric query separately respecting its backoff retry duration elapse value.
 		for _, metrics := range datadogMetricsOtherErr {
@@ -124,6 +121,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 
 	queriesByTimeWindow := getBatchedQueriesByTimeWindow(datadogMetrics)
 	resultsByTimeWindow := make(map[time.Duration]map[string]autoscalers.Point)
+	errorsByTimeWindow := make(map[time.Duration]error)
 	globalError := false
 
 	for timeWindow, queries := range queriesByTimeWindow {
@@ -137,6 +135,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		}
 
 		resultsByTimeWindow[timeWindow] = results
+		errorsByTimeWindow[timeWindow] = err
 	}
 
 	// Update store with current results
@@ -152,6 +151,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		query := datadogMetric.Query()
 		timeWindow := maybeAdjustTimeWindowForQuery(datadogMetric.GetTimeWindow())
 		results := resultsByTimeWindow[timeWindow]
+		err := errorsByTimeWindow[timeWindow]
 
 		if queryResult, found := results[query]; found {
 			log.Debugf("QueryResult from DD for %q: %v", query, queryResult)
@@ -185,14 +185,14 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 			if globalError {
 				if mr.splitBatchBackoffOnErrors {
 					incrementRetries(datadogMetricFromStore)
-					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, len(datadogMetrics), err, datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
 				} else {
-					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage)
+					datadogMetricFromStore.Error = fmt.Errorf(invalidMetricGlobalErrorMessage, err)
 				}
 			} else {
 				// This should never happen as `QueryExternalMetric` is filling all missing series
 				// if no global error.
-				datadogMetricFromStore.Error = log.Errorf(invalidMetricNotFoundErrorMessage, query)
+				datadogMetricFromStore.Error = log.Errorf(invalidMetricNotFoundErrorMessage, query, err)
 			}
 		}
 		datadogMetricFromStore.UpdateTime = currentTime
