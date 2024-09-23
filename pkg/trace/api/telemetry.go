@@ -257,8 +257,9 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set(header.ContainerID, containerID)
 	}
 	if containerTags != "" {
-		req.Header.Set("x-datadog-container-tags", containerTags)
-		log.Debugf("Setting header x-datadog-container-tags=%s for telemetry proxy", containerTags)
+		ctagsHeader := normalizeHTTPHeader(containerTags)
+		req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+		log.Debugf("Setting header X-Datadog-Container-Tags=%s for telemetry proxy", ctagsHeader)
 	}
 	if f.conf.InstallSignature.Found {
 		req.Header.Set("DD-Agent-Install-Id", f.conf.InstallSignature.InstallID)

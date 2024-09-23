@@ -19,7 +19,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -48,13 +47,6 @@ var (
 		language.Python: pythonDetector,
 		language.Go:     goDetector,
 	}
-	// For now, only allow a subset of the above detectors to actually run.
-	allowedLangs = map[language.Language]struct{}{
-		language.Java:   {},
-		language.Node:   {},
-		language.Python: {},
-		language.Go:     {},
-	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
@@ -64,10 +56,6 @@ func Detect(pid int, args []string, envs map[string]string, lang language.Langua
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
-	}
-
-	if _, ok := allowedLangs[lang]; !ok {
-		return None
 	}
 
 	// different detection for provided instrumentation for each
@@ -118,12 +106,16 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
-	if err != nil {
-		return None
+	if _, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
 	}
 
-	return Provided
+	// We failed to find symbols in the regular symbols section, now we can try the pclntab
+	if _, err = bininspect.GetAnySymbolWithPrefixPCLNTAB(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength); err == nil {
+		return Provided
+	}
+	return None
+
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
@@ -246,93 +238,44 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 	return None
 }
 
-func findFile(fileName string) (io.ReadCloser, bool) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, false
+func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
+	scanner := bufio.NewScanner(bufio.NewReader(reader))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasSuffix(line, "Datadog.Trace.dll") {
+			return Provided
+		}
 	}
-	return f, true
+
+	return None
 }
 
-const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
+// dotNetDetector detects instrumentation in .NET applications.
+//
+// The primary check is for the environment variables which enables .NET
+// profiling. This is required for auto-instrumentation, and besides that custom
+// instrumentation using version 3.0.0 or later of Datadog.Trace requires
+// auto-instrumentation. It is also set if some third-party
+// profiling/instrumentation is active.
+//
+// The secondary check is to detect cases where an older version of
+// Datadog.Trace is used for manual instrumentation without enabling
+// auto-instrumentation. For this, we check for the presence of the DLL in the
+// maps file. Note that this does not work for single-file deployments.
+//
+// 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
+func dotNetDetector(pid int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
+	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
+		return Provided
+	}
 
-func dotNetDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	// if it's just the word `dotnet` by itself, don't instrument
-	if len(args) == 1 && args[0] == "dotnet" {
+	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+	mapsFile, err := os.Open(mapsPath)
+	if err != nil {
 		return None
 	}
+	defer mapsFile.Close()
 
-	/*
-			From Kevin Gosse:
-			- CORECLR_ENABLE_PROFILING=1
-		    - CORECLR_PROFILER_PATH environment variables set
-		      (it means that a profiler is attached, it doesn't really matter if it's ours or another vendor)
-	*/
-	// don't instrument if the tracer is already installed
-	foundFlags := 0
-	if _, ok := envs["CORECLR_PROFILER_PATH"]; ok {
-		foundFlags |= 1
-	}
-	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
-		foundFlags |= 2
-	}
-	if foundFlags == 3 {
-		return Provided
-	}
-
-	ignoreArgs := map[string]bool{
-		"build":   true,
-		"clean":   true,
-		"restore": true,
-		"publish": true,
-	}
-
-	if len(args) > 1 {
-		// Ignore only if the first arg match with the ignore list
-		if ignoreArgs[args[1]] {
-			return None
-		}
-		// Check to see if there's a DLL on the command line that contain the string Datadog.Trace.ClrProfiler.Native
-		// If so, it's already instrumented with Datadog, ignore the process
-		for _, v := range args[1:] {
-			if strings.HasSuffix(v, ".dll") {
-				if f, ok := findFile(v); ok {
-					defer f.Close()
-					offset, err := reader.Index(f, datadogDotNetInstrumented)
-					if offset != -1 && err == nil {
-						return Provided
-					}
-				}
-			}
-		}
-	}
-
-	// does the binary contain the string Datadog.Trace.ClrProfiler.Native (this should cover all single-file deployments)
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile(args[0]); ok {
-		defer f.Close()
-		offset, err := reader.Index(f, datadogDotNetInstrumented)
-		if offset != -1 && err == nil {
-			return Provided
-		}
-	}
-
-	// check if there's a .dll in the directory with the same name as the binary used to launch it
-	// if so, check if it has the Datadog.Trace.ClrProfiler.Native string
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile(args[0] + ".dll"); ok {
-		defer f.Close()
-		offset, err := reader.Index(f, datadogDotNetInstrumented)
-		if offset != -1 && err == nil {
-			return Provided
-		}
-	}
-
-	// does the application folder contain the file Datadog.Trace.dll (this should cover "classic" deployments)
-	// if so, it's already instrumented with Datadog, ignore the process
-	if f, ok := findFile("Datadog.Trace.dll"); ok {
-		f.Close()
-		return Provided
-	}
-	return None
+	return dotNetDetectorFromMapsReader(mapsFile)
 }

@@ -42,12 +42,14 @@ single-machine-performance-regression_detector:
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_ACCOUNT_ID)
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT_ID) || exit $?
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_AGENT_TEAM_ID)
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_API)
-    - aws configure set aws_access_key_id $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_ID) --profile ${AWS_NAMED_PROFILE}
-    - aws configure set aws_secret_access_key $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY) --profile ${AWS_NAMED_PROFILE}
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_AGENT_TEAM_ID) || exit $?
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_API) || exit $?
+    - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY_ID) || exit $?
+    - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_BOT_ACCESS_KEY) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp

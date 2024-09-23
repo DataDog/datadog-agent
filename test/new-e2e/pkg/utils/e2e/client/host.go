@@ -40,7 +40,7 @@ const (
 	sshMaxRetries    = 20
 )
 
-type buildCommandFn func(host *Host, command string, envVars EnvVar) string
+type buildCommandFn func(command string, envVars EnvVar) string
 
 type convertPathSeparatorFn func(string) string
 
@@ -122,13 +122,13 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 	if err != nil {
 		return "", err
 	}
-	command = h.buildCommand(h, command, params.EnvVariables)
+	command = h.buildCommand(command, params.EnvVariables)
 	return h.executeAndReconnectOnError(command)
 }
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
-	h.context.T().Logf("Executing command `%s`", scrubbedCommand)
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -487,12 +487,13 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 	return buildCommandOnLinuxAndMacOS
 }
 
-func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
+func buildCommandOnWindows(command string, envVar EnvVar) string {
 	cmd := ""
 
-	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an erorr instead
+	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an error instead
 	// of the default 'Continue' behavior.
-	// This also ensures that Execute() will return an error when the command fails.
+	// This also ensures that Execute() will return an error when a command fails.
+	// Note that this only applies to PowerShell commands, not to external commands or native binaries.
 	//
 	// For example, if the command is (Get-Service -Name ddnpm).Status and the service does not exist,
 	// then by default the command will print an error but the exit code will be 0 and Execute() will not return an error.
@@ -506,26 +507,31 @@ func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
 	cmd += "$ErrorActionPreference='Stop'; "
 
-	envVarSave := map[string]string{}
 	for envName, envValue := range envVar {
-		previousEnvVar, err := h.executeAndReconnectOnError(fmt.Sprintf("$env:%s", envName))
-		if err != nil || previousEnvVar == "" {
-			previousEnvVar = "null"
-		}
-		envVarSave[envName] = previousEnvVar
-
 		cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
 	}
-	cmd += fmt.Sprintf("%s; ", command)
-
-	for envName := range envVar {
-		cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envVarSave[envName])
-	}
+	// By default, powershell will just exit with 0 or 1, so we call exit to preserve
+	// the exit code of the command provided by the caller.
+	// The caller's command may not modify LASTEXITCODE, so manually reset it first,
+	// then only call exit if the command provided by the caller fails.
+	//
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables?#lastexitcode
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?#-command
+	cmd += fmt.Sprintf("$LASTEXITCODE=0; %s; if (-not $?) { exit $LASTEXITCODE }", command)
+	// NOTE: Do not add more commands after the command provided by the caller.
+	//
+	// `$ErrorActionPreference`='Stop' only applies to PowerShell commands, not to
+	// external commands or native binaries, thus later commands will still be executed.
+	// Additional commands will overwrite the exit code of the command provided by
+	// the caller which may cause errors to be missed/ignored.
+	// If it becomes necessary to run more commands after the command provided by the
+	// caller, we will need to find a way to ensure that the exit code of the command
+	// provided by the caller is preserved.
 
 	return cmd
 }
 
-func buildCommandOnLinuxAndMacOS(_ *Host, command string, envVar EnvVar) string {
+func buildCommandOnLinuxAndMacOS(command string, envVar EnvVar) string {
 	cmd := ""
 	for envName, envValue := range envVar {
 		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)

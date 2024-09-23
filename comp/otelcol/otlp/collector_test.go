@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -65,20 +65,21 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert.ErrorContains(t, p.Run(ctx), expected)
+	pipelineError := p.Run(ctx)
+	assert.ErrorContains(t, pipelineError, expected)
 }
 
 func TestStartPipeline(t *testing.T) {
-	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog().SetWithoutSource("hostname", "")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog().SetWithoutSource("hostname", "")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
 	tests := []struct {
 		path string
@@ -92,7 +93,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "error decoding 'receivers': error reading configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+			err:  "'protocols' has invalid keys: htttp",
 		},
 	}
 

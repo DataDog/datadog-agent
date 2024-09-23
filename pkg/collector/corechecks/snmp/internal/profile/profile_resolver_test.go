@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
@@ -26,18 +26,18 @@ import (
 func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	config.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
 	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	config.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
-	config.Datadog().SetWithoutSource("confd_path", invalidCyclicConfdPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidCyclicConfdPath)
 	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
@@ -50,7 +50,7 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	config.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
 	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)

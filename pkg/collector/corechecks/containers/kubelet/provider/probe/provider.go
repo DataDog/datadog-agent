@@ -67,7 +67,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			metricSuffix = "startup_probe"
 		default:
 			log.Debugf("Unsupported probe type %s", probeType)
-			return
+			continue
 		}
 
 		result := metric.Metric["result"]
@@ -80,17 +80,17 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			metricSuffix += ".unknown.total"
 		default:
 			log.Debugf("Unsupported probe result %s", result)
-			return
+			continue
 		}
 
 		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filter)
 		if cID == "" {
-			return
+			continue
 		}
 
 		tags, _ := tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
-			return
+			continue
 		}
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 

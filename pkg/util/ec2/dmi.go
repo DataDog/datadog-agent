@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/google/uuid"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/google/uuid"
 )
 
 func isBoardVendorEC2() bool {
-	if !config.Datadog().GetBool("ec2_use_dmi") {
+	if !pkgconfigsetup.Datadog().GetBool("ec2_use_dmi") {
 		return false
 	}
 	return dmi.GetBoardVendor() == DMIBoardVendor
@@ -32,7 +33,7 @@ func getInstanceIDFromDMI() (string, error) {
 		return "", fmt.Errorf("host alias detection through DMI is disabled on Fargate")
 	}
 
-	if !config.Datadog().GetBool("ec2_use_dmi") {
+	if !pkgconfigsetup.Datadog().GetBool("ec2_use_dmi") {
 		return "", fmt.Errorf("'ec2_use_dmi' is disabled")
 	}
 
@@ -57,7 +58,7 @@ func getInstanceIDFromDMI() (string, error) {
 // Depending on the instance type either the DMI product UUID or the hypervisor UUID is available. In both case, if they
 // start with "ec2" we return true.
 func isEC2UUID() bool {
-	if !config.Datadog().GetBool("ec2_use_dmi") {
+	if !pkgconfigsetup.Datadog().GetBool("ec2_use_dmi") {
 		return false
 	}
 
