@@ -30,11 +30,11 @@ const (
 	memFdMaxSize = 65536
 )
 
-// getInjectionMeta gets metadata from auto injector injection, if
+// GetInjectionMeta gets metadata from auto injector injection, if
 // present. The auto injector creates a memfd file where it writes
 // injection metadata such as injected environment variables, or versions
 // of the auto injector and the library.
-func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
+func GetInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
 	path, found := findInjectorFile(proc)
 	if !found {
 		return nil, false
@@ -45,7 +45,6 @@ func getInjectionMeta(proc *process.Process) (*InjectedProcess, bool) {
 		return nil, false
 	}
 	return injectionMeta, true
-
 }
 
 func extractInjectionMeta(path string) (*InjectedProcess, error) {
@@ -64,9 +63,21 @@ func extractInjectionMeta(path string) (*InjectedProcess, error) {
 	}
 
 	var injectedProc InjectedProcess
-	if _, err = injectedProc.UnmarshalMsg(data); err != nil {
+	// Read data from injection
+	guardrailsData, err := injectedProc.UnmarshalMsg(data)
+	if err != nil {
 		return nil, err
 	}
+	if len(guardrailsData) == 0 {
+		return &injectedProc, nil
+	}
+
+	// If there are leftover bytes, they contain guardrails data
+	_, err = injectedProc.UnmarshalMsg(guardrailsData)
+	if err != nil {
+		return nil, err
+	}
+
 	return &injectedProc, nil
 }
 
@@ -135,7 +146,7 @@ func addEnvToMap(env string, envs map[string]string) {
 
 // getEnvs gets the environment variables for the process, both the initial
 // ones, and if present, the ones injected via the auto injector.
-func getEnvs(proc *process.Process) (map[string]string, error) {
+func GetEnvs(proc *process.Process, injectionMeta *InjectedProcess) (map[string]string, error) {
 	procEnvs, err := proc.Environ()
 	if err != nil {
 		return nil, err
@@ -144,8 +155,7 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 	for _, env := range procEnvs {
 		addEnvToMap(env, envs)
 	}
-	injectionMeta, ok := getInjectionMeta(proc)
-	if !ok {
+	if injectionMeta == nil {
 		return envs, nil
 	}
 	for _, env := range injectionMeta.InjectedEnv {

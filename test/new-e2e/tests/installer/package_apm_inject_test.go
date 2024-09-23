@@ -421,6 +421,25 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 	s.TestInstall()
 }
 
+func (s *packageApmInjectSuite) TestSsiProcessDiscovery() {
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=js",
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	s.host.Run("sudo apt-get install -y nodejs || sudo yum install -y nodejs")
+	s.host.Run(`bash -c '
+		node -e "setTimeout(() => {}, 10000)" &
+		sudo datadog-installer list-ssi-processes >ssi_process_list.log
+		kill %1
+	'`)
+	output := s.host.Run(`sudo cat ssi_process_list.log && sudo rm ssi_process_list.log`)
+	assert.Contains(s.T(), output, "nodejs")
+	assert.Contains(s.T(), output, "true")
+	assert.Contains(s.T(), output, "complete")
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()

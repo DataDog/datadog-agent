@@ -9,9 +9,9 @@ import (
 // MarshalMsg implements msgp.Marshaler
 func (z *InjectedProcess) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 5
+	// map header, size 11
 	// string "LocalHostname"
-	o = append(o, 0x85, 0xad, 0x4c, 0x6f, 0x63, 0x61, 0x6c, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
+	o = append(o, 0x8b, 0xad, 0x4c, 0x6f, 0x63, 0x61, 0x6c, 0x48, 0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.LocalHostname)
 	// string "InjectedEnv"
 	o = append(o, 0xab, 0x49, 0x6e, 0x6a, 0x65, 0x63, 0x74, 0x65, 0x64, 0x45, 0x6e, 0x76)
@@ -28,6 +28,24 @@ func (z *InjectedProcess) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "InjectorVersion"
 	o = append(o, 0xaf, 0x49, 0x6e, 0x6a, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.InjectorVersion)
+	// string "LanguageVersion"
+	o = append(o, 0xaf, 0x4c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.LanguageVersion)
+	// string "RuntimeName"
+	o = append(o, 0xab, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x4e, 0x61, 0x6d, 0x65)
+	o = msgp.AppendString(o, z.RuntimeName)
+	// string "RuntimeVersion"
+	o = append(o, 0xae, 0x52, 0x75, 0x6e, 0x74, 0x69, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.RuntimeVersion)
+	// string "InjectionCompleted"
+	o = append(o, 0xb2, 0x49, 0x6e, 0x6a, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64)
+	o = msgp.AppendBool(o, z.InjectionCompleted)
+	// string "InjectionStatus"
+	o = append(o, 0xaf, 0x49, 0x6e, 0x6a, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73)
+	o = msgp.AppendString(o, z.InjectionStatus)
+	// string "Reason"
+	o = append(o, 0xa6, 0x52, 0x65, 0x61, 0x73, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.Reason)
 	return
 }
 
@@ -92,6 +110,42 @@ func (z *InjectedProcess) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "InjectorVersion")
 				return
 			}
+		case "LanguageVersion":
+			z.LanguageVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "LanguageVersion")
+				return
+			}
+		case "RuntimeName":
+			z.RuntimeName, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeName")
+				return
+			}
+		case "RuntimeVersion":
+			z.RuntimeVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RuntimeVersion")
+				return
+			}
+		case "InjectionCompleted":
+			z.InjectionCompleted, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "InjectionCompleted")
+				return
+			}
+		case "InjectionStatus":
+			z.InjectionStatus, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "InjectionStatus")
+				return
+			}
+		case "Reason":
+			z.Reason, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Reason")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -110,6 +164,6 @@ func (z *InjectedProcess) Msgsize() (s int) {
 	for za0001 := range z.InjectedEnv {
 		s += msgp.BytesPrefixSize + len(z.InjectedEnv[za0001])
 	}
-	s += 13 + msgp.StringPrefixSize + len(z.LanguageName) + 14 + msgp.StringPrefixSize + len(z.TracerVersion) + 16 + msgp.StringPrefixSize + len(z.InjectorVersion)
+	s += 13 + msgp.StringPrefixSize + len(z.LanguageName) + 14 + msgp.StringPrefixSize + len(z.TracerVersion) + 16 + msgp.StringPrefixSize + len(z.InjectorVersion) + 16 + msgp.StringPrefixSize + len(z.LanguageVersion) + 12 + msgp.StringPrefixSize + len(z.RuntimeName) + 15 + msgp.StringPrefixSize + len(z.RuntimeVersion) + 19 + msgp.BoolSize + 16 + msgp.StringPrefixSize + len(z.InjectionStatus) + 7 + msgp.StringPrefixSize + len(z.Reason)
 	return
 }

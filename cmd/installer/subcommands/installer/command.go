@@ -58,6 +58,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		garbageCollectCommand(),
 		purgeCommand(),
 		isInstalledCommand(),
+		listSSIProcesses(),
 		apmCommands(),
 	}
 }
@@ -375,6 +376,27 @@ func isInstalledCommand() *cobra.Command {
 				// Return a specific code to differentiate from other errors
 				// `return err` will lead to a return code of -1
 				os.Exit(ReturnCodeIsInstalledFalse)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func listSSIProcesses() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "list-ssi-processes",
+		Short:   "List all processes instrumented with Single Step Injection",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("list_ssi_processes")
+			if err != nil {
+				return err
+			}
+			defer func() { i.Stop(err) }()
+			err = i.ListSSIProcesses(i.ctx)
+			if err != nil {
+				return err
 			}
 			return nil
 		},

@@ -326,7 +326,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	envs, err := getEnvs(proc)
+	injectionMeta, _ := GetInjectionMeta(proc)
+	envs, err := GetEnvs(proc, injectionMeta)
 	if err != nil {
 		return nil, err
 	}

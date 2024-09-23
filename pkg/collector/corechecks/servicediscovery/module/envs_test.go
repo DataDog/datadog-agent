@@ -22,7 +22,7 @@ func TestInjectedEnvBasic(t *testing.T) {
 	curPid := os.Getpid()
 	proc, err := process.NewProcess(int32(curPid))
 	require.NoError(t, err)
-	injectionMeta, ok := getInjectionMeta(proc)
+	injectionMeta, ok := GetInjectionMeta(proc)
 	require.Nil(t, injectionMeta)
 	require.False(t, ok)
 
@@ -34,7 +34,10 @@ func TestInjectedEnvBasic(t *testing.T) {
 	expected := []string{"key1=val1", "key2=val2", "key3=val3", fmt.Sprint(key, "=", "new")}
 	createEnvsMemfd(t, expected)
 
-	envMap, err := getEnvs(proc)
+	injectionMeta, found := GetInjectionMeta(proc)
+	require.True(t, found)
+
+	envMap, err := GetEnvs(proc, injectionMeta)
 	require.NoError(t, err)
 	require.Subset(t, envMap, map[string]string{
 		"key1": "val1",
@@ -51,7 +54,7 @@ func TestInjectedEnvLimit(t *testing.T) {
 
 	proc, err := process.NewProcess(int32(os.Getpid()))
 	require.NoError(t, err)
-	_, ok := getInjectionMeta(proc)
+	_, ok := GetInjectionMeta(proc)
 	require.False(t, ok)
 }
 
