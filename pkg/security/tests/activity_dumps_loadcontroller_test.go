@@ -186,8 +186,8 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !isEventTypesStringSlicesEqual(activeTypes, presentEventTypes) {
-				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeTypes, presentEventTypes)
+			if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
+				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeEventTypes, presentEventTypes)
 			}
 			dump = nextDump
 		})
