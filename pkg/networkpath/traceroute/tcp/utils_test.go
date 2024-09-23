@@ -26,6 +26,9 @@ import (
 var (
 	srcIP = net.ParseIP("1.2.3.4")
 	dstIP = net.ParseIP("5.6.7.8")
+
+	innerSrcIP = net.ParseIP("10.0.0.1")
+	innerDstIP = net.ParseIP("192.168.1.1")
 )
 
 type (
@@ -47,6 +50,8 @@ type (
 )
 
 func Test_handlePackets(t *testing.T) {
+	_, tcpBytes := createMockTCPPacket(createMockIPv4Header(dstIP, srcIP, 6), createMockTCPLayer(443, 12345, 28394, 28395, true, true, true))
+
 	tt := []struct {
 		description string
 		// input
@@ -121,13 +126,47 @@ func Test_handlePackets(t *testing.T) {
 			listener: "tcp",
 			errMsg:   "canceled",
 		},
+		{
+			description: "successful ICMP parsing returns IP, port, and type code",
+			ctxTimeout:  500 * time.Millisecond,
+			conn: &mockRawConn{
+				header:  createMockIPv4Header(srcIP, dstIP, 1),
+				payload: createMockICMPPacket(createMockICMPLayer(layers.ICMPv4CodeTTLExceeded), createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP), createMockTCPLayer(12345, 443, 28394, 12737, true, true, true), false),
+			},
+			localIP:          innerSrcIP,
+			localPort:        12345,
+			remoteIP:         innerDstIP,
+			remotePort:       443,
+			seqNum:           28394,
+			listener:         "icmp",
+			expectedIP:       srcIP,
+			expectedPort:     0,
+			expectedTypeCode: layers.ICMPv4CodeTTLExceeded,
+		},
+		{
+			description: "successful TCP parsing returns IP, port, and type code",
+			ctxTimeout:  500 * time.Millisecond,
+			conn: &mockRawConn{
+				header:  createMockIPv4Header(dstIP, srcIP, 6),
+				payload: tcpBytes,
+			},
+			localIP:          srcIP,
+			localPort:        12345,
+			remoteIP:         dstIP,
+			remotePort:       443,
+			seqNum:           28394,
+			listener:         "tcp",
+			expectedIP:       dstIP,
+			expectedPort:     443,
+			expectedTypeCode: 0,
+		},
 	}
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), test.ctxTimeout)
 			defer cancel()
-			actualIP, actualPort, actualTypeCode, err := handlePackets(ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actualIP, actualPort, actualTypeCode, _, err := handlePackets(ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg))
@@ -142,8 +181,6 @@ func Test_handlePackets(t *testing.T) {
 }
 
 func Test_parseICMP(t *testing.T) {
-	innerSrcIP := net.ParseIP("10.0.0.1")
-	innerDstIP := net.ParseIP("192.168.1.1")
 	ipv4Header := createMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := createMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
