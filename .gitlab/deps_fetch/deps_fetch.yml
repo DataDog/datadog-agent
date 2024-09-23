@@ -66,7 +66,7 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - inv -e install-tools
-    # Partial mitigation for #incident-30776. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
+    # Partial mitigation for #incident-30779. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
     # Long term solution will be to provide the datadog-packages as a binary hosted internally
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - go env -w GOPRIVATE="github.com/DataDog/*"
