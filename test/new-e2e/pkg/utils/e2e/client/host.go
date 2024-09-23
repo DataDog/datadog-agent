@@ -40,7 +40,7 @@ const (
 	sshMaxRetries    = 20
 )
 
-type buildCommandFn func(host *Host, command string, envVars EnvVar) string
+type buildCommandFn func(command string, envVars EnvVar) string
 
 type convertPathSeparatorFn func(string) string
 
@@ -122,7 +122,7 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 	if err != nil {
 		return "", err
 	}
-	command = h.buildCommand(h, command, params.EnvVariables)
+	command = h.buildCommand(command, params.EnvVariables)
 	return h.executeAndReconnectOnError(command)
 }
 
@@ -487,7 +487,7 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 	return buildCommandOnLinuxAndMacOS
 }
 
-func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
+func buildCommandOnWindows(command string, envVar EnvVar) string {
 	cmd := ""
 
 	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an error instead
@@ -531,7 +531,7 @@ func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
 	return cmd
 }
 
-func buildCommandOnLinuxAndMacOS(_ *Host, command string, envVar EnvVar) string {
+func buildCommandOnLinuxAndMacOS(command string, envVar EnvVar) string {
 	cmd := ""
 	for envName, envValue := range envVar {
 		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
