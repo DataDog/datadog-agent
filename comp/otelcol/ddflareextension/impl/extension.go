@@ -42,6 +42,12 @@ type ddExtension struct {
 
 var _ extension.Extension = (*ddExtension)(nil)
 
+// NotifyConfig implements the ConfigWatcher interface, which allows this extension
+// to be notified of the Collector's effective configuration. See interface: 
+// https://github.com/open-telemetry/opentelemetry-collector/blob/d0fde2f6b98f13cbbd8657f8188207ac7d230ed5/extension/extension.go#L46.
+
+// This method is called during the startup process by the Collector's Service right after 
+// calling Start.
 func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) error {
 	var cfg *configSettings
 	var err error
