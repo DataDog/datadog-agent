@@ -388,24 +388,32 @@ def manifest(
     )
 
 @task
-def rpath_edit(ctx, install_path, target_rpath_dd_folder, macos=False):
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     for file in glob.iglob(f"{install_path}/**/*", recursive=True):
         ext = os.path.splitext(file)[1]
-        if (ext != "" and "so" not in ext and "dylib" not in ext) or "json" in ext or not os.path.isfile(file):
+        if not os.path.isfile(file) or not any(tocheck in ext for tocheck in ["", "so", "dylib"]):
             continue
-        if macos:
-            toedit_fd = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True)
+        file_type = ctx.run(f"file -b --mime-type {file}",hide=True).stdout.strip()
+
+        if platform == "linux":
+            if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
+                continue
+            binary_rpath = ctx.run(f'objdump -x {file} | grep "RPATH"', warn=True, hide=True).stdout
         else:
-            toedit_fd = ctx.run(f'objdump -x {file} | grep "RPATH"', warn=True, hide=True)
-        if install_path in toedit_fd.stdout:
+            if file_type != "application/x-mach-binary":
+                continue
+            binary_rpath = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+
+        if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
-            if macos:
-                patch_exit = 0
-                while not patch_exit:
-                    patch_exit = ctx.run(
-                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
-                        warn=True,
-                        hide=True,
-                    ).exited
-            else:
+            if platform == "linux":
                 ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+            else:
+                # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
+                # but just in case we're replacing them all.
+                # We're also avoiding unnecessary `install_name_tool` call as much as possible.
+                exit_code = 0
+                rpath_line_number = binary_rpath.count('\n') // 3
+                while rpath_line_number > 0 and exit_code == 0:
+                    exit_code = ctx.run(f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}", warn=True, hide=True).exited
+                    rpath_line_number -= 1
