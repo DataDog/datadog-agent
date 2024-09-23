@@ -16,7 +16,6 @@ single-machine-performance-regression_detector:
       - outputs/report.md # for debugging, also on S3
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
-      - outputs/output_metadata.json
       - outputs/junit.xml # for debugging, also on S3
       - tags.txt # for debugging datadog-ci junit.xml uploads
       - job_env.txt # for debugging datadog-ci junit.xml uploads
