@@ -306,3 +306,76 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	_, ok = acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 }
+
+func Test_flowAccumulator_detectHashCollision(t *testing.T) {
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	synFlag := uint32(2)
+	timeNow = MockTimeNow
+	flushInterval := 60 * time.Second
+	flowContextTTL := 60 * time.Second
+
+	// Given
+	flowA1 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		TCPFlags:       synFlag,
+	}
+	flowA2 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        1000,
+		DstPort:        80,
+		TCPFlags:       synFlag,
+	}
+	flowB1 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          100,
+		Packets:        10,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 30},
+		IPProtocol:     uint32(6),
+		SrcPort:        80,
+		DstPort:        2001,
+	}
+
+	// When
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+
+	// Then
+	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
+
+	// test hash collision (same flow object) does not increment flow count
+	aggHash1 := flowA1.AggregationHash()
+	acc.detectHashCollision(aggHash1, *flowA1, *flowA1)
+	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
+
+	// test hash collision (same data, new flow object) does not increment flow count
+	aggHash2 := flowA2.AggregationHash()
+	acc.detectHashCollision(aggHash2, *flowA1, *flowA2)
+	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
+
+	// test non hash collision does increment flow count
+	aggHash3 := flowB1.AggregationHash()
+	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
+	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
+}
