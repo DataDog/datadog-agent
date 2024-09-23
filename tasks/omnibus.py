@@ -397,7 +397,7 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         f.write(" ".join(datadog_files))
     files = ctx.run("cat /tmp/ddargs | xargs file --mime-type", hide=True).stdout
 
-    for line in files.split('\n'):
+    for line in files.splitlines():
         if not line:
             continue
         file, file_type = line.split(":")
