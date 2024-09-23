@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --rebuild --static --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
   elsif windows_target?
