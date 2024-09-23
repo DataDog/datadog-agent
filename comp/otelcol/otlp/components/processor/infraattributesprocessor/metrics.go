@@ -93,6 +93,9 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 	for i := 0; i < rms.Len(); i++ {
 		resourceAttributes := rms.At(i).Resource().Attributes()
 		entityIDs := entityIDsFromAttributes(resourceAttributes, iamp.generateID)
+		for i2, e := range entityIDs {
+			md.ResourceMetrics().At(i).Resource().Attributes().PutStr(fmt.Sprintf("entity_id.%v", i2), e.String())
+		}
 		tagMap := make(map[string]string)
 
 		// Get all unique tags from resource attributes and global tags
@@ -102,28 +105,32 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue
 			}
-			for _, tag := range entityTags {
+
+			for i2, tag := range entityTags {
 				k, v := splitTag(tag)
 				_, hasTag := tagMap[k]
 				if k != "" && v != "" && !hasTag {
 					tagMap[k] = v
 				}
+				md.ResourceMetrics().At(i).Resource().Attributes().PutStr(fmt.Sprintf("entity_tag.%v", i2), tag)
 			}
 		}
 		globalTags, err := iamp.tagger.GlobalTags(iamp.cardinality)
 		if err != nil {
 			iamp.logger.Error("Cannot get global tags", zap.Error(err))
 		}
-		for _, tag := range globalTags {
+		for i2, tag := range globalTags {
 			k, v := splitTag(tag)
 			_, hasTag := tagMap[k]
 			if k != "" && v != "" && !hasTag {
 				tagMap[k] = v
 			}
+			md.ResourceMetrics().At(i).Resource().Attributes().PutStr(fmt.Sprintf("global_tag.%v", i2), tag)
 		}
 
 		// Add all tags as resource attributes
 		for k, v := range tagMap {
+			md.ResourceMetrics().At(i).Resource().Attributes().PutStr(fmt.Sprintf("tag_map.%v", k), v)
 			resourceAttributes.PutStr(k, v)
 		}
 	}

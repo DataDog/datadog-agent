@@ -313,6 +313,9 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 								Name:  "OTEL_SERVICE_NAME",
 								Value: service,
 							}, {
+								Name:      "OTEL_K8S_POD_ID",
+								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
+							}, {
 								Name:      "OTEL_K8S_NAMESPACE",
 								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
 							}, {
@@ -334,6 +337,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 								"--otlp-attributes", "k8s.namespace.name=\"$(OTEL_K8S_NAMESPACE)\"",
 								"--otlp-attributes", "k8s.node.name=\"$(OTEL_K8S_NODE_NAME)\"",
 								"--otlp-attributes", "k8s.pod.name=\"$(OTEL_K8S_POD_NAME)\"",
+								"--otlp-attributes", "k8s.pod.uid=\"$(OTEL_K8S_POD_ID)\"",
 								"--otlp-attributes", "k8s.container.name=\"telemetrygen-job\"",
 							}, options...),
 						},
@@ -474,7 +478,7 @@ func createApp(ctx context.Context, s OTelTestSuite) {
 								"host.name=$(OTEL_K8S_NODE_NAME)," +
 								"deployment.environment=$(OTEL_K8S_NAMESPACE)," +
 								//"container.name=$(OTEL_CONTAINER_NAME)," +
-								"container.id=$(OTEL_K8S_CONTAINER_ID)",
+								"k8s.pod.uid=$(OTEL_K8S_CONTAINER_ID)",
 						}},
 					},
 					},
@@ -501,7 +505,7 @@ func TestContainerMetrics(s OTelTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("container.cpu.usage", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service:manual-container-metrics-app"}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("container.cpu.usage", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:manual-container-metrics-app"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
