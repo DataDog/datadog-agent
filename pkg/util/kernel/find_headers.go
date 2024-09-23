@@ -41,6 +41,22 @@ var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t 
 
 var errReposDirInaccessible = errors.New("unable to access repos directory")
 
+// Copied from https://github.com/DataDog/agent-payload/blob/master/process/connections.pb.go
+// to avoid CGO dependency
+var kernelHeaderFetchResult_name = map[int]string{
+	0:  "FetchNotAttempted",
+	1:  "CustomHeadersFound",
+	2:  "DefaultHeadersFound",
+	3:  "SysfsHeadersFound",
+	4:  "DownloadedHeadersFound",
+	5:  "DownloadSuccess",
+	6:  "HostVersionErr",
+	7:  "DownloadFailure",
+	8:  "ValidationFailure",
+	9:  "ReposDirAccessFailure",
+	10: "HeadersNotFoundDownloadDisabled",
+}
+
 type headerFetchResult int
 
 const (
@@ -460,7 +476,7 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 
 	khdTags := append(tags,
 		fmt.Sprintf("result:%s", resultTag),
-		fmt.Sprintf("reason_code:%d", result),
+		fmt.Sprintf("reason:%s", kernelHeaderFetchResult_name[int(result)]),
 	)
 
 	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {
