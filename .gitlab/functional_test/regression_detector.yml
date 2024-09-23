@@ -17,9 +17,6 @@ single-machine-performance-regression_detector:
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
-      - tags.txt # for debugging datadog-ci junit.xml uploads
-      - job_env.txt # for debugging datadog-ci junit.xml uploads
-      - junit-*.tgz # for debugging datadog-ci junit.xml uploads
     when: always
   variables:
     SMP_VERSION: 0.16.0
@@ -99,27 +96,12 @@ single-machine-performance-regression_detector:
     - !reference [.install_pr_commenter]
     # Post HTML report to GitHub
     - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Regression Detector"
-    # Upload JUnit XML via Agent's internal tooling; see
-    # datadog-agent/tasks/libs/common/junit_upload_core.py for details,
-    # specifically the produce_junit_tar function
-    ## For simplicity in setting up the tarball, put the JUnit XML in the
-    ## current working directory.
-    - cp outputs/junit.xml junit.xml
-    ## This block of 2 lines reverse engineers the "tags.txt" part of JUnit XML
-    ## metadata added to JUnit tarballs by invoke. Runners are x86_64 and always
-    ## run Linux; this information may change in the future.
-    - touch tags.txt
-    - printf "%s" '--tags os.architecture:x86_64 --tags os.platform:linux ' >> tags.txt
-    ## This block of 3 lines reverse engineers the "job_env.txt" part of JUnit
-    ## XML metadata added to JUnit tarballs by invoke.
-    - touch job_env.txt
-    - echo "CI_JOB_URL=${CI_JOB_URL}" >> job_env.txt
-    - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> job_env.txt
-    ## datadog-agent tooling expects a gzipped tarball with filename matching
-    ## the pattern "junit-*.tgz" for uploads, so this command creates one.
-    - tar czvf "junit-${CI_JOB_ID}.tgz" junit.xml tags.txt job_env.txt
-    ## Call the JUnit XML uploader in Agent tooling.
-    #- "${CI_PROJECT_DIR}/tools/ci/junit_upload.sh" ## TODO(geoffrey.oxberry@datadoghq.com): Uncomment this line later
+    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
+    # invoke task has additional logic that does not seem to apply well to SMP's
+    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
+    # uploading JUnit XML, so the upload command below respects that convention.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
+    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result
