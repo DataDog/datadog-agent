@@ -1324,7 +1324,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 		{
 			desc:          "Test once global 429 error is appended to metric after first query, batch is not split up",
 			maxAge:        30,
-			extQueryCount: 1, // Even though there's a 429 error, it should still be one batch
+			extQueryCount: 1, // Should only be one batch
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -1351,8 +1351,8 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 			},
 			queryResults: map[string]autoscalers.Point{}, // No valid results due to the global 429 error
 			queryError: []error{
-				fmt.Errorf("429 Too Many Requests"),
-			}, // Simulating a 429 error in the batch query
+				fmt.Errorf("429 Too Many Requests"), // Simulating a 429 error in the batch query
+			},
 			expected: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -1383,7 +1383,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 		{
 			desc:          "Test that global 429 Too Many Requests error is added to metrics error on retry",
 			maxAge:        30,
-			extQueryCount: 2, // One batch for the global error
+			extQueryCount: 2, // Two batches since this query first encounters 429 error
 			storeContent: []ddmWithQuery{
 				{
 					ddm: model.DatadogMetricInternal{
@@ -1431,7 +1431,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Active:   true,
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
-						Valid:    false, // Also invalid due to the global 429 error (even though it had another error)
+						Valid:    false, // Also invalid due to the global 429 error
 						Error:    fmt.Errorf(invalidMetricGlobalErrorWithRetriesMessage, 1, "429 Too Many Requests", ""),
 						Retries:  1, // Retry incremented
 					},
