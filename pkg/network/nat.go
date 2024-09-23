@@ -14,7 +14,7 @@ func GetNATLocalAddress(c ConnectionStats) (util.Address, uint16) {
 	localIP := c.Source
 	localPort := c.SPort
 
-	if c.IPTranslation != nil && !c.IPTranslation.ReplDstIP.IsZero() {
+	if c.IPTranslation != nil && c.IPTranslation.ReplDstIP.IsValid() {
 		// Fields are flipped
 		localIP = c.IPTranslation.ReplDstIP
 		localPort = c.IPTranslation.ReplDstPort
@@ -27,7 +27,7 @@ func GetNATRemoteAddress(c ConnectionStats) (util.Address, uint16) {
 	remoteIP := c.Dest
 	remotePort := c.DPort
 
-	if c.IPTranslation != nil && !c.IPTranslation.ReplSrcIP.IsZero() {
+	if c.IPTranslation != nil && c.IPTranslation.ReplSrcIP.IsValid() {
 		// Fields are flipped
 		remoteIP = c.IPTranslation.ReplSrcIP
 		remotePort = c.IPTranslation.ReplSrcPort

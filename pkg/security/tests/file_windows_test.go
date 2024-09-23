@@ -223,7 +223,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 			}
 			return f.Close()
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", event, "write.file.name file didn't match")
+			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", "write.file.name file didn't match")
 		}))
 	})
 }

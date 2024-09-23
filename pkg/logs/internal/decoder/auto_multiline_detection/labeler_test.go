@@ -16,7 +16,7 @@ type mockHeuristic struct {
 	processFunc func(*messageContext) bool
 }
 
-func (m *mockHeuristic) Process(context *messageContext) bool {
+func (m *mockHeuristic) ProcessAndContinue(context *messageContext) bool {
 	return m.processFunc(context)
 }
 
@@ -35,7 +35,7 @@ func TestLabelerProceedNextHeuristic(t *testing.T) {
 				return true
 			},
 		},
-	})
+	}, []Heuristic{})
 
 	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123")))
 }
@@ -55,7 +55,7 @@ func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
 				return true
 			},
 		},
-	})
+	}, []Heuristic{})
 
 	assert.Equal(t, startGroup, labeler.Label([]byte("test 123")))
 }
@@ -68,7 +68,7 @@ func TestLabelerDefaultLabel(t *testing.T) {
 				return false
 			},
 		},
-	})
+	}, []Heuristic{})
 
 	assert.Equal(t, aggregate, labeler.Label([]byte("test 123")))
 }
@@ -82,7 +82,7 @@ func TestLabelerPassesAlongMessageContext(t *testing.T) {
 				return false
 			},
 		},
-	})
+	}, []Heuristic{})
 
 	labeler.Label([]byte("test 123"))
 }

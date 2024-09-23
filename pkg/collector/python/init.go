@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
@@ -20,7 +21,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -83,6 +84,7 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
+void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
@@ -100,6 +102,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
 	set_send_log_cb(rtloader, SendLog);
@@ -256,7 +259,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 }
 
 func sendTelemetry(pythonVersion string) {
@@ -373,11 +376,11 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 
 //nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog().GetString("python_version")
-	allowPathHeuristicsFailure := config.Datadog().GetBool("allow_python_path_heuristics_failure")
+	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
+	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
-	if config.Datadog().GetBool("memtrack_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
 	}
 
@@ -423,7 +426,7 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if config.Datadog().GetBool("telemetry.enabled") && config.Datadog().GetBool("telemetry.python_memory") {
+	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
 		initPymemTelemetry()
 	}
 

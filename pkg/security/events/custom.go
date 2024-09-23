@@ -58,15 +58,6 @@ const (
 	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 
-	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
-	RefreshUserCacheRuleID = "refresh_user_cache"
-
-	// RefreshSBOMRuleID is the rule ID used to refresh SBOM
-	RefreshSBOMRuleID = "refresh_sbom"
-
-	// NeedRefreshSBOMRuleID is the rule ID used to request a SBOM refresh
-	NeedRefreshSBOMRuleID = "need_refresh_sbom"
-
 	// EBPFLessHelloMessageRuleID is the rule ID used when a hello message is received
 	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
 	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
@@ -92,8 +83,10 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields() {
 // NewCustomRule returns a new custom rule
 func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 	return &rules.Rule{
-		Rule:       &eval.Rule{ID: id},
-		Definition: &rules.RuleDefinition{ID: id, Description: description},
+		Rule: &eval.Rule{ID: id},
+		PolicyRule: &rules.PolicyRule{
+			Def: &rules.RuleDefinition{ID: id, Description: description},
+		},
 	}
 }
 

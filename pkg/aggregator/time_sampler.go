@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -52,8 +52,8 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 	idString := strconv.Itoa(int(id))
 	log.Infof("Creating TimeSampler #%s", idString)
 
-	contextExpireTime := config.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
-	counterExpireTime := contextExpireTime + config.Datadog().GetInt64("dogstatsd_expiry_seconds")
+	contextExpireTime := pkgconfigsetup.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
+	counterExpireTime := contextExpireTime + pkgconfigsetup.Datadog().GetInt64("dogstatsd_expiry_seconds")
 
 	s := &TimeSampler{
 		interval:           interval,
@@ -97,7 +97,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			s.metricsByTimestamp[bucketStart] = bucketMetrics
 		}
 		// Add sample to bucket
-		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, config.Datadog()); err != nil {
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
@@ -264,7 +264,7 @@ func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.Context
 }
 
 func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics) {
-	expirySeconds := config.Datadog().GetInt64("dogstatsd_expiry_seconds")
+	expirySeconds := pkgconfigsetup.Datadog().GetInt64("dogstatsd_expiry_seconds")
 	for counterContext, entry := range s.contextResolver.resolver.contextsByKey {
 		if entry.lastSeen+expirySeconds > timestamp && entry.context.mtype == metrics.CounterType {
 			sample := &metrics.MetricSample{
@@ -279,13 +279,13 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			}
 			// Add a zero value sample to the counter
 			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
-			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval, nil, config.Datadog()) //nolint:errcheck
+			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval, nil, pkgconfigsetup.Datadog()) //nolint:errcheck
 		}
 	}
 }
 
 func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink) {
-	if !config.Datadog().GetBool("telemetry.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
 		return
 	}
 
@@ -296,7 +296,7 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 		fmt.Sprintf("sampler_id:%d", s.id),
 	}
 
-	if config.Datadog().GetBool("telemetry.dogstatsd_origin") {
+	if pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") {
 		s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
 	}
 }

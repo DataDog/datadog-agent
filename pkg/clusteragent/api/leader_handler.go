@@ -12,7 +12,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,7 +61,7 @@ func WithLeaderProxyHandler(handlerName string, preHandler RequestPreHandler, le
 	lph := LeaderProxyHandler{
 		handlerName:           handlerName,
 		leaderForwarder:       GetGlobalLeaderForwarder(),
-		leaderElectionEnabled: config.Datadog().GetBool("leader_election"),
+		leaderElectionEnabled: pkgconfigsetup.Datadog().GetBool("leader_election"),
 		preHandler:            preHandler,
 		leaderHandler:         leaderHandler,
 	}

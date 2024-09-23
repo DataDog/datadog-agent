@@ -26,7 +26,6 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -111,7 +110,7 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 
 func TestGetAgentTaggerList(t *testing.T) {
 	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
@@ -131,7 +130,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
@@ -302,7 +301,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock.Fb, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

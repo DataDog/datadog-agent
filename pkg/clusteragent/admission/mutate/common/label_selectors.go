@@ -11,16 +11,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // DefaultLabelSelectors returns the mutating webhooks object selector based on the configuration
 func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if config.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
-		config.Datadog().GetBool("apm_config.instrumentation.enabled") ||
-		len(config.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
+		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
+		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -40,7 +40,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 		}
 	}
 
-	if config.Datadog().GetBool("admission_controller.add_aks_selectors") {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.add_aks_selectors") {
 		return aksSelectors(useNamespaceSelector, labelSelector)
 	}
 

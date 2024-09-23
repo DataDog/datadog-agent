@@ -41,6 +41,24 @@ type endpointProvider struct {
 	handler http.HandlerFunc
 }
 
+// AuthorizedSet is a type to store the authorized config options for the config API
+type AuthorizedSet map[string]struct{}
+
+// AuthorizedConfigPathsCore is the the set of authorized config keys authorized for the
+// config API.
+var AuthorizedConfigPathsCore = buildAuthorizedSet(
+	"api_key", "site", "dd_url", "logs_config.dd_url",
+	"additional_endpoints", "logs_config.additional_endpoints",
+)
+
+func buildAuthorizedSet(paths ...string) AuthorizedSet {
+	authorizedPaths := make(AuthorizedSet, len(paths))
+	for _, path := range paths {
+		authorizedPaths[path] = struct{}{}
+	}
+	return authorizedPaths
+}
+
 // Methods returns the methods for the endpoint.
 // e.g.: "GET", "POST", "PUT".
 func (p endpointProvider) Methods() []string {

@@ -219,7 +219,7 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -284,7 +284,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -344,7 +344,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -1055,6 +1055,61 @@ func TestExpvar(t *testing.T) {
 			assert.NotNil(t, out["receiver"], "expvar receiver must not be nil")
 		}
 	})
+}
+
+func TestNormalizeHTTPHeader(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "Header: value\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\rAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\r\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "SingleLineHeader: value",
+			expected: "SingleLineHeader: value",
+		},
+		{
+			input:    "\rLeading carriage return",
+			expected: "_Leading carriage return",
+		},
+		{
+			input:    "\nLeading line break",
+			expected: "_Leading line break",
+		},
+		{
+			input:    "Trailing carriage return\r",
+			expected: "Trailing carriage return_",
+		},
+		{
+			input:    "Trailing line break\n",
+			expected: "Trailing line break_",
+		},
+		{
+			input:    "Multiple\r\nline\r\nbreaks",
+			expected: "Multiple_line_breaks",
+		},
+		{
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, test := range tests {
+		result := normalizeHTTPHeader(test.input)
+		if result != test.expected {
+			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
+		}
+	}
 }
 
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {

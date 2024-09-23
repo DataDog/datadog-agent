@@ -21,13 +21,19 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
-	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -38,9 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type collectorImpl struct {
@@ -59,6 +62,7 @@ type Requires struct {
 	Log                 log.Component
 	Provider            confmap.Converter
 	ConfigStore         configstore.Component
+	Config              config.Component
 	CollectorContrib    collectorcontrib.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
@@ -108,13 +112,17 @@ func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProvi
 	}
 }
 
+func generateID(group, resource, namespace, name string) string {
+	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
+}
+
 func addFactories(reqs Requires, factories otelcol.Factories) {
 	if v, ok := reqs.LogsAgent.Get(); ok {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	} else {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	}
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 }
@@ -127,7 +135,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	addFactories(reqs, factories)
 
-	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, true), factories)
+	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
+	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, converterEnabled), factories)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -148,7 +157,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs, true),
+		ConfigProviderSettings: newConfigProviderSettings(reqs, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

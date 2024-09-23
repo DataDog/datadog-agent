@@ -2,6 +2,7 @@
 msi namespaced tasks
 """
 
+import hashlib
 import mmap
 import os
 import shutil
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import download_to_tempfile, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
@@ -29,6 +30,8 @@ SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentIns
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
+# Match to AgentInstaller.cs BinSource
+AGENT_BIN_SOURCE_DIR = os.path.join('C:\\', 'opt', 'datadog-agent', 'bin', 'agent')
 
 NUGET_PACKAGES_DIR = os.path.join(BUILD_ROOT_DIR, 'packages')
 NUGET_CONFIG_FILE = os.path.join(BUILD_ROOT_DIR, 'NuGet.config')
@@ -215,9 +218,11 @@ def build_out_dir(arch, configuration):
     return os.path.join(BUILD_OUTPUT_DIR, 'bin', arch, configuration)
 
 
-def _build_wxs(ctx, env, outdir):
+def _build_wxs(ctx, env, outdir, ca_dll):
     """
-    Runs WixSetup.exe to generate the WXS and other files to be included in the MSI
+    Runs WixSetup.exe to generate the WXS and a batch file to build the MSI
+
+    at this time wixsharp also runs makesfxca to package our custom action DLLS into CA.dll files.
     """
     wixsetup = f'{outdir}\\WixSetup.exe'
     if not os.path.exists(wixsetup):
@@ -237,8 +242,8 @@ def _build_wxs(ctx, env, outdir):
         raise Exit("Failed to build the MSI WXS.", code=1)
 
     # sign the MakeSfxCA output files
-    _fix_makesfxca_dll(os.path.join(outdir, 'CustomActions.CA.dll'))
-    sign_file(ctx, os.path.join(outdir, 'CustomActions.CA.dll'))
+    _fix_makesfxca_dll(os.path.join(outdir, ca_dll))
+    sign_file(ctx, os.path.join(outdir, ca_dll))
 
 
 def _build_msi(ctx, env, outdir, name, allowlist):
@@ -268,6 +273,7 @@ def build(
     Build the MSI installer for the agent
     """
     env = _get_env(ctx, major_version, python_runtimes, release_version)
+    env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -281,6 +287,7 @@ def build(
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
+    sign_file(ctx, os.path.join(build_outdir, 'AgentCustomActions.dll'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
@@ -288,6 +295,7 @@ def build(
             ctx,
             env,
             build_outdir,
+            'AgentCustomActions.CA.dll',
         )
 
     # Run WiX to turn the WXS into an MSI
@@ -312,6 +320,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     Build the MSI installer for the agent
     """
     env = {}
+    env['OMNIBUS_TARGET'] = 'installer'
     env['PACKAGE_VERSION'] = get_version(
         ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
     )
@@ -330,14 +339,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
+    sign_file(ctx, os.path.join(build_outdir, 'InstallerCustomActions.dll'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
-        _build_wxs(
-            ctx,
-            env,
-            build_outdir,
-        )
+        _build_wxs(ctx, env, build_outdir, 'InstallerCustomActions.CA.dll')
 
     with timed("Building MSI"):
         msi_name = f"datadog-installer-{env['PACKAGE_VERSION']}-1-x86_64"
@@ -430,3 +436,85 @@ def MsiClosing(obj):
         yield obj
     finally:
         obj.Close()
+
+
+def get_msm_info(ctx, release_version):
+    """
+    Get the merge module info from the release.json for the given release_version
+    """
+    env = load_release_versions(ctx, release_version)
+    base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
+    msm_info = {}
+    if 'WINDOWS_DDNPM_VERSION' in env:
+        info = {
+            'filename': 'DDNPM.msm',
+            'build': env['WINDOWS_DDNPM_DRIVER'],
+            'version': env['WINDOWS_DDNPM_VERSION'],
+            'shasum': env['WINDOWS_DDNPM_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddnpminstall-{info['version']}.msm"
+        msm_info['DDNPM'] = info
+    if 'WINDOWS_DDPROCMON_VERSION' in env:
+        info = {
+            'filename': 'DDPROCMON.msm',
+            'build': env['WINDOWS_DDPROCMON_DRIVER'],
+            'version': env['WINDOWS_DDPROCMON_VERSION'],
+            'shasum': env['WINDOWS_DDPROCMON_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddprocmoninstall-{info['version']}.msm"
+        msm_info['DDPROCMON'] = info
+    if 'WINDOWS_APMINJECT_VERSION' in env:
+        info = {
+            'filename': 'ddapminstall.msm',
+            'build': env['WINDOWS_APMINJECT_MODULE'],
+            'version': env['WINDOWS_APMINJECT_VERSION'],
+            'shasum': env['WINDOWS_APMINJECT_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddapminstall-{info['version']}.msm"
+        msm_info['APMINJECT'] = info
+    return msm_info
+
+
+@task(
+    iterable=['drivers'],
+    help={
+        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+    },
+)
+def fetch_driver_msm(ctx, drivers=None, release_version=None):
+    """
+    Fetch the driver merge modules (.msm) that are consumed by the Agent MSI.
+
+    Defaults to the versions provided in the @release_version section of release.json
+    """
+    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    if not release_version:
+        release_version = 'nightly-a7'
+
+    msm_info = get_msm_info(ctx, release_version)
+    if not drivers:
+        # if user did not specify drivers, use the ones in the release.json
+        drivers = msm_info.keys()
+
+    for driver in drivers:
+        driver = driver.upper()
+        if driver not in ALLOWED_DRIVERS:
+            raise Exit(f"Invalid driver: {driver}, choose from {ALLOWED_DRIVERS}")
+
+        info = msm_info[driver]
+        url = info['url']
+        shasum = info['shasum']
+        path = os.path.join(AGENT_BIN_SOURCE_DIR, info['filename'])
+
+        # download from url with requests package
+        checksum = hashlib.sha256()
+        with download_to_tempfile(url, checksum) as tmp_path:
+            # check sha256
+            if checksum.hexdigest().lower() != shasum.lower():
+                raise Exit(f"Checksum mismatch for {url}")
+            # move to final path
+            shutil.move(tmp_path, path)
+
+        print(f"Updated {driver}")
+        print(f"\t-> Downloaded {url} to {path}")

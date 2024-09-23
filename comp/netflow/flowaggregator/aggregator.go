@@ -212,12 +212,16 @@ func (agg *FlowAggregator) flushLoop() {
 	var flushFlowsToSendTicker <-chan time.Time
 
 	if agg.FlushFlowsToSendInterval > 0 {
-		flushFlowsToSendTicker = time.NewTicker(agg.FlushFlowsToSendInterval).C
+		flushTicker := time.NewTicker(agg.FlushFlowsToSendInterval)
+		flushFlowsToSendTicker = flushTicker.C
+		defer flushTicker.Stop()
 	} else {
 		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
 	}
 
-	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+	rollupTicker := time.NewTicker(agg.rollupTrackerRefreshInterval)
+	defer rollupTicker.Stop()
+	rollupTrackersRefresh := rollupTicker.C
 	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
 	var lastFlushTime time.Time

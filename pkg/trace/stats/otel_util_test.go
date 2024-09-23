@@ -118,6 +118,15 @@ func TestProcessOTLPTraces(t *testing.T) {
 			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true, false),
 		},
 		{
+			name:     "new env convention",
+			spanName: "spanname2",
+			rattrs:   map[string]string{"service.name": "svc", "deployment.environment.name": "new-env"},
+			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
+			spanKind: ptrace.SpanKindClient,
+			libname:  "spring",
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", nil, nil, true, false),
+		},
+		{
 			name:                   "span operation name from span name with db attribute, peerTagsAggr not enabled",
 			spanName:               "spanname3",
 			rattrs:                 map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis"},
@@ -212,7 +221,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -274,7 +283,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}

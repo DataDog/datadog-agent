@@ -3,11 +3,12 @@ import os
 import platform
 import plistlib
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.tool import Exit
+from tasks.kernel_matrix_testing.tool import Exit, info
 from tasks.system_probe import is_root
 
 
@@ -103,6 +104,12 @@ class Linux:
             ctx.run("sudo apt install -y qemu-efi-aarch64")
 
         ctx.run("sudo systemctl start nfs-kernel-server.service")
+
+    @staticmethod
+    def flare(ctx: Context, flare_folder: Path):
+        ctx.run(f"apt-cache policy{' '.join(Linux.packages)} > {flare_folder / 'packages.txt'}", warn=True)
+        ctx.run(f"ip r > {flare_folder / 'ip_r.txt'}", warn=True)
+        ctx.run(f"ip a > {flare_folder / 'ip_a.txt'}", warn=True)
 
 
 class MacOS:
@@ -212,3 +219,43 @@ class MacOS:
     @staticmethod
     def install_requirements(ctx: Context):
         ctx.run("brew install " + " ".join(MacOS.packages))
+
+    @staticmethod
+    def flare(ctx: Context, flare_folder: Path):
+        ctx.run(f"brew list {' '.join(MacOS.packages)} > {flare_folder / 'brew_libvirt.txt'}", warn=True)
+        ctx.run(f"netstat -an > {flare_folder / 'netstat.txt'}", warn=True)
+        ctx.run(f"ifconfig -a > {flare_folder / 'ifconfig.txt'}", warn=True)
+
+
+def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompressed_files: bool = False):
+    kmt_os = get_kmt_os()
+    kmt_os.flare(ctx, tmp_flare_folder)
+
+    ctx.run(f"git rev-parse HEAD > {tmp_flare_folder}/git_version.txt", warn=True)
+    ctx.run(f"git rev-parse --abbrev-ref HEAD >> {tmp_flare_folder}/git_version.txt", warn=True)
+    ctx.run(f"mkdir -p {tmp_flare_folder}/stacks")
+    ctx.run(f"cp -r {kmt_os.stacks_dir} {tmp_flare_folder}/stacks", warn=True)
+    ctx.run(f"sudo virsh list --all > {tmp_flare_folder}/virsh_list.txt", warn=True)
+
+    virsh_config_folder = tmp_flare_folder / 'vm-configs'
+    ctx.run(f"mkdir -p {virsh_config_folder}", warn=True)
+    ctx.run(
+        f"sudo virsh list --all | grep ddvm | awk '{{ print $2 }}' | xargs -I % -S 1024 /bin/bash -c \"sudo virsh dumpxml % > {virsh_config_folder}/%.xml\"",
+        warn=True,
+    )
+    ctx.run(f"ps aux | grep -i appgate | grep -v grep > {tmp_flare_folder}/ps_appgate.txt", warn=True)
+    ctx.run(f"sudo chmod a+rw {tmp_flare_folder}/*", warn=True)
+
+    ctx.run(f"mkdir -p {dest_folder}")
+    now_ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    flare_fname = f"kmt_flare_{now_ts}.tar.gz"
+    flare_path = dest_folder / flare_fname
+    ctx.run(f"tar -C {tmp_flare_folder} -czf {flare_path} .")
+
+    info(f"[+] Flare saved to {flare_path}")
+
+    if keep_uncompressed_files:
+        flare_dest_folder = dest_folder / f"kmt_flare_{now_ts}"
+        ctx.run(f"mkdir -p {flare_dest_folder}")
+        ctx.run(f"cp -r {tmp_flare_folder}/* {flare_dest_folder}")
+        info(f"[+] Flare uncompressed contents saved to {flare_dest_folder}")

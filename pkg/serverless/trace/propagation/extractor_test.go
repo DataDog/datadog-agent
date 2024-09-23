@@ -510,6 +510,34 @@ func TestExtractorExtract(t *testing.T) {
 			expCtx:   nil,
 			expNoErr: false,
 		},
+
+		// Step Functions event
+		{
+			name: "step-function-event with no input",
+			events: []interface{}{
+				events.StepFunctionPayload{
+					Execution: struct {
+						ID string
+					}{
+						ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+					},
+					State: struct {
+						Name        string
+						EnteredTime string
+					}{
+						Name:        "agocsTest1",
+						EnteredTime: "2024-07-30T20:46:20.824Z",
+					},
+				},
+			},
+			expCtx: &TraceContext{
+				TraceID:           5377636026938777059,
+				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				ParentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+			expNoErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

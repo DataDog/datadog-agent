@@ -11,7 +11,6 @@ package pod
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -211,7 +210,8 @@ func (r *runningAggregator) recordPod(p *Provider, pod *kubelet.Pod) {
 		log.Debug("skipping pod with no uid")
 		return
 	}
-	tagList, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", podID), types.LowCardinality)
+	entityID := types.NewEntityID(types.KubernetesPodUID, podID).String()
+	tagList, _ := tagger.Tag(entityID, types.LowCardinality)
 	if len(tagList) == 0 {
 		return
 	}

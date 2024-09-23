@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cloudfoundrycontainertagger "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +37,7 @@ type dependencies struct {
 
 func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component {
 	// start the cloudfoundry container tagger
-	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !deps.Config.GetBool("cloud_foundry_buildpack") {
+	if env.IsFeaturePresent(env.CloudFoundry) && !deps.Config.GetBool("cloud_foundry_buildpack") {
 		containerTagger, err := cloudfoundrycontainertagger.NewContainerTagger(deps.WMeta)
 		if err != nil {
 			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)

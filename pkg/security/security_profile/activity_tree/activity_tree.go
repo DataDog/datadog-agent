@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -98,17 +97,6 @@ const (
 	// MaxNodeGenerationType is the maximum node type
 	MaxNodeGenerationType NodeGenerationType = 4
 )
-
-// SECLRuleOpts defines SECL rules options
-type SECLRuleOpts struct {
-	EnableKill bool
-	AllowList  bool
-	Lineage    bool
-	ImageName  string
-	ImageTag   string
-	Service    string
-	FIM        bool
-}
 
 func (genType NodeGenerationType) String() string {
 	switch genType {
@@ -891,127 +879,41 @@ func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 	}
 }
 
-func applyKillAction(ruleDef *rules.RuleDefinition) {
-	ruleDef.Actions = []*rules.ActionDefinition{
-		{
-			Kill: &rules.KillDefinition{
-				Signal: "SIGKILL",
-			},
-		},
-	}
-}
+// ExtractPaths returns the exec / fim, exec / parent paths
+func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
 
-func applyContext(ruleDef *rules.RuleDefinition, opts SECLRuleOpts) {
-	var context []string
-
-	if opts.ImageName != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_name:%s"`, opts.ImageName))
-	}
-	if opts.ImageTag != "" {
-		context = append(context, fmt.Sprintf(`container.tags == "image_tag:%s"`, opts.ImageTag))
-	}
-	if opts.Service != "" {
-		context = append(context, fmt.Sprintf(`process.envp == "DD_SERVICE=%s"`, opts.Service))
-	}
-
-	if len(context) == 0 {
-		return
-	}
-
-	ruleDef.Expression = fmt.Sprintf("%s && (%s)", ruleDef.Expression, strings.Join(context, " && "))
-}
-
-func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.RuleDefinition {
-	processPath := processNode.Process.FileEvent.PathnameStr
-
-	var parentPath string
-	if parent := processNode.GetParent(); parent != nil {
-		if parentNode, ok := parent.(*ProcessNode); ok {
-			parentPath = parentNode.Process.FileEvent.PathnameStr
-		}
-	}
-
-	var (
-		parentOp = "=="
-		ctxOp    = "!="
-	)
-
-	if parentPath == "" {
-		parentOp = "!="
-		ctxOp = "=="
-	}
-
-	ruleDef := &rules.RuleDefinition{
-		Expression: fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path %s "%s" && process.parent.container.id %s ""`, processPath, parentOp, parentPath, ctxOp),
-	}
-
-	if opts.EnableKill {
-		applyKillAction(ruleDef)
-	}
-
-	return ruleDef
-}
-
-// ToSECL return SECL rules matching the activity of the given tree
-func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
-	var (
-		execPath    []string
-		ruleDefs    []*rules.RuleDefinition
-		execRuleExp []string
-		fimPath     []string
-	)
+	fimPathsperExecPath := make(map[string][]string)
+	execAndParent := make(map[string][]string)
 
 	at.visit(func(processNode *ProcessNode) {
-		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
-		execPath = append(execPath, processNode.Process.FileEvent.PathnameStr)
-
+		var fimPaths []string
 		for _, file := range processNode.Files {
 			at.visitFileNode(file, func(fileNode *FileNode) {
-				fimPath = append(fimPath, fileNode.File.PathnameStr)
+				path := fileNode.File.PathnameStr
+				if len(path) > 0 {
+					if strings.Contains(path, "*") {
+						fimPaths = append(fimPaths, `~"`+path+`"`)
+					} else {
+						fimPaths = append(fimPaths, `"`+path+`"`)
+					}
+				}
 			})
+		}
+		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+		paths, ok := fimPathsperExecPath[execPath]
+		if ok {
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
+		}
+		p, pp := extractExecAndParent(processNode)
+		tmp, ok := execAndParent[p]
+		if ok {
+			execAndParent[p] = append(tmp, pp)
+		} else {
+			execAndParent[p] = []string{pp}
 		}
 	})
 
-	if opts.FIM {
-		if len(fimPath) > 0 {
-			var els []string
-			for _, path := range fimPath {
-				if strings.Contains(path, "*") {
-					els = append(els, `~"`+path+`"`)
-				} else {
-					els = append(els, `"`+path+`"`)
-				}
-			}
-
-			ruleDef := &rules.RuleDefinition{
-				Expression: fmt.Sprintf(`open.file.path not in [%s]`, strings.Join(els, ", ")),
-			}
-			applyContext(ruleDef, opts)
-			ruleDefs = append(ruleDefs, ruleDef)
-		}
-	}
-
-	if opts.Lineage {
-		execRuleDef := &rules.RuleDefinition{
-			Expression: fmt.Sprintf(`!(%s)`, strings.Join(execRuleExp, " || ")),
-		}
-		applyContext(execRuleDef, opts)
-		if opts.EnableKill {
-			applyKillAction(execRuleDef)
-		}
-		ruleDefs = append(ruleDefs, execRuleDef)
-	}
-
-	if opts.AllowList {
-		denyDef := &rules.RuleDefinition{
-			Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(execPath, `","`)),
-		}
-		applyContext(denyDef, opts)
-		if opts.EnableKill {
-			applyKillAction(denyDef)
-		}
-		ruleDefs = append(ruleDefs, denyDef)
-	}
-
-	return ruleDefs, nil
+	return fimPathsperExecPath, execAndParent
 }

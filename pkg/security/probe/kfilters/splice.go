@@ -16,24 +16,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var spliceCapabilities = Capabilities{
-	"splice.file.path": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:      validateBasenameFilter,
+var spliceCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "splice.file.path",
+		TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc: validateBasenameFilter,
 	},
-	"splice.file.name": {
-		ValueTypeBitmask: eval.ScalarValueType,
+	{
+		Field:       "splice.file.name",
+		TypeBitmask: eval.ScalarValueType,
 	},
-	"splice.pipe_entry_flag": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "splice.pipe_entry_flag",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"splice.pipe_exit_flag": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "splice.pipe_exit_flag",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
-	spliceKFilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
+func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	kfilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
@@ -42,20 +46,20 @@ func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 		switch field {
 		case "splice.file.name", "splice.file.path": // already handled by getBasenameKFilters
 		case "splice.pipe_entry_flag":
-			kfilter, err := getFlagsKFilters("splice_entry_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("splice_entry_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceKFilters = append(spliceKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		case "splice.pipe_exit_flag":
-			kfilter, err := getFlagsKFilters("splice_exit_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("splice_exit_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceKFilters = append(spliceKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(spliceKFilters...), nil
+	return newActiveKFilters(kfilters...), nil
 }

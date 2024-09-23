@@ -10,8 +10,6 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,7 +110,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 					&fstest.MapFile{Data: []byte(tt.deploymentXML)}
 			}
 
-			value, ok := newWebsphereExtractor(NewDetectionContext(zap.NewNop(), tt.args, nil, fs)).findDeployedApps("base")
+			value, ok := newWebsphereExtractor(NewDetectionContext(tt.args, nil, fs)).findDeployedApps("base")
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -120,7 +118,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 }
 
 func TestWebsphereDefaultContextRootFromFile(t *testing.T) {
-	value, ok := newWebsphereExtractor(NewDetectionContext(zap.NewNop(), nil, nil, nil)).defaultContextRootFromFile("myapp.war")
+	value, ok := newWebsphereExtractor(NewDetectionContext(nil, nil, nil)).defaultContextRootFromFile("myapp.war")
 	require.Equal(t, "myapp", value)
 	require.True(t, ok)
 }

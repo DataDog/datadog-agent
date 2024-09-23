@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
 // TODO(component): it might make more sense to move the store into its own
@@ -88,6 +88,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -273,7 +277,7 @@ func NewContainerImage(imageID string, imageName string) (ContainerImage, error)
 		Name:    imageName,
 	}
 
-	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
+	name, registry, shortName, tag, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}

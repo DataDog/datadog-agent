@@ -10,7 +10,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -31,7 +32,7 @@ func TimeNowNano() float64 {
 
 // InitLogging inits default logger
 func InitLogging(level string) error {
-	err := config.SetupLogger(config.LoggerName("test"), level, "", "", false, true, false)
+	err := pkglogsetup.SetupLogger(pkglogsetup.LoggerName("test"), level, "", "", false, true, false, pkgconfigsetup.Datadog())
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}

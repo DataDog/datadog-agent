@@ -22,55 +22,8 @@ import (
 )
 
 const (
-	numTestCPUs        = 4
-	pidMax      uint32 = 1 << 22 // PID_MAX_LIMIT on 64 bit systems
+	pidMax uint32 = 1 << 22 // PID_MAX_LIMIT on 64bit systems
 )
-
-func TestPerfBatchManagerExtract(t *testing.T) {
-	t.Run("normal flush", func(t *testing.T) {
-		manager := newEmptyBatchManager()
-
-		batch := new(netebpf.Batch)
-		batch.Id = 0
-		batch.Cpu = 0
-		batch.C0.Tup.Pid = 1
-		batch.C1.Tup.Pid = 2
-		batch.C2.Tup.Pid = 3
-		batch.C3.Tup.Pid = 4
-
-		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch)
-		conns := buffer.Connections()
-		assert.Len(t, conns, 4)
-		assert.Equal(t, uint32(1), conns[0].Pid)
-		assert.Equal(t, uint32(2), conns[1].Pid)
-		assert.Equal(t, uint32(3), conns[2].Pid)
-		assert.Equal(t, uint32(4), conns[3].Pid)
-	})
-
-	t.Run("partial flush", func(t *testing.T) {
-		manager := newEmptyBatchManager()
-
-		batch := new(netebpf.Batch)
-		batch.Id = 0
-		batch.Cpu = 0
-		batch.C0.Tup.Pid = 1
-		batch.C1.Tup.Pid = 2
-		batch.C2.Tup.Pid = 3
-		batch.C3.Tup.Pid = 4
-
-		// Simulate a partial flush
-		manager.stateByCPU[0].processed = map[uint64]batchState{
-			0: {offset: 3},
-		}
-
-		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch)
-		conns := buffer.Connections()
-		assert.Len(t, conns, 1)
-		assert.Equal(t, uint32(4), conns[0].Pid)
-	})
-}
 
 func TestGetPendingConns(t *testing.T) {
 	manager := newTestBatchManager(t)
@@ -128,7 +81,7 @@ func TestGetPendingConns(t *testing.T) {
 
 func TestPerfBatchStateCleanup(t *testing.T) {
 	manager := newTestBatchManager(t)
-	manager.expiredStateInterval = 100 * time.Millisecond
+	manager.extractor.expiredStateInterval = 100 * time.Millisecond
 
 	batch := new(netebpf.Batch)
 	batch.Id = 0
@@ -142,25 +95,17 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 
 	buffer := network.NewConnectionBuffer(256, 256)
 	manager.GetPendingConns(buffer)
-	_, ok := manager.stateByCPU[cpu].processed[batch.Id]
+	_, ok := manager.extractor.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
-	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[batch.Id].offset)
+	assert.Equal(t, uint16(2), manager.extractor.stateByCPU[cpu].processed[batch.Id].offset)
 
-	manager.cleanupExpiredState(time.Now().Add(manager.expiredStateInterval))
+	manager.extractor.CleanupExpiredState(time.Now().Add(manager.extractor.expiredStateInterval))
 	manager.GetPendingConns(buffer)
 
 	// state should not have been cleaned up, since no more connections have happened
-	_, ok = manager.stateByCPU[cpu].processed[batch.Id]
+	_, ok = manager.extractor.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
-	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[batch.Id].offset)
-}
-
-func newEmptyBatchManager() *perfBatchManager {
-	p := perfBatchManager{stateByCPU: make([]percpuState, numTestCPUs)}
-	for cpu := 0; cpu < numTestCPUs; cpu++ {
-		p.stateByCPU[cpu] = percpuState{processed: make(map[uint64]batchState)}
-	}
-	return &p
+	assert.Equal(t, uint16(2), manager.extractor.stateByCPU[cpu].processed[batch.Id].offset)
 }
 
 func newTestBatchManager(t *testing.T) *perfBatchManager {
@@ -169,14 +114,15 @@ func newTestBatchManager(t *testing.T) *perfBatchManager {
 		Type:       ebpf.Hash,
 		KeySize:    4,
 		ValueSize:  netebpf.SizeofBatch,
-		MaxEntries: 1024,
+		MaxEntries: numTestCPUs,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { m.Close() })
+	t.Cleanup(func() { _ = m.Close() })
 
 	gm, err := ebpfmaps.Map[uint32, netebpf.Batch](m)
 	require.NoError(t, err)
-	mgr, err := newPerfBatchManager(gm, numTestCPUs)
+	extractor := newBatchExtractor(numTestCPUs)
+	mgr, err := newPerfBatchManager(gm, extractor)
 	require.NoError(t, err)
 	return mgr
 }

@@ -30,8 +30,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	kubeletMock := mock.NewKubeletMock()
@@ -164,8 +163,7 @@ func TestKubeletCollectorWindows(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	kubeletMock := mock.NewKubeletMock()
 
@@ -278,8 +276,7 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 			metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Supply(context.Background()),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			kubeletMock := mock.NewKubeletMock()

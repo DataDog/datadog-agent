@@ -214,10 +214,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 		}
 	}
 
-	if len(checks) == 0 {
-		return checks, fmt.Errorf("unable to load any check from config '%s'", config.Name)
-	}
-
 	return checks, nil
 }
 

@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_makeFlare(t *testing.T) {
@@ -94,9 +93,7 @@ func Test_getConfigSetting(t *testing.T) {
 
 	fakeGuiStartTimestamp := time.Now().Unix()
 
-	c := fxutil.Test[config.Component](t,
-		config.MockModule(),
-	)
+	c := config.NewMock(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

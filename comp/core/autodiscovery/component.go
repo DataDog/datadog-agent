@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Component is the component type.
@@ -26,7 +26,7 @@ type Component interface {
 	ForceRanOnceFlag()
 	HasRunOnce() bool
 	GetAllConfigs() []integration.Config
-	AddListeners(listenerConfigs []config.Listeners)
+	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)
 	MapOverLoadedConfigs(f func(map[string]integration.Config))

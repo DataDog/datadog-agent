@@ -1,8 +1,8 @@
 using Datadog.CustomActions.Extensions;
-using Microsoft.Deployment.WindowsInstaller;
-using System.IO;
-using System;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.IO;
 
 namespace Datadog.CustomActions
 {
@@ -14,8 +14,10 @@ namespace Datadog.CustomActions
             var applicationDataLocation = session.Property("APPLICATIONDATADIRECTORY");
             var toDelete = new[]
             {
+                // may contain python files created outside of install
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
+                // installation specific files
                 Path.Combine(applicationDataLocation, "install_info"),
                 Path.Combine(applicationDataLocation, "auth_token")
             };
@@ -49,7 +51,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult CleanupFiles(Session session)
         {
             return CleanupFiles(new SessionWrapper(session));

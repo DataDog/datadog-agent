@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -180,6 +181,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
+						Annotations: map[string]string{
+							mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+						},
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),
@@ -297,6 +301,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
+						Annotations: map[string]string{
+							mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+						},
 					},
 					Spec: corev1.PodSpec{
 						ShareProcessNamespace: pointer.Ptr(true),

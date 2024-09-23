@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -167,10 +167,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
@@ -194,19 +191,18 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog())
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 		}()
 	}
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -241,16 +237,13 @@ func TestCollection(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
 		fx.Provide(
 			fx.Annotate(func() workloadmeta.Collector {
 				return collector
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	time.Sleep(3 * time.Second)

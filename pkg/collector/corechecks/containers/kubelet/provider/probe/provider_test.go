@@ -99,11 +99,13 @@ func TestProvider_Provide(t *testing.T) {
 			value: 281049,
 			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit"},
 		},
+		/* Excluded container is not expected, see containers.Filter in the test
 		{
 			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
 			value: 281049,
 			tags:  []string{"instance_tag:something", "kube_namespace:kube-system", "pod_name:fluentbit-gke-45gvm", "kube_container_name:fluentbit-gke"},
 		},
+		*/
 		{
 			name:  common.KubeletMetricsPrefix + "liveness_probe.success.total",
 			value: 1686298,
@@ -263,8 +265,7 @@ func TestProvider_Provide(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Supply(context.Background()),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
@@ -305,7 +306,7 @@ func TestProvider_Provide(t *testing.T) {
 			p, err := NewProvider(
 				&containers.Filter{
 					Enabled:         true,
-					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+					NameExcludeList: []*regexp.Regexp{regexp.MustCompile("fluentbit-gke")},
 				},
 				config,
 				store,

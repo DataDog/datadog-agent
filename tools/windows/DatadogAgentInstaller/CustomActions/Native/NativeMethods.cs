@@ -1,3 +1,4 @@
+using Datadog.CustomActions.Interfaces;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -6,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
-using Datadog.CustomActions.Interfaces;
 
 // ReSharper disable InconsistentNaming
 
@@ -488,6 +488,8 @@ namespace Datadog.CustomActions.Native
 
         public bool IsServiceAccount(SecurityIdentifier securityIdentifier)
         {
+            // NetIsServiceAccount returns true if NetQueryServiceAccount returns MsaInfoInstalled,
+            // this is the same behavior as the Test-ADServiceAccount cmdlet in PowerShell.
             NetIsServiceAccount(null, securityIdentifier.Translate(typeof(NTAccount)).Value, out var isServiceAccount);
             isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
                                 securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||

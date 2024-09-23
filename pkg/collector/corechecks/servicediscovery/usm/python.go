@@ -125,6 +125,9 @@ func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
 	}
 
 	if name, ok := extractGunicornNameFrom(args); ok {
+		// gunicorn replaces the cmdline with something like "gunicorn: master
+		// [package]", so strip out the square brackets.
+		name = strings.Trim(name, "[]")
 		return NewServiceMetadata(name), true
 	}
 	return NewServiceMetadata("gunicorn"), true

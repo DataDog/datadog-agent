@@ -71,6 +71,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		ClusterName:  rcfg.ClusterName,
 		Region:       rcfg.Region,
 		SystemInfo:   rcfg.SystemInfo,
+		Hostname:     rcfg.HostName,
 	}
 
 	processResult, processed := t.processor.Process(ctx, tasks)

@@ -86,6 +86,65 @@ func NewStringMapItem(str string, size int) *StringMapItem {
 	return &StringMapItem{str: str, size: size}
 }
 
+// Uint32FlagsZeroMapItem value used to reset the map entry
+var Uint32FlagsZeroMapItem = make([]byte, 8)
+
+// Uint32FlagsMapItem describes an flags table key or value
+type Uint32FlagsMapItem uint32
+
+// MarshalBinary returns the binary representation of a Uint32FlagsMapItem
+func (i *Uint32FlagsMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 8)
+	binary.NativeEndian.PutUint32(b, uint32(*i))
+	b[4] = 1
+	return b, nil
+}
+
+// NewUint32FlagsMapItem returns a new Uint32FlagsMapItem
+func NewUint32FlagsMapItem(i uint32) *Uint32FlagsMapItem {
+	item := Uint32FlagsMapItem(i)
+	return &item
+}
+
+// Uint64FlagsZeroMapItem value used to reset the map entry
+var Uint64FlagsZeroMapItem = make([]byte, 16)
+
+// Uint64FlagsMapItem describes an flags table key or value
+type Uint64FlagsMapItem uint64
+
+// MarshalBinary returns the binary representation of a Uint64FlagsMapItem
+func (i *Uint64FlagsMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 16)
+	binary.NativeEndian.PutUint64(b, uint64(*i))
+	b[8] = 1
+	return b, nil
+}
+
+// NewUint64FlagsMapItem returns a new Uint64FlagsMapItem
+func NewUint64FlagsMapItem(i uint64) *Uint64FlagsMapItem {
+	item := Uint64FlagsMapItem(i)
+	return &item
+}
+
+// UInt32RangeMapItem defines a uint32 range map item
+type UInt32RangeMapItem struct {
+	Min uint32
+	Max uint32
+}
+
+// MarshalBinary returns the binary representation of a UInt32RangeMapItem
+func (i *UInt32RangeMapItem) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 8)
+	binary.NativeEndian.PutUint32(b, i.Min)
+	binary.NativeEndian.PutUint32(b[4:], i.Max)
+	return b, nil
+}
+
+// NewUInt32RangeMapItem returns a new UInt32RangeMapItem
+func NewUInt32RangeMapItem(min, max uint32) *UInt32RangeMapItem {
+	return &UInt32RangeMapItem{Min: min, Max: max}
+}
+
 // Zero table items
 var (
 	ZeroUint8MapItem  = BytesMapItem([]byte{0})

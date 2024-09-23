@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -161,12 +161,25 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if previousValue != nil {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
@@ -236,12 +249,34 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
-// SetEnvKeyTransformer allows defining a transformer function which decides
-// how an environment variables value gets assigned to key.
-func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
+// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
+func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, fn)
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
+// map[string]interface{}.
+func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
+func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
+// []interface{}.
+func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
 // SetFs wraps Viper for concurrent access
@@ -618,6 +653,8 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
 // it overrides the existing values with the new ones in the FleetPolicies source, and updates the main config
 // according to sources priority order.
+//
+// Note: this should only be called at startup, as notifiers won't receive a notification when this loads
 func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
@@ -643,6 +680,7 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	for _, key := range c.configSources[SourceFleetPolicies].AllKeys() {
 		c.mergeViperInstances(key)
 	}
+	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
 	return nil
 }
 
@@ -773,13 +811,6 @@ func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 		c.configSources[source].SetTypeByDefaultValue(in)
 	}
 	c.Viper.SetTypeByDefaultValue(in)
-}
-
-// BindPFlag wraps Viper for concurrent access
-func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.BindPFlag(key, flag)
 }
 
 // GetEnvVars implements the Config interface

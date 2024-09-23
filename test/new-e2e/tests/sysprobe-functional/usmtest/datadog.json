@@ -1,0 +1,5 @@
+{
+  "DD_SERVICE": "powershell",
+  "DD_ENV": "staging",
+  "DD_VERSION": "somever"
+}

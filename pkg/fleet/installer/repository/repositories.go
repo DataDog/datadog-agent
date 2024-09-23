@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+const (
+	tempDirPrefix = "tmp-i-"
+)
+
 // Repositories manages multiple repositories.
 type Repositories struct {
 	rootPath  string
@@ -44,8 +48,12 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 		if !d.IsDir() {
 			continue
 		}
-		if strings.HasPrefix(d.Name(), "tmp-install") {
-			// Temporary extraction dir, ignore
+		if strings.HasPrefix(d.Name(), tempDirPrefix) {
+			// Temporary dir created by Repositories.MkdirTemp, ignore
+			continue
+		}
+		if d.Name() == "run" {
+			// run dir, ignore
 			continue
 		}
 		repo := r.newRepository(d.Name())
@@ -80,8 +88,8 @@ func (r *Repositories) Delete(_ context.Context, pkg string) error {
 	return nil
 }
 
-// GetState returns the state of all repositories.
-func (r *Repositories) GetState() (map[string]State, error) {
+// GetStates returns the state of all repositories.
+func (r *Repositories) GetStates() (map[string]State, error) {
 	state := make(map[string]State)
 	repositories, err := r.loadRepositories()
 	if err != nil {
@@ -96,8 +104,8 @@ func (r *Repositories) GetState() (map[string]State, error) {
 	return state, nil
 }
 
-// GetPackageState returns the state of the given package.
-func (r *Repositories) GetPackageState(pkg string) (State, error) {
+// GetState returns the state of the given package.
+func (r *Repositories) GetState(pkg string) (State, error) {
 	repo := r.newRepository(pkg)
 	return repo.GetState()
 }
@@ -115,4 +123,11 @@ func (r *Repositories) Cleanup() error {
 		}
 	}
 	return nil
+}
+
+// MkdirTemp creates a temporary directory in the same partition as the root path.
+// This ensures that the temporary directory can be moved to the root path without copying.
+// The caller is responsible for cleaning up the directory.
+func (r *Repositories) MkdirTemp() (string, error) {
+	return os.MkdirTemp(r.rootPath, tempDirPrefix+"*")
 }

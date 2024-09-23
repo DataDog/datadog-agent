@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -35,12 +35,12 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Oracle InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !config.IsCloudProviderEnabled(CloudProviderName) {
+		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
 		}
 
 		endpoint := metadataURL + "/opc/v2/instance/id"
-		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, config.Datadog())
+		res, err := httputils.Get(ctx, endpoint, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("Oracle HostAliases: unable to query metadata endpoint: %s", err)
 		}
@@ -49,7 +49,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 			return nil, fmt.Errorf("Oracle '%s' returned empty id", endpoint)
 		}
 
-		maxLength := config.Datadog().GetInt("metadata_endpoints_max_hostname_size")
+		maxLength := pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size")
 		if len(res) > maxLength {
 			return nil, fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 		}

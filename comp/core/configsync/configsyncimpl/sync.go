@@ -10,11 +10,59 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strconv"
 	"time"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+func (cs *configSync) updater() {
+	cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), cs.url.String())
+	if err != nil {
+		if cs.connected {
+			cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
+			cs.connected = false
+		} else {
+			cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
+		}
+		return
+	}
+
+	if cs.connected {
+		cs.Log.Debug("Succeeded to fetch config from core agent")
+	} else {
+		cs.Log.Info("Succeeded to fetch config from core agent")
+		cs.connected = true
+	}
+
+	for key, value := range cfg {
+		cs.Log.Debugf("Updating config key %s from core agent", key)
+		if key == "logs_config.additional_endpoints" {
+			valueMap, ok := value.(map[string]string)
+			if !ok {
+				// this would be unexpected - but deal with it
+				updateConfig(cs.Config, key, value)
+				continue
+			}
+
+			typedValues := map[string]interface{}{}
+			for cfgkey, cfgval := range valueMap {
+				if cfgkey == "is_reliable" {
+					if b, err := strconv.ParseBool(cfgval); err == nil {
+						typedValues[cfgkey] = b
+					} else {
+						typedValues[cfgkey] = cfgval
+					}
+				}
+				updateConfig(cs.Config, key, typedValues)
+			}
+
+		} else {
+			updateConfig(cs.Config, key, value)
+		}
+	}
+}
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
 	ticker := time.NewTicker(refreshInterval)
@@ -24,9 +72,6 @@ func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
 }
 
 func (cs *configSync) runWithChan(ch <-chan time.Time) {
-	// whether we managed to contact the core-agent, used to avoid spamming logs
-	connected := true
-	url := cs.url.String()
 
 	cs.Log.Infof("Starting to sync config with core agent at %s", cs.url)
 
@@ -35,29 +80,7 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 		case <-cs.ctx.Done():
 			return
 		case <-ch:
-			cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), url)
-			if err != nil {
-				if connected {
-					cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
-					connected = false
-				} else {
-					cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
-				}
-				continue
-			}
-
-			if connected {
-				cs.Log.Debug("Succeeded to fetch config from core agent")
-			} else {
-				cs.Log.Info("Succeeded to fetch config from core agent")
-				connected = true
-			}
-
-			for key, value := range cfg {
-				if updateConfig(cs.Config, key, value) {
-					cs.Log.Debugf("Updating config key %s from core agent", key)
-				}
-			}
+			cs.updater()
 		}
 	}
 }

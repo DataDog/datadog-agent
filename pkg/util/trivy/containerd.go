@@ -21,7 +21,7 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
 	"github.com/containerd/containerd/namespaces"
-	refdocker "github.com/containerd/containerd/reference/docker"
+	refdocker "github.com/distribution/reference"
 	api "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"

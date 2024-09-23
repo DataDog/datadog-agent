@@ -65,7 +65,7 @@
     <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
-    <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
+    <Compile Include="InstallInfoCustomActions.cs" />
     <Compile Include="Interfaces\IRollbackAction.cs" />
     <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="Native\DirectoryServices.cs" />

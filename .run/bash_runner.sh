@@ -15,6 +15,11 @@ if [[ -z $SCRIPT_TO_RUN ]]; then
   exit
 fi
 
+if [ "$INCLUDE_AWS_ECR_LOGIN_PASSWORD" = true ]; then
+    # Get AWS ECR login password
+    AWS_ECR_LOGIN_PASSWORD=$(aws-vault exec sso-sandbox-account-admin -- aws ecr get-login-password --region us-east-1)
+fi
+
 if [[ -z $REMOTE_MACHINE_IP ]]; then
   echo "REMOTE_MACHINE_IP environment variable was not set, assuming local configuration"
   source "${SCRIPT_TO_RUN}"
@@ -50,6 +55,11 @@ else
 
   # Finally create the environment variable to inject list in the format that works with sh `ssh` command
   env_variables_to_inject=$(echo "$env_vars" | grep -v -w "${remote_env_array_as_grep_patterns[@]}" | tr '\n' ' ')
+
+  if [ "$INCLUDE_AWS_ECR_LOGIN_PASSWORD" = true ]; then
+      env_variables_to_inject+="AWS_ECR_LOGIN_PASSWORD=${AWS_ECR_LOGIN_PASSWORD} "
+  fi
+
   # shellcheck disable=SC2002
   cat "${SCRIPT_TO_RUN}" | ssh -tt "vagrant@$REMOTE_MACHINE_IP" \
   "export $env_variables_to_inject;cd ${DD_AGENT_ROOT_DIR};bash --login"

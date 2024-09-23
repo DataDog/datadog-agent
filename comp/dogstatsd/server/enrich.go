@@ -40,10 +40,10 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 	host := conf.defaultHostname
 	metricSource := metrics.MetricSourceDogstatsd
 	origin := taggertypes.OriginInfo{
-		FromUDS:       originFromUDS,
-		FromMsg:       string(originFromMsg),
-		ExternalData:  externalData,
-		ProductOrigin: taggertypes.ProductOriginDogStatsD,
+		ContainerIDFromSocket: originFromUDS,
+		ContainerID:           string(originFromMsg),
+		ExternalData:          externalData,
+		ProductOrigin:         taggertypes.ProductOriginDogStatsD,
 	}
 
 	n := 0
@@ -52,7 +52,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 			host = tag[len(hostTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			origin.FromTag = tag[len(entityIDTagPrefix):]
+			origin.PodUID = tag[len(entityIDTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]

@@ -7,7 +7,7 @@ package utils
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // AddContainerCollectAllConfigs adds a config template containing an empty
@@ -15,7 +15,7 @@ import (
 // will be filtered out during config resolution if another config template
 // also has logs configuration.
 func AddContainerCollectAllConfigs(configs []integration.Config, adIdentifier string) []integration.Config {
-	if !config.Datadog().GetBool("logs_config.container_collect_all") {
+	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return configs
 	}
 

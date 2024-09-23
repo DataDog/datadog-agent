@@ -6,6 +6,8 @@
 package repository
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +23,7 @@ func newTestRepositories(t *testing.T) *Repositories {
 func TestRepositoriesEmpty(t *testing.T) {
 	repositories := newTestRepositories(t)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Empty(t, state)
 }
@@ -37,7 +39,7 @@ func TestRepositories(t *testing.T) {
 	err = repositories.Create("repo2", "v1.0", t.TempDir())
 	assert.NoError(t, err)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1", Experiment: "v2"})
@@ -53,9 +55,23 @@ func TestRepositoriesReopen(t *testing.T) {
 
 	repositories = NewRepositories(repositories.rootPath, repositories.locksPath)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1"})
 	assert.Equal(t, state["repo2"], State{Stable: "v1"})
+}
+
+func TestLoadRepositories(t *testing.T) {
+	rootDir := t.TempDir()
+	runDir := t.TempDir()
+
+	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
+	os.Mkdir(path.Join(rootDir, tempDirPrefix+"2394812349"), 0755)
+
+	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	assert.NoError(t, err)
+	assert.Len(t, repositories, 1)
+	assert.Contains(t, repositories, "datadog-agent")
+	assert.NotContains(t, repositories, tempDirPrefix+"2394812349")
 }

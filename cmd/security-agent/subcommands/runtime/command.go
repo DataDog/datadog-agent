@@ -33,7 +33,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -97,7 +97,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
@@ -105,7 +105,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
 	_ = evalCmd.MarkFlagRequired("rule-id")
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
@@ -130,7 +130,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
@@ -138,7 +138,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, "loaded-policies", false, "Evaluate loaded policies")
 	if runtime.GOOS == "linux" {
 		commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.windowsModel, "windows-model", false, "Evaluate policies using the Windows model")
@@ -154,7 +154,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -172,7 +172,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -203,7 +203,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
@@ -238,7 +238,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -276,7 +276,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -303,7 +303,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -684,8 +684,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	// start/stop order is important, agent need to be stopped first and started after all the others
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(statsdClient, hostname, secagent.RSAOptions{
-		LogProfiledWorkloads:    config.GetBool("runtime_security_config.log_profiled_workloads"),
-		IgnoreDDAgentContainers: config.GetBool("runtime_security_config.telemetry.ignore_dd_agent_containers"),
+		LogProfiledWorkloads: config.GetBool("runtime_security_config.log_profiled_workloads"),
 	}, wmeta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)

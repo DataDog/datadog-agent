@@ -1,0 +1,18 @@
+version: '3'
+name: port-test
+services:
+  one:
+    # Just some image that has python.  mysql chosen since it is already used
+    # from another test.
+    image: mysql:8.0.32
+    # Symlink binary to allow easier identification of processes from test
+    command: >
+      sh -c "echo
+      && ln -s /usr/bin/python3 python-1111
+      && ./python-1111 -m http.server 1234"
+    environment:
+    # The "Serving HTTP.. print does not show up otherwise"
+      - PYTHONUNBUFFERED=x
+    restart: always
+    ports:
+      - 1111:1234

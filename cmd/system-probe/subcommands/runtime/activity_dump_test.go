@@ -45,3 +45,11 @@ func TestDiffActivityDumpCommand(t *testing.T) {
 		diffActivityDump,
 		func() {})
 }
+
+func TestDumpActivityDumpCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"runtime", "activity-dump", "generate", "dump"},
+		generateActivityDump,
+		func() {})
+}

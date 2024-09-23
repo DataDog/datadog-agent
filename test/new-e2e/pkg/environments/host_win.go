@@ -6,15 +6,14 @@
 package environments
 
 import (
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/test-infra-definitions/common/config"
 )
 
 // WindowsHost is an environment based on environments.Host but that is specific to Windows.
 type WindowsHost struct {
-	AwsEnvironment *aws.Environment
+	Environment config.Env
 	// Components
 	RemoteHost      *components.RemoteHost
 	FakeIntake      *components.FakeIntake

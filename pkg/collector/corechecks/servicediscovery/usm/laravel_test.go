@@ -11,7 +11,6 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestGetLaravelAppNameFromEnv(t *testing.T) {
@@ -98,7 +97,7 @@ func TestGetLaravelAppNameFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name := newLaravelParser(NewDetectionContext(zap.NewExample(), nil, nil, tt.filesystem)).GetLaravelAppName("artisan")
+			name := newLaravelParser(NewDetectionContext(nil, nil, tt.filesystem)).GetLaravelAppName("artisan")
 			require.Equal(t, tt.expected, name)
 		})
 	}

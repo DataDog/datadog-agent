@@ -1,0 +1,4 @@
+fixes:
+  - >
+    Results of `agent config` did not reflect the actual runtime config for the other services. 
+    This will have other Datadog Agent services (e.g. trace-agent) running as a systemd service read the same environment variables from a text file `/etc/datadog-agent/environment` as the core Agent process.

@@ -10,9 +10,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	//nolint:revive // TODO(NET) Fix revive linter
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ReplaceRule specifies a replace rule.
@@ -27,8 +26,8 @@ type ReplaceRule struct {
 	Repl string `mapstructure:"repl"`
 }
 
-func parseReplaceRules(cfg ddconfig.Config, key string) ([]*ReplaceRule, error) {
-	if !config.SystemProbe.IsSet(key) {
+func parseReplaceRules(cfg model.Config, key string) ([]*ReplaceRule, error) {
+	if !pkgconfigsetup.SystemProbe().IsSet(key) {
 		return nil, nil
 	}
 

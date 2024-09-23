@@ -560,7 +560,7 @@ class TestFindPreviousTags(unittest.TestCase):
     keys = ["HARRY_POTTER_VERSION", "HERMIONE_GRANGER_VERSION", "WEASLEY_VERSION"]
 
     @patch(
-        'tasks.libs.releasing.json._load_release_json',
+        'tasks.libs.releasing.json.load_release_json',
         new=MagicMock(
             return_value={
                 'hogwarts': {
@@ -576,7 +576,7 @@ class TestFindPreviousTags(unittest.TestCase):
         self.assertEqual({'harry-potter': '6.6.6'}, find_previous_tags("hogwarts", repos, self.keys))
 
     @patch(
-        'tasks.libs.releasing.json._load_release_json',
+        'tasks.libs.releasing.json.load_release_json',
         new=MagicMock(
             return_value={
                 'hogwarts': {
@@ -595,7 +595,7 @@ class TestFindPreviousTags(unittest.TestCase):
         )
 
     @patch(
-        'tasks.libs.releasing.json._load_release_json',
+        'tasks.libs.releasing.json.load_release_json',
         new=MagicMock(
             return_value={
                 'hogwarts': {
@@ -611,7 +611,7 @@ class TestFindPreviousTags(unittest.TestCase):
         self.assertEqual({}, find_previous_tags("hogwarts", repos, self.keys))
 
     @patch(
-        'tasks.libs.releasing.json._load_release_json',
+        'tasks.libs.releasing.json.load_release_json',
         new=MagicMock(
             return_value={
                 'hogwarts': {

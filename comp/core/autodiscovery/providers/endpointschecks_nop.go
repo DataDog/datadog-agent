@@ -9,10 +9,10 @@ package providers
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // NewEndpointsChecksConfigProvider returns a new ConfigProvider collecting
 // endpoints check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-var NewEndpointsChecksConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)
+var NewEndpointsChecksConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

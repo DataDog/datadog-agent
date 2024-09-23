@@ -30,7 +30,9 @@ type Mock interface {
 	Component
 }
 
-// MockModule defines the fx options for the mock component.
+// MockModule - deprecated - defines the fx options for the mock component.
+//
+// This is a legacy helper to get a config mock using Fx, use config.NewMock or config.NewMockFromYAML instead.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock),

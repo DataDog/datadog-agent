@@ -424,6 +424,29 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "report interface metric",
+			metrics: []profiledefinition.MetricsConfig{
+				{Symbols: []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.2.2.1", Name: "interfaceMetric"}}},
+			},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: map[string]map[string]valuestore.ResultValue{
+					"1.3.6.1.2.1.2.2.1": {
+						"1": valuestore.ResultValue{
+							Value: float64(1),
+						},
+					},
+				},
+			},
+			expectedMetrics: []expectedMetric{
+				{
+					method: "Gauge",
+					name:   "snmp.interfaceMetric",
+					value:  float64(1),
+					tags:   []string{"dd.internal.resource:ndm_interface_user_tags:device_id:1"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -439,7 +462,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 
 			metricSender := MetricSender{sender: mockSender}
 
-			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags)
+			metricSender.ReportMetrics(tt.metrics, tt.values, tt.tags, "device_id")
 
 			assert.Equal(t, len(tt.expectedMetrics), metricSender.submittedMetrics)
 			for _, expectedMetric := range tt.expectedMetrics {

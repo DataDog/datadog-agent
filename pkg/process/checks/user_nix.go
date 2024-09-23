@@ -13,13 +13,13 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type LookupIdProbe struct {
-	config config.Reader
+	config pkgconfigmodel.Reader
 
 	lookupIdCache *cache.Cache
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -27,7 +27,7 @@ type LookupIdProbe struct {
 }
 
 // NewLookupIDProbe returns a new LookupIdProbe from the config
-func NewLookupIDProbe(coreConfig config.Reader) *LookupIdProbe {
+func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIdProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
 		log.Debug("Using cached calls to `user.LookupID`")
 	}

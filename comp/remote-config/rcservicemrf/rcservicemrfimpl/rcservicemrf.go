@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -49,7 +49,7 @@ type dependencies struct {
 // newMrfRemoteConfigServiceOptional conditionally creates and configures a new MRF remote config service, based on whether RC is enabled.
 func newMrfRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservicemrf.Component] {
 	none := optional.NewNoneOption[rcservicemrf.Component]()
-	if !config.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
+	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) || !deps.Cfg.GetBool("multi_region_failover.enabled") {
 		return none
 	}
 

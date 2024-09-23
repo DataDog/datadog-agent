@@ -13,11 +13,15 @@ generator:
           variant: "opentelemetry_traces"
 
 blackhole:
-  # API ingest listener
   - http:
       binding_addr: "127.0.0.1:9091"
       body_variant: "nothing"
-  # Agent control API
   - http:
       binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+      body_variant: "nothing"
+  - http:
+      binding_addr: "127.0.0.1:9094"
       body_variant: "nothing"

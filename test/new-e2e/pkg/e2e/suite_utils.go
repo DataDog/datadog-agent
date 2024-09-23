@@ -16,6 +16,7 @@ func newTestLogger(t *testing.T) testLogger {
 }
 
 func (tl testLogger) Write(p []byte) (n int, err error) {
+	tl.t.Helper()
 	tl.t.Log(string(p))
 	return len(p), nil
 }

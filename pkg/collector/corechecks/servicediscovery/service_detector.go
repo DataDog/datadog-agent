@@ -9,34 +9,17 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
-	"go.uber.org/zap"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
-	agentzap "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
-type serviceDetector struct {
-	logger     *zap.Logger
-	langFinder language.Finder
-}
-
-func newServiceDetector() *serviceDetector {
-	logger := zap.New(agentzap.NewZapCore())
-	return &serviceDetector{
-		logger:     logger,
-		langFinder: language.New(logger),
-	}
-}
-
-type serviceMetadata struct {
+// ServiceMetadata stores metadata about a service.
+type ServiceMetadata struct {
 	Name               string
 	Language           string
 	Type               string
 	APMInstrumentation string
-	FromDDService      bool
 }
 
 func fixAdditionalNames(additionalNames []string) []string {
@@ -50,24 +33,36 @@ func fixAdditionalNames(additionalNames []string) []string {
 	return out
 }
 
-func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
-	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
-	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
-	svcType := servicetype.Detect(meta.Name, p.Ports)
-	apmInstr := apm.Detect(sd.logger, p.CmdLine, p.Env, lang)
-
-	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
-
+func makeFinalName(meta usm.ServiceMetadata) string {
 	name := meta.Name
 	if len(meta.AdditionalNames) > 0 {
 		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
 	}
 
-	return serviceMetadata{
-		Name:               name,
-		Language:           string(lang),
-		Type:               string(svcType),
-		APMInstrumentation: string(apmInstr),
-		FromDDService:      meta.FromDDService,
+	return name
+}
+
+// fixupMetadata performs additional adjustments on the meta data returned from
+// the meta data extraction library.
+func fixupMetadata(meta usm.ServiceMetadata, lang language.Language) usm.ServiceMetadata {
+	meta.Name = makeFinalName(meta)
+
+	langName := ""
+	if lang != language.Unknown {
+		langName = string(lang)
 	}
+	meta.Name, _ = traceutil.NormalizeService(meta.Name, langName)
+	if meta.DDService != "" {
+		meta.DDService, _ = traceutil.NormalizeService(meta.DDService, langName)
+	}
+
+	return meta
+}
+
+// GetServiceName gets the service name based on the command line arguments and
+// the list of environment variables.
+func GetServiceName(cmdline []string, env map[string]string, root string, lang language.Language, contextMap usm.DetectorContextMap) usm.ServiceMetadata {
+	fs := usm.NewSubDirFS(root)
+	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, lang, contextMap)
+	return fixupMetadata(meta, lang)
 }

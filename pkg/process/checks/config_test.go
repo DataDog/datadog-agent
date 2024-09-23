@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestEnsureValidMaxBatchSize(t *testing.T) {
@@ -33,17 +33,17 @@ func TestEnsureValidMaxBatchSize(t *testing.T) {
 		{
 			name:                 "invalid negative batch count",
 			maxPerMessage:        -1,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 		{
 			name:                 "invalid 0 max batch size",
 			maxPerMessage:        0,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 		{
 			name:                 "invalid big max batch size",
 			maxPerMessage:        20000,
-			expectedMaxBatchSize: ddconfig.DefaultProcessMaxPerMessage,
+			expectedMaxBatchSize: pkgconfigsetup.DefaultProcessMaxPerMessage,
 		},
 	}
 
@@ -74,17 +74,17 @@ func TestEnsureValidMaxBatchBytes(t *testing.T) {
 		{
 			name:                  "invalid negative batch size",
 			maxMessageBytes:       -1,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
 		},
 		{
 			name:                  "invalid 0 max batch size",
 			maxMessageBytes:       0,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
 		},
 		{
 			name:                  "invalid big max batch size",
 			maxMessageBytes:       20000000,
-			expectedMaxBatchBytes: ddconfig.DefaultProcessMaxMessageBytes,
+			expectedMaxBatchBytes: pkgconfigsetup.DefaultProcessMaxMessageBytes,
 		},
 	}
 

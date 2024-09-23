@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package testutil contains helper functions used for testing conntrack
 package testutil
 
 import (
@@ -98,7 +98,7 @@ func SetupDNAT6(t *testing.T) {
 		teardownDNAT6(t, ifName, linkName)
 	})
 
-	nettestutil.Ip6tablesSave(t)
+	nettestutil.IP6tablesSave(t)
 	cmds := []string{
 		fmt.Sprintf("ip link add %s type dummy", linkName),
 		fmt.Sprintf("ip address add fd00::1 dev %s", linkName),
@@ -177,8 +177,7 @@ func SetupVeth6Pair(t *testing.T) (ns string) {
 	return
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func teardownVeth6Pair(t *testing.T, ns string) {
+func teardownVeth6Pair(t *testing.T, _ns string) {
 	cmds := []string{
 		"ip link del veth1",
 	}
@@ -236,7 +235,7 @@ func SetupCrossNsDNAT6(t *testing.T) (ns string) {
 	})
 	ns = SetupVeth6Pair(t)
 
-	nettestutil.Ip6tablesSave(t)
+	nettestutil.IP6tablesSave(t)
 	cmds := []string{
 		"ip6tables -I INPUT 1 -m conntrack --ctstate NEW,RELATED,ESTABLISHED -j ACCEPT",
 		fmt.Sprintf("ip netns exec %s ip6tables -A PREROUTING -t nat -p tcp --dport 80 -j REDIRECT --to-port 8080", ns),

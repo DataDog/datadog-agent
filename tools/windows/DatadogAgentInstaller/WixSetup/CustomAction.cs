@@ -6,19 +6,29 @@ namespace WixSetup
 {
     public class CustomAction<T> : ManagedAction
     {
+        private string[] GetRefAssemblies()
+        {
+            // Include references of assembly where the custom action entrypoint is defined
+            IEnumerable<string> refs = typeof(T).GetReferencesAssembliesPaths();
+            // Include references of common CustomActions assembly
+            refs = refs.Concat(
+                typeof(Datadog.CustomActions.Constants).GetReferencesAssembliesPaths().ToArray()
+            );
+            return refs.ToArray();
+        }
         public CustomAction(
             Id id,
             CustomActionMethod method)
             : base(id, method, typeof(T).Assembly.Location)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
             CustomActionMethod method)
             : base(method, typeof(T).Assembly.Location)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
@@ -28,7 +38,7 @@ namespace WixSetup
             Step step)
             : base(action, typeof(T).Assembly.Location, returnType, when, step, Condition.Always)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
@@ -40,7 +50,7 @@ namespace WixSetup
             Condition condition)
             : base(id, action, typeof(T).Assembly.Location, returnType, when, step, condition)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
@@ -53,7 +63,7 @@ namespace WixSetup
             Sequence sequence)
             : base(id, action, typeof(T).Assembly.Location, returnType, when, step, condition, sequence)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
@@ -64,7 +74,7 @@ namespace WixSetup
             Step step)
             : base(id, action, typeof(T).Assembly.Location, returnType, when, step, Condition.Always)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction(
@@ -76,7 +86,7 @@ namespace WixSetup
             CustomActionMethod rollback)
             : base(action, typeof(T).Assembly.Location, returnType, when, step, condition, rollback)
         {
-            RefAssemblies = typeof(T).GetReferencesAssembliesPaths().ToArray();
+            RefAssemblies = GetRefAssemblies();
         }
 
         public CustomAction<T> HideTarget(bool hideTarget)

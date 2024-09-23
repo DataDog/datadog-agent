@@ -56,7 +56,15 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		requestStats = NewRequestStats()
 		statKeeper.stats[key] = requestStats
 	}
-	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags))
+
+	latency := tx.RequestLatency()
+	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
+	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(1)
+		return
+	}
+
+	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
 }
 
 // GetAndResetAllStats returns all the stats and resets the stats

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -123,7 +123,7 @@ func (server *apiServer) startCMDServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(server.cmdListener, srv, cmdServerName)

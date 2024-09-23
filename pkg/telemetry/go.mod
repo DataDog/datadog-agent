@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/telemetry
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
@@ -40,11 +40,11 @@ require (
 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0 // indirect
-	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.23.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/fx v1.22.2 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

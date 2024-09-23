@@ -11,11 +11,11 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
-    struct policy_t policy = fetch_policy(EVENT_OPEN);
-    if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_OPEN);
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,
@@ -89,9 +89,8 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
-    if (filter_syscall(syscall, open_approvers)) {
-        return mark_as_discarded(syscall);
-    }
+    // do not pop, we want to keep track of the mount ref counter later in the stack
+    approve_syscall(syscall, open_approvers);
 
     return 0;
 }
@@ -116,9 +115,8 @@ int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path
 
     set_file_inode(dentry, &syscall->open.file, 0);
 
-    if (filter_syscall(syscall, open_approvers)) {
-        return mark_as_discarded(syscall);
-    }
+    // do not pop, we want to keep track of the mount ref counter later in the stack
+    approve_syscall(syscall, open_approvers);
 
     return 0;
 }
@@ -241,14 +239,14 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx, int retval, int dr_ty
 
     // increase mount ref
     inc_mount_ref(syscall->open.file.path_key.mount_id);
-    if (syscall->discarded) {
+    if (syscall->state == DISCARDED) {
         pop_syscall(EVENT_OPEN);
         return 0;
     }
 
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_OPEN : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_OPEN_CALLBACK_KPROBE_KEY, DR_OPEN_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;

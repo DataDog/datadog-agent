@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
@@ -246,8 +246,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
-			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -276,7 +276,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			pkgconfigsetup.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 

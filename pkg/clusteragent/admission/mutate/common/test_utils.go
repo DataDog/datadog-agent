@@ -259,9 +259,8 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		coreconfig.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	for _, d := range deployments {

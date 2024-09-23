@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -20,20 +19,16 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 	}
 
 	ruleDefinitions := []*rules.RuleDefinition{{
-		ID:         events.RefreshUserCacheRuleID,
+		ID:         RefreshUserCacheRuleID,
 		Expression: `rename.file.destination.path in ["/etc/passwd", "/etc/group"]`,
-		Actions: []*rules.ActionDefinition{{
-			InternalCallback: &rules.InternalCallbackDefinition{},
-		}},
-		Silent: true,
+		Silent:     true,
 	}}
 
 	if cfg.SBOMResolverEnabled {
 		ruleDefinitions = append(ruleDefinitions, &rules.RuleDefinition{
-			ID:         events.NeedRefreshSBOMRuleID,
+			ID:         NeedRefreshSBOMRuleID,
 			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0`,
 			Actions: []*rules.ActionDefinition{{
-				InternalCallback: &rules.InternalCallbackDefinition{},
 				Set: &rules.SetDefinition{
 					Name:  needRefreshSBOMVariableName,
 					Scope: needRefreshSBOMVariableScope,
@@ -42,12 +37,9 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 			}},
 			Silent: true,
 		}, &rules.RuleDefinition{
-			ID:         events.RefreshSBOMRuleID,
+			ID:         RefreshSBOMRuleID,
 			Expression: fmt.Sprintf("exit.cause == EXITED && ${%s.%s}", needRefreshSBOMVariableScope, needRefreshSBOMVariableName),
-			Actions: []*rules.ActionDefinition{{
-				InternalCallback: &rules.InternalCallbackDefinition{},
-			}},
-			Silent: true,
+			Silent:     true,
 		})
 	}
 

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,7 +39,7 @@ type Webhook struct {
 func NewWebhook(patcher workload.PodPatcher) *Webhook {
 	return &Webhook{
 		name:       webhookName,
-		isEnabled:  config.Datadog().GetBool("autoscaling.workload.enabled"),
+		isEnabled:  pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled"),
 		endpoint:   webhookEndpoint,
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},

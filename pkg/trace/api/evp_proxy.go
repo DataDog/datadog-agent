@@ -164,8 +164,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if containerID != "" {
 		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
-			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctags)
+			ctagsHeader := normalizeHTTPHeader(ctags)
+			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctagsHeader)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)

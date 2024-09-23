@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "status [section]",
 		Short: "Display the current status",
 		Long: `Display the current status.
-If no section is specified, this command will display all status sections. 
+If no section is specified, this command will display all status sections.
 If a specific section is provided, such as 'collector', it will only display the status of that section.
 The --list flag can be used to list all available status sections.`,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -67,8 +67,8 @@ The --list flag can be used to list all available status sections.`,
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)

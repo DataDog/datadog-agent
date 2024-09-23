@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +45,7 @@ type injectionFilter struct {
 // This DOES NOT respect `mutate_unlabelled` since it is a namespace
 // specific check.
 func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
-	apmInstrumentationEnabled := config.Datadog().GetBool("apm_config.instrumentation.enabled")
+	apmInstrumentationEnabled := pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled")
 
 	if !apmInstrumentationEnabled {
 		log.Debugf("APM Instrumentation is disabled")
@@ -85,8 +85,8 @@ func (f *injectionFilter) Err() error {
 //     are not one of the ones disabled by default.
 //   - Enabled and disabled namespaces: return error.
 func makeAPMSSINamespaceFilter() (*containers.Filter, error) {
-	apmEnabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+	apmEnabledNamespaces := pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	apmDisabledNamespaces := pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
 		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")

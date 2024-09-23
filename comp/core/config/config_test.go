@@ -45,7 +45,7 @@ func TestRealConfig(t *testing.T) {
 }
 
 func TestMockConfig(t *testing.T) {
-	t.Setenv("XXXX_APP_KEY", "abc1234")
+	t.Setenv("DD_APP_KEY", "abc1234")
 	t.Setenv("DD_URL", "https://example.com")
 
 	config := fxutil.Test[Component](t, fx.Options(

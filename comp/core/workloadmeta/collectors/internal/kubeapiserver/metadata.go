@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"regexp"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,7 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,16 +34,17 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 	}
 
 	annotationsExclude := config.GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
-	parser, err := newMetadataParser(gvr, annotationsExclude)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all resource_annotations_exclude: %v, err:", err)
-		parser, _ = newMetadataParser(gvr, nil)
+		parser, _ = kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	}
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: wlmetaStore,
-		seen:        make(map[string][]workloadmeta.EntityID),
+		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      parser,
+		filter:      nil,
 	}
 	metadataReflector := cache.NewNamedReflector(
 		componentName,
@@ -54,37 +54,4 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 		noResync,
 	)
 	return metadataReflector, metadataStore
-}
-
-type metadataParser struct {
-	gvr               *schema.GroupVersionResource
-	annotationsFilter []*regexp.Regexp
-}
-
-func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []string) (objectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return metadataParser{gvr: &gvr, annotationsFilter: filters}, nil
-}
-
-func (p metadataParser) Parse(obj interface{}) []workloadmeta.Entity {
-	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
-	id := util.GenerateKubeMetadataEntityID(p.gvr.Group, p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
-
-	return []workloadmeta.Entity{&workloadmeta.KubernetesMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   string(id),
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:        partialObjectMetadata.Name,
-			Namespace:   partialObjectMetadata.Namespace,
-			Labels:      partialObjectMetadata.Labels,
-			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
-		},
-		GVR: p.gvr,
-	}}
 }

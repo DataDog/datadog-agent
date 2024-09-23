@@ -1,0 +1,14 @@
+{
+  "name": "node-instrumented",
+  "version": "1.0.0",
+  "description": "Dummy APM-instrumented Node project",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "",
+  "dependencies": {
+    "dd-trace": "^5.21.0"
+  }
+}

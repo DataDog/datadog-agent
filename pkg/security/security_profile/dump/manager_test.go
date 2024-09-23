@@ -204,7 +204,6 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 			for _, ad := range expiredDumps {
 				ad.state = Stopped
 			}
-			adm.RemoveStoppedActivityDumps()
 
 			compareListOfDumps(t, expiredDumps, tt.expiredDumps)
 			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)

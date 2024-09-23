@@ -10,19 +10,20 @@ package clusterchecks
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestIsolateCheckSuccessful(t *testing.T) {
 	testDispatcher := newDispatcher()
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
-	testDispatcher.store.nodes["A"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
-	testDispatcher.store.nodes["B"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {
@@ -100,9 +101,9 @@ func TestIsolateCheckSuccessful(t *testing.T) {
 func TestIsolateNonExistentCheckFails(t *testing.T) {
 	testDispatcher := newDispatcher()
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
-	testDispatcher.store.nodes["A"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 	testDispatcher.store.nodes["B"] = newNodeStore("B", "")
-	testDispatcher.store.nodes["B"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["B"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {
@@ -178,7 +179,7 @@ func TestIsolateNonExistentCheckFails(t *testing.T) {
 func TestIsolateCheckOnlyOneRunnerFails(t *testing.T) {
 	testDispatcher := newDispatcher()
 	testDispatcher.store.nodes["A"] = newNodeStore("A", "")
-	testDispatcher.store.nodes["A"].workers = config.DefaultNumWorkers
+	testDispatcher.store.nodes["A"].workers = pkgconfigsetup.DefaultNumWorkers
 
 	testDispatcher.store.nodes["A"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkA0": {

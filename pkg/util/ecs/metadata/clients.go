@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
@@ -50,7 +50,7 @@ type util struct {
 // endpoint, by detecting the endpoint address. Returns an error if it was not
 // possible to detect the endpoint address.
 func V1() (v1.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
@@ -73,7 +73,7 @@ func V1() (v1.Client, error) {
 // V2 returns a client for the ECS metadata API v2 that uses the default
 // endpoint address.
 func V2() (v2.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
@@ -99,7 +99,7 @@ func V2() (v2.Client, error) {
 // error if it was not possible to detect the endpoint address.
 // v4 metadata API is preferred over v3 if both are available.
 func V3orV4FromCurrentTask() (v3or4.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
@@ -123,7 +123,7 @@ func V3orV4FromCurrentTask() (v3or4.Client, error) {
 // the endpoint address from the task the executable is running in. Returns an
 // error if it was not possible to detect the endpoint address.
 func V4FromCurrentTask() (v3or4.Client, error) {
-	if !config.IsCloudProviderEnabled(common.CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 

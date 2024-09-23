@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package testutil is test utilities for testing the network tracer
+// Package testutil has utilities for testing the network tracer
 package testutil
 
 import "net"

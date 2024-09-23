@@ -12,21 +12,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
 )
 
 type ConfigTestSuite struct {
 	suite.Suite
-	config config.Mock
+	config config.Component
 }
 
 func (suite *ConfigTestSuite) SetupTest() {
-	suite.config = fxutil.Test[config.Component](suite.T(), fx.Options(
-		config.MockModule(),
-	)).(config.Mock)
+	suite.config = config.NewMock(suite.T())
 }
 
 func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {

@@ -3049,9 +3049,9 @@ func (z OrgStatusResponse) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 4
+	// map header, size 7
 	// string "Package"
-	o = append(o, 0x84, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
+	o = append(o, 0x87, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
 	o = msgp.AppendString(o, z.Package)
 	// string "StableVersion"
 	o = append(o, 0xad, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
@@ -3059,6 +3059,15 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "ExperimentVersion"
 	o = append(o, 0xb1, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.ExperimentVersion)
+	// string "StableConfigVersion"
+	o = append(o, 0xb3, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.StableConfigVersion)
+	// string "ExperimentConfigVersion"
+	o = append(o, 0xb7, 0x45, 0x78, 0x70, 0x65, 0x72, 0x69, 0x6d, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.ExperimentConfigVersion)
+	// string "RemoteConfigVersion"
+	o = append(o, 0xb3, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
+	o = msgp.AppendString(o, z.RemoteConfigVersion)
 	// string "Task"
 	o = append(o, 0xa4, 0x54, 0x61, 0x73, 0x6b)
 	if z.Task == nil {
@@ -3109,6 +3118,24 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "ExperimentVersion")
 				return
 			}
+		case "StableConfigVersion":
+			z.StableConfigVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "StableConfigVersion")
+				return
+			}
+		case "ExperimentConfigVersion":
+			z.ExperimentConfigVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ExperimentConfigVersion")
+				return
+			}
+		case "RemoteConfigVersion":
+			z.RemoteConfigVersion, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "RemoteConfigVersion")
+				return
+			}
 		case "Task":
 			if msgp.IsNil(bts) {
 				bts, err = msgp.ReadNilBytes(bts)
@@ -3140,7 +3167,7 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PackageState) Msgsize() (s int) {
-	s = 1 + 8 + msgp.StringPrefixSize + len(z.Package) + 14 + msgp.StringPrefixSize + len(z.StableVersion) + 18 + msgp.StringPrefixSize + len(z.ExperimentVersion) + 5
+	s = 1 + 8 + msgp.StringPrefixSize + len(z.Package) + 14 + msgp.StringPrefixSize + len(z.StableVersion) + 18 + msgp.StringPrefixSize + len(z.ExperimentVersion) + 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 20 + msgp.StringPrefixSize + len(z.RemoteConfigVersion) + 5
 	if z.Task == nil {
 		s += msgp.NilSize
 	} else {

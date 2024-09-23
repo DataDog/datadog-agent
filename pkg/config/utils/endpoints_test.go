@@ -6,8 +6,10 @@
 package utils
 
 import (
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -20,7 +22,7 @@ import (
 // endpoints are configured.
 // Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
-	conf := pkgconfigsetup.Conf()
+	conf := mock.New(t)
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
 	_, err := pkgconfigsetup.LoadDatadogCustom(conf, "datadog_secrets.yaml", optional.NewNoneOption[secrets.Component](), nil)
@@ -46,7 +48,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -78,7 +80,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -101,7 +103,7 @@ func TestGetMultipleEndpointsEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_ADDITIONAL_ENDPOINTS", "{\"https://foo.datadoghq.com\": [\"someapikey\"]}")
 
-	testConfig := pkgconfigsetup.Conf()
+	testConfig := mock.New(t)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -131,7 +133,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -158,7 +160,7 @@ dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -186,7 +188,7 @@ additional_endpoints:
   - ""
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -219,7 +221,7 @@ additional_endpoints:
   - someapikey
 `
 
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
@@ -241,7 +243,7 @@ additional_endpoints:
 func TestSiteEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_SITE", "datadoghq.eu")
-	testConfig := pkgconfigsetup.ConfFromYAML("")
+	testConfig := mock.New(t)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
@@ -261,7 +263,7 @@ func TestDefaultSite(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
 `
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
@@ -282,7 +284,7 @@ func TestSite(t *testing.T) {
 site: datadoghq.eu
 api_key: fakeapikey
 `
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
@@ -302,7 +304,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := pkgconfigsetup.ConfFromYAML("")
+	testConfig := mock.New(t)
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -323,7 +325,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := pkgconfigsetup.ConfFromYAML("")
+	testConfig := mock.New(t)
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -348,7 +350,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_URL", "https://app.datadoghq.dd_url.eu")
 
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
-	testConfig := pkgconfigsetup.ConfFromYAML("")
+	testConfig := mock.New(t)
 	testConfig.BindEnv("external_config.external_agent_dd_url")
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -374,7 +376,7 @@ api_key: fakeapikey
 external_config:
   external_agent_dd_url: "https://external-agent.datadoghq.com"
 `
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")
@@ -398,7 +400,7 @@ api_key: fakeapikey
 external_config:
   external_agent_dd_url: "https://custom.external-agent.datadoghq.eu"
 `
-	testConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 	externalAgentURL := GetMainEndpoint(testConfig, "https://external-agent.", "external_config.external_agent_dd_url")

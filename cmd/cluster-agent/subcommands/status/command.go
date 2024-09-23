@@ -11,6 +11,7 @@ package status
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -24,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -79,7 +80,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	url := url.URL{
 		Scheme:   "https",
-		Host:     fmt.Sprintf("localhost:%v", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port")),
+		Host:     fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
 		Path:     "/status",
 		RawQuery: v.Encode(),
 	}
@@ -96,7 +97,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
+			e = errors.New(err)
 		}
 
 		fmt.Printf(`

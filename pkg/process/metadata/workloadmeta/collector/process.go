@@ -8,20 +8,25 @@ package collector
 
 import (
 	"context"
+	"time"
 
 	"github.com/benbjohnson/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const collectorId = "local-process"
+const (
+	collectorId       = "local-process"
+	cacheValidityNoRT = 2 * time.Second
+)
 
 // NewProcessCollector creates a new process collector.
-func NewProcessCollector(coreConfig, sysProbeConfig config.Reader) *Collector {
+func NewProcessCollector(coreConfig, sysProbeConfig pkgconfigmodel.Reader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
 	processData := checks.NewProcessData(coreConfig)
@@ -40,7 +45,7 @@ func NewProcessCollector(coreConfig, sysProbeConfig config.Reader) *Collector {
 // Collector collects processes to send to the remote process collector in the core agent.
 // It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
-	ddConfig config.Reader
+	ddConfig pkgconfigmodel.Reader
 
 	processData *checks.ProcessData
 
@@ -49,7 +54,8 @@ type Collector struct {
 
 	pidToCid map[int]string
 
-	collectionClock clock.Clock
+	collectionClock   clock.Clock
+	containerProvider proccontainers.ContainerProvider
 }
 
 // Start will start the collector
@@ -63,30 +69,27 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) err
 		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
-	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
-	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
+	if c.containerProvider == nil {
+		c.containerProvider = proccontainers.GetSharedContainerProvider(store)
+	}
 
-	go c.run(ctx, store, containerEvt, collectionTicker)
+	go c.run(ctx, c.containerProvider, collectionTicker)
 
 	return nil
 }
 
-func (c *Collector) run(ctx context.Context, store workloadmeta.Component, containerEvt chan workloadmeta.EventBundle, collectionTicker *clock.Ticker) {
+func (c *Collector) run(ctx context.Context, containerProvider proccontainers.ContainerProvider, collectionTicker *clock.Ticker) {
 	defer c.grpcServer.Stop()
-	defer store.Unsubscribe(containerEvt)
 	defer collectionTicker.Stop()
 
 	log.Info("Starting local process collection server")
 
 	for {
 		select {
-		case evt, ok := <-containerEvt:
-			if !ok {
-				log.Infof("The %s collector has stopped, workloadmeta channel is closed", collectorId)
-				return
-			}
-			c.handleContainerEvent(evt)
 		case <-collectionTicker.C:
+			// This ensures all processes are mapped correctly to a container and not just the principal process
+			c.pidToCid = containerProvider.GetPidToCid(cacheValidityNoRT)
+			c.wlmExtractor.SetLastPidToCid(c.pidToCid)
 			err := c.processData.Fetch()
 			if err != nil {
 				log.Error("Error fetching process data:", err)
@@ -98,30 +101,12 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Component, conta
 	}
 }
 
-func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
-	defer evt.Acknowledge()
-
-	for _, evt := range evt.Events {
-		ent := evt.Entity.(*workloadmeta.Container)
-		switch evt.Type {
-		case workloadmeta.EventTypeSet:
-			// Should be safe, even on windows because PID 0 is the idle process and therefore must always belong to the host
-			if ent.PID != 0 {
-				c.pidToCid[ent.PID] = ent.ID
-			}
-		case workloadmeta.EventTypeUnset:
-			delete(c.pidToCid, ent.PID)
-		}
-	}
-
-	c.wlmExtractor.SetLastPidToCid(c.pidToCid)
-}
-
 // Enabled checks to see if we should enable the local process collector.
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
-// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`.
+// We also check `process_config.run_in_core_agent.enabled` because this collector should only be used when the core agent collector is not running.
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
-func Enabled(cfg config.Reader) bool {
+func Enabled(cfg pkgconfigmodel.Reader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
@@ -129,5 +114,10 @@ func Enabled(cfg config.Reader) bool {
 	if !cfg.GetBool("language_detection.enabled") {
 		return false
 	}
+
+	if cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		return false
+	}
+
 	return true
 }

@@ -1,0 +1,5 @@
+{
+    "DD_SERVICE": "site1_json",
+    "DD_ENV": "testing_env_json",
+    "DD_VERSION": "1_json"
+  }

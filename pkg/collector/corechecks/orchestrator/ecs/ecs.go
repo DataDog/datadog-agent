@@ -9,6 +9,7 @@
 package ecs
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -51,6 +53,7 @@ type Check struct {
 	clusterName                string
 	region                     string
 	clusterID                  string
+	hostName                   string
 	systemInfo                 *model.SystemInfo
 }
 
@@ -112,6 +115,8 @@ func (c *Check) Configure(
 		log.Warnf("Failed to collect system info: %s", err)
 	}
 
+	c.hostName, _ = hostname.Get(context.TODO())
+
 	return nil
 }
 
@@ -136,6 +141,7 @@ func (c *Check) Run() error {
 				AWSAccountID:      c.awsAccountID,
 				Region:            c.region,
 				ClusterName:       c.clusterName,
+				HostName:          c.hostName,
 				SystemInfo:        c.systemInfo,
 			},
 			Config:      c.config,

@@ -1,0 +1,5 @@
+{
+    "DD_SERVICE": "app4",
+    "DD_ENV": "staging",
+    "DD_VERSION": "1.0-prerelease"
+  }

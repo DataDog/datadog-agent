@@ -16,7 +16,7 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -118,7 +118,7 @@ func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 
 	// TODO(memory-tracking): track the origin of the string (for example check name)
-	if config.Datadog().GetBool("memtrack_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
 		MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
 	}
 

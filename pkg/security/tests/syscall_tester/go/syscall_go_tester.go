@@ -43,6 +43,8 @@ var (
 	userSessionOpenPath   string
 	syscallDriftTest      bool
 	loginUIDOpenTest      bool
+	loginUIDOpenPath      string
+	loginUIDOpenUID       int
 	loginUIDExecTest      bool
 	loginUIDExecPath      string
 )
@@ -231,24 +233,21 @@ func setSelfLoginUID(uid int) error {
 }
 
 func RunLoginUIDOpenTest() error {
-	if err := setSelfLoginUID(1005); err != nil {
-		return err
+	if loginUIDOpenUID != -1 {
+		if err := setSelfLoginUID(loginUIDOpenUID); err != nil {
+			return err
+		}
 	}
 
-	testAUIDPath := "/tmp/test-auid"
-
 	// open test file to trigger an event
-	f, err := os.OpenFile(testAUIDPath, os.O_RDWR|os.O_CREATE, 0755)
+	f, err := os.OpenFile(loginUIDOpenPath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return fmt.Errorf("couldn't create test-auid file: %v", err)
 	}
+	defer os.Remove(loginUIDOpenPath)
 
 	if err = f.Close(); err != nil {
 		return fmt.Errorf("couldn't close test file: %v", err)
-	}
-
-	if err = os.Remove(testAUIDPath); err != nil {
-		return fmt.Errorf("failed to remove test-auid file: %v", err)
 	}
 	return nil
 }
@@ -279,6 +278,8 @@ func main() {
 	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, binds an IMDS server locally and sends a query to it")
 	flag.BoolVar(&syscallDriftTest, "syscall-drift-test", false, "when set, runs the syscall drift test")
 	flag.BoolVar(&loginUIDOpenTest, "login-uid-open-test", false, "when set, runs the login_uid open test")
+	flag.StringVar(&loginUIDOpenPath, "login-uid-open-path", "", "file used for the login_uid open test")
+	flag.IntVar(&loginUIDOpenUID, "login-uid-open-uid", 0, "uid used for the login_uid open test")
 	flag.BoolVar(&loginUIDExecTest, "login-uid-exec-test", false, "when set, runs the login_uid exec test")
 	flag.StringVar(&loginUIDExecPath, "login-uid-exec-path", "", "path to the executable to run during the login_uid exec test")
 

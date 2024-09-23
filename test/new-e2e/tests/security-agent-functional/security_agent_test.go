@@ -12,15 +12,17 @@ import (
 	"testing"
 	"time"
 
+	componentsos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	componentsos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/require"
 )
 
 type vmSuite struct {
@@ -34,6 +36,7 @@ var (
 )
 
 func TestVMSuite(t *testing.T) {
+	flake.Mark(t)
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())

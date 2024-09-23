@@ -25,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -51,7 +51,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
@@ -69,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
@@ -81,7 +81,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func triggerDump(config cconfig.Component) (string, error) {
 	c := util.GetClient(false)
-	addr, err := pkgconfig.GetIPCAddress()
+	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}

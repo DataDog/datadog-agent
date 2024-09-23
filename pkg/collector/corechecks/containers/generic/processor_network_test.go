@@ -12,10 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -36,13 +34,14 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	// container4 is standalone is a namespace (should report with high tags)
 	// container5 is using host network (should not report at all)
 	// container6 & container7 share the same network namespace with unknown owner  (should not report at all)
-	fakeTagger.SetTags(kubelet.PodUIDToTaggerEntityName("pod1"), "foo", []string{"low:common"}, []string{"orch:common12", "pod:test"}, nil, nil)
+	podEntityID := types.NewEntityID(types.KubernetesPodUID, "pod1").String()
+	fakeTagger.SetTags(podEntityID, "foo", []string{"low:common"}, []string{"orch:common12", "pod:test"}, nil, nil)
 	container1 := CreateContainerMeta("docker", "1")
 	container1.Owner = &workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
 		ID:   "pod1",
 	}
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container1.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container1.ID).String(), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container1"}, nil)
 	mockCollector.SetContainerEntry(container1.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(12.0),
@@ -67,7 +66,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 		Kind: workloadmeta.KindKubernetesPod,
 		ID:   "pod1",
 	}
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container2.ID).String(), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container2"}, nil)
 	mockCollector.SetContainerEntry(container2.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(12.0),
@@ -88,7 +87,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	})
 
 	container3 := CreateContainerMeta("docker", "3")
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container3.ID), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container3.ID).String(), "foo", []string{"low:common"}, []string{"orch:standalone3"}, []string{"id:container3"}, nil)
 	mockCollector.SetContainerEntry(container3.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(3.0),
@@ -107,7 +106,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	})
 
 	container4 := CreateContainerMeta("docker", "4")
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container4.ID), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container4.ID).String(), "foo", []string{"low:common"}, []string{"orch:standalone4"}, []string{"id:container4"}, nil)
 	mockCollector.SetContainerEntry(container4.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(4.0),
@@ -128,7 +127,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	})
 
 	container5 := CreateContainerMeta("docker", "5")
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container5.ID), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container5.ID).String(), "foo", []string{"low:common"}, []string{"orch:standalone5"}, []string{"id:container5"}, nil)
 	mockCollector.SetContainerEntry(container5.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(5.0),
@@ -149,7 +148,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	})
 
 	container6 := CreateContainerMeta("docker", "6")
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container6.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container6"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container6.ID).String(), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container6"}, nil)
 	mockCollector.SetContainerEntry(container6.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(12.0),
@@ -170,7 +169,7 @@ func TestNetworkProcessorExtension(t *testing.T) {
 	})
 
 	container7 := CreateContainerMeta("docker", "7")
-	fakeTagger.SetTags(containers.BuildTaggerEntityName(container2.ID), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container7"}, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, container2.ID).String(), "foo", []string{"low:common"}, []string{"orch:common12"}, []string{"id:container7"}, nil)
 	mockCollector.SetContainerEntry(container7.ID, mock.ContainerEntry{
 		NetworkStats: &metrics.ContainerNetworkStats{
 			BytesSent:   pointer.Ptr(12.0),

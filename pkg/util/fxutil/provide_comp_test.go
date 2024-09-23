@@ -300,6 +300,14 @@ func TestConstructFxAwareStructWithLifecycle(t *testing.T) {
 	require.Equal(t, typ.Field(1).Type, reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem())
 }
 
+func TestInvalidPrivateOutput(t *testing.T) {
+	prv := providesPrivate{}
+	typ := reflect.TypeOf(prv)
+	err := ensureFieldsNotAllowed(typ, nil)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "field is not exported: private")
+}
+
 // test that fx App is able to use constructor with no reqs
 func TestFxNoRequirements(t *testing.T) {
 	// plain component constructor, no fx
@@ -666,6 +674,14 @@ type FruitProvider struct {
 type provides5 struct {
 	compdef.Out
 	First FirstComp
+}
+
+// providesPrivate has an unexported field
+
+type providesPrivate struct {
+	compdef.Out
+	//nolint:unused
+	private FirstComp
 }
 
 // requires1 requires 1 component using a composite struct

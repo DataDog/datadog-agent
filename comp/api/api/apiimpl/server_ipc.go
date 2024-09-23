@@ -12,7 +12,7 @@ import (
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const ipcServerName string = "IPC API Server"
@@ -38,7 +38,7 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tlsConfig *tls.Con
 
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
-		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
+		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
 		TLSConfig: tlsConfig,
 	}
 

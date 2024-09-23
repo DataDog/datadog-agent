@@ -128,7 +128,7 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
-	h.context.T().Logf("Executing command `%s`", scrubbedCommand)
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -489,6 +489,23 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 
 func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
 	cmd := ""
+
+	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an erorr instead
+	// of the default 'Continue' behavior.
+	// This also ensures that Execute() will return an error when the command fails.
+	//
+	// For example, if the command is (Get-Service -Name ddnpm).Status and the service does not exist,
+	// then by default the command will print an error but the exit code will be 0 and Execute() will not return an error.
+	// By setting $ErrorActionPreference to 'Stop', Execute() will return an error as one would expect.
+	//
+	// Thus, we default to 'Stop' to make sure that an error is raised when the command fails instead of failing silently.
+	// Commands that this causes issues for will be immediately noticed and can be adjusted as needed, instead of
+	// silent errors going unnoticed and affecting test results.
+	//
+	// To ignore errors, prefix command with $ErrorActionPreference='Continue' or use -ErrorAction Continue
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
+	cmd += "$ErrorActionPreference='Stop'; "
+
 	envVarSave := map[string]string{}
 	for envName, envValue := range envVar {
 		previousEnvVar, err := h.executeAndReconnectOnError(fmt.Sprintf("$env:%s", envName))

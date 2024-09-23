@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -35,22 +35,9 @@ const (
 )
 
 type serviceInfo struct {
-	process       processInfo
-	meta          serviceMetadata
+	meta          ServiceMetadata
+	service       model.Service
 	LastHeartbeat time.Time
-}
-
-type procStat struct {
-	StartTime uint64
-}
-
-type processInfo struct {
-	PID     int
-	CmdLine []string
-	Env     []string
-	Cwd     string
-	Stat    procStat
-	Ports   []int
 }
 
 type serviceEvents struct {
@@ -60,9 +47,6 @@ type serviceEvents struct {
 }
 
 type discoveredServices struct {
-	aliveProcsCount int
-	openPorts       portlist.List
-
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
 	runningServices map[int]*serviceInfo
@@ -74,9 +58,7 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var (
-	newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
-)
+var newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
 
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`
@@ -119,9 +101,6 @@ func newCheck() check.Check {
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if !pkgconfig.Datadog().GetBool("service_discovery.enabled") {
-		return errors.New("service discovery is disabled")
-	}
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
@@ -153,6 +132,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 
 // Run executes the check.
 func (c *Check) Run() error {
+	if !pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
+		return nil
+	}
+
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -165,12 +148,10 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d | openPorts: %s",
-		disc.aliveProcsCount,
+	log.Debugf("ignoreProcs: %d | runningServices: %d | potentials: %d",
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
 		len(disc.potentials),
-		disc.openPorts.String(),
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 
@@ -183,7 +164,7 @@ func (c *Check) Run() error {
 			continue
 		}
 		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.process.PID] {
+			if c.sentRepeatedEventPIDs[svc.service.PID] {
 				continue
 			}
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
@@ -193,7 +174,7 @@ func (c *Check) Run() error {
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.process.PID] = true
+			c.sentRepeatedEventPIDs[svc.service.PID] = true
 		}
 	}
 
@@ -217,9 +198,9 @@ func (c *Check) Run() error {
 			continue
 		}
 		eventsByName.addStop(p)
-		if c.sentRepeatedEventPIDs[p.process.PID] {
+		if c.sentRepeatedEventPIDs[p.service.PID] {
 			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.process.PID)
+			delete(c.sentRepeatedEventPIDs, p.service.PID)
 		}
 	}
 

@@ -1,10 +1,10 @@
+using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
@@ -89,7 +89,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        [CustomAction]
         public static ActionResult SendFlare(Session session)
         {
             if (int.Parse(session["UILevel"]) > 3)

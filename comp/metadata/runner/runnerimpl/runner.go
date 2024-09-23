@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -90,7 +91,6 @@ func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 // handleProvider runs a provider at regular interval until the runner is stopped
 func (r *runnerImpl) handleProvider(p MetadataProvider) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
-	r.wg.Add(1)
 
 	intervalChan := make(chan time.Duration)
 	var interval time.Duration
@@ -99,7 +99,6 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 	defer func() {
 		cancel()
 		r.log.Debugf("stopping runner for MetadataProvider %#v", p)
-		r.wg.Done()
 	}()
 
 	for {
@@ -111,6 +110,14 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 		case interval = <-intervalChan:
 		case <-r.stopChan:
 			cancel()
+
+			// Wait for the provider to finish to avoid it being interrupted when the agent stops
+			// as that could cause a corruption
+			// Still stop after some max timeout to avoid blocking the agent stop entirely
+			select {
+			case <-intervalChan:
+			case <-time.After(r.config.GetDuration("metadata_provider_stop_timeout")):
+			}
 			return
 		}
 
@@ -128,7 +135,11 @@ func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
 
 	for _, provider := range r.providers {
-		go r.handleProvider(provider)
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			r.handleProvider(provider)
+		}()
 	}
 
 	return nil

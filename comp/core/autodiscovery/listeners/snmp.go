@@ -220,7 +220,7 @@ func (l *SNMPListener) checkDevices() {
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
-
+	defer discoveryTicker.Stop()
 	for {
 		var subnet *snmpSubnet
 		for i := range subnets {

@@ -196,7 +196,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 				activeTypes = append(activeTypes, model.FileOpenEventType)
 			}
 			if !isEventTypesStringSlicesEqual(activeTypes, presentEventTypes) {
-				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeEventTypes, presentEventTypes)
+				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeTypes, presentEventTypes)
 			}
 			dump = nextDump
 		})

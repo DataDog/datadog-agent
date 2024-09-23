@@ -24,7 +24,7 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t,
-		Bundle(),
+		Bundle(jmxloggerimpl.NewDefaultParams()),
 		core.MockBundle(),
 		compressionimpl.MockModule(),
 		defaultforwarder.MockModule(),
@@ -32,8 +32,6 @@ func TestBundleDependencies(t *testing.T) {
 		eventplatformimpl.MockModule(),
 		demultiplexerimpl.Module(),
 		fx.Supply(demultiplexerimpl.NewDefaultParams()),
-		fx.Supply(jmxloggerimpl.NewDefaultParams()),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }

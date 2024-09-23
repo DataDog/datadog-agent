@@ -17,23 +17,21 @@ import (
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/processor/processortest"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 )
 
 func TestType(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	factory := NewFactory(fakeTagger)
+	tc := newTestTaggerClient()
+	gc := newTestGenerateIDClient().generateID
+	factory := NewFactory(tc, gc)
 	pType := factory.Type()
 
 	assert.Equal(t, pType, Type)
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	factory := NewFactory(fakeTagger)
+	tc := newTestTaggerClient()
+	gc := newTestGenerateIDClient().generateID
+	factory := NewFactory(tc, gc)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
@@ -55,12 +53,12 @@ func TestCreateProcessors(t *testing.T) {
 		t.Run(tt.configName, func(t *testing.T) {
 			cm, err := confmaptest.LoadConf(filepath.Join("testdata", tt.configName))
 			require.NoError(t, err)
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
+			tc := newTestTaggerClient()
+			gc := newTestGenerateIDClient().generateID
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created
-				factory := NewFactory(fakeTagger)
+				factory := NewFactory(tc, gc)
 				cfg := factory.CreateDefaultConfig()
 
 				sub, err := cm.Sub(k)

@@ -149,7 +149,8 @@ func (p *Provider) processPodStats(sender sender.Sender,
 		return
 	}
 
-	podTags, _ := tagger.Tag(kubelet.PodUIDToTaggerEntityName(podStats.PodRef.UID),
+	entityID := types.NewEntityID(types.KubernetesPodUID, podStats.PodRef.UID)
+	podTags, _ := tagger.Tag(entityID.String(),
 		types.OrchestratorCardinality)
 
 	if len(podTags) == 0 {
@@ -220,7 +221,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			podStats.PodRef.Namespace) {
 			continue
 		}
-		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ctr.ID), types.HighCardinality)
+		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID).String(), types.HighCardinality)
 		if err != nil || len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName, ctr.ID)

@@ -7,13 +7,17 @@ package processor
 
 import (
 	"regexp"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -300,6 +304,161 @@ func TestGetHostname(t *testing.T) {
 	}
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
+}
+
+func TestBuffering(t *testing.T) {
+	assert := assert.New(t)
+
+	if !sds.SDSEnabled { // should not run when SDS is not builtin.
+		return
+	}
+
+	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+
+	p := &Processor{
+		encoder:                   JSONEncoder,
+		inputChan:                 make(chan *message.Message),
+		outputChan:                make(chan *message.Message),
+		ReconfigChan:              make(chan sds.ReconfigureOrder),
+		diagnosticMessageReceiver: diagnostic.NewBufferedMessageReceiver(nil, hostnameComponent),
+		done:                      make(chan struct{}),
+		// configured to buffer (max 3 messages)
+		sds: sdsProcessor{
+			maxBufferSize: len("hello1world") + len("hello2world") + len("hello3world") + 1,
+			buffering:     true,
+			scanner:       sds.CreateScanner(42),
+		},
+	}
+
+	var processedMessages atomic.Int32
+
+	// consumer
+	go func() {
+		for {
+			<-p.outputChan
+			processedMessages.Add(1)
+		}
+	}()
+
+	// test the buffering when the processor is waiting for an SDS config
+	// --
+
+	p.Start()
+	assert.Len(p.sds.buffer, 0)
+
+	// validates it buffers these 3 messages
+	src := newSource("exclude_at_match", "", "foobar")
+	p.inputChan <- newMessage([]byte("hello1world"), &src, "")
+	p.inputChan <- newMessage([]byte("hello2world"), &src, "")
+	p.inputChan <- newMessage([]byte("hello3world"), &src, "")
+	// wait for the other routine to process the messages
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should not be be procesesd")
+
+	// the limit is configured to 3 messages
+	p.inputChan <- newMessage([]byte("hello4world"), &src, "")
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should still not be processed")
+
+	// reconfigure the processor
+	// --
+
+	// standard rules
+	order := sds.ReconfigureOrder{
+		Type: sds.StandardRules,
+		Config: []byte(`{"priority":1,"is_enabled":true,"rules":[
+                {
+                    "id":"zero-0",
+                    "description":"zero desc",
+                    "name":"zero",
+                    "definitions": [{"version":1, "pattern":"zero"}]
+                }]}`),
+		ResponseChan: make(chan sds.ReconfigureResponse),
+	}
+
+	p.ReconfigChan <- order
+	resp := <-order.ResponseChan
+	assert.Nil(resp.Err)
+	assert.False(resp.IsActive)
+	assert.True(p.sds.buffering)
+	close(order.ResponseChan)
+
+	// agent config, but no active rule
+	order = sds.ReconfigureOrder{
+		Type: sds.AgentConfig,
+		Config: []byte(` {"is_enabled":true,"rules":[
+            {
+                "id": "random000",
+                "name":"zero",
+                "definition":{"standard_rule_id":"zero-0"},
+                "match_action":{"type":"Redact","placeholder":"[redacted]"},
+                "is_enabled":false
+        }]}`),
+		ResponseChan: make(chan sds.ReconfigureResponse),
+	}
+
+	p.ReconfigChan <- order
+	resp = <-order.ResponseChan
+	assert.Nil(resp.Err)
+	assert.False(resp.IsActive)
+	assert.True(p.sds.buffering)
+	close(order.ResponseChan)
+
+	// agent config, but the scanner becomes active:
+	//   * the logs agent should stop buffering
+	//   * it should drains its buffer and process the buffered logs
+
+	// first, check that the buffer is still full
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "no messages should be processed just yet")
+
+	order = sds.ReconfigureOrder{
+		Type: sds.AgentConfig,
+		Config: []byte(` {"is_enabled":true,"rules":[
+            {
+                "id": "random000",
+                "name":"zero",
+                "definition":{"standard_rule_id":"zero-0"},
+                "match_action":{"type":"Redact","placeholder":"[redacted]"},
+                "is_enabled":true
+        }]}`),
+		ResponseChan: make(chan sds.ReconfigureResponse),
+	}
+
+	p.ReconfigChan <- order
+	resp = <-order.ResponseChan
+
+	assert.Nil(resp.Err)
+	assert.True(resp.IsActive)
+	assert.False(p.sds.buffering) // not buffering anymore
+	close(order.ResponseChan)
+
+	// make sure all messages have been drained and processed
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 3 }, "all messages must be drained")
+
+	// make sure it continues to process normally without buffering now
+	p.inputChan <- newMessage([]byte("usual work"), &src, "")
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 4 }, "should continue processing now")
+}
+
+// messagesDequeue let the other routines being scheduled
+// to give some time for the processor routine to dequeue its messages
+func messagesDequeue(t *testing.T, f func() bool, errorLog string) {
+	timerTest := time.NewTimer(10 * time.Millisecond)
+	timerTimeout := time.NewTimer(5 * time.Second)
+	for {
+		select {
+		case <-timerTimeout.C:
+			timerTest.Stop()
+			timerTimeout.Stop()
+			t.Error("timeout while message dequeuing in the processor")
+			t.Fatal(errorLog)
+			break
+		case <-timerTest.C:
+			if f() {
+				timerTest.Stop()
+				timerTimeout.Stop()
+				return
+			}
+		}
+	}
 }
 
 // helpers

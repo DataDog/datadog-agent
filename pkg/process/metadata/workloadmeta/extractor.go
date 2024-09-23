@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -21,6 +21,11 @@ import (
 )
 
 const subsystem = "WorkloadMetaExtractor"
+
+var (
+	initWorkloadMetaExtractor   sync.Once
+	sharedWorkloadMetaExtractor *WorkloadMetaExtractor
+)
 
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
@@ -46,15 +51,15 @@ type WorkloadMetaExtractor struct {
 
 	pidToCid map[int]string
 
-	sysprobeConfig config.Reader
+	sysprobeConfig pkgconfigmodel.Reader
 }
 
 // ProcessCacheDiff holds the information about processes that have been created and deleted in the past
 // Extract call from the WorkloadMetaExtractor cache
 type ProcessCacheDiff struct {
 	cacheVersion int32
-	creation     []*ProcessEntity
-	deletion     []*ProcessEntity
+	Creation     []*ProcessEntity
+	Deletion     []*ProcessEntity
 }
 
 var (
@@ -66,8 +71,16 @@ var (
 		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
 
+// GetSharedWorkloadMetaExtractor returns a shared WorkloadMetaExtractor
+func GetSharedWorkloadMetaExtractor(sysprobeConfig pkgconfigmodel.Reader) *WorkloadMetaExtractor {
+	initWorkloadMetaExtractor.Do(func() {
+		sharedWorkloadMetaExtractor = NewWorkloadMetaExtractor(sysprobeConfig)
+	})
+	return sharedWorkloadMetaExtractor
+}
+
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
-func NewWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
+func NewWorkloadMetaExtractor(sysprobeConfig pkgconfigmodel.Reader) *WorkloadMetaExtractor {
 	log.Info("Instantiating a new WorkloadMetaExtractor")
 
 	return &WorkloadMetaExtractor{
@@ -158,8 +171,8 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 
 	diff := &ProcessCacheDiff{
 		cacheVersion: w.cacheVersion,
-		creation:     newEntities,
-		deletion:     deadProcs,
+		Creation:     newEntities,
+		Deletion:     deadProcs,
 	}
 
 	// Do not block on write to prevent Extract caller from hanging e.g. process check
@@ -184,7 +197,7 @@ func getDifference(oldCache, newCache map[string]*ProcessEntity) []*ProcessEntit
 }
 
 // Enabled returns whether the extractor should be enabled
-func Enabled(ddconfig config.Reader) bool {
+func Enabled(ddconfig pkgconfigmodel.Reader) bool {
 	enabled := ddconfig.GetBool("language_detection.enabled")
 	if enabled && runtime.GOOS == "darwin" {
 		log.Warn("Language detection is not supported on macOS")

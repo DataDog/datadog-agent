@@ -165,7 +165,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
 		if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
-			return
+			continue
 		}
 		tags := p.MetricTags(metric)
 		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {

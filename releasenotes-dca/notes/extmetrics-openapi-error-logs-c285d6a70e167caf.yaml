@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix APIServer error logs generated when external metrics endpoint is activated

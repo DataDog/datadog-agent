@@ -167,7 +167,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_drops", 65, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_drops", 2, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
 	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
@@ -178,7 +178,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
 	}, sender.lastTimeSent)
 }
 
@@ -1175,6 +1175,214 @@ func TestSendHardwareMetrics(t *testing.T) {
 			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendHardwareMetrics(tt.hardwareEnv)
+
+			for _, metric := range tt.expectedMetric {
+				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)
+			}
+		})
+	}
+}
+
+func TestSendCloudApplicationMetrics(t *testing.T) {
+	cloudAppStats := []client.CloudXStatistics{
+		{
+			VmanageSystemIP:  "10.0.0.1",
+			GatewaySystemIP:  "10.0.0.2",
+			EntryTime:        10000,
+			LocalColor:       "mpls",
+			RemoteColor:      "public-internet",
+			Interface:        "-",
+			ExitType:         "Remote",
+			NbarAppGroupName: "app-group",
+			Application:      "test-app",
+			BestPath:         "TRUE",
+			VpnID:            1,
+			Latency:          13,
+			Loss:             0.01,
+			VqeScore:         "8.0",
+		},
+	}
+
+	mockSender := mocksender.NewMockSender("foo")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	sender := NewSDWanSender(mockSender, "my-ns")
+
+	// Ensure device tags are correctly sent
+	sender.SetDeviceTags(map[string][]string{
+		"10.0.0.1": {
+			"test:tag",
+			"test2:tag2",
+		},
+		"10.0.0.2": {
+			"test3:tag3",
+			"test4:tag4",
+		},
+	})
+
+	sender.SendCloudApplicationMetrics(cloudAppStats)
+
+	expectedTags := []string{
+		"test:tag",
+		"test2:tag2",
+		"gateway_test3:tag3",
+		"gateway_test4:tag4",
+		"local_color:mpls",
+		"remote_color:public-internet",
+		"interface:-",
+		"exit_type:Remote",
+		"application_group:app-group",
+		"application:test-app",
+		"best_path:TRUE",
+		"vpn_id:1",
+	}
+
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.latency", 13, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.loss", 0.01, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", 8, "", expectedTags, 10)
+	require.Equal(t, map[string]float64{
+		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+	}, sender.lastTimeSent)
+
+	mockSender.ResetCalls()
+
+	sender.SendCloudApplicationMetrics(cloudAppStats)
+
+	// Assert metrics have not been re-sent
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
+	require.Equal(t, map[string]float64{
+		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+	}, sender.lastTimeSent)
+}
+
+func TestSendCloudApplicationMetricsWithInvalidQOE(t *testing.T) {
+	mockSender := mocksender.NewMockSender("foo")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	sender := NewSDWanSender(mockSender, "my-ns")
+
+	// Assert QOE not sent if invalid
+	cloudAppStatsInvalidQOE := []client.CloudXStatistics{
+		{
+			VmanageSystemIP:  "10.0.0.1",
+			GatewaySystemIP:  "10.0.0.2",
+			EntryTime:        10000,
+			LocalColor:       "mpls",
+			RemoteColor:      "public-internet",
+			Interface:        "-",
+			ExitType:         "Remote",
+			NbarAppGroupName: "app-group",
+			Application:      "test-app",
+			BestPath:         "TRUE",
+			VpnID:            1,
+			Latency:          13,
+			Loss:             0.01,
+			VqeScore:         "invalid", // invalid
+		},
+	}
+
+	sender.SendCloudApplicationMetrics(cloudAppStatsInvalidQOE)
+
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.loss", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestSendBGPNeighborMetrics(t *testing.T) {
+	tests := []struct {
+		name           string
+		bgpNeighbor    []client.BGPNeighbor
+		tags           map[string][]string
+		expectedMetric []expectedMetric
+	}{
+		{
+			name: "Report bgp peer status",
+			bgpNeighbor: []client.BGPNeighbor{
+				{
+					VmanageSystemIP: "10.0.0.1",
+					AS:              1,
+					VpnID:           1,
+					State:           "established",
+					PeerAddr:        "10.60.1.11",
+					Afi:             "ipv4-unicast",
+				},
+				{
+					VmanageSystemIP: "10.0.0.2",
+					AS:              2,
+					VpnID:           1,
+					State:           "established",
+					PeerAddr:        "10.60.2.11",
+					Afi:             "ipv4-unicast",
+				},
+			},
+			tags: map[string][]string{
+				"10.0.0.1": {
+					"device_name:10.0.0.1",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-device",
+					"system_ip:10.0.0.1",
+					"site_id:100",
+				},
+				"10.0.0.2": {
+					"device_name:10.0.0.2",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-vsmart",
+					"system_ip:10.0.0.2",
+					"site_id:102",
+				},
+			},
+			expectedMetric: []expectedMetric{
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "bgp.neighbor",
+					tags: []string{
+						"device_name:10.0.0.1",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-device",
+						"system_ip:10.0.0.1",
+						"site_id:100",
+						"peer_state:established",
+						"remote_as:1",
+						"neighbor:10.60.1.11",
+						"vpn_id:1",
+						"afi:ipv4-unicast",
+					},
+				},
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "bgp.neighbor",
+					tags: []string{
+						"device_name:10.0.0.2",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-vsmart",
+						"system_ip:10.0.0.2",
+						"site_id:102",
+						"peer_state:established",
+						"remote_as:2",
+						"neighbor:10.60.2.11",
+						"vpn_id:1",
+						"afi:ipv4-unicast",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("foo")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			sender := NewSDWanSender(mockSender, "my-ns")
+			sender.SetDeviceTags(tt.tags)
+			sender.SendBGPNeighborMetrics(tt.bgpNeighbor)
 
 			for _, metric := range tt.expectedMetric {
 				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)

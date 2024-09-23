@@ -97,14 +97,21 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 		tlsHandshakeTimeout = 10 * time.Second
 	}
 
+	// Control whether to disable RFC 6555 Fast Fallback ("Happy Eyeballs")
+	// By default this is disabled (set to a negative value).
+	// It can be set to 0 to use the default value, or an explicit duration.
+	fallbackDelay := -1 * time.Nanosecond
+	if cfg.IsSet("http_dial_fallback_delay") {
+		fallbackDelay = cfg.GetDuration("http_dial_fallback_delay")
+	}
+
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
 			Timeout: 30 * time.Second,
 			// Enables TCP keepalives to detect broken connections
-			KeepAlive: 30 * time.Second,
-			// Disable RFC 6555 Fast Fallback ("Happy Eyeballs")
-			FallbackDelay: -1 * time.Nanosecond,
+			KeepAlive:     30 * time.Second,
+			FallbackDelay: fallbackDelay,
 		}).DialContext,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 5,

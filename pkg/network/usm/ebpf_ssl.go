@@ -649,12 +649,12 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 				}
 			}
 		}
-		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+		symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSet)
 		if err != nil {
 			return err
 		}
 		/* Best effort to resolve symbols, so we don't care about the error */
-		symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
+		symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSetBestEffort)
 
 		for _, singleProbe := range probes {
 			_, isBestEffort := singleProbe.(*manager.BestEffort)

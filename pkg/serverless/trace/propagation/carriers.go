@@ -7,6 +7,7 @@
 package propagation
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -36,16 +37,17 @@ const (
 var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
 
 var (
-	errorAWSTraceHeaderMismatch = errors.New("AWSTraceHeader does not match expected regex")
-	errorAWSTraceHeaderEmpty    = errors.New("AWSTraceHeader does not contain trace ID and parent ID")
-	errorStringNotFound         = errors.New("String value not found in _datadog payload")
-	errorUnsupportedDataType    = errors.New("Unsupported DataType in _datadog payload")
-	errorNoDDContextFound       = errors.New("No Datadog trace context found")
-	errorUnsupportedPayloadType = errors.New("Unsupported type for _datadog payload")
-	errorUnsupportedTypeType    = errors.New("Unsupported type in _datadog payload")
-	errorUnsupportedValueType   = errors.New("Unsupported value type in _datadog payload")
-	errorUnsupportedTypeValue   = errors.New("Unsupported Type in _datadog payload")
-	errorCouldNotUnmarshal      = errors.New("Could not unmarshal the invocation event payload")
+	errorAWSTraceHeaderMismatch     = errors.New("AWSTraceHeader does not match expected regex")
+	errorAWSTraceHeaderEmpty        = errors.New("AWSTraceHeader does not contain trace ID and parent ID")
+	errorStringNotFound             = errors.New("String value not found in _datadog payload")
+	errorUnsupportedDataType        = errors.New("Unsupported DataType in _datadog payload")
+	errorNoDDContextFound           = errors.New("No Datadog trace context found")
+	errorUnsupportedPayloadType     = errors.New("Unsupported type for _datadog payload")
+	errorUnsupportedTypeType        = errors.New("Unsupported type in _datadog payload")
+	errorUnsupportedValueType       = errors.New("Unsupported value type in _datadog payload")
+	errorUnsupportedTypeValue       = errors.New("Unsupported Type in _datadog payload")
+	errorCouldNotUnmarshal          = errors.New("Could not unmarshal the invocation event payload")
+	errorNoStepFunctionContextFound = errors.New("no Step Function context found in Step Function event")
 )
 
 // extractTraceContextfromAWSTraceHeader extracts trace context from the
@@ -219,4 +221,61 @@ func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
 // context from a Headers field of form map[string]string.
 func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
 	return tracer.TextMapCarrier(hdrs), nil
+}
+
+// extractTraceContextFromStepFunctionContext extracts the execution ARN, state name, and state entered time and uses them to generate Trace ID and Parent ID
+// The logic is based on the trace context conversion in Logs To Traces, dd-trace-py, dd-trace-js, etc.
+func extractTraceContextFromStepFunctionContext(event events.StepFunctionPayload) (*TraceContext, error) {
+	tc := new(TraceContext)
+
+	execArn := event.Execution.ID
+	stateName := event.State.Name
+	stateEnteredTime := event.State.EnteredTime
+
+	if execArn == "" || stateName == "" || stateEnteredTime == "" {
+		return nil, errorNoStepFunctionContextFound
+	}
+
+	lowerTraceID, upperTraceID := stringToDdTraceIDs(execArn)
+	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime)
+
+	tc.TraceID = lowerTraceID
+	tc.TraceIDUpper64Hex = upperTraceID
+	tc.ParentID = parentID
+	tc.SamplingPriority = sampler.PriorityAutoKeep
+	return tc, nil
+}
+
+// stringToDdSpanID hashes the Execution ARN, state name, and state entered time to generate a 64-bit span ID
+func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string) uint64 {
+	uniqueSpanString := fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
+	spanHash := sha256.Sum256([]byte(uniqueSpanString))
+	parentID := getPositiveUInt64(spanHash[0:8])
+	return parentID
+}
+
+// stringToDdTraceIDs hashes an Execution ARN to generate the lower and upper 64 bits of a 128-bit trace ID
+func stringToDdTraceIDs(toHash string) (uint64, string) {
+	hash := sha256.Sum256([]byte(toHash))
+	lower64 := getPositiveUInt64(hash[8:16])
+	upper64 := getHexEncodedString(getPositiveUInt64(hash[0:8]))
+	return lower64, upper64
+}
+
+// getPositiveUInt64 converts the first 8 bytes of a byte array to a positive uint64
+func getPositiveUInt64(hashBytes []byte) uint64 {
+	var result uint64
+	for i := 0; i < 8; i++ {
+		result = (result << 8) + uint64(hashBytes[i])
+	}
+	result &= ^uint64(1 << 63) // Ensure the highest bit is always 0
+	if result == 0 {
+		return 1
+	}
+	return result
+}
+
+func getHexEncodedString(toEncode uint64) string {
+	//return hex.EncodeToString(hashBytes[:8])
+	return fmt.Sprintf("%x", toEncode) //maybe?
 }

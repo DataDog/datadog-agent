@@ -112,16 +112,6 @@ pkg/process/config/logs
 *.ninja
 compile_commands.json
 pkg/ebpf/bytecode/build/**/*.d
-pkg/ebpf/bytecode/runtime/conntrack.go
-pkg/ebpf/bytecode/runtime/http.go
-pkg/ebpf/bytecode/runtime/usm.go
-pkg/ebpf/bytecode/runtime/shared-libraries.go
-pkg/ebpf/bytecode/runtime/offsetguess-test.go
-pkg/ebpf/bytecode/runtime/oom-kill.go
-pkg/ebpf/bytecode/runtime/runtime-security.go
-pkg/ebpf/bytecode/runtime/tcp-queue-length.go
-pkg/ebpf/bytecode/runtime/tracer.go
-pkg/ebpf/bytecode/runtime/logdebug-test.go
 pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts

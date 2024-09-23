@@ -25,16 +25,17 @@
  * the statistics per pid
  */
 
-BPF_HASH_MAP(oom_stats, u32, struct oom_stats, 10240)
+BPF_HASH_MAP(oom_stats, u64, struct oom_stats, 10240)
 
 SEC("kprobe/oom_kill_process")
 int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     struct oom_stats zero = {};
     struct oom_stats new = {};
+    u64 ts = bpf_ktime_get_ns();
     u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    bpf_map_update_elem(&oom_stats, &pid, &zero, BPF_NOEXIST);
-    struct oom_stats *s = bpf_map_lookup_elem(&oom_stats, &pid);
+    bpf_map_update_elem(&oom_stats, &ts, &zero, BPF_NOEXIST);
+    struct oom_stats *s = bpf_map_lookup_elem(&oom_stats, &ts);
     if (!s) {
         return 0;
     }
@@ -43,15 +44,14 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     // expected a pointer to stack memory. Therefore, we work on stack
     // variable and update the map value at the end
     bpf_memcpy(&new, s, sizeof(struct oom_stats));
-
-    new.pid = pid;
-    get_cgroup_name(new.cgroup_name, sizeof(new.cgroup_name));
+    new.trigger_pid = pid;
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
         return 0;
     }
-    BPF_CORE_READ_INTO(&new.tpid, p, pid);
+    get_cgroup_name_for_task(p, new.cgroup_name, sizeof(new.cgroup_name));
+    BPF_CORE_READ_INTO(&new.victim_pid, p, pid);
     BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(p->signal->oom_score_adj)) {
@@ -63,11 +63,11 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     bpf_probe_read_kernel(&new.score_adj, sizeof(new.score_adj), &sig->oom_score_adj);
 #endif
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
-        bpf_get_current_comm(new.fcomm, sizeof(new.fcomm));
+        bpf_get_current_comm(new.trigger_comm, sizeof(new.trigger_comm));
     }
 
-    BPF_CORE_READ_INTO(&new.tcomm, p, comm);
-    new.tcomm[TASK_COMM_LEN - 1] = 0;
+    BPF_CORE_READ_INTO(&new.victim_comm, p, comm);
+    new.victim_comm[TASK_COMM_LEN - 1] = 0;
 
     struct mem_cgroup *memcg = NULL;
 #ifdef COMPILE_CORE

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -134,7 +134,7 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 }
 
 func getStatusURL() (string, error) {
-	addressPort, err := ddconfig.GetProcessAPIAddressPort()
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

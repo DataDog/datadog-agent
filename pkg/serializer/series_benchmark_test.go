@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -77,7 +77,7 @@ func BenchmarkSeries(b *testing.B) {
 		}
 	}
 	bufferContext := marshaler.NewBufferContext()
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := mock.New(b)
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return iterableSeries.MarshalSplitCompress(bufferContext, mockConfig, compressionimpl.NewCompressor(mockConfig))

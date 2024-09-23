@@ -58,7 +58,7 @@ func Test_NewConfigFileStore(t *testing.T) {
 
 	value, err = store.Get(Environments)
 	assert.NoError(t, err)
-	assert.Equal(t, "aws/kiki", value)
+	assert.Equal(t, "aws/kiki az/tata", value)
 
 	value, err = store.Get(APIKey)
 	assert.NoError(t, err)

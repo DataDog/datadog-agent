@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added a new option for the Cluster Agent
+    ("admission_controller.inject_config.type_socket_volumes") to specify that
+    injected volumes should be of type "Socket". This option is disabled by
+    default. When set to true, injected pods will not start until the Agent
+    creates the DogstatsD and trace-agent sockets. This ensures no traces or
+    DogstatsD metrics are lost, but it can cause the pod to wait if the Agent
+    has issues creating the sockets.

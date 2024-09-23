@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
@@ -23,6 +24,8 @@ import (
 
 // TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
 func TestUpgrade(t *testing.T) {
+	// incident-30584
+	flake.Mark(t)
 	s := &testUpgradeSuite{}
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")

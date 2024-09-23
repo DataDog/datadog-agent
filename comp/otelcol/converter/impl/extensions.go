@@ -6,7 +6,10 @@
 // Package converterimpl provides the implementation of the otel-agent converter.
 package converterimpl
 
-import "go.opentelemetry.io/collector/confmap"
+import (
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
+	"go.opentelemetry.io/collector/confmap"
+)
 
 var (
 	// pprof
@@ -27,7 +30,7 @@ var (
 	healthCheckConfig       any
 
 	// datadog
-	datadogName         = "datadog"
+	datadogName         = ddextension.Type.String()
 	datadogEnhancedName = datadogName + "/" + ddAutoconfiguredSuffix
 	datadogConfig       any
 

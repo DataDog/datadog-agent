@@ -730,6 +730,100 @@ func TestSendTmpEnhancedMetricsDisabled(t *testing.T) {
 	enhancedMetricsDisabled = false
 }
 
+func TestSendFdEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateFdEnhancedMetricsArgs{
+		FdMax: 1024,
+		FdUse: 26,
+		Tags:  tags,
+		Demux: demux,
+		Time:  now,
+	}
+	go generateFdEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       fdMaxMetric,
+			Value:      1024,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       fdUseMetric,
+			Value:      26,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+	},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestSendThreadEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateThreadEnhancedMetricsArgs{
+		ThreadsMax: 1024,
+		ThreadsUse: 41,
+		Tags:       tags,
+		Demux:      demux,
+		Time:       now,
+	}
+	go generateThreadEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       threadsMaxMetric,
+			Value:      1024,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       threadsUseMetric,
+			Value:      41,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+	},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestSendProcessEnhancedMetricsDisabled(t *testing.T) {
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
+	demux := createDemultiplexer(t)
+	metricAgent := ServerlessMetricAgent{Demux: demux}
+	tags := []string{"functionname:test-function"}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendProcessEnhancedMetrics(make(chan bool), tags, &metricAgent)
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
+}
+
 func TestSendFailoverReasonMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"reason:test-reason"}

@@ -83,5 +83,5 @@ type ServerDeps struct {
 }
 
 func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
-	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Options(options...))
+	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Options(options...))
 }

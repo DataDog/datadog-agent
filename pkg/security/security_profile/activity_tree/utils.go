@@ -40,3 +40,15 @@ func AppendIfNotPresent(slice []string, toAdd string) ([]string, bool) {
 	}
 	return slice, false
 }
+
+func extractExecAndParent(processNode *ProcessNode) (string, string) {
+	processPath := processNode.Process.FileEvent.PathnameStr
+
+	var parentPath string
+	if parent := processNode.GetParent(); parent != nil {
+		if parentNode, ok := parent.(*ProcessNode); ok {
+			parentPath = parentNode.Process.FileEvent.PathnameStr
+		}
+	}
+	return processPath, parentPath
+}

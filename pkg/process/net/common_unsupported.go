@@ -40,6 +40,11 @@ func (r *RemoteSysProbeUtil) GetConnections(_ string) (*model.Connections, error
 	return nil, ErrNotImplemented
 }
 
+// GetNetworkID is not supported
+func (r *RemoteSysProbeUtil) GetNetworkID() (string, error) {
+	return "", ErrNotImplemented
+}
+
 // GetStats is not supported
 func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 	return nil, ErrNotImplemented

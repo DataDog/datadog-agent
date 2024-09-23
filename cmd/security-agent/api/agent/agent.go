@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -140,7 +140,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog().GetString("security_agent.log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("security_agent.log_file")
 
 	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {

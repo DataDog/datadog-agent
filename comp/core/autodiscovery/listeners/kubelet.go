@@ -15,8 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -91,9 +93,10 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
+	taggerEntityID := common.BuildTaggerEntityID(pod.GetID()).String()
 	svc := &service{
 		entity:        pod,
-		tagsHash:      tagger.GetEntityHash(kubelet.PodUIDToTaggerEntityName(pod.ID), tagger.ChecksCardinality()),
+		tagsHash:      tagger.GetEntityHash(taggerEntityID, tagger.ChecksCardinality()),
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -133,7 +136,7 @@ func (l *KubeletListener) createContainerService(
 	// stopped.
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
-		excludeAge := time.Duration(config.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
+		excludeAge := time.Duration(pkgconfigsetup.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
@@ -155,7 +158,7 @@ func (l *KubeletListener) createContainerService(
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
+		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
 		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{

@@ -165,8 +165,8 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	rl.applyBaseLimitersFromDefault(newLimiters)
 
 	for id, rule := range ruleSet.GetRules() {
-		if rule.Definition.Every != 0 {
-			newLimiters[id] = NewStdLimiter(rate.Every(rule.Definition.Every), 1)
+		if rule.Def.Every != 0 {
+			newLimiters[id] = NewStdLimiter(rate.Every(rule.Def.Every), 1)
 		} else {
 			newLimiters[id] = NewStdLimiter(defaultLimit, defaultBurst)
 		}

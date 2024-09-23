@@ -17,7 +17,7 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 		return false
 	}
 	remoteIP := net.ParseIP(conn.Raddr.Ip)
-	if remoteIP.IsLoopback() {
+	if remoteIP.IsLoopback() || conn.IntraHost {
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4

@@ -87,28 +87,35 @@ enum
 enum policy_mode
 {
     NO_FILTER = 0,
-    ACCEPT = 1,
-    DENY = 2,
+    ACCEPT,
+    DENY,
 };
 
-enum policy_flags
+enum APPROVER_TYPE
 {
-    BASENAME = 1,
-    FLAGS = 2,
-    MODE = 4,
-    PARENT_NAME = 8,
+    BASENAME_APPROVER_TYPE = 0,
+    FLAG_APPROVER_TYPE,
+    AUID_APPROVER_TYPE,
+};
+
+enum SYSCALL_STATE
+{
+    ACCEPTED = 0,    // approved and can't be discarded later
+    APPROVED,        // approved but can be discarded later
+    DISCARDED,       // discarded
+};
+
+enum MONITOR_KEYS
+{
+    ERPC_MONITOR_KEY = 1,
+    DISCARDER_MONITOR_KEY,
+    APPROVER_MONITOR_KEY,
 };
 
 enum tls_format
 {
     DEFAULT_TLS_FORMAT
 };
-
-typedef enum discard_check_state
-{
-    NOT_DISCARDED,
-    DISCARDED,
-} discard_check_state;
 
 enum bpf_cmd_def
 {
@@ -184,13 +191,13 @@ enum erpc_op
 {
     UNKNOWN_OP,
     DISCARD_INODE_OP,
-    DISCARD_PID_OP,
+    DISCARD_PID_OP, // DEPRECATED
     RESOLVE_SEGMENT_OP, // DEPRECATED
     RESOLVE_PATH_OP,
     RESOLVE_PARENT_OP, // DEPRECATED
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
     EXPIRE_INODE_DISCARDER_OP,
-    EXPIRE_PID_DISCARDER_OP,
+    EXPIRE_PID_DISCARDER_OP, // DEPRECATED
     BUMP_DISCARDERS_REVISION,
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,

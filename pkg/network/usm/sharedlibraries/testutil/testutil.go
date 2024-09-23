@@ -21,21 +21,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // mutex protecting build process
 var mux sync.Mutex
 
-// OpenFromAnotherProcess launches an external file that holds active handler to the given paths.
-func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
-	programExecutable := build(t)
-
+// OpenFromProcess launches the specified external program which holds an active
+// handle to the given paths.
+func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
 	patternScanner := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), make(chan struct{}, 1))
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 
 	require.NoError(t, cmd.Start())
+	log.Infof("exec prog=%s, paths=%v | PID = %d", programExecutable, paths, cmd.Process.Pid)
 
 	t.Cleanup(func() {
 		if cmd.Process == nil {
@@ -51,13 +52,21 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
 		case <-time.After(time.Second * 5):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			return nil, fmt.Errorf("couldn't luanch process in time")
+			return nil, fmt.Errorf("couldn't launch process in time")
 		}
 	}
 }
 
-// build only gets executed when running tests locally
-func build(t *testing.T) string {
+// OpenFromAnotherProcess launches an external program that holds an active
+// handle to the given paths.
+func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
+	programExecutable := BuildFmapper(t)
+	return OpenFromProcess(t, programExecutable, paths...)
+}
+
+// BuildFmapper builds the external program which is used to hold references to
+// shared libraries for testing.
+func BuildFmapper(t *testing.T) string {
 	mux.Lock()
 	defer mux.Unlock()
 

@@ -35,12 +35,16 @@ type DdRcTelemetryReporter struct {
 
 // IncRateLimit increments the DdRcTelemetryReporter BypassRateLimitCounter counter.
 func (r *DdRcTelemetryReporter) IncRateLimit() {
-	r.BypassRateLimitCounter.Inc()
+	if r.BypassRateLimitCounter != nil {
+		r.BypassRateLimitCounter.Inc()
+	}
 }
 
 // IncTimeout increments the DdRcTelemetryReporter BypassTimeoutCounter counter.
 func (r *DdRcTelemetryReporter) IncTimeout() {
-	r.BypassTimeoutCounter.Inc()
+	if r.BypassTimeoutCounter != nil {
+		r.BypassTimeoutCounter.Inc()
+	}
 }
 
 // newDdRcTelemetryReporter creates a new Remote Config telemetry reporter for sending RC metrics to Datadog

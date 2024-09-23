@@ -117,6 +117,8 @@ typedef void (*cb_get_config_t)(char *, char **);
 typedef void (*cb_headers_t)(char **);
 // (hostname)
 typedef void (*cb_get_hostname_t)(char **);
+// (host_tags)
+typedef void (*cb_get_host_tags_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
 // (tracemalloc_enabled)

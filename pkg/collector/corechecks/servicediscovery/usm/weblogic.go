@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"path"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // weblogic vendor specific constants
@@ -59,26 +59,29 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 	}
 	serverConfigFile, err := we.ctx.fs.Open(path.Join(domainHome, wlsServerConfigDir, wlsServerConfigFile))
 	if err != nil {
-		we.ctx.logger.Debug("weblogic: unable to open config.xml", zap.Error(err))
+		log.Debugf("weblogic: unable to open config.xml. Err: %v", err)
 		return nil, false
 	}
 	defer serverConfigFile.Close()
-	if ok, err := canSafelyParse(serverConfigFile); !ok {
-		we.ctx.logger.Debug("weblogic: config.xml looks too big", zap.Error(err))
+	reader, err := SizeVerifiedReader(serverConfigFile)
+	if err != nil {
+		log.Debugf("weblogic: config.xml looks too big. Err: %v", err)
 		return nil, false
 	}
 	var deployInfos weblogicDeploymentInfo
-	err = xml.NewDecoder(serverConfigFile).Decode(&deployInfos)
+	err = xml.NewDecoder(reader).Decode(&deployInfos)
 
 	if err != nil {
-		we.ctx.logger.Debug("weblogic: cannot parse config.xml", zap.Error(err))
+		log.Debugf("weblogic: cannot parse config.xml. Err: %v", err)
 		return nil, false
 	}
 	var deployments []jeeDeployment
 	for _, di := range deployInfos.AppDeployment {
 		if di.StagingMode == "stage" && di.Target == serverName {
 			_, name := path.Split(di.SourcePath)
-			deployments = append(deployments, jeeDeployment{name: name, path: di.SourcePath})
+			// The original code did not have the domainHome addition here,
+			// unlike in jboss/tomcat.
+			deployments = append(deployments, jeeDeployment{name: name, path: abs(di.SourcePath, domainHome)})
 		}
 	}
 	return deployments, len(deployments) > 0

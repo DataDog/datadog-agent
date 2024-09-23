@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -73,7 +74,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		res, err := getResponseWithMaxLength(ctx,
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
-			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
+			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata VM ID endpoint: %s", err)
 		}
@@ -150,16 +151,16 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	if !config.IsCloudProviderEnabled(CloudProviderName) {
+	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, config.Datadog())
+	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, pkgconfigsetup.Datadog())
 }
 
 // GetHostname returns hostname based on Azure instance metadata.
 func GetHostname(ctx context.Context) (string, error) {
-	return getHostnameWithConfig(ctx, config.Datadog())
+	return getHostnameWithConfig(ctx, pkgconfigsetup.Datadog())
 }
 
 var instanceMetaFetcher = cachedfetch.Fetcher{
@@ -196,7 +197,7 @@ func getMetadata(ctx context.Context) (metadata, error) {
 	return metadataInfo, nil
 }
 
-func getHostnameWithConfig(ctx context.Context, config config.Config) (string, error) {
+func getHostnameWithConfig(ctx context.Context, config model.Config) (string, error) {
 	style := config.GetString(hostnameStyleSetting)
 	metadata, err := getMetadata(ctx)
 	if err != nil {

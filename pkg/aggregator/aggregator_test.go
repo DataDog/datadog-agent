@@ -28,7 +28,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -575,8 +575,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -586,9 +586,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("AreSeriesEnabled").Return(true)
@@ -607,9 +607,9 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 
-	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
-	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
-	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+	djmEnabled := pkgconfigsetup.Datadog().GetBool("djm_config.enabled")
+	pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries

@@ -11,13 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 
 	meta := GetMeta(ctx, cfg)
 	assert.NotEmpty(t, meta.SocketHostname)
@@ -27,7 +26,7 @@ func TestGetMeta(t *testing.T) {
 
 func TestGetMetaFromCache(t *testing.T) {
 	ctx := context.Background()
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 
 	cache.Cache.Set(metaCacheKey, &Meta{
 		SocketHostname: "socket_test",

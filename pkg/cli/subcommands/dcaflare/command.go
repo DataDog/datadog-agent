@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -110,7 +110,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog().GetInt("expvar_port"))
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
 
 	for _, prof := range []struct{ name, URL string }{
 		{
@@ -156,9 +156,9 @@ func run(cliParams *cliParams, _ config.Component) error {
 		e       error
 	)
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
-	logFile := pkgconfig.Datadog().GetString("log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
@@ -189,7 +189,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 		return nil
 	}
 
-	if e = util.SetAuthToken(pkgconfig.Datadog()); e != nil {
+	if e = util.SetAuthToken(pkgconfigsetup.Datadog()); e != nil {
 		return e
 	}
 
@@ -226,7 +226,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 		}
 	}
 
-	response, e := flare.SendFlare(pkgconfig.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
@@ -239,7 +239,7 @@ func newSettingsClient() (settings.Client, error) {
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",
-		pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"),
+		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
 	)
 
 	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

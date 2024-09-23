@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,7 +49,7 @@ func init() {
 func BenchmarkTagStoreThroughput(b *testing.B) {
 	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := tagstore.NewTagStore(telemetryStore)
+	store := tagstore.NewTagStore(configmock.New(b), telemetryStore)
 
 	doneCh := make(chan struct{})
 	pruneTicker := time.NewTicker(time.Second)
@@ -75,7 +76,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 
 		go func() {
 			for i := 0; i < 1000; i++ {
-				id := ids[rand.Intn(nEntities)]
+				id := types.NewEntityID("", ids[rand.Intn(nEntities)])
 				store.Lookup(id, types.HighCardinality)
 			}
 			wg.Done()
@@ -94,7 +95,8 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 func BenchmarkTagStore_processTagInfo(b *testing.B) {
 	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := tagstore.NewTagStore(telemetryStore)
+
+	store := tagstore.NewTagStore(configmock.New(b), telemetryStore)
 
 	for i := 0; i < b.N; i++ {
 		processRandomTagInfoBatch(store)
@@ -105,7 +107,7 @@ func generateRandomTagInfo() *types.TagInfo {
 	id := ids[rand.Intn(nEntities)]
 	source := sources[rand.Intn(nSources)]
 	return &types.TagInfo{
-		Entity:               id,
+		EntityID:             types.NewEntityID("", id),
 		Source:               source,
 		LowCardTags:          generateRandomTags(),
 		OrchestratorCardTags: generateRandomTags(),

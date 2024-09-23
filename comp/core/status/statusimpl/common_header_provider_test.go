@@ -24,7 +24,7 @@ import (
 )
 
 func TestCommonHeaderProviderIndex(t *testing.T) {
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -43,7 +43,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 	stats := map[string]interface{}{}
@@ -73,7 +73,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 		startTimeProvider = pkgconfigsetup.StartTime
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -112,7 +112,7 @@ func TestCommonHeaderProviderTime(t *testing.T) {
 	}
 	defer func() { nowFunc = time.Now }()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -193,7 +193,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 

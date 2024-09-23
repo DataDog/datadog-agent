@@ -3,9 +3,7 @@
     "go.lintTool": "golangci-lint",
     "go.lintFlags": [
         "--build-tags",
-        "{build_tags}",
-        "--config",
-        "{workspace_folder}/.golangci.yml"
+        "{build_tags}"
     ],
     "[go]": {{
         "editor.formatOnSave": true,

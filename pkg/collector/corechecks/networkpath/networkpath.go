@@ -54,7 +54,7 @@ func (c *Check) Run() error {
 		DestHostname: c.config.DestHostname,
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
-		TimeoutMs:    c.config.TimeoutMs,
+		Timeout:      c.config.Timeout,
 		Protocol:     c.config.Protocol,
 	}
 
@@ -69,10 +69,9 @@ func (c *Check) Run() error {
 	path.Namespace = c.config.Namespace
 
 	// Add tags to path
-	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = commonTags
+	path.Tags = c.config.Tags
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
@@ -80,7 +79,8 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	c.submitTelemetry(metricSender, path, commonTags, startTime)
+	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
 	return nil
@@ -105,7 +105,7 @@ func (c *Check) submitTelemetry(metricSender metricsender.MetricSender, path pay
 	c.lastCheckTime = startTime
 	checkDuration := time.Since(startTime)
 
-	telemetry.SubmitNetworkPathTelemetry(metricSender, path, telemetry.CollectorTypeNetworkPathIntegration, checkDuration, checkInterval, metricTags)
+	telemetry.SubmitNetworkPathTelemetry(metricSender, path, checkDuration, checkInterval, metricTags)
 }
 
 // Interval returns the scheduling time for the check

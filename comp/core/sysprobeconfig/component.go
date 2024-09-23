@@ -16,21 +16,22 @@
 package sysprobeconfig
 
 import (
+	"go.uber.org/fx"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
-	config.ReaderWriter
+	model.ReaderWriter
 
 	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
+	Warnings() *model.Warnings
 
 	// SysProbeObject returns the wrapper sysconfig
 	SysProbeObject() *sysconfigtypes.Config

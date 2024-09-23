@@ -23,9 +23,9 @@ func TestDiagnoseAllBasicRegAndRunNoDiagnoses(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunNoDiagnoses"},
 		RunLocal: true,
 	}
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, catalog.GetSuites())
+	diagnoseResult, err := getDiagnosesFromCurrentProcess(diagCfg, catalog.GetSuites())
 	assert.NoError(t, err)
-	assert.Len(t, diagnoses, 0)
+	assert.Len(t, diagnoseResult.Diagnoses, 0)
 }
 
 func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
@@ -63,7 +63,8 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Include:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis"},
 		RunLocal: true,
 	}
-	outSuitesDiagnosesInclude, err := getDiagnosesFromCurrentProcess(diagCfgInclude, catalog.GetSuites())
+	diagnoseResult, err := getDiagnosesFromCurrentProcess(diagCfgInclude, catalog.GetSuites())
+	outSuitesDiagnosesInclude := diagnoseResult.Diagnoses
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesInclude, 2)
 	assert.Equal(t, outSuitesDiagnosesInclude[0].SuiteDiagnoses, inDiagnoses)
@@ -75,7 +76,8 @@ func TestDiagnoseAllBasicRegAndRunSomeDiagnosis(t *testing.T) {
 		Exclude:  []string{"TestDiagnoseAllBasicRegAndRunSomeDiagnosis-a"},
 		RunLocal: true,
 	}
-	outSuitesDiagnosesIncludeExclude, err := getDiagnosesFromCurrentProcess(diagCfgIncludeExclude, catalog.GetSuites())
+	diagnoseResult, err = getDiagnosesFromCurrentProcess(diagCfgIncludeExclude, catalog.GetSuites())
+	outSuitesDiagnosesIncludeExclude := diagnoseResult.Diagnoses
 	assert.NoError(t, err)
 	assert.Len(t, outSuitesDiagnosesIncludeExclude, 1)
 	assert.Equal(t, outSuitesDiagnosesIncludeExclude[0].SuiteDiagnoses, inDiagnoses)

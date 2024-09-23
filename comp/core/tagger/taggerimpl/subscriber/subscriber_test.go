@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const (
-	entityID = "foo://bar"
+var (
+	entityID = types.NewEntityID("foo", "bar")
 )
 
 func TestSubscriber(t *testing.T) {

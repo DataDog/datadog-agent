@@ -207,7 +207,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	_, env := getFirstFromMap(rattr, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
@@ -588,7 +589,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
+		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+		if _, env := getFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}

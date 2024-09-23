@@ -7,7 +7,9 @@ package setup
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +20,7 @@ import (
 
 // TestProcessDefaults tests to ensure that the config has set process settings correctly
 func TestProcessDefaultConfig(t *testing.T) {
-	cfg := Conf()
+	cfg := newTestConf()
 
 	for _, tc := range []struct {
 		key          string
@@ -149,7 +151,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_CONFIG` prefix, there is a `DD_PROCESS_AGENT` prefix as well.
 func TestProcessAgentPrefixes(t *testing.T) {
-	envVarSlice := Conf().GetEnvVars()
+	envVarSlice := newTestConf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -170,7 +172,7 @@ func TestProcessAgentPrefixes(t *testing.T) {
 
 // TestPrefixes tests that for every corresponding `DD_PROCESS_AGENT` prefix, there is a `DD_PROCESS_CONFIG` prefix as well.
 func TestProcessConfigPrefixes(t *testing.T) {
-	envVarSlice := Conf().GetEnvVars()
+	envVarSlice := newTestConf().GetEnvVars()
 	envVars := make(map[string]struct{}, len(envVarSlice))
 	for _, envVar := range envVarSlice {
 		envVars[envVar] = struct{}{}
@@ -192,7 +194,10 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	cfg := Conf()
+	processRunInAgent := true
+	if runtime.GOOS != "linux" {
+		processRunInAgent = false
+	}
 
 	for _, tc := range []struct {
 		key, env, value string
@@ -275,7 +280,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.run_in_core_agent.enabled",
 			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
 			value:    "true",
-			expected: true,
+			expected: processRunInAgent,
 		},
 		{
 			key:      "process_config.enabled",
@@ -455,7 +460,12 @@ func TestEnvVarOverride(t *testing.T) {
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
+			// internal configuration rely on a syncOnce so we have to reset if after each call
+			t.Cleanup(func() { processesAddOverrideOnce = *new(sync.Once) })
+
 			t.Setenv(tc.env, tc.value)
+
+			cfg := newTestConf()
 			assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 		})
 
@@ -464,11 +474,14 @@ func TestEnvVarOverride(t *testing.T) {
 			env := strings.Replace(tc.env, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 			t.Run(env, func(t *testing.T) {
 				t.Setenv(env, tc.value)
+
+				cfg := newTestConf()
 				assert.Equal(t, tc.expected, readCfgWithType(cfg, tc.key, tc.expType))
 			})
 		}
 	}
 
+	cfg := newTestConf()
 	// StringMapStringSlice can't be converted by `Config.Get` so we need to test this separately
 	t.Run("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", func(t *testing.T) {
 		t.Setenv("DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", `{"https://process.datadoghq.com": ["fakeAPIKey"]}`)
@@ -501,7 +514,7 @@ func readCfgWithType(cfg pkgconfigmodel.Config, key, expType string) interface{}
 }
 
 func TestEnvVarCustomSensitiveWords(t *testing.T) {
-	cfg := Conf()
+	cfg := newTestConf()
 	expectedPrefixes := []string{"DD_", "DD_PROCESS_CONFIG_", "DD_PROCESS_AGENT_"}
 
 	for i, tc := range []struct {
@@ -533,7 +546,7 @@ func TestEnvVarCustomSensitiveWords(t *testing.T) {
 }
 
 func TestProcBindEnvAndSetDefault(t *testing.T) {
-	cfg := Conf()
+	cfg := newTestConf()
 	procBindEnvAndSetDefault(cfg, "process_config.foo.bar", "asdf")
 
 	envs := map[string]struct{}{}
@@ -552,7 +565,7 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 }
 
 func TestProcBindEnv(t *testing.T) {
-	cfg := Conf()
+	cfg := newTestConf()
 	procBindEnv(cfg, "process_config.foo.bar")
 
 	envs := map[string]struct{}{}
@@ -597,7 +610,7 @@ func TestProcConfigEnabledTransform(t *testing.T) {
 		},
 	} {
 		t.Run("process_config.enabled="+tc.procConfigEnabled, func(t *testing.T) {
-			cfg := Conf()
+			cfg := newTestConf()
 			cfg.SetWithoutSource("process_config.enabled", tc.procConfigEnabled)
 			loadProcessTransforms(cfg)
 

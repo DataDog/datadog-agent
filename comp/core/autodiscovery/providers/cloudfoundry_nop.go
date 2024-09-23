@@ -9,8 +9,8 @@ package providers
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // NewCloudFoundryConfigProvider instantiates a new CloudFoundryConfigProvider from given config
-var NewCloudFoundryConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)
+var NewCloudFoundryConfigProvider func(providerConfig *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

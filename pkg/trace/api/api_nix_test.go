@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -82,6 +83,21 @@ func TestUDS(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}
+	})
+
+	t.Run("uds_permission_err", func(t *testing.T) {
+		dir := t.TempDir()
+		err := os.Chmod(dir, 0444) // read-only
+		assert.NoError(t, err)
+
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverSocket = filepath.Join(dir, "apm.socket")
+
+		r := newTestReceiverFromConfig(conf)
+		// should not crash
+		r.Start()
+		r.Stop()
 	})
 }
 

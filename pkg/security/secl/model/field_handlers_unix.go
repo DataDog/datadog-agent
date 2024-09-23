@@ -36,7 +36,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
-	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
+	if !forADs {
+		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
+	}
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -112,7 +114,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
-		_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
+		}
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -358,7 +362,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
+		}
 		_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
@@ -440,7 +446,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
+		}
 		_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
@@ -638,7 +646,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.PTrace.Tracee.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
+		}
 		_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
@@ -733,7 +743,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent)
 		}
 		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.PTrace.Tracee.Parent)
+			if !forADs {
+				_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.PTrace.Tracee.Parent)
+			}
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
@@ -907,7 +919,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Signal.Target.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
+		}
 		_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
@@ -1002,7 +1016,9 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent)
 		}
 		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Signal.Target.Parent)
+			if !forADs {
+				_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Signal.Target.Parent)
+			}
 		}
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)

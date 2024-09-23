@@ -69,8 +69,9 @@ func startAutoExit(ctx context.Context, sd exitDetector, log log.Component, tick
 
 	log.Info("Starting auto-exit watcher")
 	lastConditionNotMet := time.Now()
-	ticker := time.NewTicker(tickerPeriod)
 	go func() {
+		ticker := time.NewTicker(tickerPeriod)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():

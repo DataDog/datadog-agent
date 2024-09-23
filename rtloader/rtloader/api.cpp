@@ -512,6 +512,11 @@ void set_get_hostname_cb(rtloader_t *rtloader, cb_get_hostname_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetHostnameCb(cb);
 }
 
+void set_get_host_tags_cb(rtloader_t *rtloader, cb_get_host_tags_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetHostTagsCb(cb);
+}
+
 void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);

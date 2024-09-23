@@ -6,6 +6,7 @@
 package logs
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -18,8 +19,8 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string) (logsAgent.ServerlessLogsAgent, error) {
-	agent := agentimpl.NewServerlessLogsAgent()
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component) (logsAgent.ServerlessLogsAgent, error) {
+	agent := agentimpl.NewServerlessLogsAgent(tagger)
 	err := agent.Start()
 	if err != nil {
 		log.Error("Could not start an instance of the Logs Agent:", err)

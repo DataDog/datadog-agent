@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -31,7 +30,7 @@ func TestUpdateRTStatus(t *testing.T) {
 	cfg := configmock.New(t)
 
 	assert := assert.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -68,7 +67,7 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	cfg := configmock.New(t)
 	assert := assert.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -128,7 +127,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			disableRealtime: false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)

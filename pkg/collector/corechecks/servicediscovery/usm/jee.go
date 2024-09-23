@@ -14,7 +14,7 @@ import (
 	"path"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // appserver is an enumeration of application server types
@@ -105,11 +105,15 @@ type jeeExtractor struct {
 // extractContextRootFromApplicationXML parses a standard application.xml file extracting
 // mount points for web application (aka context roots).
 func extractContextRootFromApplicationXML(fs fs.FS) ([]string, error) {
-	reader, err := fs.Open(applicationXMLPath)
+	file, err := fs.Open(applicationXMLPath)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return nil, err
+	}
 	var a applicationXML
 	err = xml.NewDecoder(reader).Decode(&a)
 	if err != nil {
@@ -220,6 +224,17 @@ func vfsAndTypeFromAppPath(deployment *jeeDeployment, filesystem fs.SubFS) (*fil
 	if err != nil {
 		return nil, dt, err
 	}
+
+	// Re-stat after opening to avoid races with attributes changing before
+	// previous stat and open.
+	fi, err = f.Stat()
+	if err != nil {
+		return nil, dt, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, dt, err
+	}
+
 	r, err := zip.NewReader(f.(io.ReaderAt), fi.Size())
 	if err != nil {
 		_ = f.Close()
@@ -245,14 +260,13 @@ func normalizeContextRoot(contextRoots ...string) []string {
 
 // doExtractContextRoots tries to extract context roots for an app, given the vendor and the fs.
 func (je jeeExtractor) doExtractContextRoots(extractor vendorExtractor, app *jeeDeployment) []string {
-	je.ctx.logger.Debug("extracting context root for a jee application", zap.String("name", app.name),
-		zap.String("path", app.path))
+	log.Debugf("extracting context root (%q) for a jee application (%q)", app.path, app.name)
 	if len(app.contextRoot) > 0 {
 		return []string{app.contextRoot}
 	}
 	fsCloser, dt, err := vfsAndTypeFromAppPath(app, je.ctx.fs)
 	if err != nil {
-		je.ctx.logger.Debug("error locating the deployment", zap.Error(err))
+		log.Debugf("error locating the deployment: %v", err)
 		if dt == ear {
 			return nil
 		}
@@ -268,7 +282,7 @@ func (je jeeExtractor) doExtractContextRoots(extractor vendorExtractor, app *jee
 	if dt == ear {
 		value, err := extractContextRootFromApplicationXML(fsCloser.fs)
 		if err != nil {
-			je.ctx.logger.Debug("unable to extract context roots from application.xml", zap.Error(err))
+			log.Debugf("unable to extract context roots from application.xml: %v", err)
 			return nil
 		}
 		return value
@@ -291,7 +305,7 @@ func (je jeeExtractor) extractServiceNamesForJEEServer() []string {
 	if vendor == unknown {
 		return nil
 	}
-	je.ctx.logger.Debug("running java enterprise service extraction", zap.Stringer("vendor", vendor))
+	log.Debugf("running java enterprise service extraction - vendor %q", vendor)
 	// check if able to find which applications are deployed
 	extractorCreator, ok := extractors[vendor]
 	if !ok {

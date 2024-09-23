@@ -20,7 +20,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,8 +37,8 @@ const (
 func (d *DockerCheck) configureNetworkProcessor(processor *generic.Processor) {
 	switch runtime.GOOS {
 	case "linux":
-		if config.IsHostProcAvailable() {
-			d.networkProcessorExtension = &dockerNetworkExtension{procPath: config.Datadog().GetString("container_proc_root")}
+		if env.IsHostProcAvailable() {
+			d.networkProcessorExtension = &dockerNetworkExtension{procPath: pkgconfigsetup.Datadog().GetString("container_proc_root")}
 		}
 	case "windows":
 		d.networkProcessorExtension = &dockerNetworkExtension{}

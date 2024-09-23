@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -30,10 +29,7 @@ func TestMkURL(t *testing.T) {
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
-	cfg := fxutil.Test[config.Component](
-		t,
-		config.MockModule(),
-	)
+	cfg := config.NewMock(t)
 
 	testCases := []struct {
 		name        string

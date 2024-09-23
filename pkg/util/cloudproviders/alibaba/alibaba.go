@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -36,16 +36,16 @@ func IsRunningOn(ctx context.Context) bool {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !config.IsCloudProviderEnabled(CloudProviderName) {
+		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			return nil, fmt.Errorf("cloud provider is disabled by configuration")
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"
-		res, err := httputils.Get(ctx, endpoint, nil, timeout, config.Datadog())
+		res, err := httputils.Get(ctx, endpoint, nil, timeout, pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("Alibaba HostAliases: unable to query metadata endpoint: %s", err)
 		}
-		maxLength := config.Datadog().GetInt("metadata_endpoints_max_hostname_size")
+		maxLength := pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size")
 		if len(res) > maxLength {
 			return nil, fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 		}

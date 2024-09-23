@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -57,7 +59,6 @@ func TestProviderIsSupported(t *testing.T) {
 
 func TestApplyProviderOverrides(t *testing.T) {
 	mockConfig := configmock.New(t)
-	hostPathType := corev1.HostPathDirectoryOrCreate
 
 	tests := []struct {
 		name                     string
@@ -99,6 +100,11 @@ func TestApplyProviderOverrides(t *testing.T) {
 				},
 			},
 			expectedPodAfterOverride: &corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+					},
+				},
 				Spec: corev1.PodSpec{
 					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{
@@ -163,7 +169,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 		{
 			// This test checks that the volume and volume mounts set by the
 			// config webhook are replaced by ones that works on Fargate.
-			name:     "fargate provider - with volume set by the config webhook",
+			name:     "fargate provider - with volume set by the config webhook (when the type is not socket)",
 			provider: "fargate",
 			basePod: &corev1.Pod{
 				Spec: corev1.PodSpec{
@@ -194,7 +200,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 							Name: "datadog",
 							VolumeSource: corev1.VolumeSource{
 								HostPath: &corev1.HostPathVolumeSource{
-									Type: &hostPathType,
+									Type: pointer.Ptr(corev1.HostPathDirectoryOrCreate),
 									Path: "/var/run/datadog",
 								},
 							},
@@ -203,6 +209,139 @@ func TestApplyProviderOverrides(t *testing.T) {
 				},
 			},
 			expectedPodAfterOverride: &corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+					},
+				},
+				Spec: corev1.PodSpec{
+					ShareProcessNamespace: pointer.Ptr(true),
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							Env: []corev1.EnvVar{
+								{
+									Name:  "DD_TRACE_AGENT_URL",
+									Value: "unix:///var/run/datadog/apm.socket",
+								},
+								{
+									Name:  "DD_DOGSTATSD_URL",
+									Value: "unix:///var/run/datadog/dsd.socket",
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "ddsockets",
+									MountPath: "/var/run/datadog",
+									ReadOnly:  false,
+								},
+							},
+						},
+						{
+							Name: agentSidecarContainerName,
+							Env: []corev1.EnvVar{
+								{
+									Name:  "DD_EKS_FARGATE",
+									Value: "true",
+								},
+								{
+									Name:  "DD_APM_RECEIVER_SOCKET",
+									Value: "/var/run/datadog/apm.socket",
+								},
+								{
+									Name:  "DD_DOGSTATSD_SOCKET",
+									Value: "/var/run/datadog/dsd.socket",
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "ddsockets",
+									MountPath: "/var/run/datadog",
+									ReadOnly:  false,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "ddsockets",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{},
+							},
+						},
+					},
+				},
+			},
+			expectError:   false,
+			expectMutated: true,
+		},
+		{
+			// Same as the previous test, but this time the injected volumes are
+			// of socket type.
+			name:     "fargate provider - with volumes set by the config webhook (when the type is socket)",
+			provider: "fargate",
+			basePod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "app-container",
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "datadog-dogstatsd",
+									MountPath: "/var/run/datadog/dsd.socket",
+									ReadOnly:  true,
+								},
+								{
+									Name:      "datadog-trace-agent",
+									MountPath: "/var/run/datadog/apm.socket",
+									ReadOnly:  true,
+								},
+							},
+						},
+						{
+							Name: agentSidecarContainerName,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "datadog-dogstatsd",
+									MountPath: "/var/run/datadog/dsd.socket",
+									ReadOnly:  true,
+								},
+								{
+									Name:      "datadog-trace-agent",
+									MountPath: "/var/run/datadog/apm.socket",
+									ReadOnly:  true,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "datadog-dogstatsd",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/var/run/datadog/dsd.socket",
+									Type: pointer.Ptr(corev1.HostPathSocket),
+								},
+							},
+						},
+						{
+							Name: "datadog-trace-agent",
+							VolumeSource: corev1.VolumeSource{
+								HostPath: &corev1.HostPathVolumeSource{
+									Path: "/var/run/datadog/apm.socket",
+									Type: pointer.Ptr(corev1.HostPathSocket),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPodAfterOverride: &corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						mutatecommon.K8sAutoscalerSafeToEvictVolumesAnnotation: "ddsockets",
+					},
+				},
 				Spec: corev1.PodSpec{
 					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{

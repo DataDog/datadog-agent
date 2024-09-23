@@ -1,0 +1,26 @@
+---
+dist:
+  module: github.com/DataDog/comp/otelcol/collector-contrib
+  name: otelcol-contrib
+  description: valid manifest with minimum requirements and no version (should pass collector_tests.py)
+  output_path: ./comp/otelcol/collector-contrib/impl
+
+extensions:
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.104.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.104.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.104.0
+
+receivers:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.104.0
+
+# When adding a replace, add a comment before it to document why it's needed and when it can be removed
+replaces:
+  # See https://github.com/google/gnostic/issues/262
+  - github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0.5.5
+  # See https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/12322#issuecomment-1185029670
+  - github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 => github.com/docker/go-connections v0.4.0
+  # see https://github.com/mattn/go-ieproxy/issues/45
+  - github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
+  # see https://github.com/openshift/api/pull/1515
+  - github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
+  - github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def

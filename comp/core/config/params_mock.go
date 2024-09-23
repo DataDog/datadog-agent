@@ -8,10 +8,6 @@
 
 package config
 
-import (
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
-)
-
 // MockParams defines the parameter for the mock config.
 // It is designed to be used with `fx.Replace` which replaces the default
 // empty value of `MockParams`.
@@ -22,10 +18,4 @@ type MockParams struct {
 
 	// Overrides is a parameter used to override values of the config
 	Overrides map[string]interface{}
-
-	// Features is a parameter to set features for the mock config
-	Features []pkgconfigenv.Feature
-
-	// SetupConfig sets up the config as if it weren't a mock; essentially a full init
-	SetupConfig bool
 }

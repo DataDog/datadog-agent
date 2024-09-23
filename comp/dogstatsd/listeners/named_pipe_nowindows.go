@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
@@ -22,7 +22,7 @@ type NamedPipeListener struct{}
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func NewNamedPipeListener(_ string, _ chan packets.Packets,
-	_ *packets.PoolManager[packets.Packet], _ config.Reader, _ replay.Component, _ *TelemetryStore, _ *packets.TelemetryStore, _ telemetry.Component) (*NamedPipeListener, error) {
+	_ *packets.PoolManager[packets.Packet], _ model.Reader, _ replay.Component, _ *TelemetryStore, _ *packets.TelemetryStore, _ telemetry.Component) (*NamedPipeListener, error) {
 
 	return nil, errors.New("named pipe is only supported on Windows")
 }

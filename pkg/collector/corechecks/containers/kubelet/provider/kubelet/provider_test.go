@@ -128,8 +128,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
@@ -285,6 +284,16 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 	if err != nil {
 		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
 	}
+
+	// namespace not filtered still shows up
+	podWithPVCNotFilteredTags := append(commontesting.InstanceTags, "persistentvolumeclaim:ddagent-pvc-ddagent-test-2", "namespace:unit-test")
+
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.capacity_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.used_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.available_bytes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_used", podWithPVCNotFilteredTags)
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", common.KubeletMetricsPrefix+"kubelet.volume.stats.inodes_free", podWithPVCNotFilteredTags)
 
 	// pvc tags show up
 	podWithPVCTags := append(commontesting.InstanceTags, "persistentvolumeclaim:www-web-2", "namespace:default", "kube_namespace:default", "kube_service:nginx", "kube_stateful_set:web", "namespace:default")

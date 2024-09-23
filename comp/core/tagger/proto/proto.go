@@ -9,7 +9,6 @@ package proto
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,15 +18,11 @@ import (
 )
 
 // Tagger2PbEntityID helper to convert an Entity ID to its expected protobuf format.
-func Tagger2PbEntityID(entityID string) (*pb.EntityId, error) {
-	parts := strings.SplitN(entityID, "://", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid entity id %q", entityID)
-	}
+func Tagger2PbEntityID(entityID types.EntityID) (*pb.EntityId, error) {
 
 	return &pb.EntityId{
-		Prefix: parts[0],
-		Uid:    parts[1],
+		Prefix: string(entityID.GetPrefix()),
+		Uid:    entityID.GetID(),
 	}, nil
 }
 
@@ -64,12 +59,12 @@ func Tagger2PbEntityEvent(event types.EntityEvent) (*pb.StreamTagsEvent, error) 
 }
 
 // Pb2TaggerEntityID helper to convert a protobuf Entity ID to its expected format.
-func Pb2TaggerEntityID(entityID *pb.EntityId) (string, error) {
+func Pb2TaggerEntityID(entityID *pb.EntityId) (types.EntityID, error) {
 	if entityID == nil {
-		return "", errors.New("Invalid entityID argument")
+		return nil, errors.New("Invalid entityID argument")
 	}
 
-	return fmt.Sprintf("%s://%s", entityID.Prefix, entityID.Uid), nil
+	return types.NewEntityID(types.EntityIDPrefix(entityID.Prefix), entityID.Uid), nil
 }
 
 // Pb2TaggerCardinality helper to convert protobuf cardinality to native tag cardinality.

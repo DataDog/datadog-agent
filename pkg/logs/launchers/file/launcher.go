@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -52,10 +53,11 @@ type Launcher struct {
 	validatePodContainerID bool
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
+	tagger                 tagger.Component
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -79,6 +81,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
+		tagger:                 tagger,
 	}
 }
 
@@ -277,6 +280,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
+
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+			continue
+		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
@@ -382,6 +389,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		SleepDuration: s.tailerSleepDuration,
 		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:          tailerInfo,
+		TagAdder:      s.tagger,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -389,7 +397,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

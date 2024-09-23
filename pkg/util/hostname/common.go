@@ -13,7 +13,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -26,7 +27,7 @@ import (
 var (
 	isFargateInstance = fargate.IsFargateInstance
 	ec2GetInstanceID  = ec2.GetInstanceID
-	isContainerized   = config.IsContainerized //nolint:unused
+	isContainerized   = env.IsContainerized //nolint:unused
 	gceGetHostname    = gce.GetHostname
 	azureGetHostname  = azure.GetHostname
 	osHostname        = os.Hostname
@@ -38,7 +39,7 @@ var (
 type Data = hostnameinterface.Data
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
-	configName := config.Datadog().GetString("hostname")
+	configName := pkgconfigsetup.Datadog().GetString("hostname")
 	err := validate.ValidHostname(configName)
 	if err != nil {
 		return "", err
@@ -49,7 +50,7 @@ func fromConfig(ctx context.Context, _ string) (string, error) {
 
 func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	// Try `hostname_file` config option next
-	hostnameFilepath := config.Datadog().GetString("hostname_file")
+	hostnameFilepath := pkgconfigsetup.Datadog().GetString("hostname_file")
 	if hostnameFilepath == "" {
 		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
 	}
@@ -90,7 +91,7 @@ func fromFQDN(ctx context.Context, _ string) (string, error) {
 		return "", fmt.Errorf("FQDN hostname is not usable")
 	}
 
-	if config.Datadog().GetBool("hostname_fqdn") {
+	if pkgconfigsetup.Datadog().GetBool("hostname_fqdn") {
 		fqdn, err := fqdnHostname()
 		if err == nil {
 			return fqdn, nil
@@ -126,14 +127,14 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
 
-	prioritizeEC2Hostname := config.Datadog().GetBool("ec2_prioritize_instance_id_as_hostname")
+	prioritizeEC2Hostname := pkgconfigsetup.Datadog().GetBool("ec2_prioritize_instance_id_as_hostname")
 
 	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
 	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
 	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+	if env.IsFeaturePresent(env.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
 		log.Debugf("Trying to fetch hostname from EC2 metadata")
 		return getValidEC2Hostname(ctx)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -51,7 +51,7 @@ func (l *StaticConfigListener) createServices() {
 		"container_lifecycle",
 		"sbom",
 	} {
-		if enabled := config.Datadog().GetBool(staticCheck + ".enabled"); enabled {
+		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
 		}
 	}

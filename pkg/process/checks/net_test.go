@@ -14,7 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -637,7 +637,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 			Cmdline: []string{"./my-server.sh"},
 		},
 	}
-	mockConfig := ddconfig.MockSystemProbe(t)
+	mockConfig := configmock.NewSystemProbe(t)
 	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1

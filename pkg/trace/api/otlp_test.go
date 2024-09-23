@@ -293,6 +293,18 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				{
 					LibName:    "libname",
 					LibVersion: "1.2",
+					Attributes: map[string]interface{}{"deployment.environment.name": "staging"},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("staging", out.Env)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
 					Attributes: map[string]interface{}{},
 					Spans: []*testutil.OTLPSpan{
 						{Attributes: map[string]interface{}{string(semconv.AttributeDeploymentEnvironment): "spanenv"}},
@@ -301,6 +313,21 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			},
 			fn: func(out *pb.TracerPayload) {
 				require.Equal("spanenv", out.Env)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{Attributes: map[string]interface{}{"deployment.environment.name": "spanenv2"}},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("spanenv2", out.Env)
 			},
 		},
 		{

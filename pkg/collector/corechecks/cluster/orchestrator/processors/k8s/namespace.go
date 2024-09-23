@@ -97,5 +97,5 @@ func (h *NamespaceHandlers) ResourceVersion(ctx processors.ProcessorContext, res
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Namespace)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

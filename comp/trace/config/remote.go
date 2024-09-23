@@ -10,8 +10,8 @@ package config
 import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -20,7 +20,7 @@ import (
 func remote(c corecompcfg.Component, ipcAddress string) (config.RemoteClient, error) {
 	return rc.NewGRPCClient(
 		ipcAddress,
-		coreconfig.GetIPCPort(),
+		pkgconfigsetup.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(c) },
 		rc.WithAgent(rcClientName, version.AgentVersion),
 		rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),

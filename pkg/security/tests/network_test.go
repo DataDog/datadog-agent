@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -31,7 +31,7 @@ func TestNetworkCIDR(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
 		}

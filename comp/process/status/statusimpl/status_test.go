@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +43,7 @@ func TestStatus(t *testing.T) {
 	server := fakeStatusServer(t, 200, jsonBytes)
 	defer server.Close()
 
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
+	configComponent := config.NewMock(t)
 
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
@@ -98,7 +97,7 @@ func TestStatusError(t *testing.T) {
 	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
 	assert.NoError(t, err)
 
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
+	configComponent := config.NewMock(t)
 
 	headerProvider := statusProvider{
 		testServerURL: server.URL,

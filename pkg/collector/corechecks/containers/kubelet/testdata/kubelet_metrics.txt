@@ -445,11 +445,11 @@ kubelet_volume_stats_inodes_used{namespace="default",persistentvolumeclaim="www2
 kubelet_volume_stats_inodes_used{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 17955
 # HELP kubelet_volume_stats_used_bytes Number of used bytes in the volume
 # TYPE kubelet_volume_stats_used_bytes gauge
-kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 2.319220736e+09
-kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 1.53286656e+09
 kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="www-web-2"} 2.319220736e+09
 kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="www2-web-3"} 1.53286656e+09
 kubelet_volume_stats_used_bytes{namespace="default",persistentvolumeclaim="web-2-ephemeralvolume"} 1.53286656e+09
+kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-2"} 2.319220736e+09
+kubelet_volume_stats_used_bytes{namespace="unit-test",persistentvolumeclaim="ddagent-pvc-ddagent-test-3"} 1.53286656e+09
 # HELP kubernetes_build_info A metric with a constant '1' value labeled by major, minor, git version, git commit, git tree state, build date, Go version, and compiler from which Kubernetes was built, and platform on which it is running.
 # TYPE kubernetes_build_info gauge
 kubernetes_build_info{buildDate="2018-03-26T16:44:10Z",compiler="gc",gitCommit="fc32d2f3698e36b93322a3465f63a14e9f0eaead",gitTreeState="clean",gitVersion="v1.10.0",goVersion="go1.9.3",major="1",minor="10",platform="linux/amd64"} 1

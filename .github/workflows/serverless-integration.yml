@@ -12,6 +12,8 @@ on:
   schedule:
     - cron: '0 14 * * *' # cron schedule uses UTC timezone. Run tests at the beginning of the day in US-East
 
+permissions: {}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -74,7 +76,7 @@ jobs:
 
       - name: Archive raw logs
         if: always()
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
         with:
           name: rawlogs-${{ matrix.suite }}-${{ matrix.architecture }}
           path: ${{ steps.rawlogs.outputs.dir }}

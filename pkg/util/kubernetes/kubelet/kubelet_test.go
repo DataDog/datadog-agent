@@ -28,10 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 const (
@@ -829,14 +830,15 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 }
 
 func TestKubeletTestSuite(t *testing.T) {
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"trace",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 	suite.Run(t, new(KubeletTestSuite))
 }

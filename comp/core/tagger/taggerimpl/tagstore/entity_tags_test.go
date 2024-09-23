@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	testEntityID  = "testEntityID"
 	testSource    = "testSource"
 	invalidSource = "invalidSource"
 )
+
+var testEntityID = types.NewEntityID("test", "EntityID")
 
 func TestToEntity(t *testing.T) {
 	entityTags := newEntityTagsWithSingleSource(testEntityID, testSource)

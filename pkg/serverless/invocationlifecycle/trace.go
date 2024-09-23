@@ -16,7 +16,7 @@ import (
 
 	json "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
@@ -34,12 +34,13 @@ var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.
 
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
-	startTime        time.Time
-	TraceID          uint64
-	SpanID           uint64
-	parentID         uint64
-	requestPayload   []byte
-	SamplingPriority sampler.SamplingPriority
+	startTime         time.Time
+	TraceID           uint64
+	TraceIDUpper64Hex string
+	SpanID            uint64
+	parentID          uint64
+	requestPayload    []byte
+	SamplingPriority  sampler.SamplingPriority
 }
 
 // startExecutionSpan records information from the start of the invocation.
@@ -62,6 +63,12 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 		if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
+		}
+		if traceContext.TraceIDUpper64Hex != "" {
+			executionContext.TraceIDUpper64Hex = traceContext.TraceIDUpper64Hex
+			lp.requestHandler.SetMetaTag(Upper64BitsTag, traceContext.TraceIDUpper64Hex)
+		} else {
+			delete(lp.requestHandler.triggerTags, Upper64BitsTag)
 		}
 	} else {
 		executionContext.TraceID = 0
@@ -112,9 +119,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
-	captureLambdaPayloadEnabled := config.Datadog().GetBool("capture_lambda_payload")
+	captureLambdaPayloadEnabled := pkgconfigsetup.Datadog().GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog().GetInt("capture_lambda_payload_max_depth")
+		capturePayloadMaxDepth := pkgconfigsetup.Datadog().GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)

@@ -161,7 +161,7 @@ The goal is to test that the component updates the `started` and `stopped` field
 
 To accomplish this, create a new lifecycle instance, create a `Require` struct instance, initialize the component, and validate that calling `Start` on the lifecycle instance calls the component hook and executes the logic.
 
-To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle()`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
+To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle(t *testing.T)`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
 
 !!! Info 
     You can see the `NewTestLifecycle` function [here](https://github.com/DataDog/datadog-agent/blob/c9395595e34c6a96de9446083b8b1d0423bed991/comp/def/lifecycle_mock.go#L21)
@@ -179,8 +179,8 @@ To create a lifecycle instance, use the helper function `compdef.NewTestLifecycl
     )
 
     func TestStartHook(t *testing.T) {
-      lc := compdef.NewTestLifecycle()
-      
+      lc := compdef.NewTestLifecycle(t)
+
       requires := Requires{
         Lc:  lc,
       }
@@ -193,6 +193,7 @@ To create a lifecycle instance, use the helper function `compdef.NewTestLifecycl
       internalComponent := provides.Comp.(*component)
 
       ctx := context.Background()
+      lc.AssertHooksNumber(1)
       assert.NoError(t, lc.Start(ctx))
 
       assert.True(t, internalComponent.started)

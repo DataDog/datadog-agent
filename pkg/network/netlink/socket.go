@@ -111,23 +111,21 @@ func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 }
 
 // fixMsg updates the fields of m using the logic specified in Send.
-func (c *Socket) fixMsg(m *netlink.Message, ml int) {
+func (s *Socket) fixMsg(m *netlink.Message, ml int) {
 	if m.Header.Length == 0 {
 		m.Header.Length = uint32(nlmsgAlign(ml))
 	}
 
 	if m.Header.Sequence == 0 {
-		m.Header.Sequence = c.seq.Add(1)
+		m.Header.Sequence = s.seq.Add(1)
 	}
 
 	if m.Header.PID == 0 {
-		m.Header.PID = c.pid
+		m.Header.PID = s.pid
 	}
 }
 
 // Send a netlink.Message
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) Send(m netlink.Message) error {
 	s.fixMsg(&m, nlmsgLength(len(m.Data)))
 	b, err := m.MarshalBinary()
@@ -151,16 +149,12 @@ func (s *Socket) Send(m netlink.Message) error {
 }
 
 // Receive is not implemented. See ReceiveInto
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) Receive() ([]netlink.Message, error) {
 	return nil, errNotImplemented
 }
 
 // ReceiveAndDiscard reads netlink messages off the socket & discards them.
 // If the NLMSG_DONE flag is found in one of the messages, returns true.
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) ReceiveAndDiscard() (bool, uint32, error) {
 	for {
 		n, _, err := s.recvmsg()
@@ -205,8 +199,6 @@ func (s *Socket) ReceiveAndDiscard() (bool, uint32, error) {
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
 	var netns uint32
 	n, oobn, err := s.recvmsg()
@@ -282,29 +274,21 @@ func parseNetNS(scms []unix.SocketControlMessage) uint32 {
 }
 
 // File descriptor of the socket
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) File() *os.File {
 	return s.fd
 }
 
 // Close the socket
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) Close() error {
 	return s.fd.Close()
 }
 
 // SendMessages isn't implemented in our case
-//
-//nolint:revive // TODO(NET) Fix revive linter
-func (s *Socket) SendMessages(m []netlink.Message) error {
+func (s *Socket) SendMessages(_m []netlink.Message) error {
 	return errNotImplemented
 }
 
 // JoinGroup creates a new group membership
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) JoinGroup(group uint32) error {
 	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
@@ -314,8 +298,6 @@ func (s *Socket) JoinGroup(group uint32) error {
 }
 
 // LeaveGroup deletes a group membership
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) LeaveGroup(group uint32) error {
 	return os.NewSyscallError("setsockopt", s.SetSockoptInt(
 		unix.SOL_NETLINK,
@@ -325,8 +307,6 @@ func (s *Socket) LeaveGroup(group uint32) error {
 }
 
 // SetSockoptInt sets a socket option
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) SetSockoptInt(level, opt, value int) error {
 	// Value must be in range of a C integer.
 	if value < math.MinInt32 || value > math.MaxInt32 {
@@ -346,8 +326,6 @@ func (s *Socket) SetSockoptInt(level, opt, value int) error {
 }
 
 // GetSockoptInt gets a socket option
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
 	var err error
 	var v int
@@ -363,8 +341,6 @@ func (s *Socket) GetSockoptInt(level, opt int) (int, error) {
 }
 
 // SetBPF attaches an assembled BPF program to the socket
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
 	prog := unix.SockFprog{
 		Len:    uint16(len(filter)),
@@ -382,7 +358,6 @@ func (s *Socket) SetBPF(filter []bpf.RawInstruction) error {
 	return err
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) recvmsg() (int, int, error) {
 	ctrlErr := s.conn.Read(s.rawread)
 	if ctrlErr != nil {
@@ -391,7 +366,6 @@ func (s *Socket) recvmsg() (int, int, error) {
 	return s.n, s.oobn, s.readErr
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (s *Socket) rawread(fd uintptr) bool {
 	s.n, s.oobn, _, s.readErr = noallocRecvmsg(int(fd), s.recvbuf, s.oobbuf, unix.MSG_DONTWAIT)
 	return ready(s.readErr)

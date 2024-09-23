@@ -13,6 +13,7 @@
 static cb_get_clustername_t cb_get_clustername = NULL;
 static cb_get_config_t cb_get_config = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
+static cb_get_host_tags_t cb_get_host_tags = NULL;
 static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
 static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
@@ -30,6 +31,7 @@ static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 static PyObject *get_clustername(PyObject *self, PyObject *args);
 static PyObject *get_config(PyObject *self, PyObject *args);
 static PyObject *get_hostname(PyObject *self, PyObject *args);
+static PyObject *get_host_tags(PyObject *self, PyObject *args);
 static PyObject *tracemalloc_enabled(PyObject *self, PyObject *args);
 static PyObject *get_version(PyObject *self, PyObject *args);
 static PyObject *headers(PyObject *self, PyObject *args, PyObject *kwargs);
@@ -48,6 +50,7 @@ static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
     { "get_config", get_config, METH_VARARGS, "Get an Agent config item." },
     { "get_hostname", get_hostname, METH_NOARGS, "Get the hostname." },
+    { "get_host_tags", get_host_tags, METH_NOARGS, "Get the host tags." },
     { "tracemalloc_enabled", tracemalloc_enabled, METH_VARARGS, "Gets if tracemalloc is enabled." },
     { "get_version", get_version, METH_NOARGS, "Get Agent version." },
     { "headers", (PyCFunction)headers, METH_VARARGS | METH_KEYWORDS, "Get standard set of HTTP headers." },
@@ -99,6 +102,11 @@ void _set_headers_cb(cb_headers_t cb)
 void _set_get_hostname_cb(cb_get_hostname_t cb)
 {
     cb_get_hostname = cb;
+}
+
+void _set_get_host_tags_cb(cb_get_host_tags_t cb)
+{
+    cb_get_host_tags = cb;
 }
 
 void _set_get_clustername_cb(cb_get_clustername_t cb)
@@ -322,6 +330,36 @@ PyObject *get_hostname(PyObject *self, PyObject *args)
 
     char *v = NULL;
     cb_get_hostname(&v);
+
+    if (v != NULL) {
+        PyObject *retval = PyStringFromCString(v);
+        cgo_free(v);
+        return retval;
+    }
+    Py_RETURN_NONE;
+}
+
+/*! \fn PyObject *get_host_tags(PyObject *self, PyObject *args)
+    \brief This function implements the `datadog-agent.get_host_tags` method, collecting
+    the host tags from the agent.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to any empty tuple, as no input args are taken.
+    \return a PyObject * pointer to a python string with the host tags. Or
+    `None` if the callback is unavailable.
+
+    This function is callable as the `datadog_agent.get_host_tags` python method, it uses
+    the `cb_get_host_tags()` callback to retrieve the value from the agent with CGO. If
+    the callback has not been set `None` will be returned.
+*/
+PyObject *get_host_tags(PyObject *self, PyObject *args)
+{
+    // callback must be set
+    if (cb_get_host_tags == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    char *v = NULL;
+    cb_get_host_tags(&v);
 
     if (v != NULL) {
         PyObject *retval = PyStringFromCString(v);

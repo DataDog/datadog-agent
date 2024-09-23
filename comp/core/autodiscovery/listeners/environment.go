@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,26 +49,26 @@ func (l *EnvironmentListener) Stop() {
 }
 
 func (l *EnvironmentListener) createServices() {
-	features := map[string]config.Feature{
-		"docker":            config.Docker,
-		"kubelet":           config.Kubernetes,
-		"ecs_fargate":       config.ECSFargate,
-		"eks_fargate":       config.EKSFargate,
-		"cri":               config.Cri,
-		"containerd":        config.Containerd,
-		"kube_orchestrator": config.KubeOrchestratorExplorer,
-		"ecs_orchestrator":  config.ECSOrchestratorExplorer,
+	features := map[string]env.Feature{
+		"docker":            env.Docker,
+		"kubelet":           env.Kubernetes,
+		"ecs_fargate":       env.ECSFargate,
+		"eks_fargate":       env.EKSFargate,
+		"cri":               env.Cri,
+		"containerd":        env.Containerd,
+		"kube_orchestrator": env.KubeOrchestratorExplorer,
+		"ecs_orchestrator":  env.ECSOrchestratorExplorer,
 	}
 
 	for name, feature := range features {
-		if config.IsFeaturePresent(feature) {
+		if env.IsFeaturePresent(feature) {
 			log.Infof("Listener created %s service from environment", name)
 			l.newService <- &EnvironmentService{adIdentifier: "_" + name}
 		}
 	}
 
 	// Handle generic container check auto-activation.
-	if config.IsAnyContainerFeaturePresent() {
+	if env.IsAnyContainerFeaturePresent() {
 		log.Infof("Listener created container service from environment")
 		l.newService <- &EnvironmentService{adIdentifier: "_container"}
 	}

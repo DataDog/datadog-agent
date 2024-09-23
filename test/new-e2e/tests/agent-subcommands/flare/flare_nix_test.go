@@ -67,6 +67,7 @@ func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
 
 	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
+	assertFilesExist(v.T(), flare, linuxFiles)
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
 	assertFilesExist(v.T(), flare, allConfigFiles)

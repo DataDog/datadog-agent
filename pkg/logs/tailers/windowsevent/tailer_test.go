@@ -8,12 +8,14 @@
 package windowsevent
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
+
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/require"
@@ -23,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
 
 type ReadEventsSuite struct {
@@ -89,7 +91,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		if source.Status.IsSuccess() {
 			return nil
 		} else if source.Status.IsError() {
-			return fmt.Errorf(source.Status.GetError())
+			return errors.New(source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))
@@ -198,7 +200,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 		if tailer.source.Status.IsSuccess() {
 			return nil
 		} else if tailer.source.Status.IsError() {
-			return fmt.Errorf(tailer.source.Status.GetError())
+			return errors.New(tailer.source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))

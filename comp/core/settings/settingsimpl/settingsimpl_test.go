@@ -312,7 +312,7 @@ func TestRuntimeSettings(t *testing.T) {
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Supply(
 					settings.Params{
-						Config: fxutil.Test[config.Component](t, config.MockModule()),
+						Config: config.NewMock(t),
 						Settings: map[string]settings.RuntimeSetting{
 							"foo": &runtimeTestSetting{
 								hidden:      false,

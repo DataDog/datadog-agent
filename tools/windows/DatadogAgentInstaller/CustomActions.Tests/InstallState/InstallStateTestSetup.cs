@@ -1,10 +1,9 @@
-using System.Collections.Generic;
-using System.ServiceProcess;
 using AutoFixture;
-using Datadog.CustomActions;
+using Datadog.AgentCustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
+using System.Collections.Generic;
 
 namespace CustomActions.Tests.InstallState
 {
@@ -22,9 +21,9 @@ namespace CustomActions.Tests.InstallState
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
         }
 
-        public InstallStateCustomActions Create()
+        public ReadInstallStateCA Create()
         {
-            return new InstallStateCustomActions(
+            return new ReadInstallStateCA(
                 Session.Object,
                 RegistryServices.Object,
                 ServiceController.Object,

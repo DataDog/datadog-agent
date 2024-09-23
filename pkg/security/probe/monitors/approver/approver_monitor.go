@@ -14,6 +14,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -28,6 +29,7 @@ import (
 type Stats struct {
 	EventApprovedByBasename uint64
 	EventApprovedByFlag     uint64
+	EventApprovedByAUID     uint64
 }
 
 // Monitor defines an approver monitor
@@ -58,6 +60,7 @@ func (d *Monitor) SendStats() error {
 		for _, stat := range statsAcrossAllCPUs {
 			statsByEventType[eventType].EventApprovedByBasename += stat.EventApprovedByBasename
 			statsByEventType[eventType].EventApprovedByFlag += stat.EventApprovedByFlag
+			statsByEventType[eventType].EventApprovedByAUID += stat.EventApprovedByAUID
 		}
 	}
 
@@ -68,16 +71,22 @@ func (d *Monitor) SendStats() error {
 
 		eventTypeTag := fmt.Sprintf("event_type:%s", model.EventType(eventType).String())
 		tagsForBasenameApprovedEvents := []string{
-			"approver_type:basename",
+			"approver_type:" + kfilters.BasenameApproverType,
 			eventTypeTag,
 		}
-		tagsForFlagApprovedEvents := []string{
-			"approver_type:flag",
-			eventTypeTag,
-		}
-
 		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByBasename), tagsForBasenameApprovedEvents, 1.0)
+
+		tagsForFlagApprovedEvents := []string{
+			"approver_type:" + kfilters.FlagApproverType,
+			eventTypeTag,
+		}
 		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByFlag), tagsForFlagApprovedEvents, 1.0)
+
+		tagsForAUIDApprovedEvents := []string{
+			"approver_type:" + kfilters.AUIDApproverType,
+			eventTypeTag,
+		}
+		_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByAUID), tagsForAUIDApprovedEvents, 1.0)
 	}
 	for i := uint32(0); i != uint32(model.LastApproverEventType); i++ {
 		_ = buffer.Put(i, d.statsZero)

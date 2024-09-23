@@ -86,7 +86,7 @@ func (f Replacer) ReplaceStatsGroup(b *pb.ClientGroupedStats) {
 			b.Resource = re.ReplaceAllString(b.Resource, str)
 			fallthrough
 		case "http.status_code":
-			strcode := re.ReplaceAllString(strconv.Itoa(int(b.HTTPStatusCode)), str)
+			strcode := re.ReplaceAllString(strconv.FormatUint(uint64(b.HTTPStatusCode), 10), str)
 			if code, err := strconv.ParseUint(strcode, 10, 32); err == nil {
 				b.HTTPStatusCode = uint32(code)
 			}

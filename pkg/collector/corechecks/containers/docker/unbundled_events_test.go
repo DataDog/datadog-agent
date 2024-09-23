@@ -15,13 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
@@ -131,7 +132,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	for _, ev := range incomingEvents {
 		fakeTagger.SetTags(
-			containers.BuildTaggerEntityName(ev.ContainerID),
+			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
 			"docker",
 			[]string{fmt.Sprintf("image_name:%s", ev.ImageName), fmt.Sprintf("container_name:%s", ev.ContainerName)},
 			[]string{},

@@ -17,7 +17,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -251,7 +251,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetQueryMetricsFunc(test.queryfunc)
 			p := Processor{datadogClient: datadogClientComp}
-			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
+			points, err := p.queryDatadogExternal(test.metricName, time.Duration(pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}
@@ -300,6 +300,42 @@ func TestIsRateLimitError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, isRateLimitError(test.err), test.isRateLimit)
+		})
+	}
+}
+
+func TestIsUnprocessableEntityError(t *testing.T) {
+
+	tests := []struct {
+		name                  string
+		err                   error
+		isUnprocessableEntity bool
+	}{
+		{
+			name:                  "nil error",
+			err:                   nil,
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "empty error",
+			err:                   errors.New(""),
+			isUnprocessableEntity: false,
+		},
+		{
+			name:                  "unprocessable entity error",
+			err:                   errors.New("422 Unprocessable Entity"),
+			isUnprocessableEntity: true,
+		},
+		{
+			name:                  "unprocessable entity error variant",
+			err:                   errors.New("API error 422 Unprocessable Entity: "),
+			isUnprocessableEntity: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, isUnprocessableEntityError(test.err), test.isUnprocessableEntity)
 		})
 	}
 }

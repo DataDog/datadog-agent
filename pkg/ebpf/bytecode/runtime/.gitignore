@@ -1,1 +1,14 @@
 *.d
+
+# runtime compilation asset integrity files
+conntrack.go
+dynamicinstrumentation.go
+http.go
+logdebug-test.go
+offsetguess-test.go
+oom-kill.go
+runtime-security.go
+shared-libraries.go
+tcp-queue-length.go
+tracer.go
+usm.go

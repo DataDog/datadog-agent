@@ -16,29 +16,18 @@ import (
 
 	gorilla "github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	util "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const prefixPathSuffix string = "."
 
-type authorizedSet map[string]struct{}
-
-var authorizedConfigPathsCore = buildAuthorizedSet(
-	"api_key", "site", "dd_url", "logs_config.dd_url",
-)
-
-func buildAuthorizedSet(paths ...string) authorizedSet {
-	authorizedPaths := make(authorizedSet, len(paths))
-	for _, path := range paths {
-		authorizedPaths[path] = struct{}{}
-	}
-	return authorizedPaths
-}
-
 type configEndpoint struct {
-	cfg                   config.Reader
-	authorizedConfigPaths authorizedSet
+	cfg                   model.Reader
+	authorizedConfigPaths api.AuthorizedSet
 
 	// runtime metrics about the config endpoint usage
 	expvars            *expvar.Map
@@ -84,7 +73,18 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
-	value := c.cfg.Get(path)
+
+	var value interface{}
+	if path == "logs_config.additional_endpoints" {
+		entries, err := encodeInterfaceSliceToStringMap(c.cfg, path)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("unable to marshal %v: %v", path, err), http.StatusInternalServerError)
+			return
+		}
+		value = entries
+	} else {
+		value = c.cfg.Get(path)
+	}
 	c.marshalAndSendResponse(w, path, value)
 }
 
@@ -92,7 +92,16 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	log.Debug("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
-		allValues[key] = c.cfg.Get(key)
+		if key == "logs_config.additional_endpoints" {
+			entries, err := encodeInterfaceSliceToStringMap(c.cfg, key)
+			if err != nil {
+				log.Warnf("error encoding logs_config.additional endpoints: %v", err)
+				continue
+			}
+			allValues[key] = entries
+		} else {
+			allValues[key] = c.cfg.Get(key)
+		}
 	}
 
 	c.marshalAndSendResponse(w, "/", allValues)
@@ -101,18 +110,18 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 // GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
 // for the core agent
 func GetConfigEndpointMuxCore() *gorilla.Router {
-	return GetConfigEndpointMux(config.Datadog(), authorizedConfigPathsCore, "core")
+	return GetConfigEndpointMux(pkgconfigsetup.Datadog(), api.AuthorizedConfigPathsCore, "core")
 }
 
 // GetConfigEndpointMux builds and returns the mux for the config endpoint, with the given config,
 // authorized paths, and expvar namespace
-func GetConfigEndpointMux(cfg config.Reader, authorizedConfigPaths authorizedSet, expvarNamespace string) *gorilla.Router {
+func GetConfigEndpointMux(cfg model.Reader, authorizedConfigPaths api.AuthorizedSet, expvarNamespace string) *gorilla.Router {
 	mux, _ := getConfigEndpoint(cfg, authorizedConfigPaths, expvarNamespace)
 	return mux
 }
 
 // getConfigEndpoint builds and returns the mux and the endpoint state.
-func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, expvarNamespace string) (*gorilla.Router, *configEndpoint) {
+func getConfigEndpoint(cfg model.Reader, authorizedConfigPaths api.AuthorizedSet, expvarNamespace string) (*gorilla.Router, *configEndpoint) {
 	configEndpoint := &configEndpoint{
 		cfg:                   cfg,
 		authorizedConfigPaths: authorizedConfigPaths,
@@ -132,6 +141,19 @@ func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, e
 	configEndpointMux.HandleFunc("/{path}", http.HandlerFunc(configEndpoint.getConfigValueHandler)).Methods("GET")
 
 	return configEndpointMux, configEndpoint
+}
+
+func encodeInterfaceSliceToStringMap(c model.Reader, key string) ([]map[string]string, error) {
+	value := c.Get(key)
+	if value == nil {
+		return nil, nil
+	}
+	values, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key does not host a slice of interfaces")
+	}
+
+	return util.GetSliceOfStringMap(values)
 }
 
 func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path string, value interface{}) {

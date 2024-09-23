@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"strconv"
@@ -39,6 +40,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
@@ -58,6 +60,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -291,6 +294,150 @@ func getFreePort() (port uint16, err error) {
 	return
 }
 
+func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected() {
+	t := s.T()
+	cfg := tracertestutil.Config()
+	cfg.ServiceMonitoringEnabled = true
+	// USM cannot be enabled without a protocol.
+	cfg.EnableHTTPMonitoring = true
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
+
+	if !classificationSupported(cfg) {
+		t.Skip("TLS classification platform not supported")
+	}
+
+	srv := testutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
+		defer conn.Close()
+		// Echo back whatever is received
+		_, err := io.Copy(conn, conn)
+		if err != nil {
+			fmt.Printf("Failed to echo data: %v\n", err)
+			return
+		}
+	}, tls.VersionTLS12)
+	done := make(chan struct{})
+	require.NoError(t, srv.Run(done))
+	t.Cleanup(func() { close(done) })
+	_, srvPortStr, err := net.SplitHostPort(srv.Address())
+	require.NoError(t, err)
+	srvPort, err := strconv.Atoi(srvPortStr)
+	require.NoError(t, err)
+	srvPortU16 := uint16(srvPort)
+
+	tlsConfig := &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+	}
+
+	tr := setupTracer(t, cfg)
+
+	localhostAddress, err := netip.ParseAddr("127.0.0.1")
+	require.NoError(t, err)
+	addrLow, addrHigh := util.ToLowHighIP(localhostAddress)
+
+	tests := []struct {
+		name          string
+		protocolValue uint8
+		shouldBeTLS   bool
+	}{
+		{
+			name:          "UNKNOWN",
+			protocolValue: 0,
+			shouldBeTLS:   true,
+		},
+		{
+			name:          "HTTP",
+			protocolValue: 1,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "HTTP2",
+			protocolValue: 2,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "KAFKA",
+			protocolValue: 3,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "MONGO",
+			protocolValue: 4,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "POSTGRES",
+			protocolValue: 5,
+			shouldBeTLS:   true,
+		},
+		{
+			name:          "AMQP",
+			protocolValue: 6,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "REDIS",
+			protocolValue: 7,
+			shouldBeTLS:   false,
+		},
+		{
+			name:          "MYSQL",
+			protocolValue: 8,
+			shouldBeTLS:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clientPort, err := getFreePort()
+			require.NoError(t, err)
+			dialer := &net.Dialer{
+				LocalAddr: &net.TCPAddr{
+					IP:   net.ParseIP("localhost"),
+					Port: int(clientPort),
+				},
+			}
+			conn, err := dialer.Dial("tcp", srv.Address())
+			require.NoError(t, err)
+			defer conn.Close()
+			tlsConn := tls.Client(conn, tlsConfig)
+
+			connTupleKey := netebpf.ConnTuple{
+				Saddr_h:  addrHigh,
+				Saddr_l:  addrLow,
+				Daddr_h:  addrHigh,
+				Daddr_l:  addrLow,
+				Sport:    clientPort,
+				Dport:    srvPortU16,
+				Metadata: uint32(netebpf.TCP),
+			}
+			protocolValue := netebpf.ProtocolStackWrapper{
+				Stack: netebpf.ProtocolStack{
+					Application: tt.protocolValue,
+				},
+			}
+			tr.USMMonitor().SetConnectionProtocol(t, protocolValue, connTupleKey)
+			connTupleKey.Sport, connTupleKey.Dport = connTupleKey.Dport, connTupleKey.Sport
+			tr.USMMonitor().SetConnectionProtocol(t, protocolValue, connTupleKey)
+
+			// Perform the TLS handshake
+			require.NoError(t, tlsConn.Handshake())
+
+			require.Eventually(t, func() bool {
+				payload := getConnections(t, tr)
+				for _, c := range payload.Conns {
+					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
+						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
+					}
+				}
+				return false
+			}, 10*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
 // TLS classification tests
 func (s *USMSuite) TestTLSClassification() {
 	t := s.T()
@@ -318,10 +465,6 @@ func (s *USMSuite) TestTLSClassification() {
 	tests := make([]tlsTest, 0)
 	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
 		scenario := scenario
-		if scenario == tls.VersionTLS10 || scenario == tls.VersionTLS11 {
-			// Only tests for TLS 1.2 and 1.3 are expected to pass until PR#26591 is reintroduced.
-			continue
-		}
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1) + "_docker",
 			postTracerSetup: func(t *testing.T) {

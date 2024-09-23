@@ -59,9 +59,9 @@ type CliParams struct {
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
-			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams:         secrets.NewEnabledParams(),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
 	})

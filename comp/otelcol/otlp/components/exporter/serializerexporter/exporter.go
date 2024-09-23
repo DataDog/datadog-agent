@@ -100,6 +100,7 @@ func translatorFromConfig(
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+		metrics.WithOTelPrefix(),
 	}
 
 	if statsIn != nil {

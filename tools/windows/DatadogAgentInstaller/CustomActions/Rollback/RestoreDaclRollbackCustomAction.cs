@@ -1,8 +1,8 @@
-using System;
-using System.IO;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.IO;
 
 namespace Datadog.CustomActions.Rollback
 {
@@ -55,7 +55,6 @@ namespace Datadog.CustomActions.Rollback
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult DoRollback(Session session)
         {
             return new RestoreDaclRollbackCustomAction(new SessionWrapper(session)).DoRollback();

@@ -8,6 +8,7 @@ package compliance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -117,7 +118,7 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		if errMsg == "" {
 			errMsg = "unknown"
 		}
-		errReason = fmt.Errorf(errMsg)
+		errReason = errors.New(errMsg)
 	default:
 		errReason = fmt.Errorf("rego result invalid: bad status %q", status)
 	}

@@ -12,17 +12,17 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagGnuTLS is the tag for GnuTLS connections
 	ConnTagGnuTLS = http.GnuTLS
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagOpenSSL is the tag for OpenSSL connections
 	ConnTagOpenSSL = http.OpenSSL
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagGo is the tag for GO TLS connections
 	ConnTagGo = http.Go
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagJava is the tag for Java TLS connections
 	ConnTagJava = http.Java
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagTLS is the tag for TLS connections in general
 	ConnTagTLS = http.TLS
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnTagIstio is the tag for Istio TLS connections
 	ConnTagIstio = http.Istio
 	// ConnTagNodeJS is the tag for NodeJS TLS connections
 	ConnTagNodeJS = http.NodeJS

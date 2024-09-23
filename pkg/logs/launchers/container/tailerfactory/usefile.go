@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,12 +30,12 @@ func (tf *factory) useFile(source *sources.LogSource) bool {
 	switch logWhat {
 	case containersorpods.LogContainers:
 		// docker_container_use_file is a suggestion
-		if !coreConfig.Datadog().GetBool("logs_config.docker_container_use_file") {
+		if !pkgconfigsetup.Datadog().GetBool("logs_config.docker_container_use_file") {
 			return false
 		}
 
 		// docker_container_force_use_file is a requirement
-		if coreConfig.Datadog().GetBool("logs_config.docker_container_force_use_file") {
+		if pkgconfigsetup.Datadog().GetBool("logs_config.docker_container_force_use_file") {
 			return true
 		}
 
@@ -51,7 +51,7 @@ func (tf *factory) useFile(source *sources.LogSource) bool {
 		return true
 
 	case containersorpods.LogPods:
-		return coreConfig.Datadog().GetBool("logs_config.k8s_container_use_file")
+		return pkgconfigsetup.Datadog().GetBool("logs_config.k8s_container_use_file")
 
 	default:
 		// if this occurs, then sources have been arriving before the

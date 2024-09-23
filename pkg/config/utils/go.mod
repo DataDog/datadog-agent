@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/utils
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../setup/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
@@ -31,6 +32,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
@@ -76,11 +78,12 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.18.0 // indirect
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
+	golang.org/x/mod v0.20.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

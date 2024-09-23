@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -102,7 +102,7 @@ func (f *containerFilters) IsExcluded(filter containers.FilterType, annotations 
 // getPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
 func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	annotations := types.PrometheusAnnotations{}
-	tmpConfigString := config.Datadog().GetString("prometheus_scrape.checks")
+	tmpConfigString := pkgconfigsetup.Datadog().GetString("prometheus_scrape.checks")
 
 	var checks []*types.PrometheusCheck
 	if len(tmpConfigString) > 0 {
@@ -120,7 +120,7 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	}
 
 	for _, check := range checks {
-		if err := check.Init(config.Datadog().GetInt("prometheus_scrape.version")); err != nil {
+		if err := check.Init(pkgconfigsetup.Datadog().GetInt("prometheus_scrape.version")); err != nil {
 			log.Errorf("Couldn't init check configuration: %v", err)
 			continue
 		}

@@ -11,15 +11,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestBuildEndpoints(t *testing.T) {
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	))
+	config := config.NewMock(t)
 
 	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)

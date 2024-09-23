@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -50,7 +50,7 @@ type dependencies struct {
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
 	none := optional.NewNoneOption[rcservice.Component]()
-	if !config.IsRemoteConfigEnabled(deps.Cfg) {
+	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) {
 		return none
 	}
 

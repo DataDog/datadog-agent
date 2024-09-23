@@ -287,8 +287,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(context.Background()),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -386,8 +385,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(context.Background()),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{

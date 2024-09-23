@@ -38,14 +38,14 @@ type Component interface {
 	Stop() error
 	ReplayTagger() ReplayTagger
 	GetTaggerTelemetryStore() *telemetry.Store
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
-	Standard(entity string) ([]string, error)
+	Tag(entityID string, cardinality types.TagCardinality) ([]string, error)
+	AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
+	Standard(entityID string) ([]string, error)
 	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
 	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
-	GetEntityHash(entity string, cardinality types.TagCardinality) string
+	GetEntityHash(entityID string, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	SetNewCaptureTagger(newCaptureTagger Component)

@@ -30,7 +30,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -65,11 +65,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog())
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 		}()
 	}
 	creationTime := time.Now().Unix()
@@ -249,10 +249,7 @@ func TestCollection(t *testing.T) {
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				fx.Supply(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 			))
 
 			time.Sleep(time.Second)
@@ -299,18 +296,25 @@ func TestCollection(t *testing.T) {
 			require.NoError(t, err)
 
 			// Number of events expected. Each response can hold multiple events, either Set or Unset
-			numberOfEvents := len(test.preEvents)
+			expectedNumberOfEvents := len(test.preEvents)
 			for _, ev := range test.serverResponses {
-				numberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
+				expectedNumberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
 			}
 
 			// Keep listening to workloadmeta until enough events are received. It is possible that the
 			// first bundle does not hold any events. Thus, it is required to look at the number of events
 			// in the bundle.
-			for i := 0; i < numberOfEvents; {
+			// Also, when a problem occurs and a re-sync is triggered, we might
+			// receive duplicate events, so we need to keep a map of received
+			// events to account for duplicates.
+			eventsReceived := make(map[workloadmeta.Event]struct{})
+			for len(eventsReceived) < expectedNumberOfEvents {
 				bundle := <-ch
-				close(bundle.Ch)
-				i += len(bundle.Events)
+				bundle.Acknowledge()
+
+				for _, ev := range bundle.Events {
+					eventsReceived[ev] = struct{}{}
+				}
 			}
 
 			mockStore.Unsubscribe(ch)

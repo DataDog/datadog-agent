@@ -983,7 +983,7 @@ def gitlab_configuration_is_modified(ctx):
                 print(f"Found a gitlab configuration file: {new_file}")
             else:
                 in_config = False
-        if in_config and line.startswith("@@"):
+        if in_config and line.startswith("@@") and os.path.exists(new_file):
             lines = changed_lines.match(line)
             start = int(lines.group(1))
             with open(new_file) as f:

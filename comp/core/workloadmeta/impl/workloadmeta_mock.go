@@ -25,7 +25,7 @@ type workloadMetaMock struct {
 }
 
 // NewWorkloadMetaMock returns a Mock
-func NewWorkloadMetaMock(deps dependencies) wmmock.Mock {
+func NewWorkloadMetaMock(deps Dependencies) wmmock.Mock {
 	w := &workloadMetaMock{
 		workloadmeta: NewWorkloadMeta(deps).Comp.(*workloadmeta),
 	}

@@ -98,7 +98,7 @@ func MakeCommand() *cobra.Command {
 				}),
 				core.Bundle(),
 				// flare
-				fx.Supply(flare.NewParams(
+				flare.Module(flare.NewParams(
 					path.GetDistPath(),
 					path.PyChecksPath,
 					path.DefaultLogFile,
@@ -107,7 +107,6 @@ func MakeCommand() *cobra.Command {
 					path.DefaultStreamlogsLogFile,
 				)),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
-				flare.Module(),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),

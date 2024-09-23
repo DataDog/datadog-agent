@@ -24,7 +24,8 @@ type remoteConfigClient interface {
 	Start()
 	Close()
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+	GetInstallerState() []*pbgo.PackageState
+	SetInstallerState(packages []*pbgo.PackageState)
 }
 
 type remoteConfig struct {
@@ -63,9 +64,14 @@ func (rc *remoteConfig) Close() {
 	rc.client.Close()
 }
 
-// SetState sets the state of the given package.
+// GetState gets the state of the remote config client.
+func (rc *remoteConfig) GetState() []*pbgo.PackageState {
+	return rc.client.GetInstallerState()
+}
+
+// SetState sets the state of the remote config client.
 func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
-	rc.client.SetUpdaterPackagesState(packages)
+	rc.client.SetInstallerState(packages)
 }
 
 // Package represents a downloadable package.
@@ -94,7 +100,7 @@ func (c *catalog) getPackage(pkg string, version string, arch string, platform s
 
 type handleCatalogUpdate func(catalog catalog) error
 
-func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) client.Handler {
+func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var catalogOnce sync.Once
 	return func(catalogConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		var mergedCatalog catalog
@@ -186,7 +192,7 @@ type taskWithVersionParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
-func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) client.Handler {
+func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		requests := map[string]remoteAPIRequest{}

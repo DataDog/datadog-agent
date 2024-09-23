@@ -21,12 +21,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
-	"github.com/sethvargo/go-retry"
 	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -176,6 +177,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
 	}
 
+	ciJob := getEnv("CI_JOB_ID", "")
+	ciPipeline := getEnv("CI_PIPELINE_ID", "")
+	ciBranch := getEnv("CI_COMMIT_REF_NAME", "")
+
 	var customAMILocalWorkingDir string
 
 	// Remote AMI working dir is always on Linux
@@ -239,60 +244,43 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: envVars}
 	}
 
-	var upResult auto.UpResult
-	var pulumiStack *auto.Stack
-	ctx := context.Background()
-	currentAZ := 0 // PrimaryAZ
-	b := retry.NewConstant(3 * time.Second)
-	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
-	// connection issues in the worst case.
-	b = retry.WithMaxRetries(4, b)
-	numRetries := 0
-	retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
-			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
-		}
+	retryHandler := retryHandler{
+		currentAZ:  0,
+		maxRetries: 4,
+		retryDelay: 3 * time.Second,
+		configMap:  config,
+		infraEnv:   opts.InfraEnv,
+	}
 
-		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(
-			systemProbeTestEnv.context,
-			systemProbeTestEnv.name,
-			func(ctx *pulumi.Context) error {
-				if err := microvms.Run(ctx); err != nil {
-					return fmt.Errorf("setup micro-vms in remote instance: %w", err)
-				}
-				return nil
-			},
-			infra.WithFailOnMissing(opts.FailOnMissing),
-			infra.WithConfigMap(config),
-		)
+	stackManager.GetRetryStrategyFrom = retryHandler.HandleError
+	pulumiStack, upResult, pulumiErr := stackManager.GetStackNoDeleteOnFailure(
+		systemProbeTestEnv.context,
+		systemProbeTestEnv.name,
+		func(ctx *pulumi.Context) error {
+			if err := microvms.Run(ctx); err != nil {
+				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
+			}
+			return nil
+		},
+		infra.WithFailOnMissing(opts.FailOnMissing),
+		infra.WithConfigMap(config),
+	)
 
-		if err != nil {
-			numRetries++
-			return handleScenarioFailure(err, func(possibleError handledError) {
-				// handle the following errors by trying in a different availability zone
-				if possibleError.errorType == insufficientCapacityError ||
-					possibleError.errorType == ec2StateChangeTimeoutError {
-					currentAZ++
-				}
-			})
-		}
-
+	if pulumiErr != nil {
 		// Mark the test as successful, just in case we succeeded after a retry
-		err = storeErrorReasonForCITags("")
+		err := storeErrorReasonForCITags("")
 		if err != nil {
 			log.Printf("failed to store error reason for CI tags: %v", err)
 		}
+	}
 
-		return nil
-	})
-
-	err = storeNumberOfRetriesForCITags(numRetries)
+	err = storeNumberOfRetriesForCITags(len(retryHandler.allErrors))
 	if err != nil {
 		log.Printf("failed to store number of retries for CI tags: %v", err)
 	}
 
 	outputs := upResult.Outputs
-	if retryErr != nil {
+	if pulumiErr != nil {
 		// pulumi does not populate `UpResult` with the stack output if the
 		// update process failed. In this case we must manually fetch the outputs.
 		outputs, err = pulumiStack.Outputs(context.Background())
@@ -305,8 +293,47 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 	if err != nil {
 		err = fmt.Errorf("failed to write stack output to file: %w", err)
 	}
-	if retryErr != nil {
-		return nil, errors.Join(fmt.Errorf("failed to create stack: %w", retryErr), err)
+	if pulumiErr != nil {
+		for i, retryErr := range retryHandler.allErrors {
+			pulumiError := parsePulumiDiagnostics(retryErr.Error())
+			if pulumiError != nil {
+				log.Printf("pulumi error on retry %d:\n\tcommand: %s\n\tvm-command: %s\n\terror message:\n%s\n\n", i, pulumiError.command, pulumiError.vmCommand, pulumiError.errorMessage)
+
+				// Send the error as a DD event so we can track it
+				event := datadogV1.EventCreateRequest{
+					Title: "[KMT] Environment setup error",
+					Text:  pulumiError.errorMessage,
+					Tags: []string{
+						"test:kmt",
+						"source:pulumi",
+						"repository:datadog/datadog-agent",
+						"team:ebpf-platform",
+						fmt.Sprintf("vm.name:%s", pulumiError.vmName),
+						fmt.Sprintf("vm.arch:%s", pulumiError.arch),
+						fmt.Sprintf("vm.command:%s", pulumiError.vmCommand),
+					},
+				}
+
+				if ciJob != "" {
+					event.Tags = append(event.Tags, fmt.Sprintf("ci.job.id:%s", ciJob))
+				}
+
+				if ciPipeline != "" {
+					event.Tags = append(event.Tags, fmt.Sprintf("ci.pipeline.id:%s", ciPipeline))
+				}
+
+				if ciBranch != "" {
+					event.Tags = append(event.Tags, fmt.Sprintf("ci.branch:%s", ciBranch))
+				}
+
+				if err = metric.SubmitExecutionEvent(event); err != nil {
+					log.Printf("failed to submit environment setup error event: %v", err)
+				}
+			} else {
+				log.Printf("unknown/couldn't parse error on retry %d", i)
+			}
+		}
+		return nil, errors.Join(fmt.Errorf("failed to create stack: %w", pulumiErr), err)
 	}
 
 	systemProbeTestEnv.StackOutput = upResult

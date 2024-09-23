@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
@@ -97,7 +97,7 @@ func TestDdTags(t *testing.T) {
 	overwritingTags := map[string]string{
 		"originalKey": "overWrittenValue",
 	}
-	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog(), false)), overwritingTags)
+	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)), overwritingTags)
 	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

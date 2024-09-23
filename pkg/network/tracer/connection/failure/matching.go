@@ -26,18 +26,20 @@ import (
 )
 
 var (
-	telemetryModuleName = "network_tracer__tcp_failure"
-	mapTTL              = 10 * time.Millisecond.Nanoseconds()
+	telemetryModuleName   = "network_tracer__tcp_failure"
+	connClosedFlushMapTTL = 10 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
-	failedConnMatches  telemetry.Counter
-	failedConnOrphans  telemetry.Counter
-	failedConnsDropped telemetry.Counter
+	failedConnMatches        telemetry.Counter
+	failedConnOrphans        telemetry.Counter
+	failedConnsDropped       telemetry.Counter
+	closedConnFlushedCleaned telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
+	telemetry.NewCounter(telemetryModuleName, "closed_conn_flushed_cleaned", []string{}, "Counter measuring the number of conn_close_flushed entries cleaned in userspace"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -58,10 +60,10 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
-	FailedConnMap       map[ebpf.ConnTuple]*FailedConnStats
-	maxFailuresBuffered uint32
-	failureTuple        *ebpf.ConnTuple
-	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
+	FailedConnMap           map[ebpf.ConnTuple]*FailedConnStats
+	maxFailuresBuffered     uint32
+	failureTuple            *ebpf.ConnTuple
+	connCloseFlushedCleaner *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
 	sync.Mutex
 }
 
@@ -159,8 +161,12 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 	}
 
 	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
-		return val > 0 && now-val > mapTTL
+		expired := val > 0 && now-val > connClosedFlushMapTTL
+		if expired {
+			failureTelemetry.closedConnFlushedCleaned.Inc()
+		}
+		return expired
 	})
 
-	fc.mapCleaner = mapCleaner
+	fc.connCloseFlushedCleaner = mapCleaner
 }

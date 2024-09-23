@@ -13,7 +13,7 @@ import (
 	"unsafe"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -72,7 +72,7 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
+func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 

@@ -124,7 +124,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	if filter == nil || (filter != nil && filter.EventType() != wmdef.EventTypeUnset) {
+	if filter == nil || filter.EventType() != wmdef.EventTypeUnset {
 		for kind, entitiesOfKind := range w.store {
 			if !sub.filter.MatchKind(kind) {
 				continue

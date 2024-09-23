@@ -5,15 +5,15 @@
 
 //go:build linux_bpf
 
+// Package filter exposes interfaces and implementations for packet capture
 package filter
 
 import (
 	"encoding/binary"
 	"runtime"
 
-	"golang.org/x/sys/unix"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"

@@ -28,13 +28,14 @@ upload_dependencies_sysprobe_arm64:
   stage: kernel_matrix_testing_prepare
   script:
     # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - DOCKER_LOGIN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN) || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD | crane auth login --username "$DOCKER_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
     # Pull base images
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   artifacts:
     expire_in: 1 day
@@ -81,7 +82,7 @@ pull_test_dockers_arm64:
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   variables:
     DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
@@ -160,7 +161,7 @@ kmt_setup_env_sysprobe_x64:
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key

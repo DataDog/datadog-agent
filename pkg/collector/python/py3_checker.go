@@ -16,11 +16,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
-	linterTimeout = time.Duration(config.Datadog().GetInt("python3_linter_timeout")) * time.Second
+	linterTimeout = time.Duration(pkgconfigsetup.Datadog().GetInt("python3_linter_timeout")) * time.Second
 )
 
 type warning struct {

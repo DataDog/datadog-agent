@@ -19,7 +19,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -104,7 +104,7 @@ func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesender
 		}
 	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

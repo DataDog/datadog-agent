@@ -11,12 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(),
+	fxutil.TestBundle(t, Bundle(defaultforwarder.Params{}),
 		core.MockBundle(),
-		fx.Supply(defaultforwarder.Params{}),
 	)
 }

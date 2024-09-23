@@ -10,11 +10,9 @@ package runtime
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,10 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
-	"github.com/DataDog/datadog-agent/pkg/security/wconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,7 +44,6 @@ func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Comman
 	securityProfileCmd.AddCommand(showSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(listSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(saveSecurityProfileCommands(globalParams)...)
-	securityProfileCmd.AddCommand(securityProfileToWorloadPolicyCommands(globalParams)...)
 
 	return []*cobra.Command{securityProfileCmd}
 }
@@ -65,7 +60,7 @@ func showSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -111,7 +106,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -218,7 +213,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -264,158 +259,6 @@ func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Componen
 	} else {
 		fmt.Println("security profile not found")
 	}
-
-	return nil
-}
-
-type securityProfileToWorloadPolicyCliParams struct {
-	*command.GlobalParams
-
-	input     string
-	output    string
-	kill      bool
-	allowlist bool
-	lineage   bool
-	service   string
-	imageName string
-	imageTag  string
-	fim       bool
-}
-
-func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &securityProfileToWorloadPolicyCliParams{
-		GlobalParams: globalParams,
-	}
-
-	securityProfileWorkloadPolicyCmd := &cobra.Command{
-		Use:   "workload-policy",
-		Short: "convert a security-profile to a workload policy",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(securityProfileToWorkloadPolicy,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle(),
-			)
-		},
-	}
-
-	securityProfileWorkloadPolicyCmd.Flags().StringVar(
-		&cliParams.input,
-		"input",
-		"",
-		"path to the security-profile file",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().StringVar(
-		&cliParams.output,
-		"output",
-		"",
-		"path to the generated workload policy file",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
-		&cliParams.kill,
-		"kill",
-		false,
-		"generate kill action with the workload policy",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
-		&cliParams.fim,
-		"fim",
-		false,
-		"generate fim rules with the workload policy",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
-		&cliParams.allowlist,
-		"allowlist",
-		false,
-		"generate allow list rules",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
-		&cliParams.lineage,
-		"lineage",
-		false,
-		"generate lineage rules",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().StringVar(
-		&cliParams.service,
-		"service",
-		"",
-		"apply on specified service",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().StringVar(
-		&cliParams.imageTag,
-		"image-tag",
-		"",
-		"apply on specified image tag",
-	)
-
-	securityProfileWorkloadPolicyCmd.Flags().StringVar(
-		&cliParams.imageName,
-		"image-name",
-		"",
-		"apply on specified image name",
-	)
-
-	return []*cobra.Command{securityProfileWorkloadPolicyCmd}
-}
-
-func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileToWorloadPolicyCliParams) error {
-	pp, err := profile.LoadProtoFromFile(args.input)
-	if err != nil {
-		return err
-	}
-
-	sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
-	sp.LoadFromProto(pp, profile.LoadOpts{})
-
-	opts := profile.SECLRuleOpts{
-		EnableKill: args.kill,
-		AllowList:  args.allowlist,
-		Lineage:    args.lineage,
-		Service:    args.service,
-		ImageName:  args.imageName,
-		ImageTag:   args.imageTag,
-		FIM:        args.fim,
-	}
-
-	rules, err := sp.ToSECLRules(opts)
-	if err != nil {
-		return err
-	}
-
-	wp := wconfig.WorkloadPolicy{
-		ID:   "workload",
-		Name: "workload",
-		Kind: "secl",
-		SECLPolicy: wconfig.SECLPolicy{
-			Rules: rules,
-		},
-	}
-
-	b, err := yaml.Marshal(wp)
-	if err != nil {
-		return err
-	}
-
-	output := os.Stdout
-	if args.output != "" && args.output != "-" {
-		output, err = os.Create(args.output)
-		if err != nil {
-			return err
-		}
-		defer output.Close()
-	}
-
-	fmt.Fprint(output, string(b))
 
 	return nil
 }

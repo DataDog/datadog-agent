@@ -4,7 +4,6 @@ lint_python:
   tags: ["arch:amd64"]
   needs: []
   script:
-    - source /root/.bashrc
     - inv -e linter.python
 
 lint_update_go:
@@ -13,7 +12,6 @@ lint_update_go:
   tags: ["arch:amd64"]
   needs: []
   script:
-    - source /root/.bashrc
     - inv -e linter.update-go
 
 validate_modules:
@@ -22,6 +20,5 @@ validate_modules:
   tags: ["arch:amd64"]
   needs: []
   script:
-    - source /root/.bashrc
     - inv -e modules.validate
     - inv -e modules.validate-used-by-otel

@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -102,7 +102,7 @@ func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliPa
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {

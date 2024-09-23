@@ -7,11 +7,12 @@ package installer
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -27,23 +28,23 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
-	repositories := repository.NewRepositories(rootPath, locksPath)
+	packages := repository.NewRepositories(rootPath, locksPath)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
 		installerImpl{
-			db:           db,
-			downloader:   oci.NewDownloader(&env.Env{}, s.Client()),
-			repositories: repositories,
-			configsDir:   t.TempDir(),
-			tmpDirPath:   rootPath,
-			packagesDir:  rootPath,
+			env:            &env.Env{},
+			db:             db,
+			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
+			packages:       packages,
+			userConfigsDir: t.TempDir(),
+			packagesDir:    rootPath,
 		},
 	}
 }
 
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
-	return os.DirFS(filepath.Join(i.configsDir, f.Package))
+	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
 }
 
 func TestInstallStable(t *testing.T) {
@@ -53,7 +54,7 @@ func TestInstallStable(t *testing.T) {
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
@@ -71,7 +72,7 @@ func TestInstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
@@ -92,7 +93,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.PromoteExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
@@ -112,7 +113,7 @@ func TestUninstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.RemoveExperiment(testCtx, fixtures.FixtureSimpleV1.Package)
 	assert.NoError(t, err)
-	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
+	r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)

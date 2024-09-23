@@ -91,6 +91,7 @@ func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta optional
 
 func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component]) {
 	ticker := time.NewTicker(minRetryInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.Done():
