@@ -17,87 +17,33 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
 
 const (
-	maxHTTPResponseReadBytes = 64 * 1024
-	encodingGzip             = "gzip"
-	encodingDeflate          = "deflate"
-	nodeMetricHandlerName    = "node-metrics-handler"
+	encodingGzip    = "gzip"
+	encodingDeflate = "deflate"
 )
 
-// InstallNodeMetricsEndpoints installs node metrics collection endpoints
-func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, cfg config.Component) {
-	service := newHandler(cfg)
-	service.store.StartCleanupInBackground(ctx)
-	handler := api.WithLeaderProxyHandler(
-		nodeMetricHandlerName,
-		service.prehandler,
-		service.leaderHandler,
-	)
-	r.HandleFunc("/series", api.WithTelemetryWrapper(nodeMetricHandlerName, handler)).Methods("POST")
+// InstallNodeMetricsEndpoints register handler for node metrics collection
+func InstallNodeMetricsEndpoints(ctx context.Context, r *mux.Router, _ config.Component) {
+	handler := NewSeriesHandler(ctx)
+	r.HandleFunc("/series", api.WithTelemetryWrapper("node-metrics-handler", handler.Handle)).Methods("POST")
 }
 
+// Handler handles the series request and store the metrics to loadstore
 type Handler struct {
-	cfg   config.Component
-	store *EntityStore
+	jobQueue *jobQueue
 }
 
-func newHandler(cfg config.Component) Handler {
-	return Handler{cfg: cfg,
-		store: NewEntityStore()}
+func NewSeriesHandler(ctx context.Context) *Handler {
+	handler := Handler{
+		jobQueue: newJobQueue(ctx),
+	}
+	return &handler
 }
 
-func (h *Handler) prehandler(w http.ResponseWriter, r *http.Request) bool {
-	return true
-}
-
-func (h *Handler) leaderHandler(w http.ResponseWriter, r *http.Request) {
-	protoInspector := func(payload []byte) error {
-		metricPayload := &gogen.MetricPayload{}
-
-		if err := metricPayload.Unmarshal(payload); err != nil {
-			return err
-		}
-		h.processSeries(metricPayload)
-
-		return nil
-	}
-	err, rc := getReaderFromRequest(r)
-	if err != nil {
-		return
-	}
-
-	all, err := io.ReadAll(rc)
-	if err != nil {
-		return
-	}
-
-	err = protoInspector(all)
-	w.WriteHeader(http.StatusOK)
-	return
-}
-
-func (h *Handler) processSeries(payload *gogen.MetricPayload) {
-	entities := createEntitiesFromPayload(payload)
-	for entity, entityValues := range entities {
-		for _, ev := range entityValues {
-			h.store.Insert(&entity, ev)
-		}
-	}
-
-	for hash, entity := range h.store.key2EntityMap {
-		values := h.store.GetValues(hash)
-		for _, ev := range values {
-			log.Infof("Entity: %s, %s", entity, ev)
-		}
-	}
-	log.Infof(h.store.GetStoreInfo())
-}
-
-func getReaderFromRequest(r *http.Request) (error, io.ReadCloser) {
+func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var rc io.ReadCloser
 	switch r.Header.Get("Content-Encoding") {
@@ -108,5 +54,23 @@ func getReaderFromRequest(r *http.Request) (error, io.ReadCloser) {
 	default:
 		rc = r.Body
 	}
-	return err, rc
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	payload, err := io.ReadAll(rc)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	metricPayload := &gogen.MetricPayload{}
+	if err := metricPayload.Unmarshal(payload); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	h.jobQueue.addJob(metricPayload)
+	w.WriteHeader(http.StatusOK)
+	return
 }
