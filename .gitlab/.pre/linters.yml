@@ -1,0 +1,41 @@
+
+.lint:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+
+lint_licenses:
+  extends: .lint
+  script:
+    - inv -e install-tools
+    - inv -e lint-licenses
+
+lint_shell:
+  extends: .lint
+  script:
+    - inv -e install-shellcheck
+    - shellcheck --version
+    #Excludes:
+    #SC2028: echo may not expand escape sequences. Use printf.
+    #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
+    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+lint_filename:
+  extends: .lint
+  script:
+    - inv -e linter.filenames
+
+lint_copyrights:
+  extends: .lint
+  script:
+    - inv -e linter.copyrights
+
+lint_codeowners:
+  extends: .lint
+  script:
+    - inv -e github.lint-codeowner
+
+lint_components:
+  extends: .lint
+  script:
+    - inv -e lint-components lint-fxutil-oneshot-test

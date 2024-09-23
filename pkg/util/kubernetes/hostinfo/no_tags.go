@@ -10,14 +10,14 @@ package hostinfo
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // KubeNodeTagsProvider allows computing node tags based on the user configurations for node labels and annotations as tags
 type KubeNodeTagsProvider struct{}
 
 // NewKubeNodeTagsProvider creates and returns a new kube node tags provider object
-func NewKubeNodeTagsProvider(_ config.Reader) KubeNodeTagsProvider {
+func NewKubeNodeTagsProvider(_ model.Reader) KubeNodeTagsProvider {
 	return KubeNodeTagsProvider{}
 }
 

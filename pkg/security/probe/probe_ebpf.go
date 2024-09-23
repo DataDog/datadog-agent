@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -1133,7 +1132,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 			return err
 		}
 
-		approverType := getApproverType(newKFilter.GetTableName())
+		approverType := newKFilter.GetApproverType()
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
@@ -1145,7 +1144,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 				return err
 			}
 
-			approverType := getApproverType(previousKFilter.GetTableName())
+			approverType := previousKFilter.GetApproverType()
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1166,16 +1165,6 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 
 	p.kfilters[eventType] = newKFilters
 	return nil
-}
-
-func getApproverType(tableName string) string {
-	approverType := "flag"
-
-	if tableName == kfilters.BasenameApproverKernelMapName {
-		approverType = "basename"
-	}
-
-	return approverType
 }
 
 func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1650,7 +1639,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1906,7 +1895,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, wmeta, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err
 	}

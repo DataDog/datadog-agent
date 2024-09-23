@@ -32,7 +32,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_without_wrapper_with_env(self):
         with open(self.test_file, "w") as f:
             f.write(
-                "  - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name $API_KEY_ORG2 --with-decryption  --query Parameter.Value --out text"
+                "  - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name $API_KEY_ORG2 --with-decryption  --query Parameter.Value --out text || exit $?; export DD_API_KEY"
             )
         matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertFalse(matched.with_wrapper)
@@ -41,7 +41,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_with_wrapper_no_env(self):
         with open(self.test_file, "w") as f:
             f.write(
-                "export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh test.datadog-agent.datadog_api_key_org2)"
+                "DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh test.datadog-agent.datadog_api_key_org2) || exit $?; export DD_API_KEY"
             )
         matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertTrue(matched.with_wrapper)
@@ -49,7 +49,9 @@ class TestIsGetParameterCall(unittest.TestCase):
 
     def test_with_wrapper_with_env(self):
         with open(self.test_file, "w") as f:
-            f.write("export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2)")
+            f.write(
+                "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY"
+            )
         matched = linter.list_get_parameter_calls(self.test_file)
         self.assertListEqual([], matched)
 

@@ -40,8 +40,8 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -620,9 +620,9 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
-		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
+		pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)

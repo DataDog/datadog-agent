@@ -8,7 +8,8 @@ package checks
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,7 +49,7 @@ var (
 		RTContainerCheckName:   RTContainerCheckDefaultInterval,
 		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
 		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-		ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
+		ProcessEventsCheckName: pkgconfigsetup.DefaultProcessEventsCheckInterval,
 	}
 
 	configKeys = map[string]string{
@@ -66,7 +67,7 @@ func GetDefaultInterval(checkName string) time.Duration {
 }
 
 // GetInterval returns the configured check interval value
-func GetInterval(cfg config.Reader, checkName string) time.Duration {
+func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 	switch checkName {
 	case DiscoveryCheckName:
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
@@ -80,10 +81,10 @@ func GetInterval(cfg config.Reader, checkName string) time.Duration {
 
 	case ProcessEventsCheckName:
 		eventsInterval := cfg.GetDuration("process_config.event_collection.interval")
-		if eventsInterval < config.DefaultProcessEventsMinCheckInterval {
-			eventsInterval = config.DefaultProcessEventsCheckInterval
+		if eventsInterval < pkgconfigsetup.DefaultProcessEventsMinCheckInterval {
+			eventsInterval = pkgconfigsetup.DefaultProcessEventsCheckInterval
 			_ = log.Warnf("Invalid interval for process_events check (< %s) using default value of %s",
-				config.DefaultProcessEventsMinCheckInterval.String(), config.DefaultProcessEventsCheckInterval.String())
+				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
 		}
 		return eventsInterval
 
