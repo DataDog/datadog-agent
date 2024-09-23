@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -44,8 +43,7 @@ func addFactories(factories otelcol.Factories) {
 
 func TestGetConfDump(t *testing.T) {
 	// get factories
-	cc := collectorcontribimpl.NewComponent()
-	factories, err := cc.OTelComponentFactories()
+	factories, err := components()
 	assert.NoError(t, err)
 	addFactories(factories)
 
