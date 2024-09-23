@@ -156,6 +156,8 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		return nil, nil, fmt.Errorf("failed to parse IP header: %w", err)
 	}
 
+	log.Infof("ip header: %+v", ipHdr)
+
 	return &ipHdr, packet[20:], nil
 }
 

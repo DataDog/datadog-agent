@@ -129,7 +129,8 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 }
 
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+	srcPort := t.srcPort + uint16(ttl) // increment source port number by TTL to introduce some randomness to source port
+	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, srcPort, t.Target, t.DestPort, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -142,7 +143,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
