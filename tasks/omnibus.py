@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -392,10 +393,10 @@ def manifest(
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     # Since bash and sh don't support **/* we are using glob
     # to get all datadog files inside of one `file --mime-type` command
-    datadog_files = " ".join(glob.glob(f"{install_path}/**/*", recursive=True))
-    # with open("/tmp/ddargs", "w") as f:
-    #    f.write(" ".join(datadog_files))
-    files = ctx.run(f"echo \"{datadog_files}\" | xargs file --mime-type", hide=True).stdout
+    datadog_files = glob.glob(f"{install_path}/**/*", recursive=True)
+    with tempfile.NamedTemporaryFile('w+t') as f:
+        f.write(" ".join(datadog_files))
+        files = ctx.run(f"cat {f.name} | xargs file --mime-type", hide=True).stdout
 
     for line in files.splitlines():
         if not line:
