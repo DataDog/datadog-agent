@@ -109,7 +109,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.Stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.env)
+	i, err := installer.NewInstaller(cmd.env, "opt/datadog-packages/run/rc")
 	if err != nil {
 		return nil, err
 	}

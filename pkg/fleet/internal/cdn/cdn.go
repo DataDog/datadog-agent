@@ -43,10 +43,9 @@ type orderConfig struct {
 }
 
 // New creates a new CDN.
-func New(env *env.Env) (*CDN, error) {
-
+func New(env *env.Env, configDBPath string) (*CDN, error) {
 	client, err := remoteconfig.NewHTTPClient(
-		"/opt/datadog-packages/run",
+		configDBPath,
 		env.Site,
 		env.APIKey,
 		version.AgentVersion,

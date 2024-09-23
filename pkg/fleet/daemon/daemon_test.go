@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -187,15 +187,15 @@ type testInstaller struct {
 }
 
 func newTestInstaller(t *testing.T) *testInstaller {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("run_path", t.TempDir())
-
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
-	daemon, err := newDaemon(rc, pm, &env.Env{RemoteUpdates: true})
+	env := &env.Env{RemoteUpdates: true}
+	cdn, err := cdn.New(env, t.TempDir())
+	require.NoError(t, err)
+	daemon := newDaemon(rc, pm, env, cdn)
 	require.NoError(t, err)
 	i := &testInstaller{
 		daemonImpl: daemon,

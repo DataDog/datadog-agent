@@ -94,14 +94,14 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	return newDaemon(rc, installer, env)
-}
-
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) (*daemonImpl, error) {
-	cdn, err := cdn.New(env)
+	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc")
 	if err != nil {
 		return nil, err
 	}
+	return newDaemon(rc, installer, env, cdn), nil
+}
+
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
@@ -113,7 +113,7 @@ func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) (*
 		requestsState: make(map[string]requestState),
 	}
 	i.refreshState(context.Background())
-	return i, nil
+	return i
 }
 
 // GetState returns the state.
