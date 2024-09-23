@@ -10,7 +10,6 @@ package externalmetrics
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sort"
 	"strings"
 	"testing"
@@ -110,9 +109,6 @@ func (f *metricsFixtureWithBackoff) runWithBackoff(t *testing.T, testTime time.T
 			if expectedDatadogMetric.ddm.Retries > 0 {
 				expectedDatadogMetric.ddm.RetryAfter = datadogMetric.RetryAfter
 				// Align errors and verify prefix is expected
-				// expectedDatadogMetric.ddm.Error = datadogMetric.Error
-				log.Debugf("Actual Error: %v", datadogMetric.Error.Error())
-				log.Debugf("Expected Error: %v", expectedDatadogMetric.ddm.Error.Error())
 				assert.True(t, strings.HasPrefix(datadogMetric.Error.Error(), expectedDatadogMetric.ddm.Error.Error()))
 				expectedDatadogMetric.ddm.Error = datadogMetric.Error
 			}
