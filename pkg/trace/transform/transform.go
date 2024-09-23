@@ -88,7 +88,8 @@ func OtelSpanToDDSpan(
 	for k, v := range rattr {
 		if k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" {
 			continue
-		} else if k == "analytics.event" {
+		}
+		if k == "analytics.event" {
 			if v, err := strconv.ParseBool(v); err == nil {
 				if v {
 					traceutil.SetMetric(ddspan, sampler.KeySamplingRateEventExtraction, 1)
@@ -160,12 +161,6 @@ func OtelSpanToDDSpan(
 		return true
 	})
 
-	if _, ok := ddspan.Meta["env"]; !ok {
-		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-		if _, env := GetFirstFromMap(ddspan.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
-			traceutil.SetMeta(ddspan, "env", traceutil.NormalizeTag(env))
-		}
-	}
 	if otelspan.TraceState().AsRaw() != "" {
 		traceutil.SetMeta(ddspan, "w3c.tracestate", otelspan.TraceState().AsRaw())
 	}
@@ -368,7 +363,7 @@ func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 	}
 }
 
-// getFirstFromMap checks each key in the given keys in the map and returns the first key-value pair whose
+// GetFirstFromMap checks each key in the given keys in the map and returns the first key-value pair whose
 // key matches, or empty strings if none matches.
 func GetFirstFromMap(m map[string]string, keys ...string) (string, string) {
 	for _, key := range keys {

@@ -88,7 +88,6 @@ func GetDCAAuthToken() string {
 
 // Validate validates an http request
 func Validate(w http.ResponseWriter, r *http.Request) error {
-	return nil
 	var err error
 	auth := r.Header.Get("Authorization")
 	if auth == "" {

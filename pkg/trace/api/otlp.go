@@ -49,13 +49,14 @@ var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	ptraceotlp.UnimplementedGRPCServer
-	wg          sync.WaitGroup      // waits for a graceful shutdown
-	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out         chan<- *Payload     // the outgoing payload channel
-	conf        *config.AgentConfig // receiver config
-	cidProvider IDProvider          // container ID provider
-	statsd      statsd.ClientInterface
-	timing      timing.Reporter
+	wg             sync.WaitGroup      // waits for a graceful shutdown
+	grpcsrv        *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out            chan<- *Payload     // the outgoing payload channel
+	conf           *config.AgentConfig // receiver config
+	cidProvider    IDProvider          // container ID provider
+	statsd         statsd.ClientInterface
+	timing         timing.Reporter
+	ignoreResNames map[string]struct{}
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -64,8 +65,12 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
 	}
+	ignoreResNames := make(map[string]struct{})
+	for _, resName := range cfg.Ignore["resource"] {
+		ignoreResNames[resName] = struct{}{}
+	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing, ignoreResNames: ignoreResNames}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -190,9 +195,8 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
 		return o.receiveResourceSpansV2(ctx, rspans, httpHeader)
-	} else {
-		return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 	}
+	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
@@ -225,10 +229,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	// 2. Transform OTLP spans to DD spans. If metadata was missing in resource attributes, attempt to get it from spans
 	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
-	ignoreResNames := make(map[string]struct{})
-	for _, resName := range o.conf.Ignore["resource"] {
-		ignoreResNames[resName] = struct{}{}
-	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
@@ -236,7 +236,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		libspans := rspans.ScopeSpans().At(j)
 		for k := 0; k < libspans.Spans().Len(); k++ {
 			otelspan := libspans.Spans().At(k)
-			if _, exists := ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
+			if _, exists := o.ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
 				continue
 			}
 
@@ -251,8 +251,9 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 			if env == "" {
 				// no env at resource level, try the first span
-				if v := ddspan.Meta["env"]; v != "" {
-					env = v
+				// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+				if spanEnv := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); spanEnv != "" {
+					env = spanEnv
 				}
 			}
 			if containerID == "" {
