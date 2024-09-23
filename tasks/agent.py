@@ -497,10 +497,12 @@ def hacky_dev_image_build(
     copy_extra_agents = ""
     if process_agent:
         from tasks.process_agent import build as process_agent_build
+
         process_agent_build(ctx, bundle=False)
         copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
     if trace_agent:
         from tasks.trace_agent import build as trace_agent_build
+
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
