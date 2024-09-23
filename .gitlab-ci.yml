@@ -66,6 +66,7 @@ stages:
   - maintenance_jobs
   - deps_build
   - deps_fetch
+  - lint
   - source_test
   - source_test_stats
   - software_composition_analysis
