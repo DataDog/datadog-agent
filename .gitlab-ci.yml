@@ -218,12 +218,12 @@ variables:
   E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
   E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   E2E_TESTS_GCP_CREDENTIALS: ci.datadog-agent.e2e_tests_gcp_credentials  # agent-devx-loops
+  E2E_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_password  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
   KITCHEN_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.azure_kitchen_subscription_id  # agent-devx-loops
   KITCHEN_AZURE_TENANT_ID: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
-  SSM_PULUMI_CONFIG_PASSPHRASE: ci.datadog-agent.pulumi_config_passphrase  # agent-devx-loops
   GITHUB_PR_COMMENTER_APP_KEY: pr-commenter.github_app_key  # agent-devx-infra
   GITHUB_PR_COMMENTER_INTEGRATION_ID: pr-commenter.github_integration_id  # agent-devx-infra
   GITHUB_PR_COMMENTER_INSTALLATION_ID: pr-commenter.github_installation_id  # agent-devx-infra
