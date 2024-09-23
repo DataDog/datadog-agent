@@ -389,6 +389,7 @@ def manifest(
 
 @task
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
+    # Collect mime types for all files inside the Agent installation
     files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():
         if not line:
