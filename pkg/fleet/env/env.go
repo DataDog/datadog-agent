@@ -21,7 +21,6 @@ const (
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
-	envRunPath               = "DD_INSTALLER_RUN_PATH"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
@@ -36,7 +35,6 @@ var defaultEnv = Env{
 	APIKey:        "",
 	Site:          "datadoghq.com",
 	RemoteUpdates: false,
-	RunPath:       "/opt/datadog-packages/datadog-installer",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -63,7 +61,6 @@ type Env struct {
 	Site           string
 	RemoteUpdates  bool
 	RemotePolicies bool
-	RunPath        string
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
@@ -88,7 +85,6 @@ func FromEnv() *Env {
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
-		RunPath:        getEnvOrDefault(envRunPath, defaultEnv.RunPath),
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
@@ -114,7 +110,6 @@ func FromConfig(config model.Reader) *Env {
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
 		RemotePolicies:       config.GetBool("remote_policies"),
-		RunPath:              config.GetString("run_path"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 	}
@@ -134,9 +129,6 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RemotePolicies {
 		env = append(env, envRemotePolicies+"=true")
-	}
-	if e.RunPath != "" {
-		env = append(env, envRunPath+"="+e.RunPath)
 	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)

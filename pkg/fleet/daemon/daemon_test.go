@@ -195,10 +195,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
-	daemon, err := newDaemon(rc, pm, &env.Env{
-		RemoteUpdates: true,
-		RunPath:       t.TempDir(),
-	})
+	daemon, err := newDaemon(rc, pm, &env.Env{RemoteUpdates: true})
 	require.NoError(t, err)
 	i := &testInstaller{
 		daemonImpl: daemon,
