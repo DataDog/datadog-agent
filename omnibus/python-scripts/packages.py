@@ -129,7 +129,9 @@ def load_requirements(filename):
     """
     print(f"Loading requirements from file: '{filename}'")
     with open(filename, 'r', encoding='utf-8') as f:
-        return {req.name: req for req in pkg_resources.parse_requirements(f)}
+        raw_requirements = f.readlines()
+    valid_requirements = [req.strip() for req in raw_requirements if not req.startswith('--') and req.strip()]
+    return {req.name: req for req in pkg_resources.parse_requirements(valid_requirements)}
 
 def cleanup_files(*files):
     """
