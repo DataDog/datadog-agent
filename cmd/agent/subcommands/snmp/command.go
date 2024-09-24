@@ -189,7 +189,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "trace", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams()),
@@ -422,7 +422,7 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 	}
 
 	namespace := conf.GetString("network_devices.namespace")
-	deviceID := namespace + ":" + deviceAddr
+	deviceID := namespace + ":" + connParams.IPAddress
 	var deviceOids []*metadata.DeviceOID
 	for _, pdu := range pdus {
 		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
