@@ -38,7 +38,7 @@ var tableHeader = []string{
 	"LIBRARY_VERSION", "INJECTOR_VERSION", "IS_INJECTED", "INJECTION_STATUS", "REASON",
 }
 
-// ListSSIProcesses returns the list of running processes using Single Step Instrumentation
+// ListSsiProcesses returns the list of running processes using Single Step Instrumentation
 func ListSsiProcesses() ([]InjectedProcess, error) {
 	injectedProcesses := []InjectedProcess{}
 	pids, err := process.Pids()
