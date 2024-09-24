@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import (
 	"io"
@@ -11,7 +11,8 @@ import (
 	"net/http"
 )
 
-func startHTTPServer() error {
+//nolint:all
+func StartHTTPServer() error {
 	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Datadog-Response", "Success")
 	})
@@ -21,7 +22,8 @@ func startHTTPServer() error {
 
 var client = &http.Client{}
 
-func sendHTTPRequest() {
+//nolint:all
+func SendHTTPRequest() {
 	req, err := http.NewRequest("GET", "http://localhost:9999", nil)
 	if err != nil {
 		log.Println("Error creating request", err)
