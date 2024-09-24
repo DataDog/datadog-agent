@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var allowedEnvvarNames = []string{
@@ -138,7 +138,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	allowed = append(allowed, config.Datadog().GetEnvVars()...)
+	allowed = append(allowed, pkgconfigsetup.Datadog().GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

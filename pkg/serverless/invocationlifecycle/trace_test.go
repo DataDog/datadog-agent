@@ -101,6 +101,21 @@ func TestStartExecutionSpan(t *testing.T) {
 	reqHeadersWithCtx.Set("x-datadog-sampling-priority", "3")
 	reqHeadersWithCtx.Set("traceparent", "00-00000000000000000000000000000006-0000000000000006-01")
 
+	stepFunctionEvent := events.StepFunctionPayload{
+		Execution: struct {
+			ID string
+		}{
+			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+		},
+		State: struct {
+			Name        string
+			EnteredTime string
+		}{
+			Name:        "agocsTest1",
+			EnteredTime: "2024-07-30T20:46:20.824Z",
+		},
+	}
+
 	testcases := []struct {
 		name           string
 		event          interface{}
@@ -315,6 +330,20 @@ func TestStartExecutionSpan(t *testing.T) {
 				SamplingPriority: sampler.SamplingPriority(1),
 			},
 		},
+		{
+			name:           "step function event",
+			event:          stepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:           5377636026938777059,
+				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -333,6 +362,7 @@ func TestStartExecutionSpan(t *testing.T) {
 				requestHandler: &RequestHandler{
 					executionInfo: actualCtx,
 					inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
+					triggerTags:   make(map[string]string),
 				},
 			}
 			startDetails := &InvocationStartDetails{
@@ -695,6 +725,71 @@ func TestEndExecutionSpanWithTimeout(t *testing.T) {
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 	assert.Equal(t, "Impending Timeout", executionSpan.Meta["error.type"])
 	assert.Equal(t, "Datadog detected an Impending Timeout", executionSpan.Meta["error.msg"])
+}
+
+func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "6fb5c3a05c73dbfe"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	stepFunctionEvent := events.StepFunctionPayload{
+		Execution: struct{ ID string }(struct {
+			ID string `json:"id"`
+		}{
+			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+		}),
+		State: struct {
+			Name        string
+			EnteredTime string
+		}{
+			Name:        "agocsTest1",
+			EnteredTime: "2024-07-30T20:46:20.824Z",
+		},
+	}
+
+	lp.startExecutionSpan(stepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(5377636026938777059), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "6fb5c3a05c73dbfe", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "6fb5c3a05c73dbfe", executionSpan.Meta["_dd.p.tid"])
+
 }
 
 func TestParseLambdaPayload(t *testing.T) {

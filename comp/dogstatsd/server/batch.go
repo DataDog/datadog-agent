@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -94,15 +94,15 @@ func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shard
 	// We fall back on the generic sharding if:
 	// - the sample has a custom cardinality
 	// - we don't have the origin
-	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.FromUDS == "" && sample.OriginInfo.FromTag == "" && sample.OriginInfo.FromMsg == "") {
+	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.ContainerIDFromSocket == "" && sample.OriginInfo.PodUID == "" && sample.OriginInfo.ContainerID == "") {
 		return s.shardKeyGeneratorBase.Generate(sample, shards)
 	}
 
 	// Otherwise, we isolate the samples based on the origin.
 	i, j := uint64(0), uint64(0)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromTag)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromMsg)
-	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromUDS)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.PodUID)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerID)
+	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerIDFromSocket)
 
 	return fastrange(ckey.ContextKey(i), shards)
 }
@@ -162,7 +162,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 }
 
 func getShardGenerator() shardKeyGenerator {
-	isolated := config.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
+	isolated := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
 
 	base := shardKeyGeneratorBase{
 		keyGenerator: ckey.NewKeyGenerator(),

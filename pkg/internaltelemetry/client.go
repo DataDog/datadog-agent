@@ -20,11 +20,11 @@ import (
 
 	"go.uber.org/atomic"
 
-	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 const (
@@ -115,7 +115,11 @@ type httpClient interface {
 
 // NewClient creates a new telemetry client
 func NewClient(httpClient httpClient, endpoints []*config.Endpoint, service string, debug bool) Client {
-	info := metadatautils.GetInformation()
+	info, err := host.Info()
+	if err != nil {
+		log.Errorf("failed to retrieve host info: %v", err)
+		info = &host.InfoStat{}
+	}
 	return &client{
 		client:             httpClient,
 		endpoints:          endpoints,

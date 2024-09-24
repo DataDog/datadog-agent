@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
@@ -63,7 +63,7 @@ func (s StatusProvider) populateStatus() map[string]interface{} {
 	} else {
 
 		// Get expVar server address
-		ipcAddr, err := ddconfig.GetIPCAddress()
+		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
 			status["error"] = fmt.Sprintf("%v", err.Error())
 			return status

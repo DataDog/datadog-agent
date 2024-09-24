@@ -23,7 +23,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	agentgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -36,7 +36,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	// Dump the state
-	token, err := security.FetchAuthToken(config.Datadog())
+	token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return fmt.Errorf("couldn't get auth token: %v", err)
 	}
@@ -47,12 +47,12 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, config.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	var haState *pbgo.GetStateConfigResponse
-	if config.Datadog().GetBool("multi_region_failover.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		if haState, err = cli.GetConfigStateHA(ctx, in); err != nil {
 			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
 		}
@@ -97,7 +97,7 @@ func hashRCTargets(raw []byte) []byte {
 func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
 	dstPath, _ := fb.PrepareFilePath("remote-config.db")
 	tempPath, _ := fb.PrepareFilePath("remote-config.temp.db")
-	srcPath := filepath.Join(config.Datadog().GetString("run_path"), "remote-config.db")
+	srcPath := filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "remote-config.db")
 
 	// Copies the db so it avoids bbolt from being locked
 	// Also avoid concurrent modifications

@@ -8,9 +8,9 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE)
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
@@ -24,6 +24,7 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -111,24 +112,30 @@ installer_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
+    # There are currently no files to check for in the installer so we
+    # explicitly disable the check
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_rpm_common:
   rules:
@@ -137,9 +144,9 @@ installer_suse_rpm-arm64:
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE)
+    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
@@ -154,6 +161,7 @@ installer_suse_rpm-arm64:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     RELEASE_VERSION: $RELEASE_VERSION_7
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -201,9 +209,11 @@ dogstatsd_rpm-x64:
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"

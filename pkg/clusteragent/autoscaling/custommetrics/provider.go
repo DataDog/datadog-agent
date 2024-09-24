@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,7 +53,7 @@ type datadogProvider struct {
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
 func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.ExternalMetricsProvider {
-	maxAge := config.Datadog().GetInt64("external_metrics_provider.local_copy_refresh_rate")
+	maxAge := pkgconfigsetup.Datadog().GetInt64("external_metrics_provider.local_copy_refresh_rate")
 	d := &datadogProvider{
 		client: client,
 		mapper: mapper,
