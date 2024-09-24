@@ -183,6 +183,8 @@ type expectedState struct {
 	InstallerVersion string `json:"installer_version"`
 	Stable           string `json:"stable"`
 	Experiment       string `json:"experiment"`
+	StableConfig     string `json:"stable_config"`
+	ExperimentConfig string `json:"experiment_config"`
 }
 
 type taskWithVersionParams struct {
