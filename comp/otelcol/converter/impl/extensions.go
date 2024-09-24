@@ -7,7 +7,6 @@
 package converterimpl
 
 import (
-	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -30,7 +29,7 @@ var (
 	healthCheckConfig       any
 
 	// datadog
-	datadogName         = ddextension.Type.String()
+	datadogName         = "ddflare"
 	datadogEnhancedName = datadogName + "/" + ddAutoconfiguredSuffix
 	datadogConfig       any
 
