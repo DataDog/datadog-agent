@@ -1,9 +1,11 @@
-ARG AGENT_VERSION=nightly-ot-beta-main-jmx
+ARG AGENT_VERSION=7.57.0-v1.0-ot-beta-jmx
+ARG AGENT_BRANCH=7.57.x-otel-beta-v1
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 
 # Set environment variables
 ARG AGENT_VERSION
+ARG AGENT_BRANCH
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Set the working directory
@@ -24,7 +26,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # TEMP: Use github source code
-RUN git clone --depth 1 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+RUN git clone --depth 1 -b "${AGENT_BRANCH}" --single-branch https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 # Once we have stable releases, we can use the following code to download the source code
 # TODO: use released agent version once we have an agent release with the otel binary
@@ -77,7 +79,7 @@ RUN . venv/bin/activate && invoke collector.generate
 RUN . venv/bin/activate && invoke otel-agent.build
 
 # Use the final Datadog agent image
-FROM datadog/agent-dev:${AGENT_VERSION}
+FROM datadog/agent:${AGENT_VERSION}
 ARG AGENT_VERSION
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
