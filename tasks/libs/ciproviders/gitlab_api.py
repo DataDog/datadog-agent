@@ -383,7 +383,7 @@ class MultiGitlabCIDiff:
             return ''
 
         if len(self.diffs) == 1:
-            return self.diffs[0].diff.display(cli, **kwargs)
+            return self.diffs[0].diff.display(cli, job_url=job_url, **kwargs)
 
         def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
             if cli:
