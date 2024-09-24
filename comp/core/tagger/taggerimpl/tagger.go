@@ -9,6 +9,7 @@ package taggerimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -260,6 +261,11 @@ func (t *TaggerClient) GetEntity(entityID string) (*types.Entity, error) {
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
 func (t *TaggerClient) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+	list := t.defaultTagger.List()
+	for k, v := range list.Entities {
+		fmt.Printf("---- default tagger entities: entity:%v, tags:%v ----\n", k, v.Tags)
+	}
+
 	// TODO: defer unlock once performance overhead of defer is negligible
 	t.mux.RLock()
 	if t.captureTagger != nil {
@@ -336,6 +342,7 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 // GlobalTags queries global tags that should apply to all data coming from the
 // agent.
 func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
+	fmt.Printf("---- taggercommon.GetGlobalEntityID().String():%v ----\n", taggercommon.GetGlobalEntityID().String())
 	t.mux.RLock()
 	if t.captureTagger != nil {
 		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)

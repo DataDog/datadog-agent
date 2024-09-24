@@ -76,12 +76,14 @@ func (t *Tagger) Stop() error {
 
 // getTags returns a read only list of tags for a given entity.
 func (t *Tagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	fmt.Printf("---- getTags: entityID.String():%v, entityID.GetID():%v, cardinality:%v ----\n", entityID.String(), entityID.GetID(), cardinality)
 	if entityID.GetID() == "" {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags := t.tagStore.LookupHashed(entityID, cardinality)
+	fmt.Printf("---- cachedTags.Get():%v ----\n", cachedTags.Get())
 
 	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
@@ -97,11 +99,18 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 
 // Tag returns a copy of the tags for a given entity
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+	fmt.Printf("---- Tag: entityID:%v, cardinality:%v ----\n", entityID, cardinality)
+	list := t.List()
+	for k, v := range list.Entities {
+		fmt.Printf("---- Entities: entity:%v, tags:%v ----\n", k, v.Tags)
+	}
 	id, _ := types.NewEntityIDFromString(entityID)
 	tags, err := t.getTags(id, cardinality)
 	if err != nil {
+		fmt.Printf("---- err:%v ----\n", err.Error())
 		return nil, err
 	}
+	fmt.Printf("---- tags.Copy():%v ----\n", tags.Copy())
 	return tags.Copy(), nil
 }
 
