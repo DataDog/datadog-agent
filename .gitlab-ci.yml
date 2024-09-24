@@ -35,6 +35,7 @@ include:
   - .gitlab/kitchen_cleanup/include.yml
   - .gitlab/kitchen_deploy/kitchen_deploy.yml
   - .gitlab/kitchen_testing/include.yml
+  - .gitlab/lint/include.yml
   - .gitlab/maintenance_jobs/include.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
@@ -65,6 +66,7 @@ stages:
   - maintenance_jobs
   - deps_build
   - deps_fetch
+  - lint
   - source_test
   - source_test_stats
   - software_composition_analysis
@@ -169,15 +171,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v41089396-d65d75ec
+  DATADOG_AGENT_BUILDIMAGES: v44534774-f5cc3e24
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v41089396-d65d75ec
+  DATADOG_AGENT_WINBUILDIMAGES: v44534774-f5cc3e24
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v41089396-d65d75ec
+  DATADOG_AGENT_ARMBUILDIMAGES: v44534774-f5cc3e24
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v41089396-d65d75ec
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v44534774-f5cc3e24
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v41089396-d65d75ec
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v44534774-f5cc3e24
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d

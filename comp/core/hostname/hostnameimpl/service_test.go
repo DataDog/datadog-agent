@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -21,9 +21,9 @@ func TestGet(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		config.Datadog().SetWithoutSource("hostname", "")
+		pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 	})
-	config.Datadog().SetWithoutSource("hostname", "test-hostname")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
 	s := fxutil.Test[hostname.Component](t, Module())
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
@@ -34,9 +34,9 @@ func TestGetWithProvider(t *testing.T) {
 	t.Cleanup(func() {
 		// erase cache)
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
-		config.Datadog().SetWithoutSource("hostname", "")
+		pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 	})
-	config.Datadog().SetWithoutSource("hostname", "test-hostname2")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname2")
 	s := fxutil.Test[hostname.Component](t, Module())
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)

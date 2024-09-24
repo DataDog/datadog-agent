@@ -133,6 +133,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event1 := []byte(`
 {
     "timestamp": 0,
+    "agent_version": "",
     "namespace": "my-ns1",
     "pathtrace_id": "pathtrace-id-111",
     "origin":"network_traffic",
@@ -166,6 +167,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event2 := []byte(`
 {
     "timestamp": 0,
+    "agent_version": "",
     "namespace": "my-ns1",
     "pathtrace_id": "pathtrace-id-222",
     "origin":"network_traffic",

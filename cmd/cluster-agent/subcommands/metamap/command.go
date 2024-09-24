@@ -20,7 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -71,13 +71,13 @@ func getMetadataMap(nodeName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	var urlstr string
 	if nodeName == "" {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog())
+	e = util.SetAuthToken(pkgconfigsetup.Datadog())
 	if e != nil {
 		return e
 	}
