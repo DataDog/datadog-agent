@@ -164,6 +164,7 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
 
     if pr_comment:
         job_url = os.environ['CI_JOB_URL']
+        print('job', job_url)
 
     try:
         before_name = before or "merge base"
