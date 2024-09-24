@@ -14,8 +14,6 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
-source path: '..'
-relative_path 'src/github.com/DataDog/datadog-agent'
 
 always_build true
 
@@ -183,7 +181,7 @@ build do
             delete "#{install_dir}/embedded/bin/pg_config"
 
             # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir}"
+            command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
         end
 
         if osx_target?
@@ -197,7 +195,7 @@ build do
             delete "#{install_dir}/etc/conf.d/docker.d"
 
             # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos"
+            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
