@@ -178,9 +178,6 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
-
-            # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir}"
         end
 
         if osx_target?
@@ -192,9 +189,6 @@ build do
 
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
-
-            # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos"
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "
