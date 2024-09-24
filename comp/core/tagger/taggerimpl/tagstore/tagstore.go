@@ -253,7 +253,9 @@ func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCa
 	s.RLock()
 	defer s.RUnlock()
 	storedTags, present := s.store.Get(entityID)
-	fmt.Printf("---- storedTags.tagsBySource():%v, present:%v ----\n", storedTags.tagsBySource(), present)
+	if storedTags != nil {
+		fmt.Printf("---- storedTags.tagsBySource():%v, present:%v ----\n", storedTags.tagsBySource(), present)
+	}
 
 	if !present {
 		return tagset.HashedTags{}
