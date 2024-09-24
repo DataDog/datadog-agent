@@ -75,8 +75,8 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
     print(f"Creating file: '{diff_file}'")
     with open(diff_file, 'w', encoding='utf-8') as f:
         f.write(DO_NOT_REMOVE_WARNING_HEADER)
-        for package_name, new_req in new_packages.items():
-            old_req = old_packages.get(package_name)
+        for package_name, (_, new_req) in new_packages.items():
+            _, old_req = old_packages.get(package_name)
             if old_req:
                 # Extract and compare versions
                 old_version_str = extract_version(str(old_req.specifier))
@@ -107,31 +107,50 @@ def install_diff_packages_file(pip, filename, exclude_filename):
     Install all Datadog integrations and python dependencies from a file
     """
     print(f"Installing python packages from: '{filename}'")
-    with open(filename, 'r', encoding='utf-8') as f:
-        exclude_packages = load_requirements(exclude_filename)
-        for line in f:
-            stripped_line = line.strip()
-            if stripped_line.startswith('#') or stripped_line.startswith('--'):
-                print(f"Skipping line: '{stripped_line}'")
+    install_packages = load_requirements(filename)
+    exclude_packages = load_requirements(exclude_filename)
+    for install_package_name, (install_package_line, _) in install_packages.items():
+        if install_package_name in exclude_packages:
+            print(f"Skipping '{install_package_name}' as it's already included in '{exclude_filename}' file")
+        else:
+            if install_package_line.startswith('datadog-'):
+                install_datadog_package(install_package_line)
             else:
-                requirement = pkg_resources.Requirement(stripped_line)
-                if requirement.name in exclude_packages:
-                    print(f"Skipping '{requirement.name}' as it's included in '{exclude_filename}' file")
-                else:
-                    if stripped_line.startswith('datadog-'):
-                        install_datadog_package(stripped_line)
-                    else:
-                        install_dependency_package(pip, stripped_line)
+                install_dependency_package(pip, install_package_line)
 
 def load_requirements(filename):
     """
     Load requirements from a file.
     """
     print(f"Loading requirements from file: '{filename}'")
+    valid_requirements = []
     with open(filename, 'r', encoding='utf-8') as f:
         raw_requirements = f.readlines()
-    valid_requirements = [req.strip() for req in raw_requirements if not req.startswith('--') and req.strip()]
-    return {req.name: req for req in pkg_resources.parse_requirements(valid_requirements)}
+        for req in raw_requirements:
+            req_stripped = req.strip()
+            # Skip and print reasons for skipping certain lines
+            if not req_stripped:
+                print(f"Skipping blank line: {req!r}")
+            elif req_stripped.startswith('#'):
+                print(f"Skipping comment: {req!r}")
+            elif req_stripped.startswith(('-e', '--editable')):
+                print(f"Skipping editable requirement: {req!r}")
+            elif req_stripped.startswith(('-c', '--constraint')):
+                print(f"Skipping constraint file reference: {req!r}")
+            elif req_stripped.startswith(('-r', '--requirement')):
+                print(f"Skipping requirement file reference: {req!r}")
+            elif req_stripped.startswith(('http://', 'https://', 'git+', 'ftp://')):
+                print(f"Skipping URL or VCS package: {req!r}")
+            elif req_stripped.startswith('.'):
+                print(f"Skipping local directory reference: {req!r}")
+            elif req_stripped.endswith(('.whl', '.zip')):
+                print(f"Skipping direct file reference (whl/zip): {req!r}")
+            elif req_stripped.startswith('--'):
+                print(f"Skipping pip flag: {req!r}")
+            else:
+                # Add valid requirement to the list
+                valid_requirements.append(req_stripped)
+    return {req.name: (req_stripped, req) for req_stripped, req in zip(valid_requirements, pkg_resources.parse_requirements(valid_requirements))}
 
 def cleanup_files(*files):
     """
