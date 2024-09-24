@@ -1034,12 +1034,13 @@ def kmt_sysprobe_prepare(
                 "fmapper",
                 "prefetch_file",
                 "fake_server",
+                "sample_service",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
                     binary_path = os.path.join(target_path, gobin)
                     nw.build(
-                        inputs=[f"{pkg}/{gobin}.go"],
+                        inputs=[f"{pkg}/..."],
                         outputs=[binary_path],
                         rule="gobin",
                         pool="gobuild",
