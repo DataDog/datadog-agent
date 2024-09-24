@@ -277,7 +277,7 @@ func (d *AgentDemultiplexer) run() {
 	go d.aggregator.run()
 
 	if d.noAggStreamWorker != nil {
-		go d.noAggStreamWorker.run()
+		go d.noAggStreamWorker.run(d.aggregator.hostname)
 	}
 
 	d.flushLoop() // this is the blocking call
@@ -398,9 +398,9 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		// NOTE(remy): we could consider flushing only the time samplers
 		return
 	}
-
+	hostname := d.aggregator.hostname
 	logPayloads := config.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, hostname)
 	fmt.Println("wacktest2")
 	metrics.Serialize(
 		series,

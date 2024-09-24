@@ -139,13 +139,13 @@ func (w *noAggregationStreamWorker) stop(wait bool) {
 //
 // This is not ideal since the serializer should automatically takes the decision when to flush payloads to
 // the serializer but that's not how it works today, see noAggregationStreamWorker comment.
-func (w *noAggregationStreamWorker) run() {
+func (w *noAggregationStreamWorker) run(hostname string) {
 	log.Debugf("Starting streaming routine for the no-aggregation pipeline")
 
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
 	logPayloads := config.Datadog().GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, hostname)
 
 	stopped := false
 	var stopBlockChan chan struct{}
@@ -246,7 +246,7 @@ func (w *noAggregationStreamWorker) run() {
 			break
 		}
 
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, hostname)
 	}
 
 	if stopBlockChan != nil {

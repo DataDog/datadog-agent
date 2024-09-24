@@ -6,14 +6,7 @@
 package metrics
 
 import (
-
-	// "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	// "github.com/DataDog/datadog-agent/pkg/config"
-
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IterableSeries is an specialisation of iterableMetrics for serie.
@@ -24,16 +17,13 @@ type IterableSeries struct {
 // NewIterableSeries creates a new instance of *IterableSeries
 //
 // `callback` is called in the context of the sender's goroutine each time `Append` is called.
-func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
+func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int, hostname string) *IterableSeries {
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
 			serie := value.(*Serie)
-			fmt.Println("wacktest")
-			log.Debug("wackest of tests")
-			// tags := hosttags.Get(context.Background(), true, config.Datadog())
-			var tags = []string{"exampletag", "andrew", "qian"}
 
-			// Add custom tags to the metric
+			tags := []string{"host:" + hostname}
+
 			serie.Tags = tagset.CombineCompositeTagsAndSlice(serie.Tags, tags)
 			callback(serie)
 		}, chanSize, bufferSize),

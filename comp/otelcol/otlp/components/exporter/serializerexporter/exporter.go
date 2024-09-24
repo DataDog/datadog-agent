@@ -12,13 +12,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 var _ component.Config = (*ExporterConfig)(nil)
@@ -194,7 +195,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	if err := consumer.Send(e.s); err != nil {
+	if err := consumer.Send(e.s, hostname); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil

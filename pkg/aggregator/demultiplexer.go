@@ -94,6 +94,7 @@ func createIterableMetrics(
 	serializer serializer.MetricSerializer,
 	logPayloads bool,
 	isServerless bool,
+	hostname string,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
@@ -104,7 +105,7 @@ func createIterableMetrics(
 				log.Debugf("Flushing serie: %s", se)
 			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize, hostname)
 	}
 
 	if serializer.AreSketchesEnabled() {

@@ -15,14 +15,15 @@ import (
 
 	"go.uber.org/multierr"
 
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/tinylib/msgp/msgp"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
-	"github.com/tinylib/msgp/msgp"
 )
 
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
@@ -110,10 +111,10 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 // Send exports all data recorded by the consumer. It does not reset the consumer.
-func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
+func (c *serializerConsumer) Send(s serializer.MetricSerializer, hostname string) error {
 	var serieErr, sketchesErr error
 	metrics.Serialize(
-		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
+		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000, hostname),
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {
