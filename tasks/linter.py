@@ -578,6 +578,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-cws',
         'new-e2e-language-detection',
         'new-e2e-npm-docker',
+        'new-e2e-eks-cleanup',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
         'new-e2e-package-signing-amazonlinux-a6-x86_64',
@@ -613,7 +614,9 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+        if "rules" in config[test] and not any(
+            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+        ):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
             else:
