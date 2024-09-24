@@ -194,6 +194,7 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
 
         # TODO: test
         comment_summary = diff.display(cli=False, job_url=job_url, only_summary=True)
+        return
 
         # Display diff
         print('\nGitlab CI configuration diff:')
