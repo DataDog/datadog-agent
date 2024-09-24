@@ -218,6 +218,7 @@ DEFAULT_MODULES = {
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
+    "pkg/config/structure": GoModule("pkg/config/structure", independent=True, used_by_otel=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
