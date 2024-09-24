@@ -379,7 +379,6 @@ class MultiGitlabCIDiff:
         """
         Display in cli or markdown
         """
-        print(f'MultiGitlabCIDiff.display({job_url})')
         if not self:
             return ''
 

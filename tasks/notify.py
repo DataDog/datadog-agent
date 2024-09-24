@@ -164,8 +164,6 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
 
     if pr_comment:
         job_url = os.environ['CI_JOB_URL']
-        print('Job url:', job_url)
-        # print('Job id:', os.environ['CI_JOB_ID'])
 
     try:
         before_name = before or "merge base"
@@ -191,11 +189,6 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
                 pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
 
             return
-
-        # TODO: test
-        comment_summary = diff.display(cli=False, job_url=job_url, only_summary=True)
-        pr_commenter(ctx, pr_comment_head, comment_summary)
-        return
 
         # Display diff
         print('\nGitlab CI configuration diff:')
