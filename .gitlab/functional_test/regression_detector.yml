@@ -75,7 +75,7 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --total-samples 1800 # 30 minutes (samples are taken once per second)
+      --total-samples 1800
       --target-config-dir test/regression/
       --submission-metadata submission_metadata
     # Wait for job to complete.
