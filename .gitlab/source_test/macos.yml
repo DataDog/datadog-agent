@@ -128,7 +128,7 @@ lint_macos:
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
-  tags: ["macos:monterey-amd64-test"]
+  tags: ["macos:monterey-amd64", "specific:true"]
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
@@ -139,7 +139,7 @@ lint_macos_gitlab_arm64:
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
-  tags: ["macos:monterey-amd64-test"]
+  tags: ["macos:monterey-amd64", "specific:true"]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
