@@ -58,25 +58,25 @@ func TestEnrichTags(t *testing.T) {
 		},
 		{
 			name:         "with local data (containerID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{FromMsg: "container", Cardinality: "low"},
+			originInfo:   taggertypes.OriginInfo{ContainerID: "container", Cardinality: "low"},
 			expectedTags: []string{"container-low"},
 			cidProvider:  &fakeCIDProvider{},
 		},
 		{
 			name:         "with local data (containerID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{FromMsg: "container", Cardinality: "high"},
+			originInfo:   taggertypes.OriginInfo{ContainerID: "container", Cardinality: "high"},
 			expectedTags: []string{"container-low", "container-orch", "container-high"},
 			cidProvider:  &fakeCIDProvider{},
 		},
 		{
 			name:         "with local data (podUID) and low cardinality",
-			originInfo:   taggertypes.OriginInfo{FromTag: "pod", Cardinality: "low"},
+			originInfo:   taggertypes.OriginInfo{PodUID: "pod", Cardinality: "low"},
 			expectedTags: []string{"pod-low"},
 			cidProvider:  &fakeCIDProvider{},
 		},
 		{
 			name:         "with local data (podUID) and high cardinality",
-			originInfo:   taggertypes.OriginInfo{FromTag: "pod", Cardinality: "high"},
+			originInfo:   taggertypes.OriginInfo{PodUID: "pod", Cardinality: "high"},
 			expectedTags: []string{"pod-low", "pod-orch", "pod-high"},
 			cidProvider:  &fakeCIDProvider{},
 		},
@@ -94,7 +94,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://bar", Cardinality: "orchestrator"})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }
 
@@ -105,9 +105,9 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
 	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://originID", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://originID", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
 }
 

@@ -14,7 +14,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -109,7 +109,7 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 }
 
 func getProfileConfdRoot(profileFolderName string) string {
-	confdPath := config.Datadog().GetString("confd_path")
+	confdPath := pkgconfigsetup.Datadog().GetString("confd_path")
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 

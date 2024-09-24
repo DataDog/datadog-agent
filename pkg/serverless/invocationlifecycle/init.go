@@ -106,6 +106,10 @@ func (lp *LifecycleProcessor) initFromDynamoDBStreamEvent(event events.DynamoDBE
 }
 
 func (lp *LifecycleProcessor) initFromEventBridgeEvent(event events.EventBridgeEvent) {
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithEventBridgeEvent(event)
+	}
+
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, eventBridge)
 	lp.addTag(tagFunctionTriggerEventSourceArn, event.Source)
@@ -188,4 +192,8 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 	lp.addTag(tagFunctionTriggerEventSource, functionURL)
 	lp.addTag(tagFunctionTriggerEventSourceArn, fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))
+}
+
+func (lp *LifecycleProcessor) initFromStepFunctionPayload(event events.StepFunctionPayload) {
+	lp.requestHandler.event = event
 }

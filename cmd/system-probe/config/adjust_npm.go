@@ -11,7 +11,6 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +23,7 @@ const (
 	defaultMaxTrackedConnections = 65536
 )
 
-func adjustNetwork(cfg config.Config) {
+func adjustNetwork(cfg model.Config) {
 	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
 
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,7 +80,7 @@ type RingStore struct {
 }
 
 // readPositiveInt reads a config stored in the given key and asserts that it's a positive value
-func readPositiveInt(cfg config.Reader, key string) (int, error) {
+func readPositiveInt(cfg pkgconfigmodel.Reader, key string) (int, error) {
 	i := cfg.GetInt(key)
 	if i <= 0 {
 		return 0, fmt.Errorf("invalid setting. %s must be > 0", key)
@@ -90,7 +90,7 @@ func readPositiveInt(cfg config.Reader, key string) (int, error) {
 }
 
 // NewRingStore creates a new RingStore to store process events
-func NewRingStore(cfg config.Reader, client statsd.ClientInterface) (Store, error) {
+func NewRingStore(cfg pkgconfigmodel.Reader, client statsd.ClientInterface) (Store, error) {
 	maxItems, err := readPositiveInt(cfg, "process_config.event_collection.store.max_items")
 	if err != nil {
 		return nil, err

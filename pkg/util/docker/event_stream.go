@@ -17,7 +17,7 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -157,7 +157,7 @@ func eventFilters() filters.Args {
 		res.Add("event", string(containerEventAction))
 	}
 
-	if config.Datadog().GetBool("container_image.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("container_image.enabled") {
 		res.Add("type", string(events.ImageEventType))
 		for _, imageEventAction := range imageEventActions {
 			res.Add("event", string(imageEventAction))

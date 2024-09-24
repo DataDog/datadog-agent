@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
@@ -241,13 +242,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// and compare it with the one in the PodAutoscaler. If they differ, we should update the PodAutoscaler
 		// otherwise store the Generation
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
-			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec)
+			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
 				c.store.Unlock(key)
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
 			}
 
-			remoteHash, err := autoscaling.ObjectHash(podAutoscaler.Spec)
+			remoteHash, err := autoscaling.ObjectHash(&podAutoscaler.Spec)
 			if err != nil {
 				c.store.Unlock(key)
 				return autoscaling.Requeue, fmt.Errorf("Failed to compute Spec hash for PodAutoscaler: %s/%s, err: %v", ns, name, err)
@@ -282,12 +283,31 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
 	}
 
+	// Get autoscaler target
+	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
+	if targetErr != nil {
+		podAutoscalerInternal.SetError(targetErr)
+		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, targetErr, podAutoscalerInternal, podAutoscaler)
+	}
+	target := NamespacedPodOwner{
+		Namespace: podAutoscalerInternal.Namespace(),
+		Name:      podAutoscalerInternal.Spec().TargetRef.Name,
+		Kind:      targetGVK.Kind,
+	}
+
 	// Now that everything is synced, we can perform the actual processing
-	result, scalingErr := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
+	result, scalingErr := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal, targetGVK, target)
+
+	// Update current replicas
+	pods := c.podWatcher.GetPodsForOwner(target)
+	currentReplicas := len(pods)
+	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
+
+	// Update status based on latest state
 	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
 }
 
-func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
@@ -295,7 +315,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 		return horizontalRes, err
 	}
 
-	verticalRes, err := c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	verticalRes, err := c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal, targetGVK, target)
 	if err != nil {
 		return verticalRes, err
 	}

@@ -294,7 +294,7 @@ class GitlabCIDiff:
 
         if only_summary:
             if not cli:
-                res.append(':warning: Diff too large to display on Github')
+                res.append(':warning: Diff too large to display on Github.')
         else:
             if self.modified:
                 wrap = len(self.modified) > max_detailed_jobs
@@ -382,7 +382,7 @@ class MultiGitlabCIDiff:
             return ''
 
         if len(self.diffs) == 1:
-            return self.diffs[0].diff.display(cli, **kwargs)
+            return self.diffs[0].diff.display(cli, job_url=job_url, **kwargs)
 
         def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
             if cli:
@@ -983,7 +983,7 @@ def gitlab_configuration_is_modified(ctx):
                 print(f"Found a gitlab configuration file: {new_file}")
             else:
                 in_config = False
-        if in_config and line.startswith("@@"):
+        if in_config and line.startswith("@@") and os.path.exists(new_file):
             lines = changed_lines.match(line)
             start = int(lines.group(1))
             with open(new_file) as f:

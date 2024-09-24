@@ -75,7 +75,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
+			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
@@ -195,11 +195,6 @@ func stopOldAgentUnits(ctx context.Context) error {
 	defer span.Finish()
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			exitError, ok := err.(*exec.ExitError)
-			if ok && exitError.ExitCode() == 5 {
-				// exit code 5 means the unit is not loaded, we can continue
-				continue
-			}
 			return fmt.Errorf("failed to stop %s: %v", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
