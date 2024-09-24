@@ -13,7 +13,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -26,7 +26,7 @@ const (
 )
 
 // NewProcessCollector creates a new process collector.
-func NewProcessCollector(coreConfig, sysProbeConfig config.Reader) *Collector {
+func NewProcessCollector(coreConfig, sysProbeConfig pkgconfigmodel.Reader) *Collector {
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(sysProbeConfig)
 
 	processData := checks.NewProcessData(coreConfig)
@@ -45,7 +45,7 @@ func NewProcessCollector(coreConfig, sysProbeConfig config.Reader) *Collector {
 // Collector collects processes to send to the remote process collector in the core agent.
 // It is only intended to be used when language detection is enabled, and the process check is disabled.
 type Collector struct {
-	ddConfig config.Reader
+	ddConfig pkgconfigmodel.Reader
 
 	processData *checks.ProcessData
 
@@ -103,9 +103,10 @@ func (c *Collector) run(ctx context.Context, containerProvider proccontainers.Co
 
 // Enabled checks to see if we should enable the local process collector.
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
-// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`.
+// We also check `process_config.run_in_core_agent.enabled` because this collector should only be used when the core agent collector is not running.
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
-func Enabled(cfg config.Reader) bool {
+func Enabled(cfg pkgconfigmodel.Reader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
@@ -113,5 +114,10 @@ func Enabled(cfg config.Reader) bool {
 	if !cfg.GetBool("language_detection.enabled") {
 		return false
 	}
+
+	if cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		return false
+	}
+
 	return true
 }

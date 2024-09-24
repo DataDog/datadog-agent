@@ -32,6 +32,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
@@ -39,8 +40,9 @@ var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-java":   "1",
 	"datadog-apm-library-ruby":   "2",
 	"datadog-apm-library-js":     "5",
-	"datadog-apm-library-dotnet": "2",
+	"datadog-apm-library-dotnet": "3",
 	"datadog-apm-library-python": "2",
+	"datadog-apm-library-php":    "1",
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
@@ -84,16 +86,18 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 	return false
 }
 
+// apmLanguageEnabled returns true if the package should be installed
+// Note: the PHP tracer is in beta and isn't included in the "all" or default languages
 func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
-	if _, ok := e.ApmLibraries["all"]; ok {
+	if _, ok := e.ApmLibraries["all"]; ok && p.Name != "datadog-apm-library-php" {
 		return true
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) && p.Name != "datadog-apm-library-php" {
 		return true
 	}
 	return false

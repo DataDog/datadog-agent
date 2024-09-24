@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type testInput struct {
@@ -46,6 +46,8 @@ var inputs = []testInput{
 	{startGroup, "127.0.0.1 - - [16/May/2024:19:49:17 +0000]"},
 	{startGroup, "127.0.0.1 - - [17/May/2024:13:51:52 +0000] \"GET /probe?debug=1 HTTP/1.1\" 200 0	"},
 	{startGroup, "nova-api.log.1.2017-05-16_13:53:08 2017-05-16 00:00:00.008 25746 INFO nova.osapi"},
+	{startGroup, "foo bar log 2024-11-22'T'10:10:15.455 my log line"},
+	{startGroup, "foo bar log 2024-07-01T14:59:55.711'+0000' my log line"},
 
 	// A case where the timestamp has a non-matching token in the midddle of it.
 	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
@@ -69,11 +71,19 @@ var inputs = []testInput{
 	{aggregate, " auth.handler: auth handler stopped"},
 	{aggregate, "10:10:10 foo :10: bar 10:10"},
 	{aggregate, "1234-1234-1234-123-21-1"},
+	{aggregate, " = '10.20.30.123' (DEBUG)"},
+	{aggregate, "192.168.1.123"},
+	{aggregate, "'192.168.1.123'"},
+	{aggregate, "10.0.0.123"},
+	{aggregate, "\"10.0.0.123\""},
+	{aggregate, "2001:0db8:85a3:0000:0000:8a2e:0370:7334"},
+	{aggregate, "fd12:3456:789a:1::1"},
+	{aggregate, "2001:db8:0:1234::5678"},
 }
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
-	tokenizer := NewTokenizer(config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
-	timestampDetector := NewTimestampDetector(config.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
+	tokenizer := NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	timestampDetector := NewTimestampDetector(pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
 	for _, testInput := range inputs {
 		context := &messageContext{
@@ -81,8 +91,8 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.Process(context))
-		assert.True(t, timestampDetector.Process(context))
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.True(t, timestampDetector.ProcessAndContinue(context))
 		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))
 
@@ -92,7 +102,7 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 }
 
 func printMatchUnderline(context *messageContext, input string, match MatchContext) {
-	maxLen := config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	maxLen := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	fmt.Printf("%.2f\t\t%v\n", match.probability, input)
 
 	if match.start == match.end {

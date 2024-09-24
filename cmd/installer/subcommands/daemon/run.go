@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func runCommand(global *command.GlobalParams) *cobra.Command {
@@ -48,7 +48,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
+			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{

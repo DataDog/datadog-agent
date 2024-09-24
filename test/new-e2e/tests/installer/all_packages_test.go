@@ -24,12 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite
+type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
 type packageTestsWithSkipedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
-	skippedInstallationMethods []installMethodOption
+	skippedInstallationMethods []InstallMethodOption
 }
 
 var (
@@ -48,14 +48,12 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
-		{t: testInstaller, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
-		{t: testAgent, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
-		{t: testUpgradeScenario, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
+		{t: testInstaller},
+		{t: testAgent},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testUpgradeScenario},
 	}
 )
-
-var supportedInstallMethods = []installMethodOption{installMethodInstallScript, installMethodAnsible}
 
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -66,7 +64,7 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 	return false
 }
 
-func shouldSkipInstallMethod(methods []installMethodOption, method installMethodOption) bool {
+func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethodOption) bool {
 	for _, m := range methods {
 		if m == method {
 			return true
@@ -82,6 +80,11 @@ func TestPackages(t *testing.T) {
 		t.FailNow()
 	}
 
+	method := GetInstallMethodFromEnv()
+	if method == InstallMethodWindows {
+		t.Skip("Windows install method - skipping")
+	}
+
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
 		flavor.Architecture = e2eos.AMD64Arch
@@ -92,38 +95,37 @@ func TestPackages(t *testing.T) {
 		flavors = append(flavors, flavor)
 	}
 	for _, f := range flavors {
-		for _, method := range supportedInstallMethods {
-			for _, test := range packagesTestsWithSkippedFlavors {
-				flavor := f // capture range variable for parallel tests closure
-				if shouldSkipFlavor(test.skippedFlavors, flavor) {
-					continue
-				}
-				if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
-					continue
-				}
-				// TODO: remove once ansible+suse is fully supported
-				if flavor.Flavor == e2eos.Suse && method == installMethodAnsible {
-					continue
+		for _, test := range packagesTestsWithSkippedFlavors {
+			flavor := f // capture range variable for parallel tests closure
+			if shouldSkipFlavor(test.skippedFlavors, flavor) {
+				continue
+			}
+			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
+				continue
+			}
+			// TODO: remove once ansible+suse is fully supported
+			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
+				continue
+			}
+
+			suite := test.t(flavor, flavor.Architecture, method)
+			t.Run(suite.Name(), func(t *testing.T) {
+				t.Parallel()
+				// FIXME: Fedora currently has DNS issues
+				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
 				}
 
-				suite := test.t(flavor, flavor.Architecture, method)
-				t.Run(suite.Name(), func(t *testing.T) {
-					t.Parallel()
-					// FIXME: Fedora currently has DNS issues
-					if flavor.Flavor == e2eos.Fedora {
-						flake.Mark(t)
-					}
-					opts := []awshost.ProvisionerOption{
-						awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
-						awshost.WithoutAgent(),
-					}
-					opts = append(opts, suite.ProvisionerOptions()...)
-					e2e.Run(t, suite,
-						e2e.WithProvisioner(awshost.Provisioner(opts...)),
-						e2e.WithStackName(suite.Name()),
-					)
-				})
-			}
+				opts := []awshost.ProvisionerOption{
+					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+					awshost.WithoutAgent(),
+				}
+				opts = append(opts, suite.ProvisionerOptions()...)
+				e2e.Run(t, suite,
+					e2e.WithProvisioner(awshost.Provisioner(opts...)),
+					e2e.WithStackName(suite.Name()),
+				)
+			})
 		}
 	}
 }
@@ -143,17 +145,10 @@ type packageBaseSuite struct {
 	pkg           string
 	arch          e2eos.Architecture
 	os            e2eos.Descriptor
-	installMethod installMethodOption
+	installMethod InstallMethodOption
 }
 
-type installMethodOption string
-
-const (
-	installMethodInstallScript installMethodOption = "install_script"
-	installMethodAnsible       installMethodOption = "ansible"
-)
-
-func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
+func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
 	return packageBaseSuite{
 		os:            os,
 		arch:          arch,
@@ -198,14 +193,14 @@ func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 
 func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	switch s.installMethod {
-	case installMethodInstallScript:
+	case InstallMethodInstallScript:
 		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
 		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
-	case installMethodAnsible:
+	case InstallMethodAnsible:
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 
@@ -217,6 +212,10 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+
+		// touch install files for compatibility
+		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
+		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
 	default:
 		s.T().Fatal("unsupported install method")
 	}
@@ -299,6 +298,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
   tasks:
     - name: Import the Datadog Agent role from the Datadog collection
       become: true
+      retries: 3
       import_role:
         name: datadog.dd.agent
 `

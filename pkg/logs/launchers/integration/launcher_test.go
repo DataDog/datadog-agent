@@ -6,34 +6,31 @@
 package integration
 
 import (
-	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
-	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
 type LauncherTestSuite struct {
 	suite.Suite
 	testDir  string
 	testPath string
-	testFile *os.File
 
 	outputChan       chan *message.Message
 	pipelineProvider pipeline.Provider
@@ -45,93 +42,133 @@ type LauncherTestSuite struct {
 func (suite *LauncherTestSuite) SetupTest() {
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
-	suite.integrationsComp = integrationsMock.Mock()
-
-	var err error
+	suite.integrationsComp = integrationsmock.Mock()
 	suite.testDir = suite.T().TempDir()
+	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 
-	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
+	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 
-	f, err := os.Create(suite.testPath)
-	suite.Nil(err)
-	suite.testFile = f
+	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
+	// it will try and create `/opt/datadog` directory and fail
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
 
-	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
-	suite.s = NewLauncher(nil, suite.integrationsComp)
-	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	suite.s = NewLauncher(sources.NewLogSources(), suite.integrationsComp)
+	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
 }
 
-func (suite *LauncherTestSuite) TearDownTest() {
-	suite.testFile.Close()
-}
-
 func (suite *LauncherTestSuite) TestFileCreation() {
+	id := "123456789"
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Identifier: "123456789", Path: suite.testPath})
 	sources.NewLogSources().AddSource(source)
 
-	filePath, err := suite.s.createFile(source)
-	assert.Nil(suite.T(), err)
-	assert.NotNil(suite.T(), filePath)
+	logFilePath, err := suite.s.createFile(id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), logFilePath)
 }
 
 func (suite *LauncherTestSuite) TestSendLog() {
-	logsSources := sources.NewLogSources()
-	suite.s.sources = logsSources
-	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath})
+
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
+
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeFunction = func(filepath, log string) error {
+	suite.s.writeFunction = func(logFilePath, log string) error {
 		fileLogChan <- log
-		filepathChan <- filepath
+		filepathChan <- logFilePath
 		return nil
 	}
 
-	filepath, err := suite.s.createFile(source)
-	assert.Nil(suite.T(), err)
-	suite.s.integrationToFile[source.Name] = filepath
-	fileSource := suite.s.makeFileSource(source, filepath)
-	suite.s.sources.AddSource(fileSource)
+	id := "123456789"
 
-	suite.s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry(), tailers.NewTailerTracker())
+	suite.s.Start(nil, nil, nil, nil)
+	suite.integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
-	suite.integrationsComp.SendLog(logSample, "testLogsSource:HASH1234")
+	suite.integrationsComp.SendLog(logSample, id)
+
+	foundSource := suite.s.sources.GetSources()[0]
+	assert.Equal(suite.T(), foundSource.Config.Type, config.FileType)
+	assert.Equal(suite.T(), foundSource.Config.Source, "foo")
+	assert.Equal(suite.T(), foundSource.Config.Service, "bar")
+	expectedPath := suite.s.integrationToFile[id]
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
-	assert.Equal(suite.T(), filepath, <-filepathChan)
+	assert.Equal(suite.T(), expectedPath, <-filepathChan)
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
 	logText := "hello world"
-	suite.s.writeFunction(suite.testPath, logText)
+	err := suite.s.writeFunction(suite.testPath, logText)
+	require.Nil(suite.T(), err)
 
 	fileContents, err := os.ReadFile(suite.testPath)
 
-	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), logText, string(fileContents))
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), logText+"\n", string(fileContents))
+}
+
+func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
+	var err error
+	err = suite.s.writeFunction(suite.testPath, "line 1")
+	require.Nil(suite.T(), err, "error writing line 1")
+
+	err = suite.s.writeFunction(suite.testPath, "line 2")
+	require.Nil(suite.T(), err, "error writing line 2")
+
+	err = suite.s.writeFunction(suite.testPath, "line 3")
+	require.Nil(suite.T(), err, "error writing line 3")
+
+	fileContents, err := os.ReadFile(suite.testPath)
+
+	assert.NoError(suite.T(), err)
+	expectedContent := "line 1\nline 2\nline 3\n"
+	assert.Equal(suite.T(), expectedContent, string(fileContents))
 }
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
 func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
-	logSource := sources.NewLogSource("testLogsSource", &config.LogsConfig{
-		Type:    config.IntegrationType,
-		Name:    "test_name",
-		Service: "test_service",
-		Path:    suite.testPath,
-	})
+	id := "123456789"
+	actualFilePath := suite.s.integrationLogFilePath(id)
+	expectedFilePath := filepath.Join(suite.s.runPath, id+".log")
+	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 
-	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(*logSource)
-
-	expectedDirectoryComponents := []string{suite.s.runPath, "integrations", logSource.Config.Service}
-	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
-
-	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Config.Name + ".log"}, "/")
-
-	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
+	id = "1234 5678:myIntegration"
+	actualFilePath = suite.s.integrationLogFilePath(id)
+	expectedFilePath = filepath.Join(suite.s.runPath, "1234-5678_myIntegration.log")
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 }
 
 func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
+}
+
+// TestReadyOnlyFileSystem ensures the launcher doesn't panic in a read-only
+// file system. There will be errors but it should handle them gracefully.
+func TestReadyOnlyFileSystem(t *testing.T) {
+	readOnlyDir := filepath.Join(t.TempDir(), "readonly")
+	err := os.Mkdir(readOnlyDir, 0444)
+	assert.Nil(t, err, "Unable to make tempdir readonly")
+
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.run_path", readOnlyDir)
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+
+	// Check the launcher doesn't block on receiving channels
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
+	id := "123456789"
+
+	s.Start(nil, nil, nil, nil)
+	integrationsComp.RegisterIntegration(id, *mockConf)
+
+	logSample := "hello world"
+	integrationsComp.SendLog(logSample, id)
+
+	// send a second log to make sure the launcher isn't blocking
+	integrationsComp.SendLog(logSample, id)
 }

@@ -52,11 +52,12 @@ func isApplicationDeployed(fs fs.FS, descriptorPath string, nodeName string, ser
 		return false, err
 	}
 	defer file.Close()
-	if ok, _ := canSafelyParse(file); !ok {
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
 		return false, err
 	}
 	var appDeployment websphereAppDeployment
-	err = xml.NewDecoder(file).Decode(&appDeployment)
+	err = xml.NewDecoder(reader).Decode(&appDeployment)
 	if err != nil {
 		return false, err
 	}

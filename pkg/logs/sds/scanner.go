@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -32,6 +33,8 @@ var (
 		"Count of SDS reconfiguration error.", telemetry.Options{DefaultMetric: true})
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
+	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
+	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
@@ -207,7 +210,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	}
 
 	// prepare the scanner rules
-	var sdsRules []sds.Rule
+	var sdsRules []sds.RuleConfig
 	var malformedRulesCount int
 	var unknownStdRulesCount int
 	for _, userRule := range config.Rules {
@@ -251,7 +254,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Info("Created an SDS scanner with", len(scanner.Rules), "enabled rules")
+	log.Info("Created an SDS scanner with", len(scanner.RuleConfigs), "enabled rules")
 	for _, rule := range s.configuredRules {
 		log.Debug("Configured rule:", rule.Name)
 	}
@@ -264,11 +267,10 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	return true, nil
 }
 
-// interpretRCRule interprets a rule as received through RC to return
-// an sds.Rule usable with the shared library.
+// interpretRCRule interprets a rule as received through RC to return an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
-func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.Rule, error) {
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.RuleConfig, error) {
 	var extraConfig sds.ExtraConfig
 
 	var defToUse = StandardRuleDefinition{Version: -1}
@@ -285,7 +287,6 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		reqCapabilitiesCount := len(stdRuleDef.RequiredCapabilities)
 		if reqCapabilitiesCount > 0 {
 			if reqCapabilitiesCount > 1 {
-				// TODO(remy): telemetry
 				log.Warnf("Standard rule '%v' with multiple required capabilities: %d. Only the first one will be used", standardRule.Name, reqCapabilitiesCount)
 			}
 			received := stdRuleDef.RequiredCapabilities[0]
@@ -308,8 +309,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 	}
 
 	if defToUse.Version == -1 {
-		// TODO(remy): telemetry
-		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
+		return nil, fmt.Errorf("unsupported rule with no compatible definition")
 	}
 
 	// we use the filled `CharacterCount` value to decide if we want
@@ -347,7 +347,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		return sds.NewHashRule(standardRule.Name, defToUse.Pattern, extraConfig), nil
 	}
 
-	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
+	return nil, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
 }
 
 // Scan scans the given `event` using the internal SDS scanner.
@@ -359,6 +359,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error) {
 	s.Lock()
 	defer s.Unlock()
+	start := time.Now()
 
 	if s.Scanner == nil {
 		return false, nil, fmt.Errorf("can't Scan with an unitialized scanner")
@@ -379,6 +380,7 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	// using a tag.
 	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
+	tlmSDSProcessingLatency.Observe(float64(time.Since(start) / 1000))
 	return scanResult.Mutated, scanResult.Event, err
 }
 
@@ -418,7 +420,7 @@ func (s *Scanner) IsReady() bool {
 	if s.Scanner == nil {
 		return false
 	}
-	if len(s.Scanner.Rules) == 0 {
+	if len(s.Scanner.RuleConfigs) == 0 {
 		return false
 	}
 

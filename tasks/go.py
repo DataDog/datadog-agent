@@ -100,9 +100,12 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
     """
+    repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
     for mod in DEFAULT_MODULES.values():
-        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+        ctx.run(
+            f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
+        )
 
 
 @task
@@ -447,7 +450,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.6 linux/amd64"
+    # result is like "go version go1.22.7 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

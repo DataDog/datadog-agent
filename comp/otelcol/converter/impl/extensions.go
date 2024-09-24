@@ -6,7 +6,9 @@
 // Package converterimpl provides the implementation of the otel-agent converter.
 package converterimpl
 
-import "go.opentelemetry.io/collector/confmap"
+import (
+	"go.opentelemetry.io/collector/confmap"
+)
 
 var (
 	// pprof
@@ -27,7 +29,7 @@ var (
 	healthCheckConfig       any
 
 	// datadog
-	datadogName         = "datadog"
+	datadogName         = "ddflare"
 	datadogEnhancedName = datadogName + "/" + ddAutoconfiguredSuffix
 	datadogConfig       any
 

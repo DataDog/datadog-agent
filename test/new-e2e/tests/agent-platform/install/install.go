@@ -64,7 +64,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		var source string
 		if params.MajorVersion != "5" {
 			source = "S3"
-			downloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			downloadCmd = fmt.Sprintf(`curl -L  https://install.datadoghq.com/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
 		} else {
 			source = "dd-agent repository"
 			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"

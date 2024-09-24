@@ -222,25 +222,25 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
     bool are_revisions_equal = inode_params->mount_revision == get_mount_discarder_revision(params->discarder.path_key.mount_id);
     if (!are_revisions_equal) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
     u32 revision = get_discarders_revision();
     if (inode_params->params.revision != revision) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
-    return DISCARDED;
+    return 1;
 }
 
 int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
@@ -283,108 +283,16 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
     return 0;
 }
 
-int __attribute__((always_inline)) expire_pid_discarder(u32 tgid);
-
-int __attribute__((always_inline)) discard_pid(u64 event_type, u32 tgid, u64 timeout) {
-    struct pid_discarder_t key = {
-        .tgid = tgid,
-    };
-
-    u64 now = bpf_ktime_get_ns();
-
-    u64 *discarder_timestamp;
-    u64 timestamp = timeout ? now + timeout : 0;
-
-    u32 revision = get_discarders_revision();
-
-    struct pid_discarder_params_t *pid_params = bpf_map_lookup_elem(&pid_discarders, &key);
-    if (pid_params) {
-        if (!pid_params->params.is_retained && pid_params->params.revision != revision) {
-            return expire_pid_discarder(tgid);
-        }
-
-        // either the discarder is not retained or its expiration period is already over
-        if (!pid_params->params.is_retained || pid_params->params.expire_at < now) {
-            pid_params->params.is_retained = 0;
-
-            // the revision change, all the discarders are invalidated,
-            // we need to add only the current event type and to use the current revision
-            if (pid_params->params.revision != revision) {
-                pid_params->params.event_mask = 0;
-                pid_params->params.revision = revision;
-            }
-            add_event_to_mask(&pid_params->params.event_mask, event_type);
-
-            if ((discarder_timestamp = get_discarder_timestamp(&pid_params->params, event_type)) != NULL) {
-                *discarder_timestamp = timestamp;
-            }
-        }
-    } else {
-        struct pid_discarder_params_t new_pid_params = {
-            .params.revision = revision,
-        };
-        add_event_to_mask(&new_pid_params.params.event_mask, event_type);
-
-        if ((discarder_timestamp = get_discarder_timestamp(&new_pid_params.params, event_type)) != NULL) {
-            *discarder_timestamp = timestamp;
-        }
-        bpf_map_update_elem(&pid_discarders, &key, &new_pid_params, BPF_NOEXIST);
-    }
-
-    monitor_discarder_added(EVENT_ANY);
-
-    return 0;
+static __attribute__((always_inline)) int is_discarded_by_pid() {
+    return is_runtime_discarded() && is_runtime_request();
 }
 
-int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid) {
-    struct pid_discarder_t key = {
-        .tgid = tgid,
-    };
-
-    struct pid_discarder_params_t *pid_params = (struct pid_discarder_params_t *)is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns());
-    if (!pid_params) {
-        return NOT_DISCARDED;
-    }
-
-    u32 revision = get_discarders_revision();
-    if (pid_params->params.revision != revision) {
-        return NOT_DISCARDED;
-    }
-
-    return DISCARDED;
-}
-
-int __attribute__((always_inline)) is_discarded_by_process(const char mode, u64 event_type) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    if (is_runtime_discarded() && is_runtime_request()) {
-        return 1;
-    }
-
-    if (mode != NO_FILTER && is_discarded_by_pid(event_type, tgid)) {
-        return 1;
-    }
-
-    return 0;
-}
-
-int __attribute__((always_inline)) expire_pid_discarder(u32 tgid) {
-    if (!tgid) {
+int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
+    if (syscall->state == ACCEPTED) {
         return 0;
     }
 
-    struct pid_discarder_t key = {
-        .tgid = tgid,
-    };
-
-    struct discarder_params_t *params = bpf_map_lookup_elem(&pid_discarders, &key);
-    if (params) {
-        params->is_retained = 1;
-        params->expire_at = bpf_ktime_get_ns() + get_discarder_retention();
-    }
-
-    return 0;
+    return syscall->type;
 }
 
 #endif

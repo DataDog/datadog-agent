@@ -11,24 +11,25 @@ package config
 import (
 	"testing"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
-func newMock(deps dependencies, _ testing.TB) (Component, error) {
+func newMock(deps Dependencies, _ testing.TB) (Component, error) {
 	traceCfg, err := setupConfig(deps, "apikey")
 	if err != nil {
 		return nil, err
 	}
 
 	c := cfg{
-		warnings:    &pkgconfig.Warnings{},
+		warnings:    &model.Warnings{},
 		coreConfig:  deps.Config,
 		AgentConfig: traceCfg,
 	}
 
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
 
 	return &c, nil
 }

@@ -36,7 +36,7 @@ var knownTimestampFormats = []string{
 	"Mar 16 08:12:04",
 	"Jul 1 09:00:55",
 	"2024-10-14T22:11:20+0000",
-	"2024-07-01T14:59:55.711'+0000'",
+	"2024-07-01T14:59:55.711",
 	"2024-07-01T14:59:55.711Z",
 	"2024-08-19 12:17:55-0400",
 	"2024-06-26 02:31:29,573",
@@ -108,8 +108,8 @@ func NewTimestampDetector(matchThreshold float64) *TimestampDetector {
 	}
 }
 
-// Process checks if a message is likely to be a timestamp.
-func (t *TimestampDetector) Process(context *messageContext) bool {
+// ProcessAndContinue checks if a message is likely to be a timestamp.
+func (t *TimestampDetector) ProcessAndContinue(context *messageContext) bool {
 	if context.tokens == nil {
 		log.Error("Tokens are required to detect timestamps")
 		return true
@@ -117,6 +117,7 @@ func (t *TimestampDetector) Process(context *messageContext) bool {
 
 	if t.tokenGraph.MatchProbability(context.tokens).probability > t.matchThreshold {
 		context.label = startGroup
+		context.labelAssignedBy = "timestamp_detector"
 	}
 
 	return true

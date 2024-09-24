@@ -44,7 +44,7 @@ func addDDAgentGroup(ctx context.Context) error {
 func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup installer: %s, reverting", err)
+			log.Errorf("Failed to setup installer, reverting: %s", err)
 			err = RemoveInstaller(ctx)
 		}
 	}()
@@ -231,4 +231,9 @@ func StartInstallerExperiment(ctx context.Context) error {
 // StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
+}
+
+// PromoteInstallerExperiment promotes the installer experiment
+func PromoteInstallerExperiment(ctx context.Context) error {
+	return StopInstallerExperiment(ctx)
 }

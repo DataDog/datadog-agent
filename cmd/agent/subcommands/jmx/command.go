@@ -134,8 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
-			fx.Provide(defaults.DefaultParams),
-			workloadmetafx.Module(),
+			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime
@@ -159,8 +158,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
-			agent.Bundle(),
-			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
 	}
 

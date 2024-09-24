@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
@@ -23,11 +24,11 @@ func TestProviderExpectedTags(t *testing.T) {
 	clock := clock.NewMock()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	oldStartTime := coreConfig.StartTime
+	oldStartTime := pkgconfigsetup.StartTime
 	then := clock.Now()
-	coreConfig.StartTime = then
+	pkgconfigsetup.StartTime = then
 	defer func() {
-		coreConfig.StartTime = oldStartTime
+		pkgconfigsetup.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}
@@ -40,7 +41,7 @@ func TestProviderExpectedTags(t *testing.T) {
 	m.SetWithoutSource("logs_config.expected_tags_duration", "5s")
 	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := newProviderWithClock("foo", clock)
+	p := newProviderWithClock("foo", clock, fakeTagger)
 	pp := p.(*provider)
 
 	var tt []string

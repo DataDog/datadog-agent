@@ -46,9 +46,7 @@ const (
 	udpSendSkb              = "kprobe__udp_send_skb"
 
 	skbFreeDatagramLocked = "skb_free_datagram_locked"
-	//nolint:revive // TODO(NET) Fix revive linter
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
-	//nolint:revive // TODO(NET) Fix revive linter
 	skbConsumeUdp = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
