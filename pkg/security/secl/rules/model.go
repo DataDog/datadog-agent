@@ -60,20 +60,20 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID              `yaml:"id" json:"id"`
-	Version                string              `yaml:"version" json:"version,omitempty"`
+	ID                     RuleID              `yaml:"id,omitempty" json:"id"`
+	Version                string              `yaml:"version,omitempty" json:"version,omitempty"`
 	Expression             string              `yaml:"expression" json:"expression,omitempty"`
-	Description            string              `yaml:"description" json:"description,omitempty"`
-	Tags                   map[string]string   `yaml:"tags" json:"tags,omitempty"`
-	AgentVersionConstraint string              `yaml:"agent_version" json:"agent_version,omitempty"`
-	Filters                []string            `yaml:"filters" json:"filters,omitempty"`
-	Disabled               bool                `yaml:"disabled" json:"disabled,omitempty"`
-	Combine                CombinePolicy       `yaml:"combine" json:"combine,omitempty" jsonschema:"enum=override"`
-	OverrideOptions        OverrideOptions     `yaml:"override_options" json:"override_options,omitempty"`
-	Actions                []*ActionDefinition `yaml:"actions" json:"actions,omitempty"`
-	Every                  time.Duration       `yaml:"every" json:"every,omitempty"`
-	Silent                 bool                `yaml:"silent" json:"silent,omitempty"`
-	GroupID                string              `yaml:"group_id" json:"group_id,omitempty"`
+	Description            string              `yaml:"description,omitempty" json:"description,omitempty"`
+	Tags                   map[string]string   `yaml:"tags,omitempty" json:"tags,omitempty"`
+	AgentVersionConstraint string              `yaml:"agent_version,omitempty" json:"agent_version,omitempty"`
+	Filters                []string            `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Disabled               bool                `yaml:"disabled,omitempty" json:"disabled,omitempty"`
+	Combine                CombinePolicy       `yaml:"combine,omitempty" json:"combine,omitempty" jsonschema:"enum=override"`
+	OverrideOptions        OverrideOptions     `yaml:"override_options,omitempty" json:"override_options,omitempty"`
+	Actions                []*ActionDefinition `yaml:"actions,omitempty" json:"actions,omitempty"`
+	Every                  time.Duration       `yaml:"every,omitempty" json:"every,omitempty"`
+	Silent                 bool                `yaml:"silent,omitempty" json:"silent,omitempty"`
+	GroupID                string              `yaml:"group_id,omitempty" json:"group_id,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -89,8 +89,14 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 type ActionName = string
 
 const (
-	// KillAction name a the kill action
+	// KillAction name of the kill action
 	KillAction ActionName = "kill"
+	// SetAction name of the set action
+	SetAction ActionName = "set"
+	// CoreDumpAction name of the core dump action
+	CoreDumpAction ActionName = "coredump"
+	// HashAction name of the hash action
+	HashAction ActionName = "hash"
 )
 
 // ActionDefinition describes a rule action section
@@ -100,6 +106,22 @@ type ActionDefinition struct {
 	Kill     *KillDefinition     `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
 	CoreDump *CoreDumpDefinition `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
 	Hash     *HashDefinition     `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+}
+
+// Name returns the name of the action
+func (a *ActionDefinition) Name() ActionName {
+	switch {
+	case a.Set != nil:
+		return SetAction
+	case a.Kill != nil:
+		return KillAction
+	case a.CoreDump != nil:
+		return CoreDumpAction
+	case a.Hash != nil:
+		return HashAction
+	default:
+		return ""
+	}
 }
 
 // Scope describes the scope variables
@@ -148,8 +170,8 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version            string              `yaml:"version" json:"version"`
-	Macros             []*MacroDefinition  `yaml:"macros" json:"macros,omitempty"`
+	Version            string              `yaml:"version,omitempty" json:"version"`
+	Macros             []*MacroDefinition  `yaml:"macros,omitempty" json:"macros,omitempty"`
 	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks" json:"hooks,omitempty"`
+	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }

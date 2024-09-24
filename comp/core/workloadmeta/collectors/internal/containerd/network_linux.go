@@ -12,8 +12,8 @@ import (
 
 	"github.com/containerd/containerd"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -48,7 +48,7 @@ func extractIP(namespace string, container containerd.Container, containerdClien
 	// of them.
 	for _, taskPid := range taskPids {
 		IPs, err := system.ParseProcessIPs(
-			config.Datadog().GetString("container_proc_root"),
+			pkgconfigsetup.Datadog().GetString("container_proc_root"),
 			int(taskPid.Pid),
 			func(ip string) bool { return ip != "127.0.0.1" },
 		)

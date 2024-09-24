@@ -77,8 +77,13 @@ type EBPFLessProbe struct {
 	cancelFnc     context.CancelFunc
 	fieldHandlers *EBPFLessFieldHandlers
 	clients       map[net.Conn]*client
-	processKiller *ProcessKiller
 	wg            sync.WaitGroup
+
+	// kill action
+	processKiller *ProcessKiller
+
+	// hash action
+	fileHasher *FileHasher
 }
 
 // GetProfileManager returns the Profile Managers
@@ -325,14 +330,16 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	}
 
 	p.DispatchEvent(event)
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -598,8 +605,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		case action.Def.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+			p.fileHasher.HashAndReport(rule, ev)
 		}
 	}
 }
@@ -672,6 +678,8 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {

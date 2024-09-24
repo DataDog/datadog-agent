@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -512,7 +512,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else if initConfig.Namespace != "" {
 		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
+		c.Namespace = pkgconfigsetup.Datadog().GetString("network_devices.namespace")
 	}
 
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)

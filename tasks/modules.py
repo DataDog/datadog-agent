@@ -163,8 +163,6 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
-    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/otelcol/ddflareextension/def": GoModule(
@@ -188,6 +186,9 @@ DEFAULT_MODULES = {
     ),
     "comp/otelcol/otlp/components/metricsclient": GoModule(
         "comp/otelcol/otlp/components/metricsclient", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/processor/infraattributesprocessor": GoModule(
+        "comp/otelcol/otlp/components/processor/infraattributesprocessor", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
@@ -217,6 +218,7 @@ DEFAULT_MODULES = {
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
+    "pkg/config/structure": GoModule("pkg/config/structure", independent=True, used_by_otel=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
@@ -503,3 +505,14 @@ def validate_used_by_otel(ctx: Context):
         message += "Please label them as \"used_by_otel\" in the DEFAULT_MODULES list."
 
         raise Exit(message)
+
+
+def get_module_by_path(path: Path) -> GoModule | None:
+    """
+    Return the GoModule object corresponding to the given path.
+    """
+    for module in DEFAULT_MODULES.values():
+        if Path(module.path) == path:
+            return module
+
+    return None
