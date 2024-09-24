@@ -2,6 +2,38 @@
 Release Notes
 =============
 
+.. _Release Notes_7.57.2:
+
+7.57.2
+======
+
+.. _Release Notes_7.57.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-24
+
+
+.. _Release Notes_7.57.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.22.7``.
+
+
+.. _Release Notes_7.57.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix OOM error with cluster agent auto instrumentation by increasing default memory request from 20Mi to 100Mi.
+
+- Fixes a panic caused by running the Agent on readonly filesystems. The
+  Agent returns integration launchers and handles memory gracefully.
+
+
 .. _Release Notes_7.57.1:
 
 7.57.1
