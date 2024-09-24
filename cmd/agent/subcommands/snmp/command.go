@@ -189,7 +189,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "trace", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams()),
