@@ -640,7 +640,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:v2",
+			image: "registry/dd-lib-dotnet-init:v3",
 		},
 		{
 			lang:  "ruby",
@@ -1098,7 +1098,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1121,7 +1121,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "200m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1143,7 +1143,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: true,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1153,7 +1153,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
@@ -1191,7 +1191,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
@@ -1358,7 +1358,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		"java":   "v1",
 		"python": "v2",
 		"ruby":   "v2",
-		"dotnet": "v2",
+		"dotnet": "v3",
 		"js":     "v5",
 	}
 

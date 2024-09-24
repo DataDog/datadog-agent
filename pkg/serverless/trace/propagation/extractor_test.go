@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"net/http"
 	"os"
 	"testing"
@@ -407,6 +408,72 @@ func TestExtractorExtract(t *testing.T) {
 			expNoErr: true,
 		},
 
+		// events.EventBridgeEvent
+		{
+			name: "eventbridge-event-empty",
+			events: []interface{}{
+				events.EventBridgeEvent{},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "eventbridge-event-with-dd-headers",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: headersMapDD,
+					},
+				},
+			},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-with-all-headers",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: headersMapAll,
+					},
+				},
+			},
+			expCtx:   ddTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-with-w3c-headers",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: headersMapW3C,
+					},
+				},
+			},
+			expCtx:   w3cTraceContext,
+			expNoErr: true,
+		},
+		{
+			name: "eventbridge-event-without-trace-context",
+			events: []interface{}{
+				events.EventBridgeEvent{
+					Detail: struct {
+						TraceContext map[string]string `json:"_datadog"`
+					}{
+						TraceContext: map[string]string{},
+					},
+				},
+			},
+			expCtx:   nil,
+			expNoErr: false,
+		},
+
 		// events.APIGatewayProxyRequest:
 		{
 			name: "APIGatewayProxyRequest",
@@ -509,6 +576,34 @@ func TestExtractorExtract(t *testing.T) {
 			},
 			expCtx:   nil,
 			expNoErr: false,
+		},
+
+		// Step Functions event
+		{
+			name: "step-function-event with no input",
+			events: []interface{}{
+				events.StepFunctionPayload{
+					Execution: struct {
+						ID string
+					}{
+						ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+					},
+					State: struct {
+						Name        string
+						EnteredTime string
+					}{
+						Name:        "agocsTest1",
+						EnteredTime: "2024-07-30T20:46:20.824Z",
+					},
+				},
+			},
+			expCtx: &TraceContext{
+				TraceID:           5377636026938777059,
+				TraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+				ParentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+			expNoErr: true,
 		},
 	}
 
@@ -989,4 +1084,36 @@ func TestConvertStrToUint64(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEventBridgeCarrierWithW3CHeaders(t *testing.T) {
+	const (
+		testResourceName = "test-event-bus"
+		testStartTime    = "1632150183123456789"
+	)
+
+	event := events.EventBridgeEvent{
+		Detail: struct {
+			TraceContext map[string]string `json:"_datadog"`
+		}{
+			TraceContext: map[string]string{
+				"traceparent":             headersMapW3C["traceparent"],
+				"tracestate":              headersMapW3C["tracestate"],
+				"x-datadog-resource-name": testResourceName,
+				"x-datadog-start-time":    testStartTime,
+			},
+		},
+	}
+
+	carrier, err := eventBridgeCarrier(event)
+	assert.NoError(t, err)
+	assert.NotNil(t, carrier)
+
+	textMapCarrier, ok := carrier.(tracer.TextMapCarrier)
+	assert.True(t, ok)
+
+	assert.Equal(t, headersMapW3C["traceparent"], textMapCarrier["traceparent"])
+	assert.Equal(t, headersMapW3C["tracestate"], textMapCarrier["tracestate"])
+	assert.Equal(t, testResourceName, textMapCarrier["x-datadog-resource-name"])
+	assert.Equal(t, testStartTime, textMapCarrier["x-datadog-start-time"])
 }

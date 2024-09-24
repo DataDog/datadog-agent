@@ -20,9 +20,9 @@ const (
 // buildGoBinary builds a Go binary and returns the path to it.
 // If the binary is already built (meanly in the CI), it returns the
 // path to the binary.
-func buildGoBinary(curDir, binaryDir, buildFlags string) (string, error) {
-	serverSrcDir := path.Join(curDir, binaryDir)
-	cachedServerBinaryPath := path.Join(serverSrcDir, binaryDir)
+func buildGoBinary(srcDir, outPath, buildFlags string) (string, error) {
+	serverSrcDir := srcDir
+	cachedServerBinaryPath := outPath
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
@@ -43,12 +43,16 @@ func buildGoBinary(curDir, binaryDir, buildFlags string) (string, error) {
 // If the binary is already built (meanly in the CI), it returns the
 // path to the binary.
 func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
-	return buildGoBinary(curDir, binaryDir, baseLDFlags)
+	srcDir := path.Join(curDir, binaryDir)
+	outPath := path.Join(srcDir, binaryDir)
+	return buildGoBinary(srcDir, outPath, baseLDFlags)
 }
 
 // BuildGoBinaryWrapperWithoutSymbols builds a Go binary without symbols and returns the path to it.
 // If the binary is already built (meanly in the CI), it returns the
 // path to the binary.
 func BuildGoBinaryWrapperWithoutSymbols(curDir, binaryDir string) (string, error) {
-	return buildGoBinary(curDir, binaryDir, baseLDFlags+" -s -w")
+	srcDir := path.Join(curDir, binaryDir)
+	outPath := path.Join(srcDir, binaryDir+"-nosymbols")
+	return buildGoBinary(srcDir, outPath, baseLDFlags+" -s -w")
 }

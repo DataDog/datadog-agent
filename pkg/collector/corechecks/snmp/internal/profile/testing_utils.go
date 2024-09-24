@@ -13,7 +13,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -33,7 +33,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	config.Datadog().SetWithoutSource("confd_path", file)
+	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", file)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile

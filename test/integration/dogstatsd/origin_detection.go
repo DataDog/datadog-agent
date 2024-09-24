@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -43,7 +42,7 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T, network string) {
-	coreConfig.SetFeatures(t, env.Docker)
+	env.SetFeatures(t, env.Docker)
 
 	cfg := map[string]any{}
 
