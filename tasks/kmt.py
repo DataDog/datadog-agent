@@ -387,6 +387,10 @@ def config_ssh_key(ctx: Context):
         except IndexError as e:  # out of range
             raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)") from e
 
+        info("[+] KMT needs this SSH key to be loaded in AWS so that it can be used to access the instances")
+        info(
+            "[+] If you haven't loaded it yet, go to https://dtdg.co/aws-sso-prod -> DataDog Sandbox -> EC2 -> Network & Security -> Key Pairs"
+        )
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
         )
