@@ -44,6 +44,8 @@ var defaultEnv = Env{
 	RegistryPassword:            "",
 	RegistryOverrideByImage:     map[string]string{},
 	RegistryAuthOverrideByImage: map[string]string{},
+	RegistryUsernameByImage:     map[string]string{},
+	RegistryPasswordByImage:     map[string]string{},
 
 	DefaultPackagesInstallOverride: map[string]bool{},
 	DefaultPackagesVersionOverride: map[string]string{},
@@ -72,6 +74,8 @@ type Env struct {
 	RegistryPassword            string
 	RegistryOverrideByImage     map[string]string
 	RegistryAuthOverrideByImage map[string]string
+	RegistryUsernameByImage     map[string]string
+	RegistryPasswordByImage     map[string]string
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
@@ -98,6 +102,8 @@ func FromEnv() *Env {
 		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
+		RegistryUsernameByImage:     overridesByNameFromEnv(envRegistryUsername, func(s string) string { return s }),
+		RegistryPasswordByImage:     overridesByNameFromEnv(envRegistryPassword, func(s string) string { return s }),
 
 		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
@@ -166,6 +172,8 @@ func (e *Env) ToEnv() []string {
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env

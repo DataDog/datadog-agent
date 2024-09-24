@@ -29,6 +29,8 @@ func TestFromEnv(t *testing.T) {
 				RegistryPassword:               "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
@@ -52,6 +54,10 @@ func TestFromEnv(t *testing.T) {
 				envRegistryURL + "_ANOTHER_IMAGE":             "yet.another.registry.example.com",
 				envRegistryAuth + "_IMAGE":                    "another.auth",
 				envRegistryAuth + "_ANOTHER_IMAGE":            "yet.another.auth",
+				envRegistryUsername + "_IMAGE":                "another.username",
+				envRegistryUsername + "_ANOTHER_IMAGE":        "yet.another.username",
+				envRegistryPassword + "_IMAGE":                "another.password",
+				envRegistryPassword + "_ANOTHER_IMAGE":        "yet.another.password",
 				envDefaultPackageInstall + "_PACKAGE":         "true",
 				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
@@ -75,6 +81,14 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverrideByImage: map[string]string{
 					"image":         "another.auth",
 					"another-image": "yet.another.auth",
+				},
+				RegistryUsernameByImage: map[string]string{
+					"image":         "another.username",
+					"another-image": "yet.another.username",
+				},
+				RegistryPasswordByImage: map[string]string{
+					"image":         "another.password",
+					"another-image": "yet.another.password",
 				},
 				DefaultPackagesInstallOverride: map[string]bool{
 					"package":         true,
@@ -106,6 +120,8 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverride:           "",
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
@@ -139,6 +155,8 @@ func TestFromEnv(t *testing.T) {
 				},
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 			},
@@ -187,6 +205,14 @@ func TestToEnv(t *testing.T) {
 					"image":         "another.auth",
 					"another-image": "yet.another.auth",
 				},
+				RegistryUsernameByImage: map[string]string{
+					"image":         "another.username",
+					"another-image": "yet.another.username",
+				},
+				RegistryPasswordByImage: map[string]string{
+					"image":         "another.password",
+					"another-image": "yet.another.password",
+				},
 				DefaultPackagesInstallOverride: map[string]bool{
 					"package":         true,
 					"another-package": false,
@@ -215,6 +241,10 @@ func TestToEnv(t *testing.T) {
 				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE=yet.another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH_IMAGE=another.auth",
 				"DD_INSTALLER_REGISTRY_AUTH_ANOTHER_IMAGE=yet.another.auth",
+				"DD_INSTALLER_REGISTRY_USERNAME_IMAGE=another.username",
+				"DD_INSTALLER_REGISTRY_USERNAME_ANOTHER_IMAGE=yet.another.username",
+				"DD_INSTALLER_REGISTRY_PASSWORD_IMAGE=another.password",
+				"DD_INSTALLER_REGISTRY_PASSWORD_ANOTHER_IMAGE=yet.another.password",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE=true",
 				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
 				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
