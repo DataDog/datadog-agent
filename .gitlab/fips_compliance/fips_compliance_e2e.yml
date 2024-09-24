@@ -7,7 +7,7 @@
     - !reference [.on_subcommands_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/fips_compliance
+    TARGETS: ./tests/fips-compliance
     TEAM: agent-shared-components
 
 fips-compliance-e2e-linux:
