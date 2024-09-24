@@ -8,6 +8,9 @@ package health
 import (
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
@@ -18,5 +21,8 @@ type linuxHealthSuite struct {
 
 func TestLinuxHealthSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxHealthSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	suite := &linuxHealthSuite{baseHealthSuite{descriptor: os.UbuntuDefault}}
+	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(suite.descriptor)),
+	)))
 }

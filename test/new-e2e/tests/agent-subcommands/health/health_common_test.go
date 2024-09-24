@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -24,6 +25,7 @@ import (
 
 type baseHealthSuite struct {
 	e2e.BaseSuite[environments.Host]
+	descriptor os.Descriptor
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -57,7 +59,7 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 
 	// restart the agent, which validates the key using the fakeintake at startup
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.Env().RemoteHost.Descriptor())),
+		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
 	))
 
