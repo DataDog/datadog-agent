@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import "fmt"
 
@@ -32,7 +32,8 @@ func test_uint_slice(u []uint) {}
 //go:noinline
 func test_struct_slice(xs []nestedStruct) {}
 
-func executeSliceFuncs() {
+//nolint:all
+func ExecuteSliceFuncs() {
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
 	sprintSlice(originalSlice)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ func test_trigger_verifier_error(t triggerVerifierErrorForTesting) {}
 //
 //nolint:all
 //go:noinline
-func return_goroutine_id() uint64 {
+func Return_goroutine_id() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
 	b = bytes.TrimPrefix(b, []byte("goroutine "))
@@ -32,6 +32,6 @@ func return_goroutine_id() uint64 {
 
 //nolint:all
 //go:noinline
-func executeOther() {
+func ExecuteOther() {
 	test_trigger_verifier_error(1)
 }

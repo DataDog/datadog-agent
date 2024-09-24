@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import "fmt"
 
@@ -52,7 +52,8 @@ func not_inlined() string {
 	return fmt.Sprintf("hello %d!", 42)
 }
 
-func executeStackAndInlining() {
+//nolint:all
+func ExecuteStackAndInlining() {
 	stack_A()
 	call_inlined_func_chain()
 }

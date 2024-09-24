@@ -1040,7 +1040,7 @@ def kmt_sysprobe_prepare(
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
                     binary_path = os.path.join(target_path, gobin)
                     nw.build(
-                        inputs=[f"{pkg}/..."],
+                        inputs=[f"{pkg}/{gobin}.go"],
                         outputs=[binary_path],
                         rule="gobin",
                         pool="gobuild",

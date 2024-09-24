@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import (
 	"fmt"
@@ -54,7 +54,8 @@ func test_interface(b behavior) string {
 	return fmt.Sprintln(hash, inter, iType, iFun)
 }
 
-func executeInterfaceFuncs() {
+//nolint:all
+func ExecuteInterfaceFuncs() {
 	test_interface(firstBehavior{"foo"})
 	test_interface(secondBehavior{42})
 }

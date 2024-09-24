@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 //nolint:all
 //go:noinline
@@ -53,7 +53,8 @@ func test_empty_struct(e emptyStruct) {}
 //go:noinline
 func test_lots_of_fields(l lotsOfFields) {}
 
-func executeStructFuncs() {
+//nolint:all
+func ExecuteStructFuncs() {
 	ts := threestrings{"a", "bb", "ccc"}
 	test_string_struct(ts)
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 /***********************/
 /* Multiple Parameters */
@@ -74,7 +74,8 @@ func test_multiple_simple_params(a bool, b byte, c rune, d uint, e string) {}
 func test_multiple_composite_params(a [3]string, b aStruct, c []int, d map[string]string, e []nestedStruct) {
 }
 
-func executeMultiParamFuncs() {
+//nolint:all
+func ExecuteMultiParamFuncs() {
 	test_multiple_simple_params(false, 42, 'z', 1337, "xyz")
 
 	// fails because slices and maps are not supported

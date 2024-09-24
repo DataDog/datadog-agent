@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 //nolint:all
 //go:noinline
@@ -71,7 +71,8 @@ type typeAlias uint16
 //go:noinline
 func test_type_alias(x typeAlias) {}
 
-func executeBasicFuncs() {
+//nolint:all
+func ExecuteBasicFuncs() {
 	test_single_int8(-8)
 	test_single_int16(-16)
 	test_single_int32(-32)

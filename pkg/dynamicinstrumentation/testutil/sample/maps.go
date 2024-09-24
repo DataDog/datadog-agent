@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 type structWithMap struct {
 	m map[int]int
@@ -29,7 +29,8 @@ func test_array_of_maps(m [2]map[string]int) {}
 //go:noinline
 func test_pointer_to_map(m *map[string]int) {}
 
-func executeMapFuncs() {
+//nolint:all
+func ExecuteMapFuncs() {
 
 	test_map_string_to_int(map[string]int{"foo": 1, "bar": 2})
 	test_map_string_to_struct(map[string]nestedStruct{"foo": {1, "one"}, "bar": {2, "two"}})

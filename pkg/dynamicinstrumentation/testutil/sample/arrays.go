@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 /********************/
 /* ARRAY PARAMETERs */
@@ -82,7 +82,8 @@ func test_array_of_arrays_of_arrays(b [2][2][2]int) {}
 func test_array_of_structs(a [2]nestedStruct) {
 }
 
-func executeArrayFuncs() {
+//nolint:all
+func ExecuteArrayFuncs() {
 	test_byte_array([2]byte{1, 1})
 	test_rune_array([2]rune{1, 2})
 	test_string_array([2]string{"one", "two"})

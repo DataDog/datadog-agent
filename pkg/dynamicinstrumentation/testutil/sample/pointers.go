@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 import "unsafe"
 
@@ -69,7 +69,8 @@ func test_struct_with_string_pointer(z spws) {}
 //go:noinline
 func test_string_pointer(z *string) {}
 
-func executePointerFuncs() {
+//nolint:all
+func ExecutePointerFuncs() {
 	var u64F uint64 = 5
 	swp := structWithPointer{a: &u64F}
 	test_struct_with_pointer(swp)

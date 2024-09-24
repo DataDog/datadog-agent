@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package sample
 
 type typeWithGenerics[V comparable] struct {
 	Value V
@@ -15,7 +15,8 @@ func (x typeWithGenerics[V]) Guess(value V) bool {
 	return x.Value == value
 }
 
-func executeGenericFuncs() {
+//nolint:all
+func ExecuteGenericFuncs() {
 	x := typeWithGenerics[string]{Value: "generics work"}
 	x.Guess("generics work")
 
