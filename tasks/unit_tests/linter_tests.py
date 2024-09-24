@@ -58,10 +58,10 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_multi_match_windows(self):
         with open(self.test_file, "w") as f:
             f.write(
-                'DD_API_KEY=$(& "$CI_PROJECT_DIR\tools \\ci\fetch_secret.ps1" test.datadog-agent.datadog_api_key_org2 $tmpfile)\n'
-                'DD_API_KEY=$(& "$CI_PROJECT_DIR\tools \\ci\fetch secret.ps1" "$Env:MISSING_UNDERSCORE" $tmpfile)\n'
-                '`DD_APP_KEY=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" "bad.name" "$tmpfile")\n'
-                'DD_APP=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" "$Env:TEST" $tmpfile)\n'
+                'DD_API_KEY=$(& "$CI_PROJECT_DIR\tools \\ci\fetch_secret.ps1" -parameterName test.datadog-agent.datadog_api_key_org2 -tempFile $tmpfile)\n'
+                'DD_API_KEY=$(& "$CI_PROJECT_DIR\tools \\ci\fetch secret.ps1" -parameterName "$Env:MISSING_UNDERSCORE" -tempFile $tmpfile)\n'
+                '`DD_APP_KEY=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" -parameterName "bad.name" -tempFile "$tmpfile")\n'
+                'DD_APP=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" -parameterName "$Env:TEST" -tempFile $tmpfile)\n'
             )
         matched = linter.list_get_parameter_calls(self.test_file)
         self.assertEqual(2, len(matched))
