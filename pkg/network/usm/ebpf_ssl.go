@@ -461,11 +461,16 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 			}
 		}
 
+		nodejs, err := newNodeJSMonitor(c, m)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing nodejs monitor: %s", err)
+		}
+
 		return &sslProgram{
 			cfg:           c,
 			watcher:       watcher,
 			istioMonitor:  newIstioMonitor(c, m),
-			nodeJSMonitor: newNodeJSMonitor(c, m),
+			nodeJSMonitor: nodejs,
 		}, nil
 	}
 }

@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"fmt"
 	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -109,9 +110,9 @@ type nodeJSMonitor struct {
 	attacher *uprobes.UprobeAttacher
 }
 
-func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
+func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) (*nodeJSMonitor, error) {
 	if !c.EnableNodeJSMonitoring {
-		return nil
+		return nil, nil
 	}
 
 	attachCfg := uprobes.AttacherConfig{
@@ -128,12 +129,12 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 
 	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{})
 	if err != nil {
-		log.Errorf("Cannot create uprobe attacher: %v", err)
+		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
 
 	return &nodeJSMonitor{
 		attacher: attacher,
-	}
+	}, nil
 }
 
 // Start the nodeJSMonitor
