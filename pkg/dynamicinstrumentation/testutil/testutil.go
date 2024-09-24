@@ -32,7 +32,7 @@ func BuildSampleService(t *testing.T) string {
 
 	curDir, err := pwd()
 	require.NoError(t, err)
-	serverBin, err := BuildGoBinaryWrapper(curDir, "sample-service")
+	serverBin, err := BuildGoBinaryWrapper(curDir, "sample/sample-service")
 	require.NoError(t, err)
 	return serverBin
 }
