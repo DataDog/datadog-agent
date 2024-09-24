@@ -14,6 +14,9 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
+
 always_build true
 
 build do
