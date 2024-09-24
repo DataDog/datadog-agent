@@ -635,7 +635,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
 	config.BindEnvAndSetDefault("internal_profiling.enable_block_profiling", false)
 	config.BindEnvAndSetDefault("internal_profiling.enable_mutex_profiling", false)
-	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", false)
+	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 	config.BindEnvAndSetDefault("internal_profiling.extra_tags", []string{})
 	config.BindEnvAndSetDefault("internal_profiling.custom_attributes", []string{"check_id"})
 
