@@ -930,9 +930,10 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	}
 
 	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
-	oldPods, _ := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	oldPods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
+	suite.Require().NoError(err)
 	suite.Require().Len(oldPods.Items, 1)
 	oldPod := oldPods.Items[0]
 
