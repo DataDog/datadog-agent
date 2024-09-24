@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package teeconfig is a tee of two configs that writes to both but reads from only one
 package teeconfig
 
 import (
@@ -16,12 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// teeConfig
+// teeConfig is a combination of two configs, both get written to but only baseline is read
 type teeConfig struct {
 	baseline model.Config
 	compare  model.Config
 }
 
+// NewTeeConfig constructs a new teeConfig
 func NewTeeConfig(baseline, compare model.Config) model.Config {
 	return &teeConfig{baseline: baseline, compare: compare}
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package nodetreemodel defines a model for the config using a tree of nodes
 package nodetreemodel
 
 import (
