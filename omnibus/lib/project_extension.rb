@@ -41,26 +41,51 @@ module Omnibus
 
     def ddwcssign(file)
       log.info(self.class.name) { "Signing #{file}" }
-      cmd = Array.new.tap do |arr|
+
+      # Signing is inherently flaky as the signing server may not be available
+      # retry a few times
+      max_retries = 3
+      attempts = 0
+    
+      begin
+        attempts += 1
+        cmd = Array.new.tap do |arr|
           arr << "dd-wcs"
           arr << "sign"
           arr << "\"#{file}\""
-      end.join(" ")
-      status = shellout(cmd)
-      if status.exitstatus != 0
-        log.warn(self.class.name) do
-        <<-EOH.strip
-          Failed to sign with dd-wcs
-
-          STDOUT
-          ------
-          #{status.stdout}
-
-          STDERR
-          ------
-          #{status.stderr}
-        EOH
+        end.join(" ")
+    
+        status = shellout(cmd)
+        
+        if status.exitstatus != 0
+          log.warn(self.class.name) do
+            <<-EOH.strip
+              Failed to sign with dd-wcs (Attempt #{attempts} of #{max_retries})
+    
+              STDOUT
+              ------
+              #{status.stdout}
+    
+              STDERR
+              ------
+              #{status.stderr}
+            EOH
+          end
+    
+          # Retry logic: raise error after 3 attempts
+          if attempts < max_retries
+            log.info(self.class.name) { "Retrying signing #{file} (Attempt #{attempts + 1})" }
+            sleep(2) # Add a small delay before retrying (optional)
+            retry
+          else
+            raise "Failed to sign with dd-wcs after #{max_retries} attempts"
+          end
+        else
+          log.info(self.class.name) { "Successfully signed #{file} after #{attempts} attempt(s)" }
         end
+      rescue => e
+        log.error(self.class.name) { "Error during signing: #{e.message}" }
+        raise "Failed to sign with dd-wcs: #{e.message}"
       end
     end
 
