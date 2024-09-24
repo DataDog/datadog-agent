@@ -7,10 +7,11 @@
 lint_licenses:
   extends: .lint
   script:
+    - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - inv -e lint-licenses
-  needs: ["go_tools_deps"]
+  needs: ["go_tools_deps", "go_deps"]
 
 lint_shell:
   extends: .lint
