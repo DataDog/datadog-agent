@@ -53,6 +53,7 @@ type NotCaptureReason uint8
 
 const (
 	Unsupported         NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
+	NoFieldLocation                                 // NoFieldLocation means the parameter wasn't captured because location information is missing from analysis
 	FieldLimitReached                               // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
 	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
 )

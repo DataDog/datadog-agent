@@ -49,10 +49,10 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-devx-loops
 /.github/dependabot.yaml                            @DataDog/agent-devx-infra
-/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
-/.github/workflows/serverless-binary-size.yml       @DataDog/serverless
-/.github/workflows/serverless-integration.yml       @DataDog/serverless
-/.github/workflows/serverless-vuln-scan.yml         @DataDog/serverless
+/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-binary-size.yml       @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-integration.yml       @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-vuln-scan.yml         @DataDog/serverless @Datadog/serverless-aws
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
 /.github/workflows/gohai.yml                        @DataDog/agent-shared-components
@@ -72,7 +72,7 @@
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx-loops
 /.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry @DataDog/agent-delivery
-/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-delivery
+/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-delivery
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-delivery
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 
@@ -104,7 +104,7 @@
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-devx-infra
-/.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-devx-infra
+/.gitlab/functional_test/serverless.yml              @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-devx-infra
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
@@ -188,7 +188,7 @@
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
-/cmd/serverless/                        @DataDog/serverless
+/cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
@@ -311,7 +311,7 @@
 /pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-processing-and-routing @DataDog/agent-integrations
-/pkg/serverless/                        @DataDog/serverless
+/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
 /pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
@@ -351,9 +351,9 @@
 /pkg/collector/corechecks/ebpf/ebpf*                  @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
-/pkg/collector/corechecks/embed/        @Datadog/agent-devx-infra
-/pkg/collector/corechecks/embed/apm/            @Datadog/agent-devx-infra @DataDog/agent-apm
-/pkg/collector/corechecks/embed/process/  @Datadog/agent-devx-infra @DataDog/processes
+/pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
+/pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
+/pkg/collector/corechecks/embed/process/           @DataDog/processes
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
@@ -399,7 +399,7 @@
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
 /pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/otlp/                              @DataDog/opentelemetry
-/pkg/otlp/*_serverless*.go              @DataDog/serverless
+/pkg/otlp/*_serverless*.go              @DataDog/serverless @Datadog/serverless-aws
 /pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry
 /pkg/pidfile/                           @DataDog/agent-shared-components
 /pkg/persistentcache/                   @DataDog/agent-metrics-logs
@@ -570,8 +570,8 @@
 /test/e2e/argo-workflows/otlp-workflow.yaml @DataDog/opentelemetry
 /test/e2e/containers/otlp_sender/        @DataDog/opentelemetry
 /test/integration/                      @DataDog/container-integrations
-/test/integration/serverless            @DataDog/serverless
-/test/integration/serverless_perf       @DataDog/serverless
+/test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
+/test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
 /test/kitchen/                          @DataDog/agent-devx-loops
 /test/kitchen/test-definitions/         @DataDog/agent-delivery
 /test/kitchen/test/integration/         @DataDog/agent-delivery
