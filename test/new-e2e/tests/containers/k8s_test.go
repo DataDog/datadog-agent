@@ -938,7 +938,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	oldPod := oldPods.Items[0]
 
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err := suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+	err = suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
