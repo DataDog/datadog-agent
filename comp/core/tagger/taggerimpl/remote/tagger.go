@@ -198,11 +198,19 @@ func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+	fmt.Printf("---- Remote Tag: entityID:%v, cardinality:%v ----\n", entityID, cardinality)
+	list := t.List()
+	for k, v := range list.Entities {
+		fmt.Printf("---- Remote Entities: entity:%v, tags:%v ----\n", k, v.Tags)
+	}
 	id, _ := types.NewEntityIDFromString(entityID)
 	entity := t.store.getEntity(id)
 	if entity != nil {
+		fmt.Printf("---- entity.LowCardinalityTags():%v ----\n", entity.LowCardinalityTags)
+		tgs := entity.GetTags(cardinality)
+		fmt.Printf("---- entity.GetTags():%v ----\n", tgs)
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
-		return entity.GetTags(cardinality), nil
+		return tgs, nil
 	}
 
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
