@@ -8,8 +8,6 @@ package runcmd
 import (
 	"bytes"
 	"errors"
-	"os"
-	"regexp"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -60,16 +58,6 @@ func TestDisplayError_normalError(t *testing.T) {
 // fx errors are abbreviated to just the root cause by default
 func TestDisplayError_fxError(t *testing.T) {
 	var buf bytes.Buffer
-	t.Setenv("TRACE_FX", "") // get testing to reset this value for us
-	os.Unsetenv("TRACE_FX")  // but actually _unset_ the value
 	displayError(makeFxError(t), &buf)
 	require.Equal(t, "Error: uhoh\n", buf.String())
-}
-
-// entire error is included with TRACE_FX set
-func TestDisplayError_fxError_TRACE_FX(t *testing.T) {
-	var buf bytes.Buffer
-	t.Setenv("TRACE_FX", "1")
-	displayError(makeFxError(t), &buf)
-	require.Regexp(t, regexp.MustCompile("Error: could not build arguments for function .* uhoh"), buf.String())
 }

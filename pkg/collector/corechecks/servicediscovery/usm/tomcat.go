@@ -11,7 +11,7 @@ import (
 	"path"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // tomcat vendor specific constants
@@ -80,7 +80,7 @@ func (te tomcatExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, 
 func (te tomcatExtractor) scanDirForDeployments(path string, uniques *map[string]struct{}) []jeeDeployment {
 	entries, err := fs.ReadDir(te.ctx.fs, path)
 	if err != nil {
-		te.ctx.logger.Debug("error while scanning tomcat deployments", zap.String("appBase", path), zap.Error(err))
+		log.Debugf("error while scanning tomcat deployments (app base: %q). Err: %v", path, err)
 		return nil
 	}
 	var ret []jeeDeployment
@@ -129,13 +129,19 @@ func (te tomcatExtractor) parseServerXML(domainHome string) *tomcatServerXML {
 	xmlFilePath := path.Join(domainHome, serverXMLPath)
 	file, err := te.ctx.fs.Open(xmlFilePath)
 	if err != nil {
-		te.ctx.logger.Debug("Unable to locate tomcat server.xml", zap.String("filepath", xmlFilePath), zap.Error(err))
+		log.Debugf("Unable to locate tomcat server.xml (%q). Err: %v", xmlFilePath, err)
+		return nil
+	}
+	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		log.Debugf("Invalid tomcat server.xml (%q). Err %v", xmlFilePath, err)
 		return nil
 	}
 	var serverXML tomcatServerXML
-	err = xml.NewDecoder(file).Decode(&serverXML)
+	err = xml.NewDecoder(reader).Decode(&serverXML)
 	if err != nil {
-		te.ctx.logger.Debug("Unable to parse tomcat server.xml", zap.String("filepath", xmlFilePath), zap.Error(err))
+		log.Debugf("Unable to parse tomcat server.xml (%q). Err: %v", xmlFilePath, err)
 		return nil
 	}
 	return &serverXML

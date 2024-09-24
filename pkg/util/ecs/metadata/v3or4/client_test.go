@@ -53,7 +53,7 @@ func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
 	// default timeout is 500ms while the delay is 1.5s
 	require.True(t, os.IsTimeout(err))
 	require.Nil(t, task)
-	require.Equal(t, 1, dummyECS.RequestCount)
+	require.Equal(t, uint64(1), dummyECS.RequestCount.Load())
 }
 
 func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
@@ -81,7 +81,7 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 	// 1st request failed: request timeout is 500ms
 	// 2nd request failed: request timeout is 1s
 	// 3rd request succeed: request timeout is 2s
-	require.Equal(t, 3, dummyECS.RequestCount)
+	require.Equal(t, uint64(3), dummyECS.RequestCount.Load())
 }
 
 // expected is an expected Task from ./testdata/task.json

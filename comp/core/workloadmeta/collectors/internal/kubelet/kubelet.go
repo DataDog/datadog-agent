@@ -18,9 +18,10 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,7 +60,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -219,7 +220,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
-			if stdErrors.Is(err, containers.ErrImageIsSha256) {
+			if stdErrors.Is(err, pkgcontainersimage.ErrImageIsSha256) {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256

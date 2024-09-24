@@ -8,7 +8,7 @@ package winawshost
 
 import (
 	"fmt"
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
+
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -134,7 +136,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		return err
 	}
 
-	env.AwsEnvironment = &awsEnv
+	env.Environment = &awsEnv
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
@@ -202,7 +204,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
+		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -216,7 +219,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.installerOptions != nil {
-		installer, err := installer.NewInstaller(awsEnv, host, params.installerOptions...)
+		installer, err := installer.NewInstaller(&awsEnv, host, params.installerOptions...)
 		if err != nil {
 			return err
 		}

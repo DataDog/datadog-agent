@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-
 package tracer
 
 import (
@@ -16,9 +14,15 @@ import (
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// NeedsEBPF returns `true` if the network-tracer requires eBPF
+func NeedsEBPF() bool {
+	return !pkgconfigsetup.SystemProbe().GetBool("network_config.enable_ebpfless")
+}
 
 // IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality
 // along with some context on why it's not supported
@@ -59,6 +63,10 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 		return false, fmt.Errorf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
 	}
 
+	if !NeedsEBPF() {
+		return true, nil
+	}
+
 	var requiredFuncs = []asm.BuiltinFunc{
 		asm.FnMapLookupElem,
 		asm.FnMapUpdateElem,
@@ -81,5 +89,5 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 	}
 	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCode)
 	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missingFuncs, ", "))
-	return false, fmt.Errorf(errMsg)
+	return false, errors.New(errMsg)
 }

@@ -133,12 +133,14 @@ class TestCompareToItself(unittest.TestCase):
     @patch('builtins.open', new=MagicMock())
     @patch.dict('os.environ', {"CI_COMMIT_REF_NAME": "Football"})
     @patch('tasks.pipeline.time', new=MagicMock())
+    @patch('tasks.libs.releasing.json.load_release_json')
     @patch('tasks.pipeline.datetime')
     @patch('tasks.pipeline.GithubAPI')
     @patch('tasks.pipeline.get_gitlab_repo')
-    def test_nominal(self, repo_mock, gh_mock, dt_mock):
+    def test_nominal(self, repo_mock, gh_mock, dt_mock, release_mock):
         dt_mock.now.return_value = self.now
         gh_mock.return_value = self.gh
+        release_mock.return_value = {"base_branch": "main"}
         pipelines = MagicMock()
         compare_to = MagicMock(sha="c0mm1t")
         compare_to.jobs.list.return_value = [1, 2, 3]
@@ -154,12 +156,14 @@ class TestCompareToItself(unittest.TestCase):
     @patch('builtins.open', new=MagicMock())
     @patch.dict('os.environ', {"CI_COMMIT_REF_NAME": "Football"})
     @patch('tasks.pipeline.time', new=MagicMock())
+    @patch('tasks.libs.releasing.json.load_release_json')
     @patch('tasks.pipeline.datetime')
     @patch('tasks.pipeline.GithubAPI')
     @patch('tasks.pipeline.get_gitlab_repo')
-    def test_no_pipeline_found(self, repo_mock, gh_mock, dt_mock):
+    def test_no_pipeline_found(self, repo_mock, gh_mock, dt_mock, release_mock):
         dt_mock.now.return_value = self.now
         gh_mock.return_value = self.gh
+        release_mock.return_value = {"base_branch": "main"}
         pipelines = MagicMock()
         pipelines.list.side_effect = [[], [], [], [], [], []]
         agent = MagicMock()
@@ -173,12 +177,14 @@ class TestCompareToItself(unittest.TestCase):
     @patch('builtins.open', new=MagicMock())
     @patch.dict('os.environ', {"CI_COMMIT_REF_NAME": "Football"})
     @patch('tasks.pipeline.time', new=MagicMock())
+    @patch('tasks.libs.releasing.json.load_release_json')
     @patch('tasks.pipeline.datetime')
     @patch('tasks.pipeline.GithubAPI')
     @patch('tasks.pipeline.get_gitlab_repo')
-    def test_no_pipeline_found_again(self, repo_mock, gh_mock, dt_mock):
+    def test_no_pipeline_found_again(self, repo_mock, gh_mock, dt_mock, release_mock):
         dt_mock.now.return_value = self.now
         gh_mock.return_value = self.gh
+        release_mock.return_value = {"base_branch": "main"}
         pipelines = MagicMock()
         compare_to = MagicMock(sha="w4lo0")
         compare_to.jobs.list.return_value = [1, 2, 3]
@@ -194,12 +200,14 @@ class TestCompareToItself(unittest.TestCase):
     @patch('builtins.open', new=MagicMock())
     @patch.dict('os.environ', {"CI_COMMIT_REF_NAME": "Football"})
     @patch('tasks.pipeline.time', new=MagicMock())
+    @patch('tasks.libs.releasing.json.load_release_json')
     @patch('tasks.pipeline.datetime')
     @patch('tasks.pipeline.GithubAPI')
     @patch('tasks.pipeline.get_gitlab_repo')
-    def test_pipeline_with_no_jobs(self, repo_mock, gh_mock, dt_mock):
+    def test_pipeline_with_no_jobs(self, repo_mock, gh_mock, dt_mock, release_mock):
         dt_mock.now.return_value = self.now
         gh_mock.return_value = self.gh
+        release_mock.return_value = {"base_branch": "main"}
         pipelines = MagicMock()
         compare_to = MagicMock(sha="c0mm1t")
         pipelines.list.side_effect = [[], [], [compare_to], [], [], []]

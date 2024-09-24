@@ -71,7 +71,6 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			require.Equal(t, found, tt.wantFound)
 			require.Equal(t, name, tt.expectedName)
 			require.Equal(t, kind, tt.expectedKind)
-
 		})
 	}
 }
@@ -97,8 +96,7 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	//java, js, python, dotnet, ruby

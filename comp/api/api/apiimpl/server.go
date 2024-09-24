@@ -16,13 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(5, seelog.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 

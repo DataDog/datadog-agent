@@ -11,8 +11,12 @@ package model
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"math"
 	"reflect"
 )
+
+// to always require the math package
+var _ = math.MaxUint16
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {

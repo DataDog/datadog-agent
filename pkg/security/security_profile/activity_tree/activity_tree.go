@@ -854,3 +854,66 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	}
 	at.ProcessNodes = newProcessNodes
 }
+
+func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
+	for _, pn := range processNode.Children {
+		at.visitProcessNode(pn, cb)
+	}
+	cb(processNode)
+}
+
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+	if len(fileNode.Children) == 0 {
+		cb(fileNode)
+		return
+	}
+
+	for _, file := range fileNode.Children {
+		at.visitFileNode(file, cb)
+	}
+}
+
+func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
+	for _, pn := range at.ProcessNodes {
+		at.visitProcessNode(pn, cb)
+	}
+}
+
+// ExtractPaths returns the exec / fim, exec / parent paths
+func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
+
+	fimPathsperExecPath := make(map[string][]string)
+	execAndParent := make(map[string][]string)
+
+	at.visit(func(processNode *ProcessNode) {
+		var fimPaths []string
+		for _, file := range processNode.Files {
+			at.visitFileNode(file, func(fileNode *FileNode) {
+				path := fileNode.File.PathnameStr
+				if len(path) > 0 {
+					if strings.Contains(path, "*") {
+						fimPaths = append(fimPaths, `~"`+path+`"`)
+					} else {
+						fimPaths = append(fimPaths, `"`+path+`"`)
+					}
+				}
+			})
+		}
+		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+		paths, ok := fimPathsperExecPath[execPath]
+		if ok {
+			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
+		} else {
+			fimPathsperExecPath[execPath] = fimPaths
+		}
+		p, pp := extractExecAndParent(processNode)
+		tmp, ok := execAndParent[p]
+		if ok {
+			execAndParent[p] = append(tmp, pp)
+		} else {
+			execAndParent[p] = []string{pp}
+		}
+	})
+
+	return fimPathsperExecPath, execAndParent
+}

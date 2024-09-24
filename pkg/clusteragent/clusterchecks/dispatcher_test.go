@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -468,7 +468,7 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -506,7 +506,7 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -539,7 +539,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	for _, tc := range []struct {
 		extraTagsConfig   []string

@@ -33,7 +33,8 @@ from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
-from tasks.modules import DEFAULT_MODULES, GoModule
+from tasks.libs.releasing.json import _get_release_json_value
+from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -453,20 +454,14 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-        match_precision = 0
-        best_module_path = None
-
-        # Since several modules can match the path we take only the most precise one
-        for module_path in DEFAULT_MODULES:
-            if module_path in modified_file and len(module_path) > match_precision:
-                match_precision = len(module_path)
-                best_module_path = module_path
+        best_module_path = Path(get_go_module(modified_file))
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
-        targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
+        module = get_module_by_path(best_module_path)
+        targets = module.lint_targets if lint else module.targets
 
         for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
@@ -481,7 +476,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If we modify the go.mod or go.sum we run the tests for the whole module
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
-            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            modules_to_test[best_module_path] = get_module_by_path(best_module_path)
             go_mod_modified_modules.add(best_module_path)
             continue
 
@@ -663,7 +658,8 @@ def get_impacted_packages(ctx, build_tags=None):
             )
 
     # Some files like tasks/gotest.py should trigger all tests
-    if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
+    if should_run_all_tests(ctx, TRIGGER_ALL_TESTS_PATHS):
+        print(f"Triggering all tests because a file matching one of the {TRIGGER_ALL_TESTS_PATHS} was modified")
         return DEFAULT_MODULES.values()
 
     modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
@@ -746,7 +742,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     modules_to_test = {}
 
     for package in packages:
-        module_path = get_go_module(package).replace("./", "")
+        module_path = get_go_module(package)
 
         # Check if the module is in the target list of the modules we want to test
         if module_path not in DEFAULT_MODULES or not DEFAULT_MODULES[module_path].condition():
@@ -819,21 +815,20 @@ def get_go_module(path):
     while path != '/':
         go_mod_path = os.path.join(path, 'go.mod')
         if os.path.isfile(go_mod_path):
-            return path
+            return os.path.relpath(path)
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
 
 
-def should_run_all_tests(files, trigger_files):
-    for trigger_file in trigger_files:
-        if len(fnmatch.filter(files, trigger_file)):
-            print(f"Triggering all tests because a file matching {trigger_file} was modified")
-            return True
-    return False
+def should_run_all_tests(ctx, trigger_files):
+    base_branch = _get_release_json_value("base_branch")
+    files = get_modified_files(ctx, base_branch=base_branch)
+    return any(len(fnmatch.filter(files, trigger_file)) for trigger_file in trigger_files)
 
 
 def get_go_modified_files(ctx):
-    files = get_modified_files(ctx)
+    base_branch = _get_release_json_value("base_branch")
+    files = get_modified_files(ctx, base_branch=base_branch)
     return [
         file
         for file in files

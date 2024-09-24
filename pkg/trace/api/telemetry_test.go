@@ -84,6 +84,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
 		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
+		assert.Equal("key:test_value", req.Header.Get("X-Datadog-Container-Tags"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
@@ -94,7 +95,11 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 
 	cfg := getTestConfig(srv.URL)
 	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
+	cfg.ContainerTags = func(_ string) ([]string, error) {
+		return []string{"key:test\nvalue"}, nil
+	}
 	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
 
 	assertSendRequest(t, recv, endpointCalled)
 }
@@ -295,7 +300,7 @@ func TestMaxInflightBytes(t *testing.T) {
 
 			done := make(chan struct{})
 
-			srv := assertingServer(t, func(req *http.Request, body []byte) error {
+			srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 				assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 				assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 				assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
@@ -339,7 +344,7 @@ func TestInflightBytesReset(t *testing.T) {
 
 	done := make(chan struct{})
 
-	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+	srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
@@ -397,7 +402,7 @@ func TestActualServer(t *testing.T) {
 
 	done := make(chan struct{})
 
-	intakeMockServer := assertingServer(t, func(req *http.Request, body []byte) error {
+	intakeMockServer := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))

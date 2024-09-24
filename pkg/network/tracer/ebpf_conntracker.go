@@ -14,13 +14,12 @@ import (
 	"io"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -238,13 +237,14 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) 
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
 
-	// Try the lookup in the root namespace first
+	// Try the lookup in the root namespace first, since usually
+	// NAT rules referencing conntrack are installed there instead
+	// of other network namespaces (for pods, for instance)
 	src.Netns = e.rootNS
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("looking up in conntrack (tuple): %s", src)
 	}
 	dst := e.get(src)
-
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
 		src.Netns = stats.NetNS
@@ -287,18 +287,35 @@ func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTup
 
 func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	start := time.Now()
+	defer func() {
+		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
+	}()
+
 	if err := e.ctMap.Delete(key); err != nil {
 		if errors.Is(err, ebpf.ErrKeyNotExist) {
 			if log.ShouldLog(seelog.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
+
 			return
 		}
+
 		log.Warnf("unable to delete conntrack entry from eBPF map: %s", err)
-	} else {
-		conntrackerTelemetry.unregistersTotal.Inc()
-		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
+		return
 	}
+
+	conntrackerTelemetry.unregistersTotal.Inc()
+}
+
+func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
+	key.Netns = ns
+	dst := e.get(key)
+	e.delete(key)
+	if dst != nil {
+		e.delete(dst)
+	}
+
+	return dst
 }
 
 func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionStats) {
@@ -307,10 +324,12 @@ func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionStats) {
 
 	toConntrackTupleFromStats(key, stats)
 
-	dst := e.get(key)
-	e.delete(key)
-	if dst != nil {
-		e.delete(dst)
+	// attempt a delete from both root and connection's network namespace
+	if dst := e.deleteTranslationNs(key, e.rootNS); dst != nil {
+		tuplePool.Put(dst)
+	}
+
+	if dst := e.deleteTranslationNs(key, stats.NetNS); dst != nil {
 		tuplePool.Put(dst)
 	}
 }

@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
-	config.MockSystemProbe(t)
+	mock.NewSystemProbe(t)
 
 	for i, te := range []struct {
 		network, netProcEvents bool
@@ -44,7 +44,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 }
 
 func TestDynamicInstrumentation(t *testing.T) {
-	config.MockSystemProbe(t)
+	mock.NewSystemProbe(t)
 	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
 	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 
@@ -60,9 +60,8 @@ func TestDynamicInstrumentation(t *testing.T) {
 }
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
-	config.ResetSystemProbeConfig(t)
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-	cfg := config.SystemProbe()
+	cfg := mock.NewSystemProbe(t)
 	Adjust(cfg)
 
 	if ProcessEventDataStreamSupported() {
@@ -74,25 +73,34 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
-		npm, usm, ccm bool
-		npmEnabled    bool
+		npm, usm, ccm, csm bool
+		npmEnabled         bool
 	}{
-		{false, false, false, false},
-		{false, false, true, true},
-		{false, true, false, true},
-		{false, true, true, true},
-		{true, false, false, true},
-		{true, false, true, true},
-		{true, true, false, true},
-		{true, true, true, true},
+		{false, false, false, false, false},
+		{false, false, true, false, true},
+		{false, true, false, false, true},
+		{false, true, true, false, true},
+		{true, false, false, false, true},
+		{true, false, true, false, true},
+		{true, true, false, false, true},
+		{true, true, true, false, true},
+		{false, false, false, true, true},
+		{false, false, true, true, true},
+		{false, true, false, true, true},
+		{false, true, true, true, true},
+		{true, false, false, true, true},
+		{true, false, true, true, true},
+		{true, true, false, true, true},
+		{true, true, true, true, true},
 	}
 
-	config.MockSystemProbe(t)
+	mock.NewSystemProbe(t)
 	for _, te := range tests {
 		t.Run("", func(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.npm))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(te.usm))
 			t.Setenv("DD_CCM_NETWORK_CONFIG_ENABLED", strconv.FormatBool(te.ccm))
+			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(te.csm))
 			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)

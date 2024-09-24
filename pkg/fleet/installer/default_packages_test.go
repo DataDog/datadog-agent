@@ -34,7 +34,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://gcr.io/datadoghq/apm-library-java-package:1",
 		"oci://gcr.io/datadoghq/apm-library-ruby-package:2",
 		"oci://gcr.io/datadoghq/apm-library-js-package:5",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:2",
+		"oci://gcr.io/datadoghq/apm-library-dotnet-package:3",
 		"oci://gcr.io/datadoghq/apm-library-python-package:2",
 	}, packages)
 }
@@ -199,6 +199,7 @@ func TestDefaultPackages(t *testing.T) {
 				DefaultPackagesInstallOverride: map[string]bool{
 					"datadog-apm-library-java": true,
 					"datadog-apm-library-ruby": true,
+					"datadog-apm-library-php":  true,
 				},
 			},
 			expected: []pkg{
@@ -251,15 +252,18 @@ func TestDefaultPackages(t *testing.T) {
 			packages: []Package{
 				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
 					"java": "1.2.3",
+					"php":  "1",
 				},
 				InstallScript: env.InstallScriptEnv{},
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-php", v: "1"},
 			},
 		},
 	}

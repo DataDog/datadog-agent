@@ -10,9 +10,13 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
 
+permissions: {}
+
 jobs:
   CodeQL-Build:
     runs-on: ubuntu-20.04
+    permissions:
+      security-events: write
     strategy:
       matrix:
         language: ["go", "javascript", "python", "cpp"]
@@ -24,7 +28,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python3
-        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
           python-version: "3.11.8"
           cache: "pip"
@@ -32,12 +36,10 @@ jobs:
 
       - name: Setup env variables
         run: |
-          echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
-          echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: ".go-version"
 
@@ -45,7 +47,12 @@ jobs:
         uses: github/codeql-action/init@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
         with:
           languages: ${{ matrix.language }}
-          setup-python-dependencies: false
+          config: |
+            paths-ignore:
+              - rtloader/build/rtloader/CMakeFiles/datadog-agent-rtloader.dir
+              - rtloader/build/three/CMakeFiles/datadog-agent-three.dir
+              - rtloader/build/test/CMakeFiles/run.dir
+              - rtloader/build/CMakeFiles/clang-format.dir
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c

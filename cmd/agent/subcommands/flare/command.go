@@ -49,8 +49,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -108,7 +108,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
-				fx.Supply(flare.NewLocalParams(
+				flare.Module(flare.NewLocalParams(
 					commonpath.GetDistPath(),
 					commonpath.PyChecksPath,
 					commonpath.DefaultLogFile,
@@ -118,17 +118,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				)),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
-				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
-				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
@@ -172,7 +168,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	type pprofGetter func(path string) ([]byte, error)
 
 	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog().GetInt(portConfig))
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt(portConfig))
 		return func(path string) ([]byte, error) {
 			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
 		}
@@ -228,15 +224,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
 	}
 
-	if pkgconfig.Datadog().GetBool("process_config.enabled") ||
-		pkgconfig.Datadog().GetBool("process_config.container_collection.enabled") ||
-		pkgconfig.Datadog().GetBool("process_config.process_collection.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("process_config.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("process_config.container_collection.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled") {
 
 		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
 	}
 
-	if pkgconfig.Datadog().GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfig.Datadog().GetInt("apm_config.receiver_timeout")
+	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
+		traceCpusec := pkgconfigsetup.Datadog().GetInt("apm_config.receiver_timeout")
 		if traceCpusec > seconds {
 			// do not exceed requested duration
 			traceCpusec = seconds
@@ -248,8 +244,8 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
 	}
 
-	if pkgconfig.SystemProbe().GetBool("system_probe_config.enabled") {
-		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
 			sysProbeGet := func() pprofGetter {
@@ -390,16 +386,16 @@ func makeFlare(flareComp flare.Component,
 func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
+	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}

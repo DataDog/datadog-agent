@@ -113,7 +113,7 @@ func (l language) isSupported() bool {
 // If this language does not appear in supportedLanguages, it will not be injected.
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
-	dotnet: "v2", // https://datadoghq.atlassian.net/browse/APMON-1067
+	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
@@ -134,7 +134,7 @@ type libInfo struct {
 	image   string
 }
 
-func (i libInfo) podMutator(v version, ics []containerMutator, ms []podMutator) podMutator {
+func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(v)
 		if !ok {
@@ -144,17 +144,10 @@ func (i libInfo) podMutator(v version, ics []containerMutator, ms []podMutator) 
 			)
 		}
 
-		// set the initContainerMutators on the requirements
-		reqs.initContainerMutators = ics
+		reqs.libRequirementOptions = opts
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
 			return err
-		}
-
-		for _, m := range ms {
-			if err := m.mutatePod(pod); err != nil {
-				return err
-			}
 		}
 
 		return nil

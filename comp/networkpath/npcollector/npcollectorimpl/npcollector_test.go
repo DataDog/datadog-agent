@@ -103,6 +103,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "10.0.0.2" {
 			p = payload.NetworkPath{
+				PathtraceID: "pathtrace-id-111",
 				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
@@ -114,6 +115,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		}
 		if cfg.DestHostname == "10.0.0.4" {
 			p = payload.NetworkPath{
+				PathtraceID: "pathtrace-id-222",
 				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.4", Port: 80},
@@ -131,8 +133,10 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event1 := []byte(`
 {
     "timestamp": 0,
+    "agent_version": "",
     "namespace": "my-ns1",
-    "path_id": "",
+    "pathtrace_id": "pathtrace-id-111",
+    "origin":"network_traffic",
     "protocol": "UDP",
     "source": {
         "hostname": "abc",
@@ -163,8 +167,10 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event2 := []byte(`
 {
     "timestamp": 0,
+    "agent_version": "",
     "namespace": "my-ns1",
-    "path_id": "",
+    "pathtrace_id": "pathtrace-id-222",
+    "origin":"network_traffic",
     "protocol": "UDP",
     "source": {
         "hostname": "abc",
@@ -225,7 +231,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.4",
 		"destination_port:80",
+		"origin:network_traffic",
 		"protocol:UDP",
 	}
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
@@ -366,7 +374,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.6", Port: uint16(161), Protocol: payload.ProtocolUDP, SourceContainerID: "testId1"},
+				{Hostname: "10.0.0.6", Port: uint16(0), Protocol: payload.ProtocolUDP, SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -641,6 +649,37 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
 
+func Test_npCollectorImpl_flushLoop(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.workers":              6,
+		"network_path.collector.flush_interval":       "100ms",
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+	defer npCollector.stop()
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// WHEN
+	go npCollector.flushLoop()
+
+	// THEN
+	assert.Eventually(t, func() bool {
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		if calls == nil {
+			return false
+		}
+		for _, call := range calls.Calls {
+			assert.Less(t, call.Value, (200 * time.Millisecond).Seconds())
+		}
+		return len(calls.Calls) >= 3
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
 func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
@@ -653,6 +692,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	npCollector.statsdClient = stats
 	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 	path := payload.NetworkPath{
+		Origin:      payload.PathOriginNetworkTraffic,
 		Source:      payload.NetworkPathSource{Hostname: "abc"},
 		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
 		Protocol:    payload.ProtocolUDP,
@@ -676,7 +716,9 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.2",
 		"destination_port:80",
+		"origin:network_traffic",
 		"protocol:UDP",
 	}
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
