@@ -889,6 +889,7 @@ workflow:
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
+        - pkg/network/**/*
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
