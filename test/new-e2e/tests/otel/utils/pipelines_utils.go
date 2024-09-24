@@ -353,6 +353,141 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	require.NoError(s.T(), err, "Could not properly start job")
 }
 
+func createCalendarApp(ctx context.Context, s OTelTestSuite) {
+	var replicas int32 = 1
+
+	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
+	serviceSpec := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "calendar-java-otel",
+			Labels: map[string]string{
+				"helm.sh/chart":                "calendar-java-otel-0.1.0",
+				"app.kubernetes.io/name":       "calendar-java-otel",
+				"app.kubernetes.io/instance":   "calendar-java-otel",
+				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/managed-by": "Helm",
+			},
+			Annotations: map[string]string{
+				"openshift.io/deployment.name": "openshift",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeClusterIP,
+			Ports: []corev1.ServicePort{
+				{
+					Port: 9090,
+					TargetPort: intstr.IntOrString{
+						StrVal: "http",
+					},
+					Protocol: "TCP",
+					Name:     "http",
+				},
+			},
+			Selector: map[string]string{
+				"app.kubernetes.io/name":     "calendar-java-otel",
+				"app.kubernetes.io/instance": "calendar-java-otel",
+			},
+		},
+	}
+	deploymentSpec := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "calendar-java-otel",
+			Labels: map[string]string{
+				"helm.sh/chart":                "calendar-java-otel-0.1.0",
+				"app.kubernetes.io/name":       "calendar-java-otel",
+				"app.kubernetes.io/instance":   "calendar-java-otel",
+				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/managed-by": "Helm",
+			},
+			Annotations: map[string]string{
+				"openshift.io/deployment.name": "openshift",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app.kubernetes.io/name":     "calendar-java-otel",
+					"app.kubernetes.io/instance": "calendar-java-otel",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app.kubernetes.io/name":     "calendar-java-otel",
+						"app.kubernetes.io/instance": "calendar-java-otel",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:            "calendar-java-otel",
+						Image:           "datadog/opentelemetry-examples:calendar-java-20240826",
+						ImagePullPolicy: "IfNotPresent",
+						Ports: []corev1.ContainerPort{{
+							Name:          "http",
+							ContainerPort: 9090,
+							Protocol:      "TCP",
+						}},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/calendar",
+									Port: intstr.FromString("http"),
+								},
+							},
+						},
+						ReadinessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/calendar",
+									Port: intstr.FromString("http"),
+								},
+							},
+						},
+						Env: []corev1.EnvVar{{
+							Name:  "OTEL_SERVICE_NAME",
+							Value: "calendar-java-otel",
+						}, {
+							Name:  "OTEL_CONTAINER_NAME",
+							Value: "calendar-java-otel",
+						}, {
+							Name:      "OTEL_K8S_NAMESPACE",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
+						}, {
+							Name:      "OTEL_K8S_NODE_NAME",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
+						}, {
+							Name:      "OTEL_K8S_POD_NAME",
+							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
+						}, {
+							Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
+							Value: otlpEndpoint,
+						}, {
+							Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
+							Value: "grpc",
+						}, {
+							Name: "OTEL_RESOURCE_ATTRIBUTES",
+							Value: "service.name=$(OTEL_SERVICE_NAME)," +
+								"k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
+								"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
+								"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
+								"k8s.container.name=calendar-java-otel," +
+								"host.name=$(OTEL_K8S_NODE_NAME)," +
+								"deployment.environment=$(OTEL_K8S_NAMESPACE)",
+						}},
+					},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start service")
+	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start deployment")
+}
+
 func createApp(ctx context.Context, s OTelTestSuite) {
 	var replicas int32 = 1
 
@@ -500,12 +635,12 @@ func TestContainerMetrics(s OTelTestSuite) {
 	require.NoError(s.T(), err)
 
 	s.T().Log("Starting app")
-	createApp(ctx, s)
+	createCalendarApp(ctx, s)
 
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("container.cpu.usage", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:manual-container-metrics-app"}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar.api.hits", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-java-otel"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
