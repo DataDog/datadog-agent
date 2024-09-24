@@ -82,7 +82,7 @@ module Omnibus
           sleep(delay)
           retry
         end
-        raise "Failed to sign with dd-wcs"
+        raise "Failed to sign with dd-wcs: #{e.message}"
       end
     end
 
