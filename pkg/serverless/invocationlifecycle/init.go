@@ -143,6 +143,14 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 	lp.requestHandler.event = event
 	lp.addTag(tagFunctionTriggerEventSource, sns)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSNSEventArn(event))
+
+	// Check for EventBridge event wrapped by the SNS message
+	var eventBridgeEvent events.EventBridgeEvent
+	if err := json.Unmarshal([]byte(event.Records[0].SNS.Message), &eventBridgeEvent); err == nil {
+		if eventBridgeEvent.DetailType != "" && eventBridgeEvent.Detail.TraceContext != nil {
+			lp.createWrappedEventBridgeSpan(eventBridgeEvent)
+		}
+	}
 }
 
 func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
@@ -154,19 +162,26 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 	lp.addTag(tagFunctionTriggerEventSource, sqs)
 	lp.addTag(tagFunctionTriggerEventSourceArn, trigger.ExtractSQSEventARN(event))
 
-	// test for SNS
+	// Check for SNS event wrapped by the SQS body
 	var snsEntity events.SNSEntity
-	if err := json.Unmarshal([]byte(event.Records[0].Body), &snsEntity); err != nil {
-		return
+	if err := json.Unmarshal([]byte(event.Records[0].Body), &snsEntity); err == nil {
+		if strings.ToLower(snsEntity.Type) == "notification" && snsEntity.TopicArn != "" {
+			lp.createWrappedSNSSpan(snsEntity)
+			return
+		}
 	}
 
-	isSNS := strings.ToLower(snsEntity.Type) == "notification" && snsEntity.TopicArn != ""
-
-	if !isSNS {
-		return
+	// Check for EventBridge event wrapped by the SQS body
+	var eventBridgeEvent events.EventBridgeEvent
+	if err := json.Unmarshal([]byte(event.Records[0].Body), &eventBridgeEvent); err == nil {
+		if eventBridgeEvent.DetailType != "" && eventBridgeEvent.Detail.TraceContext != nil {
+			lp.createWrappedEventBridgeSpan(eventBridgeEvent)
+		}
 	}
+}
 
-	// sns span
+// createWrappedSNSSpan creates  an inferred span for SNS that is wrapped by SQS.
+func (lp *LifecycleProcessor) createWrappedSNSSpan(snsEntity events.SNSEntity) {
 	lp.requestHandler.inferredSpans[1] = &inferredspan.InferredSpan{
 		CurrentInvocationStartTime: time.Unix(lp.requestHandler.inferredSpans[0].Span.Start, 0),
 		Span: &pb.Span{
@@ -179,9 +194,21 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 	snsEvent.Records[0].SNS = snsEntity
 
 	lp.requestHandler.inferredSpans[1].EnrichInferredSpanWithSNSEvent(snsEvent)
-
 	lp.requestHandler.inferredSpans[1].Span.Duration = lp.GetInferredSpan().Span.Start - lp.requestHandler.inferredSpans[1].Span.Start
+}
 
+// createWrappedEventBridgeSpan creates an inferred span for EventBridge
+// that is wrapped by SQS or SNS.
+func (lp *LifecycleProcessor) createWrappedEventBridgeSpan(eventBridgeEvent events.EventBridgeEvent) {
+	lp.requestHandler.inferredSpans[1] = &inferredspan.InferredSpan{
+		CurrentInvocationStartTime: time.Unix(lp.requestHandler.inferredSpans[0].Span.Start, 0),
+		Span: &pb.Span{
+			SpanID: inferredspan.GenerateSpanId(),
+		},
+	}
+
+	lp.requestHandler.inferredSpans[1].EnrichInferredSpanWithEventBridgeEvent(eventBridgeEvent)
+	lp.requestHandler.inferredSpans[1].Span.Duration = lp.GetInferredSpan().Span.Start - lp.requestHandler.inferredSpans[1].Span.Start
 }
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
