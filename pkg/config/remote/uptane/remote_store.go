@@ -226,7 +226,7 @@ func getCDNHostnameFromSite(site string) string {
 // e.g. https://app.datadoghq.com -> datadoghq.com
 func getCDNPathPrefixFromSite(site string) string {
 	s := strings.TrimPrefix(site, "https://app.")
-	s = strings.TrimPrefix(site, "https://")
+	s = strings.TrimPrefix(s, "https://")
 	return s
 }
 

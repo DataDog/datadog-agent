@@ -263,7 +263,7 @@ func (c *CDNClient) update(ctx context.Context) error {
 
 func (c *CDNClient) updateRepos(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
+	span, _ := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
 	defer span.Finish(tracer.WithError(err))
 
 	_, err = c.directorTUFClient.Update()

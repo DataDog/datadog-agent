@@ -1051,7 +1051,7 @@ func (c *HTTPClient) getUpdate(
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
+	span, _ := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
 	defer span.Finish()
 	span.SetTag("products", products)
 	span.SetTag("current_targets_version", currentTargetsVersion)
