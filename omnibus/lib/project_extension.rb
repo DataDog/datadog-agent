@@ -42,7 +42,7 @@ module Omnibus
     def ddwcssign(file)
       log.info(self.class.name) { "Signing #{file}" }
 
-      # Signing is inherently flaky as the signing server may not be available
+      # Signing is inherently flaky as the timestamp server may not be available
       # retry a few times
       max_retries = 3
       attempts = 0
