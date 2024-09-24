@@ -26,7 +26,7 @@ const (
 	nodejsSslWriteRetprobe   = "nodejs_uretprobe__SSL_write"
 	nodejsSslWriteExRetprobe = "nodejs_uretprobe__SSL_write_ex"
 
-	NodeJsAttacherName = "nodejs"
+	nodeJsAttacherName = "nodejs"
 )
 
 var (
@@ -126,7 +126,7 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 		EnablePeriodicScanNewProcesses: true,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher(NodeJsAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		log.Errorf("Cannot create uprobe attacher: %v", err)
 	}
