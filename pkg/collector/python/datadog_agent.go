@@ -16,13 +16,14 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -618,12 +619,13 @@ var (
 
 func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
 	var key = checkName + "." + metricName
-	histogram, _ := telemetryHistograms.LoadOrStore(key, telemetry.NewHistogram(
+	histogram, _ := telemetryHistograms.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 		checkName,
 		metricName,
 		nil,
 		fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
 		[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+		telemetry.DefaultOptions,
 	))
 	return histogram.(telemetry.Histogram)
 }
@@ -634,11 +636,12 @@ var (
 
 func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
 	var key = checkName + "." + metricName
-	counter, _ := telemetryCounters.LoadOrStore(key, telemetry.NewCounter(
+	counter, _ := telemetryCounters.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		checkName,
 		metricName,
 		nil,
 		fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+		telemetry.DefaultOptions,
 	))
 	return counter.(telemetry.Counter)
 }
@@ -649,11 +652,12 @@ var (
 
 func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
 	var key = checkName + "." + metricName
-	gauge, _ := telemetryGauges.LoadOrStore(key, telemetry.NewGauge(
+	gauge, _ := telemetryGauges.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		checkName,
 		metricName,
 		nil,
 		fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+		telemetry.DefaultOptions,
 	))
 	return gauge.(telemetry.Gauge)
 }
