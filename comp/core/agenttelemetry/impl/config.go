@@ -261,8 +261,6 @@ var defaultProfiles = `
         - name: oracle.activity_latency
         - name: oracle.statement_metrics
         - name: oracle.statement_plan_errors
-		// Example postgres metric
-		- name: postgres.activity_latency
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
