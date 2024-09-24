@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -241,7 +242,12 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	if val, found := os.LookupEnv("DD_CONF_NODETREEMODEL"); found && val == "enable" {
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	} else {
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	}
+
 	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
