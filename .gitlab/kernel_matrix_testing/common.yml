@@ -143,6 +143,10 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]

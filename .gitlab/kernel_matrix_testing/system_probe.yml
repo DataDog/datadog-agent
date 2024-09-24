@@ -145,6 +145,10 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
     # copy system probe tests
     - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
     - tar czvf $TEST_ARCHIVE_NAME opt
@@ -197,6 +201,11 @@ upload_sysprobe_tests_arm64:
   stage: kernel_matrix_testing_system_probe
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   timeout: 1h 30m
+  before_script:
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
   variables:
     TEST_COMPONENT: system-probe
 

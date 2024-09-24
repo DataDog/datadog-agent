@@ -16,6 +16,10 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
@@ -54,6 +58,10 @@ tests_ebpf_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
@@ -87,6 +95,10 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:

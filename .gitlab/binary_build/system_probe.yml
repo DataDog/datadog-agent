@@ -10,6 +10,10 @@
     # TODO: remove this once we switch to k8s runners, they won't have this problem
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
   script:
     - inv check-go-version
     - inv -e system-probe.build --strip-object-files --no-bundle

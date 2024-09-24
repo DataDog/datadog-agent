@@ -10,6 +10,10 @@ security_go_generate_check:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    # XXX: system-probe images does not run `entrypoint.sh` which runs `source /root/.bashrc`.
+    # Since the path of Go binary is added into PATH in the bashrc, we need to run it at some point.
+    # This is a workaround until I understand why we don't wanna run `entrypoint.sh` for system-probe. 
+    - source /root/.bashrc
     - pip3 install wheel
     - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
     - inv -e install-tools
