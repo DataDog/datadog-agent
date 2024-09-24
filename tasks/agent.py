@@ -616,7 +616,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod")
     # we're calling an intermediate script which only pass the binary name to the invoke task.
     if remote_docker:
         test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
-
+    ctx.run("go env GOMODCACHE")
     go_cmd = 'go test -timeout 30m -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     prefixes = [
