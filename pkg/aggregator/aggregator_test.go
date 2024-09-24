@@ -56,7 +56,7 @@ func initF() {
 }
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
-	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000)
+	seriesSink := metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 1000, 1000, defaultHostname)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
