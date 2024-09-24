@@ -641,15 +641,15 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			require.False(p.ClientComputedTopLevel)
 		}))
 
-		t.Run("header", testAndExpect(testSpans, http.Header{
-			header.ComputedTopLevel: []string{"true"},
-		}, func(p *Payload) {
-			require.True(p.ClientComputedTopLevel)
-		}))
-
 		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
 		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("header", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
@@ -883,7 +883,9 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		for i := 0; i < 2; i++ {
 			select {
 			case p := <-out:
-				assert.Equal(t, "go", p.Source.Lang)
+				if !enableReceiveResourceSpansV2 {
+					assert.Equal(t, "go", p.Source.Lang)
+				}
 				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
 				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p

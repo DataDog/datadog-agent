@@ -194,12 +194,12 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	if o.conf.HasFeature("enable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV2(ctx, rspans, httpHeader)
+		return o.receiveResourceSpansV2(ctx, rspans, httpHeader.Get(header.ComputedStats) != "")
 	}
 	return o.receiveResourceSpansV1(ctx, rspans, httpHeader)
 }
 
-func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
+func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
 	otelres := rspans.Resource()
 	resourceAttributes := otelres.Attributes()
 	resourceAttributesMap := make(map[string]string, resourceAttributes.Len())
@@ -219,13 +219,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
-	if lang == "" {
-		lang = fastHeaderGet(httpHeader, header.Lang)
-	}
 	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
-	if containerID == "" {
-		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
-	}
 
 	// 2. Transform OTLP spans to DD spans. If metadata was missing in resource attributes, attempt to get it from spans
 	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
@@ -282,8 +276,8 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    resourceAttributesMap[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedStats:    resourceAttributesMap[keyStatsComputed] != "" || clientComputedStats,
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
 	}
 	// Get the hostname or set to empty if source is empty
 	var hostname string
