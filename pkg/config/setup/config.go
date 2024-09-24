@@ -975,6 +975,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
+	config.BindEnvAndSetDefault("installer.registry.username", "")
+	config.BindEnvAndSetDefault("installer.registry.password", "")
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
 

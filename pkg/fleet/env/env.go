@@ -23,6 +23,8 @@ const (
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
+	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
+	envRegistryPassword      = "DD_INSTALLER_REGISTRY_PASSWORD"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
@@ -38,6 +40,8 @@ var defaultEnv = Env{
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
+	RegistryUsername:            "",
+	RegistryPassword:            "",
 	RegistryOverrideByImage:     map[string]string{},
 	RegistryAuthOverrideByImage: map[string]string{},
 
@@ -64,6 +68,8 @@ type Env struct {
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
+	RegistryUsername            string
+	RegistryPassword            string
 	RegistryOverrideByImage     map[string]string
 	RegistryAuthOverrideByImage map[string]string
 
@@ -88,6 +94,8 @@ func FromEnv() *Env {
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
+		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
+		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
 
@@ -112,6 +120,8 @@ func FromConfig(config model.Reader) *Env {
 		RemotePolicies:       config.GetBool("remote_policies"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
+		RegistryUsername:     config.GetString("installer.registry.username"),
+		RegistryPassword:     config.GetString("installer.registry.password"),
 	}
 }
 
@@ -135,6 +145,12 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
+	}
+	if e.RegistryUsername != "" {
+		env = append(env, envRegistryUsername+"="+e.RegistryUsername)
+	}
+	if e.RegistryPassword != "" {
+		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
 	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}

@@ -41,6 +41,8 @@ const (
 	RegistryAuthGCR string = "gcr"
 	// RegistryAuthECR is the Amazon Elastic Container Registry authentication method.
 	RegistryAuthECR string = "ecr"
+	// RegistryAuthPassword is the password registry authentication method.
+	RegistryAuthPassword string = "password"
 )
 
 const (
@@ -132,12 +134,17 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
-func getKeychain(auth string) authn.Keychain {
+func getKeychain(auth string, username string, password string) authn.Keychain {
 	switch auth {
 	case RegistryAuthGCR:
 		return google.Keychain
 	case RegistryAuthECR:
 		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
+	case RegistryAuthPassword:
+		return usernamePasswordKeychain{
+			username: username,
+			password: password,
+		}
 	case RegistryAuthDefault, "":
 		return authn.DefaultKeychain
 	default:
@@ -169,10 +176,10 @@ func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 		}
 		ref = registryOverride + imageWithIdentifier
 	}
-	keychain := getKeychain(env.RegistryAuthOverride)
+	keychain := getKeychain(env.RegistryAuthOverride, env.RegistryUsername, env.RegistryPassword)
 	for image, override := range env.RegistryAuthOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
-			keychain = getKeychain(override)
+			keychain = getKeychain(override, env.RegistryUsername, env.RegistryPassword)
 			break
 		}
 	}
@@ -312,4 +319,16 @@ func isStreamResetError(err error) bool {
 		return serrp.Code == http2.ErrCodeInternal
 	}
 	return false
+}
+
+type usernamePasswordKeychain struct {
+	username string
+	password string
+}
+
+func (k usernamePasswordKeychain) Resolve(target authn.Resource) (authn.Authenticator, error) {
+	return authn.FromConfig(authn.AuthConfig{
+		Username: k.username,
+		Password: k.password,
+	}), nil
 }
