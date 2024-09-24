@@ -401,7 +401,6 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	hostname := d.aggregator.hostname
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, hostname)
-	fmt.Println("wacktest2")
 	metrics.Serialize(
 		series,
 		sketches,
