@@ -94,7 +94,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc")
+	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc/daemon")
 	if err != nil {
 		return nil, err
 	}
