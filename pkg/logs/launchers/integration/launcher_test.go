@@ -158,7 +158,9 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
-	err = suite.s.makeFile(filename)
+	newFile, err := os.Create(filename)
+	assert.Nil(suite.T(), err)
+	assert.Nil(suite.T(), newFile.Close())
 	assert.Nil(suite.T(), err)
 
 	info, err = os.Stat(filename)

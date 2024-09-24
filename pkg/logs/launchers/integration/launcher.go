@@ -61,7 +61,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 	err := os.MkdirAll(runPath, 0755)
 
 	if err != nil {
-		ddLog.Warn("Unable to create integrations logs directory:", err)
+		ddLog.Error("Unable to create integrations logs directory:", err)
 	}
 
 	logsTotalUsageSetting := pkgconfigsetup.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
@@ -149,10 +149,9 @@ func (s *Launcher) run() {
 // receiveLogs handles writing incoming logs to their respective file as well as
 // enforcing size limitations
 func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
-	fileToUpdate := s.integrationToFile[log.IntegrationID]
+	fileToUpdate, exists := s.integrationToFile[log.IntegrationID]
 
-	// If there is no file to write to, skip writing to it
-	if fileToUpdate == nil {
+	if !exists {
 		ddLog.Warn("Failed to write log to file, file is nil")
 		return
 	}
@@ -162,10 +161,15 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	logSize := int64(len(log.Log)) + 1
 	if fileToUpdate.size+logSize > s.fileSizeMax {
 		s.combinedUsageSize -= fileToUpdate.size
-		err := s.makeFile(fileToUpdate.filename)
+		file, err := os.Create(fileToUpdate.filename)
 		if err != nil {
-			ddLog.Warn("Failed to delete and remake oversize file", err)
+			ddLog.Error("Failed to delete and remake oversize file:", err)
 			return
+		}
+
+		err = file.Close()
+		if err != nil {
+			ddLog.Warn("Failed to close file:", err)
 		}
 
 		fileToUpdate.size = 0
@@ -178,14 +182,19 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 
 		err := s.deleteFile(leastRecentlyModifiedFile)
 		if err != nil {
-			ddLog.Warn("Error deleting log file:", err)
+			ddLog.Error("Error deleting log file:", err)
 			continue
 		}
 
-		err = s.makeFile(leastRecentlyModifiedFile.filename)
+		file, err := os.Create(leastRecentlyModifiedFile.filename)
 		if err != nil {
-			ddLog.Warn("Error creating log file:", err)
+			ddLog.Error("Error creating log file:", err)
 			continue
+		}
+
+		err = file.Close()
+		if err != nil {
+			ddLog.Warn("Failed to close file:", err)
 		}
 	}
 
@@ -237,7 +246,7 @@ func (s *Launcher) getLeastRecentlyModifiedFile() *FileInfo {
 func writeLogToFile(logFilePath, log string) error {
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		ddLog.Warn("Failed to open file to write log to:", err)
+		ddLog.Error("Failed to open file to write log to:", err)
 		return err
 	}
 
@@ -276,6 +285,7 @@ func (s *Launcher) createFile(source string) (*FileInfo, error) {
 
 	file, err := os.Create(filepath)
 	if err != nil {
+		ddLog.Error("Error creating file for log source:", err)
 		return nil, err
 	}
 	ddLog.Info("Successfully created integrations log file:", file.Name())
@@ -300,17 +310,6 @@ func (s *Launcher) integrationLogFilePath(id string) string {
 	logFilePath := filepath.Join(s.runPath, fileName)
 
 	return logFilePath
-}
-
-// makeFile deletes log files and creates a new empty file with the
-// same name
-func (s *Launcher) makeFile(filepath string) error {
-	file, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-
-	return file.Close()
 }
 
 // computerDiskUsageMax computes the max disk space the launcher can use based
