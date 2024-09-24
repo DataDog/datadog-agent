@@ -57,7 +57,6 @@ module Omnibus
         end.join(" ")
     
         status = shellout(cmd)
-        
         if status.exitstatus != 0
           log.warn(self.class.name) do
             <<-EOH.strip
@@ -72,20 +71,17 @@ module Omnibus
               #{status.stderr}
             EOH
           end
-    
-          # Retry logic: raise error after 3 attempts
-          if attempts < max_retries
-            log.info(self.class.name) { "Retrying signing #{file} (Attempt #{attempts + 1})" }
-            sleep(delay)
-            retry
-          else
-            raise "Failed to sign with dd-wcs after #{max_retries} attempts"
-          end
+          raise "Failed to sign with dd-wcs"
         else
           log.info(self.class.name) { "Successfully signed #{file} after #{attempts} attempt(s)" }
         end
       rescue => e
-        log.error(self.class.name) { "Error during signing: #{e.message}" }
+        # Retry logic: raise error after 3 attempts
+        if attempts < max_retries
+          log.info(self.class.name) { "Retrying signing #{file} (Attempt #{attempts + 1})" }
+          sleep(delay)
+          retry
+        end
         raise "Failed to sign with dd-wcs: #{e.message}"
       end
     end
