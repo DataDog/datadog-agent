@@ -10,7 +10,7 @@
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    - WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?; export WINDOWS_AGENT_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
@@ -24,7 +24,7 @@
   before_script:
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
-    - export WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    - WINDOWS_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION) || exit $?; export WINDOWS_AGENT_VERSION
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test

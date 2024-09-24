@@ -5,7 +5,8 @@
 .common_build_oci:
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+    - AGENT_VERSION=$(inv agent.version -u)-1 || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$AGENT_VERSION
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -143,7 +144,8 @@ installer-amd64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - AGENT_VERSION=$(inv agent.version -u)-1 || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$AGENT_VERSION
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 installer-arm64-oci:
@@ -151,7 +153,8 @@ installer-arm64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
+    - AGENT_VERSION=$(inv agent.version -u)-1 || exit $?
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$AGENT_VERSION
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 windows-installer-amd64:

@@ -593,11 +593,13 @@ def changelog(ctx, new_commit_sha):
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
-    ctx.run(
+    res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
         "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
+    if "unable to locate credentials" in res.stderr.casefold():
+        raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
 
 
 @task
