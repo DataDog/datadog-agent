@@ -2450,6 +2450,7 @@ core,go.opentelemetry.io/contrib/config,Apache-2.0,Copyright The OpenTelemetry A
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/propagators/b3,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2519,7 +2520,6 @@ core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.17.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.20.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.24.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2630,17 +2630,17 @@ core,golang.org/x/net/proxy,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/trace,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/websocket,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/oauth2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/externalaccount,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/externalaccountauthorizeduser,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/impersonate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/oauth2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/externalaccount,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/externalaccountauthorizeduser,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/impersonate,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors
