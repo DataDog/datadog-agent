@@ -38,6 +38,29 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	})
 }
 
+// TestDowngradeAgentPackage tests that it's possible to downgrade the Datadog Agent using the Datadog installer.
+func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
+	// Arrange
+	_, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package")
+
+	// Act
+	_, err = s.Installer().InstallExperiment(installerwindows.AgentPackage,
+		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
+		installer.WithAuthentication(""),
+	)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to downgrade to stable Datadog Agent package")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		}).
+		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+}
+
 func (s *testAgentUpgradeSuite) TestExperimentFailure() {
 	// Arrange
 	s.Run("Install stable", func() {
