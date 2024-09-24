@@ -375,11 +375,8 @@ def config_ssh_key(ctx: Context):
             ssh_keys = []
 
             for f in ssh_key_files:
-                key_comment = get_ssh_key_name(f.with_suffix(".pub"))
-                if key_comment is None:
-                    warn(f"[x] {f} does not have a valid key name, cannot be used")
-                else:
-                    ssh_keys.append({'path': os.fspath(f), 'name': key_comment, 'aws_key_name': ''})
+                key_name = get_ssh_key_name(f.with_suffix(".pub")) or f.name
+                ssh_keys.append({'path': os.fspath(f), 'name': key_name, 'aws_key_name': ''})
 
         keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
