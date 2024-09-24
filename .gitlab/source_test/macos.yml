@@ -91,20 +91,17 @@ lint_macos:
 .tests_macos_gitlab:
   stage: source_test
   allow_failure: true
-  # rules:
-  #   !reference [.manual]
+  rules:
+    !reference [.manual]
   extends: .macos_gitlab
   needs: ["setup_agent_version"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
-    - echo $PATH
-    - ls -la /opt/datadog-ci/bin || true
-    - ls -la /opt/codecov/bin || true
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test --targets=./pkg/collector/check/stats --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 12 --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG
+    - inv -e test --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 12 --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG
     - inv -e invoke-unit-tests
   artifacts:
     expire_in: 2 weeks
@@ -135,7 +132,7 @@ lint_macos_gitlab_arm64:
   rules:
     - !reference [.on_main]
     - !reference [.manual]
-  tags: ["macos:monterey-arm64-test"]
+  tags: ["macos:monterey-arm64", "specific:true"]
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
@@ -146,7 +143,7 @@ tests_macos_gitlab_amd64:
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
-  tags: ["macos:monterey-arm64-test"]
+  tags: ["macos:monterey-arm64", "specific:true"]
   after_script:
     - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
