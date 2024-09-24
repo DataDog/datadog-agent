@@ -17,7 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.16.0
+    SMP_VERSION: 0.17.2
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -75,6 +75,7 @@ single-machine-performance-regression_detector:
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
+      --total-samples 1800 # 30 minutes (samples are taken once per second)
       --target-config-dir test/regression/
       --submission-metadata submission_metadata
     # Wait for job to complete.
