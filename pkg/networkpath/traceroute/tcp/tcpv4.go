@@ -129,7 +129,15 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 }
 
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
-	srcPort := t.srcPort + uint16(ttl) // increment source port number by TTL to introduce some randomness to source port
+	srcPort := t.srcPort
+	if ttl > 1 {
+		addr, err := localAddrForHost(t.Target, t.DestPort)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get local address for target: %w", err)
+		}
+		srcPort = addr.AddrPort().Port()
+		log.Warnf("Using new source port: %d", srcPort)
+	}
 	tcpHeader, tcpPacket, err := createRawTCPSyn(t.srcIP, srcPort, t.Target, t.DestPort, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
