@@ -294,7 +294,8 @@ class GitlabCIDiff:
 
         if only_summary:
             if not cli:
-                res.append(f':warning: Diff too large to display on Github, see the [job log]({job_url}) for details.')
+                suffix = f', see the [job log]({job_url}) for details.' if job_url else '.'
+                res.append(f':warning: Diff too large to display on Github{suffix}')
         else:
             if self.modified:
                 wrap = len(self.modified) > max_detailed_jobs
