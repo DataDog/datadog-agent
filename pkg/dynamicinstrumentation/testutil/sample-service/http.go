@@ -12,7 +12,7 @@ import (
 )
 
 func startHTTPServer() error {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Datadog-Response", "Success")
 	})
 
