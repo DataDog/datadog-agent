@@ -75,18 +75,19 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
     print(f"Creating file: '{diff_file}'")
     with open(diff_file, 'w', encoding='utf-8') as f:
         f.write(DO_NOT_REMOVE_WARNING_HEADER)
-        for package_name, (_, new_req) in new_packages.items():
-            _, old_req = old_packages.get(package_name)
+        for package_name, (_, new_req_value) in new_packages.items():
+            old_req = old_packages.get(package_name)
             if old_req:
+                _, old_req_value = old_req
                 # Extract and compare versions
-                old_version_str = extract_version(str(old_req.specifier))
-                new_version_str = extract_version(str(new_req.specifier))
+                old_version_str = extract_version(str(old_req_value.specifier))
+                new_version_str = extract_version(str(new_req_value.specifier))
                 if old_version_str and new_version_str:
                     if version.parse(new_version_str) > version.parse(old_version_str):
-                        f.write(f"{new_req}\n")
+                        f.write(f"{new_req_value}\n")
             else:
                 # Package is new in the new file; include it
-                f.write(f"{new_req}\n")
+                f.write(f"{new_req_value}\n")
 
 def install_datadog_package(package):
     """
