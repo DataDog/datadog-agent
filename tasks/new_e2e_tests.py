@@ -201,8 +201,9 @@ def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
     """
     Clean up remote stacks created by the pipeline
     """
-    # if not running_in_ci():
-    #     raise Exit("This task should be run in CI only", 1)
+    if not running_in_ci():
+        raise Exit("This task should be run in CI only", 1)
+
     print(f"Running aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci/ci-{pipeline_id}")
     res = ctx.run(
         f"aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci/ci-{pipeline_id}",
