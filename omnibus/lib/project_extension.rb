@@ -46,6 +46,7 @@ module Omnibus
       # retry a few times
       max_retries = 3
       attempts = 0
+      delay = 2
     
       begin
         attempts += 1
@@ -75,7 +76,7 @@ module Omnibus
           # Retry logic: raise error after 3 attempts
           if attempts < max_retries
             log.info(self.class.name) { "Retrying signing #{file} (Attempt #{attempts + 1})" }
-            sleep(2) # Add a small delay before retrying (optional)
+            sleep(delay)
             retry
           else
             raise "Failed to sign with dd-wcs after #{max_retries} attempts"
