@@ -15,6 +15,8 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
+// InjectedProcess repressents a running process that has Single Step Instrumentation
+// loaded and has been isntrumented.
 type InjectedProcess struct {
 	Pid int
 
@@ -58,15 +60,15 @@ func ListSsiProcesses() ([]InjectedProcess, error) {
 	return injectedProcesses, nil
 }
 
-func FormatInjectedProcesss(injectedProcesses []InjectedProcess) string {
+// FormatInjectedProcesses formats a liat of injected processes to a table
+func FormatInjectedProcesses(injectedProcesses []InjectedProcess) string {
 	slices.SortFunc(injectedProcesses, func(l InjectedProcess, r InjectedProcess) int {
 		if l.Pid < r.Pid {
 			return -1
 		} else if l.Pid == r.Pid {
 			return 0
-		} else {
-			return 1
 		}
+		return 1
 	})
 
 	var buffer bytes.Buffer

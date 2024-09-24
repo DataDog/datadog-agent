@@ -117,6 +117,7 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// ListSSIProcesses prints a list of processes running that are instrumented by SSI
 func (i *InstallerExec) ListSSIProcesses(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "list-ssi-processes")
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()

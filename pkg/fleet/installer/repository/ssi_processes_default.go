@@ -9,6 +9,6 @@ package repository
 
 import "github.com/shirou/gopsutil/v3/process"
 
-func getSsiProcess(p *process.Process) (InjectedProcess, bool, error) {
+func getSsiProcess(_ *process.Process) (InjectedProcess, bool, error) {
 	return InjectedProcess{}, false, nil
 }

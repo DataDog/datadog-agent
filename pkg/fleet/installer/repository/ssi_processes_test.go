@@ -19,7 +19,7 @@ func TestFormatSsiProcesses(t *testing.T) {
 		InjectionStatus: "complete",
 		Reason:          "",
 	}}
-	out := FormatInjectedProcesss(processes)
+	out := FormatInjectedProcesses(processes)
 
 	expected := "" +
 		"  PID  SERVICE NAME  LANGUAGE NAME  RUNTIME NAME  RUNTIME VERSION  LIBRARY VERSION  INJECTOR VERSION  IS INJECTED  INJECTION STATUS  REASON  \n" +

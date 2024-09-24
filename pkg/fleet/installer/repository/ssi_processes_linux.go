@@ -27,7 +27,7 @@ func getSsiProcess(p *process.Process) (InjectedProcess, bool, error) {
 		return InjectedProcess{}, false, nil
 	}
 
-	serviceName, _ := envs["DD_SERVICE"]
+	serviceName := envs["DD_SERVICE"]
 
 	return InjectedProcess{
 		Pid:            int(p.Pid),

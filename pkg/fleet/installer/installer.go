@@ -342,12 +342,14 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	return nil
 }
 
-func (i *installerImpl) ListSSIProcesses(ctx context.Context) error {
+// ListSSIProcesses prints a table with the list of running processes using
+// Single Step Instrumentation
+func (i *installerImpl) ListSSIProcesses(_ context.Context) error {
 	processes, err := repository.ListSsiProcesses()
 	if err != nil {
 		return err
 	}
-	table := repository.FormatInjectedProcesss(processes)
+	table := repository.FormatInjectedProcesses(processes)
 	_, err = fmt.Print(table)
 	return err
 }

@@ -144,7 +144,7 @@ func addEnvToMap(env string, envs map[string]string) {
 	}
 }
 
-// getEnvs gets the environment variables for the process, both the initial
+// GetEnvs gets the environment variables for the process, both the initial
 // ones, and if present, the ones injected via the auto injector.
 func GetEnvs(proc *process.Process, injectionMeta *InjectedProcess) (map[string]string, error) {
 	procEnvs, err := proc.Environ()
