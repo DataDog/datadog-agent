@@ -172,7 +172,7 @@ deploy_staging_dsd:
   needs: ["build_dogstatsd-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
-    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?; export PACKAGE_VERSION
+    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy iot-agent x64 binary to staging bucket
@@ -185,7 +185,7 @@ deploy_staging_iot_agent:
   needs: ["build_iot_agent-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
-    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?; export PACKAGE_VERSION
+    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # Datadog Installer

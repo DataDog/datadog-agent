@@ -21,5 +21,5 @@ cluster_agent_cloudfoundry-build_amd64:
     - inv -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?; export PACKAGE_VERSION
+    - PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7) || exit $?
     - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry
