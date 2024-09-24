@@ -8,6 +8,7 @@
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
+    - echo "Some random change"
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
