@@ -188,6 +188,21 @@ feature:
 	assert.Equal(t, diffcase.ENaBLEd, true)
 }
 
+func TestUnmarshalKeyMissing(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: "true"
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	// If the data from the config is missing, UnmarshalKey is a no-op, does
+	// nothing, and returns no error
+	var endpoints = []Endpoint{}
+	err := UnmarshalKey(mockConfig, "config_providers", &endpoints)
+	assert.NoError(t, err)
+}
+
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]string{"a": "apple", "b": "banana"}
 	n, err := newNode(reflect.ValueOf(m))

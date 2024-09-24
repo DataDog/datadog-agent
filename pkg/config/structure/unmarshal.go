@@ -49,7 +49,12 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	for _, o := range opts {
 		o(fs)
 	}
-	source, err := newNode(reflect.ValueOf(cfg.Get(key)))
+	rawval := cfg.Get(key)
+	// Don't create a reflect.Value out of nil, just return immediately
+	if rawval == nil {
+		return nil
+	}
+	source, err := newNode(reflect.ValueOf(rawval))
 	if err != nil {
 		return err
 	}
