@@ -3,25 +3,7 @@
     Downloads and installs Datadog on the machine.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Default')]
-param(
-   # The URL where to download the installer
-   [Parameter(Mandatory = $false)]
-   [string]
-   $ddInstallerUrl = $env:DD_INSTALLER_URL,
-
-   # Whether or not to enable remote updates
-   [Parameter(Mandatory = $false)]
-   [string]
-   $ddRemoteUpdates = $env:DD_REMOTE_UPDATES,
-
-   # The minor version of the Agent to install, by default install the latest version
-   [Parameter(Mandatory = $false)]
-   [string]
-   $ddAgentMinorVersion = $env:DD_AGENT_MINOR_VERSION
-)
-
 $SCRIPT_VERSION = "1.0.0"
-$SUCCESS = 0
 $GENERAL_ERROR_CODE = 1
 
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
@@ -51,7 +33,7 @@ function Send-Telemetry($payload) {
    }
 
    if ($env:DD_SITE) {
-      $telemetryUrl = "https://instrumentation-telemetry-intake.${env:DD_SITE}/api/v2/apmtelemetry"
+      $telemetryUrl = "https://instrumentation-telemetry-intake.$env:DD_SITE/api/v2/apmtelemetry"
    }
    $requestHeaders = @{
       "DD-Api-Key"   = $env:DD_API_KEY
@@ -72,8 +54,8 @@ function Show-Error($errorMessage, $errorCode) {
 "@
 
    $agentVersion = "7.x"
-   if ($ddAgentMinorVersion) {
-      $agentVersion = "7.${ddAgentMinorVersion}"
+   if ($env:DD_AGENT_MINOR_VERSION) {
+      $agentVersion = "7.$env:DD_AGENT_MINOR_VERSION"
    }
    $errorMessage = ($errorMessage -replace '"', '_' -replace '\n', ' ' -replace '\r', ' ')
 
@@ -137,11 +119,13 @@ function Start-ProcessWithOutput {
 Write-Host "Welcome to the Datadog Install Script"
 
 # Set some defaults if not provided
+$ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
    # Replace with https://s3.amazonaws.com/ddagent-windows-stable/datadog-installer-x86_64.exe when ready
    $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-omnibus/datadog-installer-x86_64.exe"
 }
 
+$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
 if (-Not $ddRemoteUpdates) {
    $ddRemoteUpdates = "false"
 }
@@ -154,12 +138,13 @@ if ($myWindowsPrincipal.IsInRole($adminRole)) {
    $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
 }
 else {
-   # We are not running "as Administrator
+   # We are not running "as Administrator"
    $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
    $newProcess.Arguments = $myInvocation.MyCommand.Definition;
    $newProcess.Verb = "runas";
-   [System.Diagnostics.Process]::Start($newProcess);
-   exit
+   $proc = [System.Diagnostics.Process]::Start($newProcess);
+   $proc.WaitForExit()
+   return $proc.ExitCode
 }
 
 try {
@@ -172,7 +157,7 @@ try {
       Remove-Item -Force $installer
    }
 
-   Write-Host ("Downloading installer from {0}" -f $ddInstallerUrl)
+   Write-Host "Downloading installer from $ddInstallerUrl"
    [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
 
    # If not set the `default-packages` won't contain the Datadog Agent
@@ -192,31 +177,24 @@ try {
 
    if ($env:DD_API_KEY) {
       Write-Host "Writing DD_API_KEY"
-      if (Update-ConfigFile "^[ #]*api_key:.*" ("api_key: {0}" -f $env:DD_API_KEY) -ne $SUCCESS) {
-         throw "Writing DD_API_KEY failed"
-      }
+      Update-ConfigFile "^[ #]*api_key:.*" "api_key: $env:DD_API_KEY"
    }
 
    if ($env:DD_SITE) {
       Write-Host "Writing DD_SITE"
-      if (Update-ConfigFile "^[ #]*site:.*" ("site: {0}" -f $env:DD_SITE) -ne $SUCCESS) {
-         throw "Writing DD_SITE failed"
-      }
+      Update-ConfigFile "^[ #]*site:.*" "site: $env:DD_SITE"
    }
 
    if ($env:DD_URL) {
       Write-Host "Writing DD_URL"
-      if (Update-ConfigFile "^[ #]*dd_url:.*" ("dd_url: {0}" -f $env:DD_URL) -ne $SUCCESS) {
-         throw "Writing DD_URL failed"
-      }
+      Update-ConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
    }
 
    if ($ddRemoteUpdates) {
       Write-Host "Writing DD_REMOTE_UPDATES"
-      if (Update-ConfigFile "^[ #]*remote_updates:.*" ("remote_updates: {0}" -f $ddRemoteUpdates.ToLower()) -ne $SUCCESS) {
-         throw "Writing DD_REMOTE_UPDATES failed"
-      }
+      Update-ConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
    }
+
    Send-Telemetry @"
 {
    "request_type": "apm-onboarding-event",
