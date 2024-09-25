@@ -32,7 +32,7 @@ func BuildSampleService(t *testing.T) string {
 
 	curDir, err := pwd()
 	require.NoError(t, err)
-	serverBin, err := BuildGoBinaryWrapper(curDir, "sample/sample-service")
+	serverBin, err := BuildGoBinaryWrapper(curDir, "sample/sample_service")
 	require.NoError(t, err)
 	return serverBin
 }
@@ -41,7 +41,7 @@ func BuildSampleService(t *testing.T) string {
 // If the binary is already built, it returns the path to the binary.
 func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
 	sampleServiceSource := path.Join(curDir, binaryDir)
-	sampleServiceBinaryPath := path.Join(sampleServiceSource, binaryDir)
+	sampleServiceBinaryPath := path.Join(sampleServiceSource, filepath.Base(binaryDir))
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
