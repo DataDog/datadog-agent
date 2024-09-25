@@ -575,7 +575,7 @@ new-e2e-eks-cleanup-on-failure:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH || exit $?
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - export PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_PULUMI_CONFIG_PASSPHRASE)
