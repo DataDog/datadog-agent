@@ -83,7 +83,6 @@ stages:
   - pkg_metrics
   - kitchen_deploy
   - kitchen_testing
-  - check_fips_compliance
   - container_build
   - container_scan
   - check_deploy
@@ -92,6 +91,7 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
+  - check_fips_compliance
   - trigger_release
   - choco_build
   - choco_deploy
