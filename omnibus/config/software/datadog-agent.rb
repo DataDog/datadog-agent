@@ -36,11 +36,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_arg = ""
-  if fips_mode?
-    fips_arg = "--fips-mode"
-  end
-
+  fips_arg = fips_mode? ? "--fips-mode" : ""
 
   if windows_target?
     env = {
@@ -247,8 +243,9 @@ build do
   # TODO: move this to omnibus-ruby::health-check.rb
   # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?
-      command "ls -R #{install_dir}"
 
+      # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
+      # If not in a block, it will search for binaries that have not been built yet.
       block do
         LINUX_BINARIES = [
           "#{install_dir}/bin/agent/agent",

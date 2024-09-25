@@ -16,7 +16,7 @@ class FIPSComplianceChecker
             puts "Symbol '#{@symbol}' found #{count} times in binary '#{binary_path}'."
         else
             puts "Unix: Symbols found for #{binary_path}: '#{symbols}'"
-            raise "Expected to find '#{@symbol}' symbol in #{binary_path} but did not"
+            raise FIPSSymbolsNotFound.new("Expected to find '#{@symbol}' symbol in #{binary_path} but did not")
         end
     end
 end
