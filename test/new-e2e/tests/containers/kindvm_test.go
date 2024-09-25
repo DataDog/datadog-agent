@@ -38,6 +38,7 @@ func (suite *kindSuite) SetupSuite() {
 		"ddagent:fakeintake":              auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy":           auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
+		"ddagent:extraEnvVars":            auto.ConfigValue{Value: "DD_EXPECTED_TAGS_DURATION=30m"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(

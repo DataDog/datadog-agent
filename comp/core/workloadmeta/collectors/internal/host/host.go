@@ -55,6 +55,8 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	c.store = store
 
 	duration := c.config.GetDuration("expected_tags_duration")
+	//Delete later
+	log.Infof("Expected Tags Duration has been set, adding host tags to metrics for %v", duration)
 	if duration <= 0 {
 		return nil
 	}
