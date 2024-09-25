@@ -572,7 +572,7 @@ new-e2e-eks-cleanup-on-failure:
   script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
