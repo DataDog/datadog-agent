@@ -145,7 +145,7 @@ installer-amd64-oci:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
     - AGENT_VERSION="$(inv agent.version -u)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 installer-arm64-oci:
@@ -154,7 +154,7 @@ installer-arm64-oci:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
     - AGENT_VERSION="$(inv agent.version -u)-1" || exit $?
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
 
 windows-installer-amd64:
