@@ -14,20 +14,20 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/client-go/dynamic"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -297,7 +297,7 @@ func injectSocketVolumes(pod *corev1.Pod) bool {
 
 		for volumeName, volumePath := range volumes {
 			volume, volumeMount := buildVolume(volumeName, volumePath, corev1.HostPathSocket, true)
-			injectedVol := common.InjectVolume(pod, volume, volumeMount)
+			injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 			if injectedVol {
 				injectedVolNames = append(injectedVolNames, volumeName)
 			}
@@ -309,14 +309,14 @@ func injectSocketVolumes(pod *corev1.Pod) bool {
 			corev1.HostPathDirectoryOrCreate,
 			true,
 		)
-		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		injectedVol := mutatecommon.InjectVolume(pod, volume, volumeMount)
 		if injectedVol {
 			injectedVolNames = append(injectedVolNames, DatadogVolumeName)
 		}
 	}
 
 	for _, volName := range injectedVolNames {
-		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volName)
+		mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(pod, volName)
 	}
 
 	return len(injectedVolNames) > 0

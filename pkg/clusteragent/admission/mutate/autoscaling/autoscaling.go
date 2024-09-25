@@ -9,16 +9,16 @@
 package autoscaling
 
 import (
-	"k8s.io/client-go/dynamic"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
