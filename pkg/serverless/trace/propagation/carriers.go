@@ -25,7 +25,6 @@ import (
 const (
 	awsTraceHeader     = "AWSTraceHeader"
 	datadogTraceHeader = "_datadog"
-	detailHeader       = "detail"
 
 	rootPrefix     = "Root="
 	parentPrefix   = "Parent="
@@ -165,22 +164,19 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 // snsEntityCarrier returns the tracer.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
-	// Check if this is a regular SNS message with Datadog trace information
-	if msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]; ok {
-		return handleRegularSNSMessage(msgAttrs)
-	}
-
-	// If not, check if this is an EventBridge event sent through SNS
-	var eventBridgeEvent map[string]interface{}
+	// Check if this is an EventBridge event sent through SNS
+	var eventBridgeEvent events.EventBridgeEvent
 	if err := json.Unmarshal([]byte(event.Message), &eventBridgeEvent); err == nil {
-		return handleEventBridgeThroughSNS(eventBridgeEvent)
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
+			return eventBridgeCarrier(eventBridgeEvent)
+		}
 	}
 
-	return nil, errorNoDDContextFound
-}
-
-// handleRegularSNSMessage builds the payload carrier for a regular SNS message.
-func handleRegularSNSMessage(msgAttrs interface{}) (tracer.TextMapReader, error) {
+	// If not, check if this is a regular SNS message with Datadog trace information
+	msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]
+	if !ok {
+		return nil, errorNoDDContextFound
+	}
 	mapAttrs, ok := msgAttrs.(map[string]interface{})
 	if !ok {
 		return nil, errorUnsupportedPayloadType
@@ -213,29 +209,6 @@ func handleRegularSNSMessage(msgAttrs interface{}) (tracer.TextMapReader, error)
 	if err = json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
 	}
-	return carrier, nil
-}
-
-// handleEventBridgeThroughSNS builds payload carrier for an EventBridge
-// event wrapped in an SNS message.
-func handleEventBridgeThroughSNS(eventBridgeEvent map[string]interface{}) (tracer.TextMapReader, error) {
-	detail, ok := eventBridgeEvent[detailHeader].(map[string]interface{})
-	if !ok {
-		return nil, errorUnsupportedPayloadType
-	}
-
-	traceContextAny, ok := detail[datadogTraceHeader].(map[string]interface{})
-	if !ok {
-		return nil, errorNoDDContextFound
-	}
-
-	// Some values are integers, not strings, so we have to convert before using tracer.TextMapCarrier()
-	traceContext := make(map[string]string)
-	for key, val := range traceContextAny {
-		traceContext[key] = fmt.Sprintf("%v", val)
-	}
-
-	carrier := tracer.TextMapCarrier(traceContext)
 	return carrier, nil
 }
 
