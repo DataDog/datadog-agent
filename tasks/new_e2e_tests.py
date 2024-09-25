@@ -217,8 +217,8 @@ def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
     stacks = json.loads(res.stdout)
     for stack in stacks.get("Contents", []):
         stack_id = stack.get("Key", "").split("/")[-1].replace(".json.bak", "").replace(".json", "")
-                if "eks" in stack_id:
-                    eks_stacks.add(f"organization/e2eci/{stack_id}")
+        if "eks" in stack_id:
+            eks_stacks.add(f"organization/e2eci/{stack_id}")
 
     pool = multiprocessing.Pool(len(eks_stacks))
     res = pool.map(destroy_remote_stack, eks_stacks)
