@@ -35,6 +35,7 @@ func TestInjectedEnvBasic(t *testing.T) {
 	createEnvsMemfd(t, expected)
 
 	envMap, err := getEnvs(proc)
+
 	require.NoError(t, err)
 	require.Subset(t, envMap, map[string]string{
 		"key1": "val1",
@@ -102,4 +103,72 @@ func memfile(name string, b []byte) (int, error) {
 	}
 
 	return fd, nil
+}
+
+func TestEnvScanner(t *testing.T) {
+	curPid := os.Getpid()
+	proc, err := process.NewProcess(int32(curPid))
+	require.NoError(t, err)
+
+	envMapGood, err := getEnvs(proc)
+	require.NoError(t, err)
+
+	// extract environment variables using a small read buffer
+	envMapCurr, err := getServiceEnvs(proc, 40, false)
+	require.NoError(t, err)
+	require.Equal(t, envMapGood, envMapCurr)
+
+	// extract environment variables using a large read buffer
+	envMapCurr, err = getServiceEnvs(proc, defSizeReadBuf, false)
+	require.NoError(t, err)
+	require.Equal(t, envMapGood, envMapCurr)
+
+	// test extraction of target variables
+	expectedMap := map[string]string{
+		envVarDdService:          "service1",
+		envVarDdTags:             "tag1,tag2,tag3",
+		envVarDdInjectionEnabled: "true",
+		envVarDiscoveryEnabled:   "true",
+		envVarOtelServiceName:    "service2",
+	}
+	var expectedEnvs []string
+	for k, v := range expectedMap {
+		expectedEnvs = append(expectedEnvs, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	createEnvsMemfd(t, expectedEnvs)
+
+	envMapCurr, err = getServiceEnvs(proc, 48, true)
+	require.NoError(t, err)
+	require.Equal(t, envMapCurr, expectedMap)
+}
+
+func BenchmarkOldGetEnvs(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		proc, err := customNewProcess(int32(os.Getpid()))
+		if err != nil {
+			return
+		}
+		_, err = getEnvs(proc)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func BenchmarkNewGetEnvs(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		proc, err := customNewProcess(int32(os.Getpid()))
+		if err != nil {
+			return
+		}
+		_, err = getServiceEnvs(proc, defSizeReadBuf, true)
+		if err != nil {
+			return
+		}
+	}
 }
