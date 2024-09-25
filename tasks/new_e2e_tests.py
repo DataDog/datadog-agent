@@ -215,10 +215,8 @@ def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
         return
     eks_stacks = set()
     stacks = json.loads(res.stdout)
-    if "Contents" in stacks:
-        for stack in stacks["Contents"]:
-            if "Key" in stack:
-                stack_id = stack["Key"].split("/")[-1].replace(".json.bak", "").replace(".json", "")
+    for stack in stacks.get("Contents", []):
+        stack_id = stack.get("Key", "").split("/")[-1].replace(".json.bak", "").replace(".json", "")
                 if "eks" in stack_id:
                     eks_stacks.add(f"organization/e2eci/{stack_id}")
 
