@@ -111,6 +111,7 @@ def _get_environment_for_cache() -> dict:
             "ENVIRONMENTS",
             "EXPERIMENTS_EVALUATION_ADDRESS",
             "FILTER",
+            "FIPS_MODE",
             "FORCE_DEPLOYMENT",
             "GCE_METADATA_HOST",
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
