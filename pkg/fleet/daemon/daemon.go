@@ -371,8 +371,18 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
+
+	c, err := d.installer.ConfigState(request.Package)
+	if err != nil {
+		return fmt.Errorf("could not get installer config state: %w", err)
+	}
+
 	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
-	if versionEqual && s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+	if versionEqual &&
+		(s.Stable != request.ExpectedState.Stable ||
+			s.Experiment != request.ExpectedState.Experiment ||
+			c.Stable != request.ExpectedState.StableConfig ||
+			c.Experiment != request.ExpectedState.ExperimentConfig) {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
