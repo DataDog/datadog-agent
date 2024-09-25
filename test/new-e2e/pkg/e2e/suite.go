@@ -189,6 +189,8 @@ type BaseSuite[Env any] struct {
 	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
+
+	testSessionOutputDir string
 }
 
 //
@@ -527,6 +529,35 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 		}
 	}
+}
+
+// GetRootOutputDir returns the root output directory for tests to store output files and artifacts.
+// The directory is created on the first call to this function and reused in future calls.
+//
+// See BaseSuite.GetTestOutputDir() for a function that returns a directory for the current test.
+//
+// See GetRootOutputDir() for details on the root directory creation.
+func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
+	if bs.testSessionOutputDir == "" {
+		outputRoot, err := GetRootOutputDir()
+		if err != nil {
+			return "", err
+		}
+		// Store the timestamped directory to be used by all tests in the suite
+		bs.testSessionOutputDir = outputRoot
+	}
+	return bs.testSessionOutputDir, nil
+}
+
+// GetTestOutputDir returns an output directory for the current test.
+//
+// See also GetTestOutputDir()
+func (bs *BaseSuite[Env]) GetTestOutputDir() (string, error) {
+	root, err := bs.GetRootOutputDir()
+	if err != nil {
+		return "", err
+	}
+	return GetTestOutputDir(root, bs.T())
 }
 
 // Run is a helper function to run a test suite.
