@@ -51,6 +51,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		bootstrapCommand(),
 		installCommand(),
+		installDefaultCommand(),
 		removeCommand(),
 		installExperimentCommand(),
 		removeExperimentCommand(),
@@ -210,6 +211,24 @@ func bootstrapCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(b.ctx, timeout)
 			defer cancel()
 			return bootstraper.Bootstrap(ctx, b.env)
+		},
+	}
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	return cmd
+}
+
+func installDefaultCommand() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:     "install-default",
+		Short:   "Install and setup the default packages.",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			b := newBootstraperCmd("install-default")
+			defer func() { b.Stop(err) }()
+			ctx, cancel := context.WithTimeout(b.ctx, timeout)
+			defer cancel()
+			return bootstraper.InstallDefaultPackages(ctx, b.env)
 		},
 	}
 	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
