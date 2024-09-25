@@ -220,17 +220,16 @@ def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
         if "eks" in stack_id:
             eks_stacks.add(f"organization/e2eci/{stack_id}")
 
-    pool = multiprocessing.Pool(len(eks_stacks))
-    res = pool.map(destroy_remote_stack, eks_stacks)
-    destroyed_stack = set()
-    failed_stack = set()
-    for r, stack in res:
-        if r.returncode != 0:
-            failed_stack.add(stack)
-        else:
-            destroyed_stack.add(stack)
-        print(f"Stack {stack}: {r.stdout} {r.stderr}")
-    pool.close()
+    with multiprocessing.Pool(len(eks_stacks)) as pool:
+        res = pool.map(destroy_remote_stack, eks_stacks)
+        destroyed_stack = set()
+        failed_stack = set()
+        for r, stack in res:
+            if r.returncode != 0:
+                failed_stack.add(stack)
+            else:
+                destroyed_stack.add(stack)
+            print(f"Stack {stack}: {r.stdout} {r.stderr}")
 
     for stack in destroyed_stack:
         print(f"Stack {stack} destroyed successfully")
