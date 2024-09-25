@@ -22,7 +22,6 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_k8s/e2e_k8s.yml
   - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
@@ -796,6 +795,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
+        - flakes.yaml
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_e2e_or_windows_installer_changes:
@@ -1033,6 +1033,15 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_cspm_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_windows_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
