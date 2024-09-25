@@ -43,7 +43,7 @@ type UserSamples struct {
 }
 
 // NewUserSamples creates a new UserSamples instance.
-func NewUserSamples(config config.Reader) *UserSamples {
+func NewUserSamples(config model.Reader) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
 	err := config.UnmarshalKey("logs_config.auto_multi_line_detection_custom_samples", &s)
