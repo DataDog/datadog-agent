@@ -21,10 +21,9 @@ var keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stac
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	var initOnly bool
-	initOnlyParameter, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
-	if err == nil {
-		initOnly = initOnlyParameter
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
 
 	if runner.GetProfile().AllowDevMode() && *keepStacks || initOnly {
