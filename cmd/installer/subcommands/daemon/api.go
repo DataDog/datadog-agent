@@ -91,7 +91,44 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
+	startConfigExperimentCmd := &cobra.Command{
+		Use:     "start-config-experiment package version",
+		Aliases: []string{"start-config"},
+		Short:   "Starts an experiment",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(start, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
+	stopConfigExperimentCmd := &cobra.Command{
+		Use:     "stop-config-experiment package",
+		Aliases: []string{"stop-config"},
+		Short:   "Stops an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(stop, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	promoteConfigExperimentCmd := &cobra.Command{
+		Use:     "promote-config-experiment package",
+		Aliases: []string{"promote-config"},
+		Short:   "Promotes an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(promote, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd, startConfigExperimentCmd, stopConfigExperimentCmd, promoteConfigExperimentCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {

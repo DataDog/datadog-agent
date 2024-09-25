@@ -53,6 +53,9 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
+	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
+	StopConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
@@ -344,6 +347,72 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 	return nil
 }
 
+// StartConfigExperiment starts a config experiment with the given package.
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startExperiment(ctx, url)
+}
+
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Starting config experiment for package from %s", url)
+	err = d.installer.InstallConfigExperiment(ctx, url, version)
+	if err != nil {
+		return fmt.Errorf("could not start config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully started config experiment for package from %s", url)
+	return nil
+}
+
+// PromoteConfigExperiment promotes the experiment to stable.
+func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.promoteConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
+	err = d.installer.PromoteConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not promote config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully promoted config experiment for package %s", pkg)
+	return nil
+}
+
+// StopConfigExperiment stops the experiment.
+func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.stopConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
+	err = d.installer.RemoveConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
 func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -413,6 +482,22 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		return d.promoteExperiment(ctx, request.Package)
+
+	case methodStartConfigExperiment:
+		var params taskWithVersionParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
+		return d.startConfigExperiment(ctx, request.Package, params.Version)
+	case methodStopConfigExperiment:
+		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
+		return d.stopConfigExperiment(ctx, request.Package)
+	case methodPromoteConfigExperiment:
+		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
+		return d.promoteConfigExperiment(ctx, request.Package)
+
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
