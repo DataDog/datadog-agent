@@ -120,20 +120,7 @@ new-e2e-containers-eks-init:
     TEAM: container-integrations
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_INIT_ONLY: "true"
-
-# This job does not do anything. This is a workaround to be able to run new-e2e-containers-eks even if the init job fails. Any better solution would be appreciated
-new-e2e-containers-eks-sync:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  stage: e2e_init
-  tags: ["arch:amd64"]
-  script:
-    - exit 0
-  needs:
-    - new-e2e-containers-eks-init
-  rules:
-    - !reference [.on_container_or_e2e_changes]
-    - !reference [.manual]
-  when: always
+  allow_failure: true
 
 new-e2e-containers-eks:
   extends: .new_e2e_template
@@ -142,7 +129,7 @@ new-e2e-containers-eks:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - new-e2e-containers-eks-sync
+    - new-e2e-containers-eks-init
     - qa_agent
     - qa_dca
   variables:
@@ -269,19 +256,7 @@ new-e2e-npm-eks-init:
     TEAM: network-performance-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
-
-new-e2e-npm-eks-sync:
-  stage: e2e_init
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
-  script:
-    - exit 0
-  needs:
-    - new-e2e-npm-eks-init
-  rules:
-    - !reference [.on_npm_or_e2e_changes]
-    - !reference [.manual]
-  when: always
+  allow_failure: true
 
 new-e2e-npm-eks:
   extends: .new_e2e_template
@@ -290,7 +265,7 @@ new-e2e-npm-eks:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - new-e2e-npm-eks-sync
+    - new-e2e-npm-eks-init
     - qa_agent
     - qa_dca
   variables:
