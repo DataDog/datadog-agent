@@ -146,22 +146,20 @@ func (p baseProfile) SecretStore() parameters.Store {
 //
 // See GetTestOutputDir for a function that returns a subdirectory for a specific test.
 func (p baseProfile) GetOutputDir() (string, error) {
-	var outputRoot string
 	configOutputRoot, err := p.store.GetWithDefault(parameters.OutputDir, "")
 	if err != nil {
 		return "", err
 	}
 	if configOutputRoot != "" {
 		// If outputRoot is provided in the config file, use it as the root directory
-		outputRoot = configOutputRoot
-	} else if p.defaultOutputRootFolder != "" {
-		// If a default outputRoot was provided, use it as the root directory
-		outputRoot = filepath.Join(p.defaultOutputRootFolder, "e2e-output")
-	} else if outputRoot == "" {
-		// If outputRoot is not provided, use os.TempDir() as the root directory
-		outputRoot = filepath.Join(os.TempDir(), "e2e-output")
+		return configOutputRoot, nil
 	}
-	return outputRoot, nil
+	if p.defaultOutputRootFolder != "" {
+		// If a default outputRoot was provided, use it as the root directory
+		return filepath.Join(p.defaultOutputRootFolder, "e2e-output"), nil
+	}
+	// as a final fallback, use os.TempDir() as the root directory
+	return filepath.Join(os.TempDir(), "e2e-output"), nil
 }
 
 // GetWorkspacePath returns the directory for CI Pulumi workspace.
