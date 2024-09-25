@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestLegacyIntervalDefault(t *testing.T) {
@@ -137,7 +137,7 @@ func TestProcessEventsInterval(t *testing.T) {
 		{
 			name:             "below minimum",
 			interval:         0,
-			expectedInterval: config.DefaultProcessEventsCheckInterval,
+			expectedInterval: pkgconfigsetup.DefaultProcessEventsCheckInterval,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

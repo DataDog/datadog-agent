@@ -75,8 +75,8 @@ __attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
         return 0;
     }
 
-    if (filter_syscall(syscall, bpf_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, bpf_approvers) == DISCARDED) {
+        return 0;
     }
 
     syscall->bpf.retval = retval;

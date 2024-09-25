@@ -36,8 +36,8 @@ var spliceCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
-	spliceKFilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
+func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
+	kfilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
@@ -50,16 +50,16 @@ func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
 			if err != nil {
 				return nil, err
 			}
-			spliceKFilters = append(spliceKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		case "splice.pipe_exit_flag":
 			kfilter, err := getFlagsKFilter("splice_exit_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceKFilters = append(spliceKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(spliceKFilters...), nil
+	return newActiveKFilters(kfilters...), nil
 }

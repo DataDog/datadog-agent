@@ -33,6 +33,9 @@
                 "oneOf": [
                     {
                         "$ref": "/schemas/kill.schema.json"
+                    },
+                    {
+                        "$ref": "/schemas/hash.schema.json"
                     }
                 ]
             }

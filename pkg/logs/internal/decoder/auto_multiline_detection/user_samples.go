@@ -9,7 +9,7 @@ package automultilinedetection
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

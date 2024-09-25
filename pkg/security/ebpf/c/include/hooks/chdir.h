@@ -57,8 +57,9 @@ int hook_set_fs_pwd(ctx_t *ctx) {
 
     set_file_inode(dentry, &syscall->chdir.file, 0);
 
-    if (filter_syscall(syscall, chdir_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, chdir_approvers) == DISCARDED) {
+        pop_syscall(EVENT_CHDIR);
+        return 0;
     }
 
     return 0;
@@ -70,7 +71,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
         return 0;
     }
     if (IS_UNHANDLED_ERROR(retval)) {
-        discard_syscall(syscall);
+        pop_syscall(EVENT_CHDIR);
         return 0;
     }
 
@@ -78,7 +79,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
 
     syscall->resolver.key = syscall->chdir.file.path_key;
     syscall->resolver.dentry = syscall->chdir.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_CHDIR : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_CHDIR_CALLBACK_KPROBE_KEY, DR_CHDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;

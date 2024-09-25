@@ -75,8 +75,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -275,15 +275,15 @@ func run(
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
-		if pkgconfig.Datadog().IsSet("integration_tracing") {
-			previousIntegrationTracing = pkgconfig.Datadog().GetBool("integration_tracing")
+		if pkgconfigsetup.Datadog().IsSet("integration_tracing") {
+			previousIntegrationTracing = pkgconfigsetup.Datadog().GetBool("integration_tracing")
 
 		}
-		if pkgconfig.Datadog().IsSet("integration_tracing_exhaustive") {
-			previousIntegrationTracingExhaustive = pkgconfig.Datadog().GetBool("integration_tracing_exhaustive")
+		if pkgconfigsetup.Datadog().IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfigsetup.Datadog().GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog().Set("integration_tracing", true, model.SourceAgentRuntime)
-		pkgconfig.Datadog().Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -298,7 +298,7 @@ func run(
 	pkgcollector.InitPython(common.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta, config, telemetry)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -624,8 +624,8 @@ func run(
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog().Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
-		pkgconfig.Datadog().Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

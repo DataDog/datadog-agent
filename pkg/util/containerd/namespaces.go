@@ -11,14 +11,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // NamespacesToWatch returns the namespaces to watch. If the
 // "containerd_namespace" option has been set, it returns the namespaces it contains.
 // Otherwise, it returns all of them.
 func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]string, error) {
-	if namespaces := config.Datadog().GetStringSlice("containerd_namespaces"); len(namespaces) > 0 {
+	if namespaces := pkgconfigsetup.Datadog().GetStringSlice("containerd_namespaces"); len(namespaces) > 0 {
 		return namespaces, nil
 	}
 
@@ -27,7 +27,7 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 		return nil, err
 	}
 
-	excludeNamespaces := config.Datadog().GetStringSlice("containerd_exclude_namespaces")
+	excludeNamespaces := pkgconfigsetup.Datadog().GetStringSlice("containerd_exclude_namespaces")
 	if len(excludeNamespaces) == 0 {
 		return namespaces, nil
 	}
@@ -55,8 +55,8 @@ func NamespacesToWatch(ctx context.Context, containerdClient ContainerdItf) ([]s
 // namespace that we need to watch is "ns1", this function returns
 // `topic=="/container/create",namespace=="ns1"`.
 func FiltersWithNamespaces(filters []string) []string {
-	namespaces := config.Datadog().GetStringSlice("containerd_namespaces")
-	excludeNamespaces := config.Datadog().GetStringSlice("containerd_exclude_namespaces")
+	namespaces := pkgconfigsetup.Datadog().GetStringSlice("containerd_namespaces")
+	excludeNamespaces := pkgconfigsetup.Datadog().GetStringSlice("containerd_exclude_namespaces")
 
 	if len(namespaces) == 0 && len(excludeNamespaces) == 0 {
 		// Watch all namespaces. No need to add them to the filters.

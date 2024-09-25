@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -72,7 +73,7 @@ func (s *stream) Recv() (interface{}, error) {
 
 type streamHandler struct {
 	port int
-	config.Reader
+	model.Reader
 }
 
 // workloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
@@ -119,7 +120,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: config.Datadog()},
+			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
 			Insecure:      true, // wlm extractor currently does not support TLS
 		},
