@@ -534,8 +534,6 @@ type Container struct {
 	// It can be relative to the cgroup parent.
 	// Linux only.
 	CgroupPath string
-	// GPU is a flag to indicate if the container is using GPU
-	GPUActivity string
 }
 
 // GetID implements Entity#GetID.
@@ -589,7 +587,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
-		_, _ = fmt.Fprintln(&sb, "GPU Activity:", c.GPUActivity)
+		_, _ = fmt.Fprintln(&sb, "GPU Activity:", c.Resources.GPUType)
 	}
 
 	if len(c.Ports) > 0 && verbose {
