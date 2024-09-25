@@ -52,6 +52,8 @@ const (
 	KubeContainerName = "kube_container_name"
 	// KubeOwnerRefKind is the tag for the Kubernetes owner reference kind
 	KubeOwnerRefKind = "kube_ownerref_kind"
+	// KubeGPUActivity is the tag for the Kubernetes Resource GPU usage (TODO: CHECKME)
+	KubeGPUActivity = "kube_gpu_activity"
 
 	// KubePod is the tag for the pod name
 	KubePod = "pod_name"

@@ -199,6 +199,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	tagList.AddLow(tags.ShortImage, image.ShortName)
 	tagList.AddLow(tags.ImageTag, image.Tag)
 	tagList.AddLow(tags.ImageID, image.ID)
+	tagList.AddLow(tags.KubeGPUActivity, container.GPUActivity)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {

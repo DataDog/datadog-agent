@@ -420,6 +420,9 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
+	GPURequest    *uint64 // Number of GPUs
+	GPULimit      *uint64
+	GPUType       string   // The type of GPU requested (eg. nvidia, amd, intel)
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
@@ -531,6 +534,8 @@ type Container struct {
 	// It can be relative to the cgroup parent.
 	// Linux only.
 	CgroupPath string
+	// GPU is a flag to indicate if the container is using GPU
+	GPUActivity string
 }
 
 // GetID implements Entity#GetID.
@@ -584,6 +589,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
+		_, _ = fmt.Fprintln(&sb, "GPU Activity:", c.GPUActivity)
 	}
 
 	if len(c.Ports) > 0 && verbose {

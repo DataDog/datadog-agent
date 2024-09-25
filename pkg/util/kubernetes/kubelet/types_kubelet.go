@@ -92,6 +92,9 @@ type ResourceName string
 // Resources name
 const (
 	ResourceCPU              ResourceName = "cpu"
+	ResourceNvidiaGPU        ResourceName = "nvidia.com/gpu"
+	ResourceAMDGPU           ResourceName = "amd.com/gpu"
+	ResourceIntelGPU         ResourceName = "gpu.intel.com/i915"
 	ResourceMemory           ResourceName = "memory"
 	ResourceStorage          ResourceName = "storage"
 	ResourceEphemeralStorage ResourceName = "ephemeral-storage"

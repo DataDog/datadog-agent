@@ -239,6 +239,19 @@ func (c *collector) parsePodContainers(
 		}
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
+
+		// Check whether nvidia.com/gpu or amd.com/gpu is in the containerspec.resources.limits
+
+		gpuRequested := ""
+		if containerSpec != nil {
+			for key, value := range containerSpec.Resources.Limits {
+				if key == kubelet.ResourceNvidiaGPU || key == kubelet.ResourceAMDGPU {
+					log.Infof("GPU Requested: %v", value)
+					gpuRequested = string(key)
+				}
+			}
+		}
+
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec)
@@ -306,6 +319,7 @@ func (c *collector) parsePodContainers(
 				State:           containerState,
 				Owner:           parent,
 				Resources:       resources,
+				GPUActivity:     gpuRequested, // NOTE GABEDOS resolved from resources just above
 			},
 		})
 	}
@@ -406,6 +420,18 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
 		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+	}
+
+	// extract GPU resource info from the possible GPU sources
+	if gpuReq, found := spec.Resources.Requests[kubelet.ResourceNvidiaGPU]; found {
+		resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+		resources.GPUType = string(kubelet.ResourceNvidiaGPU)
+	} else if gpuReq, found := spec.Resources.Requests[kubelet.ResourceAMDGPU]; found {
+		resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+		resources.GPUType = string(kubelet.ResourceAMDGPU)
+	} else if gpuReq, found := spec.Resources.Requests[kubelet.ResourceIntelGPU]; found {
+		resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+		resources.GPUType = string(kubelet.ResourceIntelGPU)
 	}
 
 	return resources
