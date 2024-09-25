@@ -6,8 +6,6 @@
 package agenttests
 
 import (
-	"fmt"
-
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
@@ -51,11 +49,10 @@ func (s *testAgentInstallWithAgentUserSuite) installAgent() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
-	fmt.Println(output)
-	fmt.Println(err)
+	_, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+
 	// Assert
-	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package")
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		HasRegistryKey(installerwindows.RegistryKeyPath).
