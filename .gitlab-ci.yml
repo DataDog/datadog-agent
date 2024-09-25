@@ -253,6 +253,8 @@ variables:
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
 
+  ATLASSIAN_WRITE: atlassian-write
+
   DD_PKG_VERSION: "latest"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
