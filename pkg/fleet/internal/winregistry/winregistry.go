@@ -9,6 +9,7 @@
 package winregistry
 
 import (
+	"fmt"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"path/filepath"
@@ -41,4 +42,29 @@ func GetProgramDataDirForProduct(product string) (path string, err error) {
 	}
 	path = val
 	return
+}
+
+// GetAgentUserName returns the user name for the Agent, stored in the registry by the Installer MSI
+func GetAgentUserName() (string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, "SOFTWARE\\Datadog\\Datadog Installer", registry.QUERY_VALUE)
+	if err != nil {
+		return "", err
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedUser in registry: %s", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return "", fmt.Errorf("could not read installedDomain in registry: %s", err)
+	}
+
+	if domain != "" {
+		user = domain + `\` + user
+	}
+
+	return user, nil
 }
