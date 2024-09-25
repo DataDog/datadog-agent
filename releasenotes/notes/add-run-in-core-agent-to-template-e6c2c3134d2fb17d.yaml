@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Add ability to run process/container collection on the core agent. This is controlled
+    Add ability to run process/container collection on the core agent (Linux only). This is controlled
     by the `process_config.run_in_core_agent.enabled` config in datadog.yaml.

@@ -1485,12 +1485,14 @@ api_key:
 #
 # process_config:
 
+  {{- if (eq .OS "linux")}}
   ## @param run_in_core_agent - custom object - optional
-  ## Specifies which agent collects process and/or container information.
+  ## Specifies which agent collects process and/or container information (Linux only).
   # run_in_core_agent:
     ## @param enabled - boolean - optional - default: false
     ## Enables process/container collection on the core agent instead of the process agent.
     # enabled: false
+  {{ end -}}
 
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
