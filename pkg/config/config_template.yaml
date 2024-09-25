@@ -1492,7 +1492,7 @@ api_key:
     ## @param enabled - boolean - optional - default: false
     ## Enables process/container collection on the core Agent instead of the process Agent.
     # enabled: false
-  {{ end -}}
+  {{ end }}
 
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
