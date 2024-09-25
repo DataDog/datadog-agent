@@ -9,6 +9,7 @@ package autoscaling
 
 import (
 	"container/heap"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -80,6 +81,7 @@ type HashHeap struct {
 	MaxHeap MaxTimestampKeyHeap
 	Keys    map[string]bool
 	maxSize int
+	mu      sync.RWMutex
 }
 
 // NewHashHeap returns a new MaxHeap with the given max size
@@ -88,6 +90,7 @@ func NewHashHeap(maxSize int) *HashHeap {
 		MaxHeap: *NewMaxHeap(),
 		Keys:    make(map[string]bool),
 		maxSize: maxSize,
+		mu:      sync.RWMutex{},
 	}
 }
 
@@ -114,6 +117,9 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 		Key:       key,
 	}
 
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	if h.MaxHeap.Len() >= h.maxSize {
 		top := h.MaxHeap.Peek()
 		// If the new key is newer than or equal to the top key, do not insert
@@ -135,16 +141,24 @@ func (h *HashHeap) DeleteFromHeap(key, _sender string, _obj any) {
 	if !h.Exists(key) {
 		return
 	}
+	h.mu.RLock()
 	idx, found := h.MaxHeap.FindIdx(key)
+	h.mu.RUnlock()
+
 	if !found {
 		return
 	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	heap.Remove(&h.MaxHeap, idx)
 	delete(h.Keys, key)
 }
 
 // Exists returns true if the given key exists in the heap
 func (h *HashHeap) Exists(key string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 	_, ok := h.Keys[key]
 	return ok
 }
