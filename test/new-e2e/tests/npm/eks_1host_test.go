@@ -96,6 +96,10 @@ func TestEKSVMSuite(t *testing.T) {
 	provisionerOpts := []envkube.ProvisionerOption{}
 
 	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err != nil {
+		t.Logf("Error getting initOnly parameter, defaulted to false: %v", err)
+	}
+
 	if err == nil && initOnly {
 		provisionerOpts = append(provisionerOpts, envkube.WithEKSInitOnly())
 	}
