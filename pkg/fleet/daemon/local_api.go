@@ -110,6 +110,9 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/config_experiment/start", l.startConfigExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/config_experiment/stop", l.stopConfigExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/config_experiment/promote", l.promoteConfigExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/install", l.install).Methods(http.MethodPost)
 	return r
 }
@@ -221,6 +224,63 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/start -d '{"version":"1.21.5"}'
+func (l *localAPIImpl) startConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var request taskWithVersionParams
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	err = l.daemon.StartConfigExperiment(r.Context(), pkg, request.Version)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/stop -d '{}'
+func (l *localAPIImpl) stopConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	log.Infof("Received local request to stop experiment for package %s", pkg)
+	err := l.daemon.StopConfigExperiment(r.Context(), pkg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/config_experiment/promote -d '{}'
+func (l *localAPIImpl) promoteConfigExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	log.Infof("Received local request to promote experiment for package %s", pkg)
+	err := l.daemon.PromoteConfigExperiment(r.Context(), pkg)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
 // example: curl -X POST --unix-socket /opt/datadog-packages/installer.sock -H 'Content-Type: application/json' http://installer/datadog-agent/install -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
@@ -265,6 +325,9 @@ type LocalAPIClient interface {
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
+	StartConfigExperiment(pkg, version string) error
+	StopConfigExperiment(pkg string) error
+	PromoteConfigExperiment(pkg string) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed daemon API.
@@ -409,6 +472,85 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 	}
 	if response.Error != nil {
 		return fmt.Errorf("error promoting experiment: %s", response.Error.Message)
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+// StartConfigExperiment starts a config experiment for a package.
+func (c *localAPIClientImpl) StartConfigExperiment(pkg, version string) error {
+	params := taskWithVersionParams{
+		Version: version,
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/start", c.addr, pkg), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error starting config experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// StopConfigExperiment stops an experiment for a package.
+func (c *localAPIClientImpl) StopConfigExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/stop", c.addr, pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error stopping config experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// PromoteConfigExperiment promotes an experiment for a package.
+func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/config_experiment/promote", c.addr, pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error promoting config experiment: %s", response.Error.Message)
 	}
 	defer resp.Body.Close()
 	return nil

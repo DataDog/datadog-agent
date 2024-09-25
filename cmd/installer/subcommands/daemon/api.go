@@ -97,7 +97,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Short:   "Starts an experiment",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return experimentFxWrapper(start, &cliParams{
+			return experimentFxWrapper(startConfig, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
 				version:      args[1],
@@ -110,7 +110,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Short:   "Stops an experiment",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return experimentFxWrapper(stop, &cliParams{
+			return experimentFxWrapper(stopConfig, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
 			})
@@ -122,7 +122,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Short:   "Promotes an experiment",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return experimentFxWrapper(promote, &cliParams{
+			return experimentFxWrapper(promoteConfig, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
 			})
@@ -176,6 +176,33 @@ func promote(params *cliParams, client localapiclient.Component) error {
 	err := client.PromoteExperiment(params.pkg)
 	if err != nil {
 		fmt.Println("Error promoting experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func startConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StartConfigExperiment(params.pkg, params.version)
+	if err != nil {
+		fmt.Println("Error starting config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func stopConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StopConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error stopping config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func promoteConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.PromoteConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error promoting config experiment:", err)
 		return err
 	}
 	return nil

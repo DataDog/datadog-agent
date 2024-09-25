@@ -351,7 +351,7 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startExperiment(ctx, url)
+	return d.startConfigExperiment(ctx, url, version)
 }
 
 func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
