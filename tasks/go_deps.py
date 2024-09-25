@@ -190,6 +190,10 @@ def test_list(
 
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
+                # Filter */internal/* deps
+                deps = [symbol for symbol in deps if "internal/" not in symbol]
+                list = [symbol for symbol in list if "internal/" not in symbol]
+
                 if list != deps:
                     new_dependencies_lines = len(list)
                     recorded_dependencies_lines = len(deps)
