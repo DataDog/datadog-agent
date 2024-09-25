@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 // Package ditypes contains various datatypes and otherwise shared components
 // used by all the packages in dynamic instrumentation

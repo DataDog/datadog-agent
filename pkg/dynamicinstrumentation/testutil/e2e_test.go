@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64 && arm64
 
 package testutil
 
@@ -23,11 +23,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/kr/pretty"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestGoDI(t *testing.T) {
+
+	if features.HaveMapType(ebpf.RingBuf) != nil {
+		t.Skip("ringbuffers not supported on this kernel")
+	}
+
 	sampleServicePath := BuildSampleService(t)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
