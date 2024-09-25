@@ -563,6 +563,23 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				}
 			},
 		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"sampling.priority": -1},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Len(out.Chunks, 1)
+				require.Equal(int32(-1), out.Chunks[0].Priority)
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)

@@ -123,9 +123,9 @@ func OtelSpanToDDSpan(
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			traceutil.SetMetric(ddspan, k, v.Double())
+			SetMetricOTLP(ddspan, k, v.Double())
 		case pcommon.ValueTypeInt:
-			traceutil.SetMetric(ddspan, k, float64(v.Int()))
+			SetMetricOTLP(ddspan, k, float64(v.Int()))
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
