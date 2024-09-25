@@ -393,7 +393,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("dd.host", out.Hostname)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("dd.host", out.Hostname)
+				}
 			},
 		},
 		{

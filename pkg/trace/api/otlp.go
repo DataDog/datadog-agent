@@ -210,12 +210,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	// 1. First, attempt to get metadata from resource attributes
 	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
-	if !srcok {
-		if v, ok := resourceAttributesMap["_dd.hostname"]; ok {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
-			srcok = true
-		}
-	}
+
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
