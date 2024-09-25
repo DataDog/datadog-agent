@@ -1,6 +1,6 @@
 ---
 .fips-compliance-e2e:
-  stage: check_fips_compliance
+  stage: fips_compliance_e2e
   extends:
     - .new_e2e_template
   rules:

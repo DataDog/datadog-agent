@@ -91,7 +91,7 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
-  - check_fips_compliance
+  - fips_compliance_e2e
   - trigger_release
   - choco_build
   - choco_deploy
