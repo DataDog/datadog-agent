@@ -37,7 +37,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -479,7 +479,7 @@ func (ac *AutoConfig) processNewConfig(config integration.Config) integration.Co
 // AddListeners tries to initialise the listeners listed in the given configs. A first
 // try is done synchronously. If a listener fails with a ErrWillRetry, the initialization
 // will be re-triggered later until success or ErrPermaFail.
-func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
+func (ac *AutoConfig) AddListeners(listenerConfigs []pkgconfigsetup.Listeners) {
 	ac.addListenerCandidates(listenerConfigs)
 	remaining := ac.initListenerCandidates()
 	if !remaining {
@@ -495,7 +495,7 @@ func (ac *AutoConfig) AddListeners(listenerConfigs []config.Listeners) {
 	}
 }
 
-func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) {
+func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Listeners) {
 	ac.m.Lock()
 	defer ac.m.Unlock()
 

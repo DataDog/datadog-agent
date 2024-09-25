@@ -8,11 +8,11 @@
 package otlp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(_ config.Reader) bool {
+func IsEnabled(_ model.Reader) bool {
 	return false
 }
 

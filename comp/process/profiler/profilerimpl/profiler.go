@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	profilecomp "github.com/DataDog/datadog-agent/comp/process/profiler"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -71,7 +71,7 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 	if site == "" {
 		s := cfg.GetString("site")
 		if s == "" {
-			s = ddconfig.DefaultSite
+			s = pkgconfigsetup.DefaultSite
 		}
 		site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 	}

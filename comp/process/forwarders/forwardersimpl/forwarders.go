@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -46,8 +46,8 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	config := deps.Config
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
-		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
-		queueBytes = ddconfig.DefaultProcessQueueBytes
+		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
+		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
 	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)

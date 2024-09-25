@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -104,7 +104,7 @@ func FromEnv() *Env {
 }
 
 // FromConfig returns an Env struct with values from the configuration.
-func FromConfig(config config.Reader) *Env {
+func FromConfig(config model.Reader) *Env {
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),

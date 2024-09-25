@@ -1098,7 +1098,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1121,7 +1121,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "200m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1143,7 +1143,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: true,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx:  &corev1.SecurityContext{},
 		},
 		{
@@ -1153,7 +1153,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
@@ -1191,7 +1191,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "20Mi",
+			wantMem: "100Mi",
 			secCtx: &corev1.SecurityContext{
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},

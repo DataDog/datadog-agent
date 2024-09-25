@@ -1132,7 +1132,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 			return err
 		}
 
-		approverType := getApproverType(newKFilter.GetTableName())
+		approverType := newKFilter.GetApproverType()
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
@@ -1144,7 +1144,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 				return err
 			}
 
-			approverType := getApproverType(previousKFilter.GetTableName())
+			approverType := previousKFilter.GetApproverType()
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1165,16 +1165,6 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 
 	p.kfilters[eventType] = newKFilters
 	return nil
-}
-
-func getApproverType(tableName string) string {
-	approverType := "flag"
-
-	if tableName == kfilters.BasenameApproverKernelMapName {
-		approverType = "basename"
-	}
-
-	return approverType
 }
 
 func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {

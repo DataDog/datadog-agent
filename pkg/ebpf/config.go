@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -87,7 +87,7 @@ func key(pieces ...string) string {
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.SystemProbe()
+	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{

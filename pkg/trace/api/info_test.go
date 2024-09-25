@@ -302,6 +302,7 @@ func TestInfoHandler(t *testing.T) {
 		"long_running_spans":        nil,
 		"evp_proxy_allowed_headers": nil,
 		"peer_tags":                 nil,
+		"span_kinds_stats_computed": nil,
 		"config": map[string]interface{}{
 			"default_env":               nil,
 			"target_tps":                nil,

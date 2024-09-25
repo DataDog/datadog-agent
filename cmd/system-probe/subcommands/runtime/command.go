@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -99,7 +99,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
 	_ = evalCmd.MarkFlagRequired("rule-id")
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
@@ -132,7 +132,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", pkgconfigsetup.DefaultRuntimePoliciesDir, "Path to policies directory")
 	commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.evaluateAllPolicySources, "loaded-policies", false, "Evaluate loaded policies")
 	if runtime.GOOS == "linux" {
 		commonCheckPoliciesCmd.Flags().BoolVar(&cliParams.windowsModel, "windows-model", false, "Evaluate policies using the Windows model")
