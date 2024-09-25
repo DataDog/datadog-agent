@@ -47,6 +47,9 @@ type cfg struct {
 
 	// warnings are the warnings generated during setup
 	warnings *model.Warnings
+
+	// UpdateApiKeyFn is the callback func for API Key updates
+	updateAPIKeyFn func(oldKey, newKey string)
 }
 
 // NewConfig is the default constructor for the component, it returns
@@ -67,7 +70,35 @@ func NewConfig(deps Dependencies) (Component, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
+	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any) {
+		log.Debugf("OnUpdate: %s", setting)
+		if setting != "api_key" {
+			return
+		}
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			// Update API Key on config, and propagate the signal to registered listeners
+			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
+			c.updateAPIKey(oldAPIKey, newAPIKey)
+		}
+	})
+
 	return &c, nil
+}
+
+func (c *cfg) updateAPIKey(oldKey, newKey string) {
+	// Update API Key on config, and propagate the signal to registered listeners
+	c.UpdateApiKey(newKey)
+	if c.updateAPIKeyFn != nil {
+		c.updateAPIKeyFn(oldKey, newKey)
+	}
+}
+
+// OnUpdateAPIKey registers a callback for API Key changes
+func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
+	c.updateAPIKeyFn = callback
 }
 
 func (c *cfg) Warnings() *model.Warnings {

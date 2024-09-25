@@ -65,6 +65,9 @@ type TraceWriter interface {
 
 	// FlushSync blocks and sends pending payloads when syncMode is true
 	FlushSync() error
+
+	// UpdateAPIKey signals the TraceWriter to update the API Keys stored in its senders config.
+	UpdateAPIKey(oldKey, newKey string)
 }
 
 // Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
@@ -223,6 +226,17 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
+}
+
+// UpdateAPIKey receives the API Key update signal and propagates it across all internal
+// components that rely on API Key configuration:
+// - HTTP Receiver (used in reverse proxies)
+// - Trace Writer senders
+// - Stats Writer senders
+func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
+	a.Receiver.UpdateAPIKey()
+	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
+	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
 }
 
 func (a *Agent) work() {

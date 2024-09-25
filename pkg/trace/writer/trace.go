@@ -136,6 +136,15 @@ func NewTraceWriter(
 	return tw
 }
 
+func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
+	for _, s := range w.senders {
+		if oldKey == s.cfg.apiKey {
+			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
+			s.cfg.apiKey = newKey
+		}
+	}
+}
+
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
 	defer tck.Stop()

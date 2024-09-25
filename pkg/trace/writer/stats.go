@@ -96,6 +96,15 @@ func NewStatsWriter(
 	return sw
 }
 
+func (w *DatadogStatsWriter) UpdateAPIKey(oldKey, newKey string) {
+	for _, s := range w.senders {
+		if oldKey == s.cfg.apiKey {
+			log.Debugf("API Key updated for stats endpoint=%s", s.cfg.url)
+			s.cfg.apiKey = newKey
+		}
+	}
+}
+
 // Run starts the DatadogStatsWriter, making it ready to receive stats and report w.statsd.
 func (w *DatadogStatsWriter) Run() {
 	t := time.NewTicker(5 * time.Second)
