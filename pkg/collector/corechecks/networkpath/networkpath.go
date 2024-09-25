@@ -71,6 +71,7 @@ func (c *Check) Run() error {
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
+	path.Origin = payload.PathOriginNetworkPathIntegration
 	path.Tags = c.config.Tags
 
 	// send to EP
