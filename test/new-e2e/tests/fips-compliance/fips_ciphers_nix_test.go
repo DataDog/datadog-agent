@@ -144,8 +144,10 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 }
 
 func runFipsServer(v *fipsServerSuite, command string) {
-	_, err := v.Env().RemoteHost.Execute("docker run --rm -d --network fips-network --name fips-server ghcr.io/datadog/apps-fips-server:main " + command)
-	require.NoError(v.T(), err)
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --network fips-network --name fips-server ghcr.io/datadog/apps-fips-server:main " + command)
+		require.NoError(t, err)
+	}, 10*time.Second, 2*time.Second)
 
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		serverLogs, _ := v.Env().RemoteHost.Execute("docker logs fips-server")
