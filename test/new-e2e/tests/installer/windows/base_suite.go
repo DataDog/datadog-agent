@@ -135,6 +135,7 @@ func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
 }
 
+// OutputDir returns the output directory for the test
 func (s *BaseInstallerSuite) OutputDir() string {
 	return s.outputDir
 }
