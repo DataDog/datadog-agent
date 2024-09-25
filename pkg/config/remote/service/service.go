@@ -91,14 +91,13 @@ type Service struct {
 	// via logs.
 	rcType string
 
-	uptane uptaneClient
-	db     *bbolt.DB
+	db *bbolt.DB
 }
 
-func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) ([][]byte, error) {
+func (s *Service) getNewDirectorRoots(uptane uptaneClient, currentVersion uint64, newVersion uint64) ([][]byte, error) {
 	var roots [][]byte
 	for i := currentVersion + 1; i <= newVersion; i++ {
-		root, err := s.uptane.DirectorRoot(i)
+		root, err := uptane.DirectorRoot(i)
 		if err != nil {
 			return nil, err
 		}
@@ -111,12 +110,12 @@ func (s *Service) getNewDirectorRoots(currentVersion uint64, newVersion uint64) 
 	return roots, nil
 }
 
-func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
+func (s *Service) getTargetFiles(uptane uptaneClient, products []rdata.Product, cachedTargetFiles []*pbgo.TargetFileMeta) ([]*pbgo.File, error) {
 	productSet := make(map[rdata.Product]struct{})
 	for _, product := range products {
 		productSet[product] = struct{}{}
 	}
-	targets, err := s.uptane.Targets()
+	targets, err := uptane.Targets()
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +144,7 @@ func (s *Service) getTargetFiles(products []rdata.Product, cachedTargetFiles []*
 			if notEqualErr := tufutil.FileMetaEqual(cachedTargets[targetPath], targetMeta.FileMeta); notEqualErr == nil {
 				continue
 			}
-			fileContents, err := s.uptane.TargetFile(targetPath)
+			fileContents, err := uptane.TargetFile(targetPath)
 			if err != nil {
 				return nil, err
 			}
@@ -175,12 +174,12 @@ type CoreAgentService struct {
 	stopOrgPoller    chan struct{}
 	stopConfigPoller chan struct{}
 
-	clock           clock.Clock
-	hostname        string
-	tagsGetter      func() []string
-	traceAgentEnv   string
-	coreAgentUptane coreAgentUptaneClient
-	api             api.API
+	clock         clock.Clock
+	hostname      string
+	tagsGetter    func() []string
+	traceAgentEnv string
+	uptane        coreAgentUptaneClient
+	api           api.API
 
 	products           map[rdata.Product]struct{}
 	newProducts        map[rdata.Product]struct{}
@@ -202,7 +201,7 @@ type CoreAgentService struct {
 	agentVersion string
 }
 
-// uptaneClient is used to mock the uptane component for testing
+// uptaneClient provides functions to get TUF/uptane repo data.
 type uptaneClient interface {
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
@@ -213,12 +212,14 @@ type uptaneClient interface {
 	TUFVersionState() (uptane.TUFVersions, error)
 }
 
+// coreAgentUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the RC backend.
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
 	StoredOrgUUID() (string, error)
 }
 
+// cdnUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the CDN.
 type cdnUptaneClient interface {
 	uptaneClient
 	Update(ctx context.Context) error
@@ -438,7 +439,6 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	return &CoreAgentService{
 		Service: Service{
 			rcType: rcType,
-			uptane: uptaneClient,
 			db:     db,
 		},
 		firstUpdate:                    true,
@@ -453,7 +453,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		clock:                          clock,
 		traceAgentEnv:                  options.traceAgentEnv,
 		api:                            http,
-		coreAgentUptane:                uptaneClient,
+		uptane:                         uptaneClient,
 		clients:                        newClients(clock, options.clientTTL),
 		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
@@ -608,7 +608,7 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		log.Warnf("[%s] could not get previous backend client state: %v", s.rcType, err)
 	}
-	orgUUID, err := s.coreAgentUptane.StoredOrgUUID()
+	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
 		s.Unlock()
 		return err
@@ -643,7 +643,7 @@ func (s *CoreAgentService) refresh() error {
 		return err
 	}
 	s.fetchErrorCount = 0
-	err = s.coreAgentUptane.Update(response)
+	err = s.uptane.Update(response)
 	if err != nil {
 		s.backoffErrorCount = s.backoffPolicy.IncError(s.backoffErrorCount)
 		s.lastUpdateErr = fmt.Errorf("tuf: %v", err)
@@ -771,7 +771,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
-	roots, err := s.getNewDirectorRoots(request.Client.State.RootVersion, tufVersions.DirectorRoot)
+	roots, err := s.getNewDirectorRoots(s.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -779,7 +779,7 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
-	targetFiles, err := s.getTargetFiles(rdata.StringListToProduct(request.Client.Products), request.CachedTargetFiles)
+	targetFiles, err := s.getTargetFiles(s.uptane, rdata.StringListToProduct(request.Client.Products), request.CachedTargetFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -956,7 +956,7 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 type HTTPClient struct {
 	Service
 	lastUpdate time.Time
-	cdnUptane  cdnUptaneClient
+	uptane     cdnUptaneClient
 }
 
 // NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
@@ -977,10 +977,9 @@ func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, err
 	return &HTTPClient{
 		Service: Service{
 			rcType: "CDN",
-			uptane: uptaneCDNClient,
 			db:     db,
 		},
-		cdnUptane: uptaneCDNClient,
+		uptane: uptaneCDNClient,
 	}, nil
 }
 
@@ -1025,7 +1024,7 @@ func (c *HTTPClient) update(ctx context.Context) error {
 	c.Lock()
 	defer c.Unlock()
 
-	err = c.cdnUptane.Update(ctx)
+	err = c.uptane.Update(ctx)
 	if err != nil {
 		return err
 	}
@@ -1065,7 +1064,7 @@ func (c *HTTPClient) getUpdate(
 	if tufVersions.DirectorTargets == currentTargetsVersion {
 		return nil, nil
 	}
-	roots, err := c.getNewDirectorRoots(currentRootVersion, tufVersions.DirectorRoot)
+	roots, err := c.getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -1073,7 +1072,7 @@ func (c *HTTPClient) getUpdate(
 	if err != nil {
 		return nil, err
 	}
-	targetFiles, err := c.getTargetFiles(rdata.StringListToProduct(products), cachedTargetFiles)
+	targetFiles, err := c.getTargetFiles(c.uptane, rdata.StringListToProduct(products), cachedTargetFiles)
 	if err != nil {
 		return nil, err
 	}
