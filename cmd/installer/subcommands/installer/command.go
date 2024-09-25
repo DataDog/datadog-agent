@@ -340,7 +340,7 @@ func installConfigExperimentCommand() *cobra.Command {
 		Use:     "install-config-experiment <package> <version>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {

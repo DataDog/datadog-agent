@@ -293,7 +293,34 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	return nil
+	config, err := i.cdn.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("could not get cdn config: %w", err)
+	}
+	if config.Version != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", version, config.Version)
+	}
+
+	tmpDir, err := i.packages.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Note: this is definitely not package agnostic, because the CDN isn't.
+	// This will be adressed in a follow-up PR
+	err = service.WriteAgentConfig(config, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not write agent config: %w", err)
+	}
+
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.SetExperiment(version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not set experiment: %w", err)
+	}
+
+	return i.startExperiment(ctx, pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -301,6 +328,15 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
+	repository := i.configs.Get(pkg)
+	err := i.stopExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
+	err = repository.DeleteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
 	return nil
 }
 
@@ -309,7 +345,12 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	return nil
+	repository := i.configs.Get(pkg)
+	err := repository.PromoteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not promote experiment: %w", err)
+	}
+	return i.promoteExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
