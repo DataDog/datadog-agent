@@ -370,6 +370,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
 
 	// test valid hash collision (same data, new flow object) does not increment flow count
+	// Note: not a realistic use case as hashes will be different, but testing for completeness
 	aggHash2 := flowA2.AggregationHash()
 	acc.detectHashCollision(aggHash2, *flowA1, *flowA2)
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())
