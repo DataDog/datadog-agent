@@ -147,7 +147,7 @@ func (lp *LifecycleProcessor) initFromSNSEvent(event events.SNSEvent) {
 	// Check for EventBridge event wrapped by the SNS message
 	var eventBridgeEvent events.EventBridgeEvent
 	if err := json.Unmarshal([]byte(event.Records[0].SNS.Message), &eventBridgeEvent); err == nil {
-		if eventBridgeEvent.DetailType != "" && eventBridgeEvent.Detail.TraceContext != nil {
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
 			lp.createWrappedEventBridgeSpan(eventBridgeEvent)
 		}
 	}
@@ -174,7 +174,7 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 	// Check for EventBridge event wrapped by the SQS body
 	var eventBridgeEvent events.EventBridgeEvent
 	if err := json.Unmarshal([]byte(event.Records[0].Body), &eventBridgeEvent); err == nil {
-		if eventBridgeEvent.DetailType != "" && eventBridgeEvent.Detail.TraceContext != nil {
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
 			lp.createWrappedEventBridgeSpan(eventBridgeEvent)
 		}
 	}
