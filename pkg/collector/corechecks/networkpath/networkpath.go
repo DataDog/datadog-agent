@@ -67,6 +67,7 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 	path.Namespace = c.config.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
 	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
