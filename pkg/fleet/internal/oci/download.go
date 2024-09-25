@@ -326,7 +326,7 @@ type usernamePasswordKeychain struct {
 	password string
 }
 
-func (k usernamePasswordKeychain) Resolve(target authn.Resource) (authn.Authenticator, error) {
+func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator, error) {
 	return authn.FromConfig(authn.AuthConfig{
 		Username: k.username,
 		Password: k.password,
