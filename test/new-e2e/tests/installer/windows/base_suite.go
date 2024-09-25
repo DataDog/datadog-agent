@@ -12,7 +12,6 @@ import (
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
@@ -115,7 +114,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	outputDir, err := s.GetTestOutputDir()
 	s.Require().NoError(err, "should get output dir")
 	s.T().Logf("Output dir: %s", outputDir)
 	s.installer = NewDatadogInstaller(s.Env(), outputDir)

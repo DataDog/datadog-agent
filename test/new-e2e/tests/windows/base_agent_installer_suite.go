@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -45,7 +44,7 @@ func (b *BaseAgentInstallerSuite[Env]) BeforeTest(suiteName, testName string) {
 	b.BaseSuite.BeforeTest(suiteName, testName)
 
 	var err error
-	b.OutputDir, err = runner.GetTestOutputDir(runner.GetProfile(), b.T())
+	b.OutputDir, err = b.GetTestOutputDir()
 	if err != nil {
 		b.T().Fatalf("should get output dir")
 	}

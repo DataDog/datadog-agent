@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -360,7 +359,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	outputDir, err := s.GetTestOutputDir()
 	if err != nil {
 		s.T().Fatalf("should get output dir")
 	}
@@ -398,7 +397,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
-	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	outputDir, err := s.GetTestOutputDir()
 	if err != nil {
 		s.T().Fatalf("should get output dir")
 	}
