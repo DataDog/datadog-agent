@@ -11,6 +11,7 @@ import (
 	"compress/zlib"
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
@@ -20,6 +21,7 @@ type ZlibStrategy struct {
 
 // NewZlibStrategy returns a new ZlibStrategy
 func NewZlibStrategy() *ZlibStrategy {
+	log.Debug("Compressing zlib")
 	return &ZlibStrategy{}
 }
 

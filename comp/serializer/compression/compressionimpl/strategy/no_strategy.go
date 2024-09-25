@@ -10,6 +10,7 @@ import (
 	"bytes"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
@@ -18,6 +19,7 @@ type NoopStrategy struct {
 
 // NewNoopStrategy returns a new NoopStrategy for when kind is neither zlib nor zstd
 func NewNoopStrategy() *NoopStrategy {
+	log.Debug("Compressing noop")
 	return &NoopStrategy{}
 }
 

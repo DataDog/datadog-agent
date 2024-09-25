@@ -12,6 +12,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GzipStrategy is the strategy for when serializer_compression_kind is gzip
@@ -26,6 +27,8 @@ func NewGzipStrategy(level int) *GzipStrategy {
 	} else if level > gzip.BestCompression {
 		level = gzip.BestCompression
 	}
+
+	log.Debugf("Compressing gzip at level %d", level)
 
 	return &GzipStrategy{
 		level: level,
