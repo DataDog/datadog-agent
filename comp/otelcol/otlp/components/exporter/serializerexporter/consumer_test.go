@@ -27,6 +27,8 @@ import (
 	"github.com/tinylib/msgp/msgp"
 )
 
+const defaultHostname = "hostname"
+
 var statsPayloads = []*pb.ClientStatsPayload{
 	{
 		Hostname:         "host",
@@ -141,7 +143,7 @@ func TestSendAPMStats(t *testing.T) {
 		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
 		sc.ConsumeAPMStats(statsPayloads[1])
-		err := sc.Send(&MockSerializer{})
+		err := sc.Send(&MockSerializer{}, defaultHostname)
 		require.NoError(t, err)
 		require.Equal(t, called, 2)
 	})
@@ -158,7 +160,7 @@ func TestSendAPMStats(t *testing.T) {
 
 		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
-		err := sc.Send(&MockSerializer{})
+		err := sc.Send(&MockSerializer{}, defaultHostname)
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error")
 		require.Equal(t, called, 1)
 	})
@@ -176,7 +178,7 @@ func TestSendAPMStats(t *testing.T) {
 
 		sc := serializerConsumer{extraTags: []string{"k:v"}, apmReceiverAddr: fmt.Sprintf("http://localhost:%s/v0.6/stats", port)}
 		sc.ConsumeAPMStats(statsPayloads[0])
-		err := sc.Send(&MockSerializer{})
+		err := sc.Send(&MockSerializer{}, defaultHostname)
 		require.ErrorContains(t, err, "HTTP Status code == 500 Internal Server Error "+strings.Repeat("A", 1024))
 		require.Equal(t, called, 1)
 	})
