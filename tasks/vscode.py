@@ -44,7 +44,7 @@ def setup(ctx, force=False):
     print(color_message("* Setting up tasks", Color.BOLD))
     setup_tasks(ctx, force)
     print(color_message("* Setting up tests", Color.BOLD))
-    setup_tasks(ctx, force)
+    setup_tests(ctx, force)
     print(color_message("* Setting up settings", Color.BOLD))
     setup_settings(ctx, force)
     print(color_message("* Setting up launch settings", Color.BOLD))

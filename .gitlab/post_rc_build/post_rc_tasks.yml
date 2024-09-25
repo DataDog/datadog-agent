@@ -11,8 +11,8 @@ update_rc_build_links:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - export ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN)
-    - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com; export ATLASSIAN_USERNAME
     - python3 -m pip install -r tasks/requirements_release_tasks.txt
     - PATCH=$(echo "$CI_COMMIT_REF_NAME" | cut -d'.' -f3 | cut -c1)
     - if [[ "$PATCH" == "0" ]]; then PATCH_OPTION=""; else PATCH_OPTION="-p"; fi

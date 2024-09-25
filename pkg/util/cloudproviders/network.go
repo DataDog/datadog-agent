@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -31,7 +31,7 @@ func GetNetworkID(ctx context.Context) (string, error) {
 		networkIDCacheKey,
 		func() (string, error) {
 			// the id from configuration
-			if networkID := config.Datadog().GetString("network.id"); networkID != "" {
+			if networkID := pkgconfigsetup.Datadog().GetString("network.id"); networkID != "" {
 				log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
 				return networkID, nil
 			}

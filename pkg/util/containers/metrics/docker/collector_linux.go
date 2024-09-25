@@ -12,7 +12,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system"
@@ -77,7 +77,7 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 		Devices:         make(map[string]provider.DeviceIOStats),
 	}
 
-	procPath := config.Datadog().GetString("container_proc_root")
+	procPath := pkgconfigsetup.Datadog().GetString("container_proc_root")
 	deviceMapping, err := system.GetDiskDeviceMapping(procPath)
 	if err != nil {
 		log.Debugf("Error while getting disk mapping, no disk metric will be present, err: %v", err)

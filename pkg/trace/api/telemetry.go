@@ -36,6 +36,7 @@ const (
 	awsLambda                     cloudResourceType = "AWSLambda"
 	awsFargate                    cloudResourceType = "AWSFargate"
 	cloudRun                      cloudResourceType = "GCPCloudRun"
+	cloudFunctions                cloudResourceType = "GCPCloudFunctions"
 	azureAppService               cloudResourceType = "AzureAppService"
 	azureContainerApp             cloudResourceType = "AzureContainerApp"
 	aws                           cloudProvider     = "AWS"
@@ -257,8 +258,9 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set(header.ContainerID, containerID)
 	}
 	if containerTags != "" {
-		req.Header.Set("x-datadog-container-tags", containerTags)
-		log.Debugf("Setting header x-datadog-container-tags=%s for telemetry proxy", containerTags)
+		ctagsHeader := normalizeHTTPHeader(containerTags)
+		req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+		log.Debugf("Setting header X-Datadog-Container-Tags=%s for telemetry proxy", ctagsHeader)
 	}
 	if f.conf.InstallSignature.Found {
 		req.Header.Set("DD-Agent-Install-Id", f.conf.InstallSignature.InstallID)
@@ -279,6 +281,12 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		case "cloudrun":
 			req.Header.Set(cloudProviderHeader, string(gcp))
 			req.Header.Set(cloudResourceTypeHeader, string(cloudRun))
+			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
+				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
+			}
+		case "cloudfunction":
+			req.Header.Set(cloudProviderHeader, string(gcp))
+			req.Header.Set(cloudResourceTypeHeader, string(cloudFunctions))
 			if serviceName, found := f.conf.GlobalTags["service_name"]; found {
 				req.Header.Set(cloudResourceIdentifierHeader, serviceName)
 			}

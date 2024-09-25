@@ -8,7 +8,7 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -20,8 +20,8 @@ func LocalProcessCollectorIsEnabled() bool {
 		return false
 	}
 
-	processChecksInCoreAgent := config.Datadog().GetBool("process_config.run_in_core_agent.enabled")
-	langDetectionEnabled := config.Datadog().GetBool("language_detection.enabled")
+	processChecksInCoreAgent := pkgconfigsetup.Datadog().GetBool("process_config.run_in_core_agent.enabled")
+	langDetectionEnabled := pkgconfigsetup.Datadog().GetBool("language_detection.enabled")
 
 	return langDetectionEnabled && processChecksInCoreAgent
 }

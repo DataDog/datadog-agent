@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -66,7 +66,7 @@ type PrometheusServicesConfigProvider struct {
 }
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
+func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -81,7 +81,7 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders, *teleme
 	var endpointsInformer infov1.EndpointsInformer
 	var endpointsLister listersv1.EndpointsLister
 
-	collectEndpoints := config.Datadog().GetBool("prometheus_scrape.service_endpoints")
+	collectEndpoints := pkgconfigsetup.Datadog().GetBool("prometheus_scrape.service_endpoints")
 	if collectEndpoints {
 		endpointsInformer = ac.InformerFactory.Core().V1().Endpoints()
 		if endpointsInformer == nil {

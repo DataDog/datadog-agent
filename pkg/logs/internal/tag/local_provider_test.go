@@ -13,8 +13,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
@@ -36,10 +36,10 @@ func TestLocalProviderExpectedTags(t *testing.T) {
 	mockConfig := configmock.New(t)
 	clock := clock.NewMock()
 
-	oldStartTime := coreConfig.StartTime
-	coreConfig.StartTime = clock.Now()
+	oldStartTime := pkgconfigsetup.StartTime
+	pkgconfigsetup.StartTime = clock.Now()
 	defer func() {
-		coreConfig.StartTime = oldStartTime
+		pkgconfigsetup.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}

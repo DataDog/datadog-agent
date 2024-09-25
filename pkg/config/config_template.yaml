@@ -885,6 +885,8 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+
 {{ end -}}
 
 {{- if .LogsAgent }}
@@ -1707,6 +1709,28 @@ api_key:
   ## @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
   ##
   # check_max_events_per_run: 100
+{{ end -}}
+
+{{- if .SBOM }}
+## @param sbom - custom object - optional
+## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
+# sbom:
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Cloud Security Management Vulnerability Management
+  # enabled: false
+
+  ## uncomment the sections below to enable where the vulnerability scanning is done
+
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Infrastructure Vulnerabiltilies
+  # host:
+  #  enabled: false
+{{- if (eq .OS "linux")}}
+
+ 
+  # container_image:
+  #   enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .SystemProbe }}
 
