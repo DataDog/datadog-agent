@@ -1,6 +1,6 @@
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
-# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# This product includes software developed at Datadog (https://www.datadoghq.com).
 # Copyright 2016-present Datadog, Inc.
 
 # Embedded OpenSSL to meet FIPS requirements. It comes in two parts:
@@ -47,4 +47,4 @@ build do
 
     copy "#{resources_path}/openssl.cnf", "#{install_dir}/embedded/ssl/openssl.cnf.tmp"
     copy "#{resources_path}/fipsinstall.sh", "#{install_dir}/embedded/bin/fipsinstall.sh"
-end 
+end
