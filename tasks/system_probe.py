@@ -621,6 +621,7 @@ def build(
         strip_binary=strip_binary,
         bundle=bundle,
         arch=arch,
+        fips_mode=fips_mode,
     )
 
 
