@@ -424,17 +424,23 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 func (s *packageApmInjectSuite) TestSsiProcessDiscovery() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=js",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=js:5.22",
 		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-js")
+	s.host.AssertPackagePrefix("datadog-apm-library-js", "5.22")
+
 	s.host.Run("sudo apt-get install -y nodejs || sudo yum install -y nodejs")
-	s.host.Run(`bash -c '
+	spawnProcessOut := s.host.Run(`bash -c '
 		node -e "setTimeout(() => {}, 10000)" &
 		sudo datadog-installer list-ssi-processes >ssi_process_list.log
 		kill %1
 	'`)
+	s.T().Logf("%s - %s - output `%s`", time.Now().Format("02-01-2006 15:04:05"), s.T().Name(), spawnProcessOut)
+
 	output := s.host.Run(`sudo cat ssi_process_list.log && sudo rm ssi_process_list.log`)
+	assert.Contains(s.T(), output, `PID  SERVICE NAME  LANGUAGE NAME  RUNTIME NAME  RUNTIME VERSION  LIBRARY VERSION  INJECTOR VERSION  IS INJECTED  INJECTION STATUS  REASON`)
 	assert.Contains(s.T(), output, "nodejs")
 	assert.Contains(s.T(), output, "true")
 	assert.Contains(s.T(), output, "complete")
