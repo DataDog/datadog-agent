@@ -923,7 +923,8 @@ func (at *ActivityTree) ExtractSyscalls() []string {
 
 	at.visit(func(processNode *ProcessNode) {
 		for _, s := range processNode.Syscalls {
-			syscalls = append(syscalls, model.Syscall(s).String())
+			syscall := model.Syscall(s).ConvertSyscallName()
+			syscalls = append(syscalls, syscall)
 		}
 	})
 	return syscalls

@@ -9,6 +9,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -782,6 +783,7 @@ type activityDumpToSeccompProfileCliParams struct {
 
 	input  string
 	output string
+	format string
 }
 
 func activityDumpToSeccompProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -816,7 +818,14 @@ func activityDumpToSeccompProfileCommands(globalParams *command.GlobalParams) []
 		&cliParams.output,
 		"output",
 		"",
-		"path to the generated workload policy file",
+		"path to the generated seccomp profile file",
+	)
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.format,
+		"format",
+		"json",
+		"format of the generated seccomp profile file",
 	)
 
 	return []*cobra.Command{ActivityDumpToSeccompProfileCmd}
@@ -830,7 +839,13 @@ func activityDumpToSeccompProfile(_ log.Component, _ config.Component, _ secrets
 
 	seccompProfile := dump.GenerateSeccompProfile(ads)
 
-	b, err := yaml.Marshal(seccompProfile)
+	var b []byte
+	if args.format == "yaml" {
+		b, err = yaml.Marshal(seccompProfile)
+	} else {
+		b, err = json.Marshal(seccompProfile)
+	}
+
 	if err != nil {
 		return err
 	}
