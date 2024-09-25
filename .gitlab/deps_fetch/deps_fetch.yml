@@ -4,15 +4,15 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $(go env GOPATH)/pkg/mod && tar xJf modcache.tar.xz -C $(go env GOPATH)/pkg/mod
+  - mkdir -p $(go env GOPATH)/pkg/mod/cache && tar xJf modcache.tar.xz -C $(go env GOPATH)/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $(go env GOPATH)/pkg/mod && tar xJf modcache_tools.tar.xz -C $(go env GOPATH)/pkg/mod
+  - mkdir -p $(go env GOPATH)/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $(go env GOPATH)/pkg/mod/cache
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $(go env GOPATH)/pkg/mod && tar xJf modcache_e2e.tar.xz -C $(go env GOPATH)/pkg/mod
+  - mkdir -p $(go env GOPATH)/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $(go env GOPATH)/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
 
 .cache:

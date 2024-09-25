@@ -17,12 +17,44 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+// features allowed for handling edge-cases
+type featureSet struct {
+	allowSquash        bool
+	convertEmptyStrNil bool
+}
+
+// UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
+type UnmarshalKeyOption func(*featureSet)
+
+// EnableSquash allows UnmarshalKey to take advantage of `mapstructure`s `squash` feature
+// a squashed field hoists its fields up a level in the marshalled representation and directly embeds them
+var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
+	fs.allowSquash = true
+}
+
+// ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
+var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertEmptyStrNil = true
+}
+
+// error for when a key is not found
+var errNotFound = fmt.Errorf("not found")
+
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
 // to be stored on the target struct. It is implemented entirely using reflection, and
 // does not depend upon details of the data model of the config.
 // Target struct can use of struct tag of "yaml", "json", or "mapstructure" to rename fields
-func UnmarshalKey(cfg model.Reader, key string, target interface{}) error {
-	source, err := newNode(reflect.ValueOf(cfg.Get(key)))
+func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
+	fs := &featureSet{}
+	for _, o := range opts {
+		o(fs)
+	}
+	rawval := cfg.Get(key)
+	// Don't create a reflect.Value out of nil, just return immediately
+	if rawval == nil {
+		return nil
+	}
+	source, err := newNode(reflect.ValueOf(rawval))
 	if err != nil {
 		return err
 	}
@@ -32,20 +64,24 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}) error {
 	}
 	switch outValue.Kind() {
 	case reflect.Map:
-		return copyMap(outValue, source)
+		return copyMap(outValue, source, fs)
 	case reflect.Struct:
-		return copyStruct(outValue, source)
+		return copyStruct(outValue, source, fs)
 	case reflect.Slice:
 		if arr, ok := source.(arrayNode); ok {
-			return copyList(outValue, arr)
+			return copyList(outValue, arr, fs)
 		}
-		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list source")
+		if isEmptyString(source) {
+			if fs.convertEmptyStrNil {
+				return nil
+			}
+			return fmt.Errorf("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
+		}
+		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list source: %T", source)
 	default:
 		return fmt.Errorf("can only UnmarshalKey to struct, map, or slice, got %v", outValue.Kind())
 	}
 }
-
-var errNotFound = fmt.Errorf("not found")
 
 // leafNode represents a leaf with a scalar value
 
@@ -94,6 +130,9 @@ type innerNodeImpl struct {
 type innerMapNodeImpl struct {
 	// val must be a map[string]interface{}
 	val reflect.Value
+	// remapCase maps each lower-case key to the original case. This
+	// enables GetChild to retrieve values using case-insensitive keys
+	remapCase map[string]string
 }
 
 var _ node = (*innerNodeImpl)(nil)
@@ -104,7 +143,7 @@ func newNode(v reflect.Value) (node, error) {
 	if v.Kind() == reflect.Struct {
 		return &innerNodeImpl{val: v}, nil
 	} else if v.Kind() == reflect.Map {
-		return &innerMapNodeImpl{val: v}, nil
+		return &innerMapNodeImpl{val: v, remapCase: makeRemapCase(v)}, nil
 	} else if v.Kind() == reflect.Slice {
 		return &arrayNodeImpl{val: v}, nil
 	} else if isScalarKind(v) {
@@ -113,7 +152,7 @@ func newNode(v reflect.Value) (node, error) {
 	return nil, fmt.Errorf("could not create node from: %v of type %T and kind %v", v, v, v.Kind())
 }
 
-// GetChild returns the child node at the given key, or an error if not found
+// GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerNodeImpl) GetChild(key string) (node, error) {
 	findex := findFieldMatch(n.val, key)
 	if findex == -1 {
@@ -136,14 +175,16 @@ func (n *innerNodeImpl) ChildrenKeys() ([]string, error) {
 		if unicode.IsLower(ch) {
 			continue
 		}
-		keys = append(keys, fieldNameToKey(f))
+		fieldKey, _ := fieldNameToKey(f)
+		keys = append(keys, fieldKey)
 	}
 	return keys, nil
 }
 
-// GetChild returns the child node at the given key, or an error if not found
+// GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *innerMapNodeImpl) GetChild(key string) (node, error) {
-	inner := n.val.MapIndex(reflect.ValueOf(key))
+	mkey := n.remapCase[strings.ToLower(key)]
+	inner := n.val.MapIndex(reflect.ValueOf(mkey))
 	if !inner.IsValid() {
 		return nil, errNotFound
 	}
@@ -195,8 +236,8 @@ func (n *arrayNodeImpl) Index(k int) (node, error) {
 }
 
 // GetChild returns an error because a leaf has no children
-func (n *leafNodeImpl) GetChild(string) (node, error) {
-	return nil, fmt.Errorf("can't GetChild of a leaf node")
+func (n *leafNodeImpl) GetChild(key string) (node, error) {
+	return nil, fmt.Errorf("can't GetChild(%s) of a leaf node", key)
 }
 
 // ChildrenKeys returns an error because a leaf has no children
@@ -259,23 +300,40 @@ func convertToBool(text string) (bool, error) {
 	return false, newConversionError(reflect.ValueOf(text), "bool")
 }
 
-func fieldNameToKey(field reflect.StructField) string {
+type specifierSet map[string]struct{}
+
+// fieldNameToKey returns the lower-cased field name, for case insensitive comparisons,
+// with struct tag rename applied, as well as the set of specifiers from struct tags
+// struct tags are handled in order of yaml, then json, then mapstructure
+func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 	name := field.Name
-	if tagtext := field.Tag.Get("yaml"); tagtext != "" {
-		name = tagtext
-	} else if tagtext := field.Tag.Get("json"); tagtext != "" {
-		name = tagtext
-	} else if tagtext := field.Tag.Get("mapstructure"); tagtext != "" {
+
+	tagtext := ""
+	if val := field.Tag.Get("yaml"); val != "" {
+		tagtext = val
+	} else if val := field.Tag.Get("json"); val != "" {
+		tagtext = val
+	} else if val := field.Tag.Get("mapstructure"); val != "" {
+		tagtext = val
+	}
+
+	// skip any additional specifiers such as ",omitempty" or ",squash"
+	// TODO: support multiple specifiers
+	var specifiers map[string]struct{}
+	if commaPos := strings.IndexRune(tagtext, ','); commaPos != -1 {
+		specifiers = make(map[string]struct{})
+		val := tagtext[:commaPos]
+		specifiers[tagtext[commaPos+1:]] = struct{}{}
+		if val != "" {
+			name = val
+		}
+	} else if tagtext != "" {
 		name = tagtext
 	}
-	// skip any additional specifiers such as ",omitempty"
-	if commaPos := strings.IndexRune(name, ','); commaPos != -1 {
-		name = name[:commaPos]
-	}
-	return name
+	return strings.ToLower(name), specifiers
 }
 
-func copyStruct(target reflect.Value, source node) error {
+func copyStruct(target reflect.Value, source node, fs *featureSet) error {
 	targetType := target.Type()
 	for i := 0; i < targetType.NumField(); i++ {
 		f := targetType.Field(i)
@@ -283,13 +341,25 @@ func copyStruct(target reflect.Value, source node) error {
 		if unicode.IsLower(ch) {
 			continue
 		}
-		child, err := source.GetChild(fieldNameToKey(f))
+		fieldKey, specifiers := fieldNameToKey(f)
+		if _, ok := specifiers["squash"]; ok {
+			if !fs.allowSquash {
+				return fmt.Errorf("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
+			}
+			err := copyAny(target.FieldByName(f.Name), source, fs)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		child, err := source.GetChild(fieldKey)
 		if err == errNotFound {
 			continue
-		} else if err != nil {
+		}
+		if err != nil {
 			return err
 		}
-		err = copyAny(target.FieldByName(f.Name), child)
+		err = copyAny(target.FieldByName(f.Name), child, fs)
 		if err != nil {
 			return err
 		}
@@ -297,7 +367,7 @@ func copyStruct(target reflect.Value, source node) error {
 	return nil
 }
 
-func copyMap(target reflect.Value, source node) error {
+func copyMap(target reflect.Value, source node, _ *featureSet) error {
 	// TODO: Should handle maps with more complex types in a future PR
 	ktype := reflect.TypeOf("")
 	vtype := reflect.TypeOf("")
@@ -328,7 +398,7 @@ func copyMap(target reflect.Value, source node) error {
 	return nil
 }
 
-func copyLeaf(target reflect.Value, source leafNode) error {
+func copyLeaf(target reflect.Value, source leafNode, _ *featureSet) error {
 	if source == nil {
 		return fmt.Errorf("source value is not a scalar")
 	}
@@ -372,7 +442,7 @@ func copyLeaf(target reflect.Value, source leafNode) error {
 	return fmt.Errorf("unsupported scalar type %v", target.Kind())
 }
 
-func copyList(target reflect.Value, source arrayNode) error {
+func copyList(target reflect.Value, source arrayNode, fs *featureSet) error {
 	if source == nil {
 		return fmt.Errorf("source value is not a list")
 	}
@@ -387,7 +457,7 @@ func copyList(target reflect.Value, source arrayNode) error {
 		}
 		ptrOut := reflect.New(elemType)
 		outTarget := ptrOut.Elem()
-		err = copyAny(outTarget, elemSource)
+		err = copyAny(outTarget, elemSource, fs)
 		if err != nil {
 			return err
 		}
@@ -397,7 +467,7 @@ func copyList(target reflect.Value, source arrayNode) error {
 	return nil
 }
 
-func copyAny(target reflect.Value, source node) error {
+func copyAny(target reflect.Value, source node, fs *featureSet) error {
 	if target.Kind() == reflect.Pointer {
 		allocPtr := reflect.New(target.Type().Elem())
 		target.Set(allocPtr)
@@ -405,16 +475,16 @@ func copyAny(target reflect.Value, source node) error {
 	}
 	if isScalarKind(target) {
 		if leaf, ok := source.(leafNode); ok {
-			return copyLeaf(target, leaf)
+			return copyLeaf(target, leaf, fs)
 		}
 		return fmt.Errorf("can't copy into target: scalar required, but source is not a leaf")
 	} else if target.Kind() == reflect.Map {
-		return copyMap(target, source)
+		return copyMap(target, source, fs)
 	} else if target.Kind() == reflect.Struct {
-		return copyStruct(target, source)
+		return copyStruct(target, source, fs)
 	} else if target.Kind() == reflect.Slice {
 		if arr, ok := source.(arrayNode); ok {
-			return copyList(target, arr)
+			return copyList(target, arr, fs)
 		}
 		return fmt.Errorf("can't copy into target: []T required, but source is not an array")
 	} else if target.Kind() == reflect.Invalid {
@@ -423,15 +493,43 @@ func copyAny(target reflect.Value, source node) error {
 	return fmt.Errorf("unknown value to copy: %v", target.Type())
 }
 
+func isEmptyString(source node) bool {
+	if leaf, ok := source.(leafNode); ok {
+		if str, err := leaf.GetString(); err == nil {
+			return str == ""
+		}
+	}
+	return false
+}
+
 func isScalarKind(v reflect.Value) bool {
 	k := v.Kind()
 	return (k >= reflect.Bool && k <= reflect.Float64) || k == reflect.String
 }
 
+func makeRemapCase(v reflect.Value) map[string]string {
+	remap := make(map[string]string)
+	iter := v.MapRange()
+	for iter.Next() {
+		mkey := ""
+		switch k := iter.Key().Interface().(type) {
+		case string:
+			mkey = k
+		default:
+			mkey = fmt.Sprintf("%s", k)
+		}
+		remap[strings.ToLower(mkey)] = mkey
+	}
+	return remap
+}
+
 func findFieldMatch(val reflect.Value, key string) int {
+	// case-insensitive match for struct names
+	key = strings.ToLower(key)
 	schema := val.Type()
 	for i := 0; i < schema.NumField(); i++ {
-		if key == fieldNameToKey(schema.Field(i)) {
+		fieldKey, _ := fieldNameToKey(schema.Field(i))
+		if key == fieldKey {
 			return i
 		}
 	}

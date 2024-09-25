@@ -845,7 +845,6 @@ def go_package_dirs(packages, build_tags):
     This handles the ellipsis notation (eg. ./pkg/ebpf/...)
     """
 
-    target_packages = []
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
     packages_arg = " ".join(packages)
