@@ -100,7 +100,10 @@ func RemoveAgent(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = removeProduct("Datadog Agent")
+	// Don't return an error if the Agent is already not installed.
+	// returning an error here will prevent the package from being removed
+	// from the local repository.
+	err = removeAgentIfInstalled(ctx)
 	return err
 }
 
