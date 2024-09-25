@@ -175,3 +175,15 @@ type PolicyDef struct {
 	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
 	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 }
+
+// SeccompProfile represents a Seccomp profile
+type SeccompProfile struct {
+	DefaultAction string          `yaml:"defaultAction" json:"defaultAction"`
+	Syscalls      []SyscallPolicy `yaml:"syscalls" json:"syscalls"`
+}
+
+// SyscallPolicy represents the policy in a seccomp profile
+type SyscallPolicy struct {
+	Names  []string `yaml:"names" json:"names"`
+	Action string   `yaml:"action" json:"action"`
+}

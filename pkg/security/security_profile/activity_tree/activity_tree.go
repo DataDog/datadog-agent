@@ -917,3 +917,14 @@ func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string
 
 	return fimPathsperExecPath, execAndParent
 }
+
+func (at *ActivityTree) ExtractSyscalls() []string {
+	var syscalls []string
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, s := range processNode.Syscalls {
+			syscalls = append(syscalls, model.Syscall(s).String())
+		}
+	})
+	return syscalls
+}

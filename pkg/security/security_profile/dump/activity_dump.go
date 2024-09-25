@@ -1023,3 +1023,26 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 	}
 	return ruleDefs
 }
+
+// GenerateSeccompProfile returns a seccomp a profile
+func GenerateSeccompProfile(ads []*ActivityDump) *rules.SeccompProfile {
+
+	sp := &rules.SeccompProfile{
+		DefaultAction: "SCMP_ACT_KILL",
+		Syscalls: []rules.SyscallPolicy{
+			{
+				Action: "SCMP_ACT_ALLOW",
+				Names:  []string{},
+			},
+		},
+	}
+
+	for _, ad := range ads {
+		syscalls := ad.ActivityTree.ExtractSyscalls()
+		sp.Syscalls[0].Names = append(sp.Syscalls[0].Names, syscalls...)
+
+	}
+	slices.Sort(sp.Syscalls[0].Names)
+	sp.Syscalls[0].Names = slices.Compact(sp.Syscalls[0].Names)
+	return sp
+}
