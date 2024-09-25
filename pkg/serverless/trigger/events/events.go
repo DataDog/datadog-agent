@@ -230,7 +230,10 @@ type KinesisRecord struct {
 type EventBridgeEvent struct {
 	DetailType string `json:"detail-type"`
 	Source     string
-	StartTime  string
+	Time       time.Time
+	Detail     struct {
+		TraceContext map[string]string `json:"_datadog"`
+	}
 }
 
 // S3Event mirrors events.S3Event type, removing unused fields.

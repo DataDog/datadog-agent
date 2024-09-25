@@ -14,7 +14,9 @@ single-machine-performance-regression_detector:
       - submission_metadata # for provenance, debugging
       - ${CI_COMMIT_SHA}-baseline_sha # for provenance, debugging
       - outputs/report.md # for debugging, also on S3
-      - outputs/report.html # for debugging, also on S3
+      - outputs/regression_signal.json # for debugging, also on S3
+      - outputs/bounds_check_signal.json # for debugging, also on S3
+      - outputs/junit.xml # for debugging, also on S3
     when: always
   variables:
     SMP_VERSION: 0.16.0
@@ -33,7 +35,6 @@ single-machine-performance-regression_detector:
     # Ensure output files exist for artifact downloads step
     - mkdir outputs # Also needed for smp job sync step
     - touch outputs/report.md # Will be emitted by smp job sync
-    - touch outputs/report.html # Will be emitted by smp job sync
     # Compute merge base of current commit and `main`
     - git fetch origin
     - SMP_BASE_BRANCH=$(inv release.get-release-json-value base_branch)
@@ -95,6 +96,12 @@ single-machine-performance-regression_detector:
     - !reference [.install_pr_commenter]
     # Post HTML report to GitHub
     - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Regression Detector"
+    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
+    # invoke task has additional logic that does not seem to apply well to SMP's
+    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
+    # uploading JUnit XML, so the upload command below respects that convention.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
+    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result

@@ -294,7 +294,7 @@ class GitlabCIDiff:
 
         if only_summary:
             if not cli:
-                res.append(':warning: Diff too large to display on Github')
+                res.append(':warning: Diff too large to display on Github.')
         else:
             if self.modified:
                 wrap = len(self.modified) > max_detailed_jobs
@@ -382,7 +382,7 @@ class MultiGitlabCIDiff:
             return ''
 
         if len(self.diffs) == 1:
-            return self.diffs[0].diff.display(cli, **kwargs)
+            return self.diffs[0].diff.display(cli, job_url=job_url, **kwargs)
 
         def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
             if cli:

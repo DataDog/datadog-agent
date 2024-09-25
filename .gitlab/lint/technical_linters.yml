@@ -1,14 +1,17 @@
 
 .lint:
-  stage: .pre
+  stage: lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
 
 lint_licenses:
   extends: .lint
   script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - inv -e lint-licenses
+  needs: ["go_tools_deps", "go_deps"]
 
 lint_shell:
   extends: .lint
@@ -39,3 +42,23 @@ lint_components:
   extends: .lint
   script:
     - inv -e lint-components lint-fxutil-oneshot-test
+
+
+lint_python:
+  extends: .lint
+  needs: []
+  script:
+    - inv -e linter.python
+
+lint_update_go:
+  extends: .lint
+  needs: []
+  script:
+    - inv -e linter.update-go
+
+validate_modules:
+  extends: .lint
+  needs: []
+  script:
+    - inv -e modules.validate
+    - inv -e modules.validate-used-by-otel
