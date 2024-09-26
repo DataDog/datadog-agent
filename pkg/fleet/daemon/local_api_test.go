@@ -57,7 +57,7 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 }
 
 func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
-	args := m.Called(ctx, url)
+	args := m.Called(ctx, url, hash)
 	return args.Error(0)
 }
 

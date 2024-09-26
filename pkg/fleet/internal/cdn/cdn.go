@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/google/uuid"
 	"go.uber.org/multierr"
@@ -78,11 +81,12 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	if err != nil {
 		return nil, err
 	}
+	dbName := fmt.Sprintf("rc-db-%s", uuid.New().String())
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(c.env.APIKey),
 		remoteconfig.WithConfigRootOverride(c.env.Site, ""),
 		remoteconfig.WithDirectorRootOverride(c.env.Site, ""),
-		remoteconfig.WithDatabaseFileName("remote-config-cdn-tmp"),
+		remoteconfig.WithDatabaseFileName(dbName),
 	}
 	service, err := remoteconfig.NewService(
 		config,
@@ -98,7 +102,18 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		return nil, err
 	}
 	service.Start()
-	defer func() { _ = service.Stop() }()
+	defer func() {
+		stopErr := service.Stop()
+		if stopErr != nil {
+			log.Errorf("error stopping the Remote Config service: %v", stopErr)
+			return
+		}
+		// delete the database file
+		stopErr = os.Remove(filepath.Join(config.GetString("run_path"), dbName))
+		if stopErr != nil {
+			log.Errorf("error deleting the database file: %v", stopErr)
+		}
+	}()
 	// Force a cache bypass
 	cfgs, err := service.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
 		Client: &pbgo.Client{

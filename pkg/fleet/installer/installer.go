@@ -308,7 +308,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	defer os.RemoveAll(tmpDir)
 
 	// Note: this is definitely not package agnostic, because the CDN isn't.
-	// This will be adressed in a follow-up PR
+	// This will be addressed in a follow-up PR
 	err = service.WriteAgentConfig(config, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not write agent config: %w", err)

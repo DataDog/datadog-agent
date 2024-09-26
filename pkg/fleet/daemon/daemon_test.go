@@ -86,7 +86,7 @@ func (m *testPackageManager) PromoteExperiment(ctx context.Context, pkg string) 
 }
 
 func (m *testPackageManager) InstallConfigExperiment(ctx context.Context, url string, hash string) error {
-	args := m.Called(ctx, url)
+	args := m.Called(ctx, url, hash)
 	return args.Error(0)
 }
 
