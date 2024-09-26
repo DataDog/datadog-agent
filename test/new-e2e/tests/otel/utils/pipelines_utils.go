@@ -133,11 +133,11 @@ func TestMetrics(s OTelTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service)}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service), "kube_ownerref_kind:job"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 2*time.Minute, 10*time.Second)
-	s.T().Log("Got metrics", metrics)
+	s.T().Log("Got metrics", s.T().Name(), metrics)
 
 	for _, metricSeries := range metrics {
 		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
@@ -308,7 +308,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("telemetrygen-job-%v", telemetry),
+			Name:      fmt.Sprintf("telemetrygen-job-%v-%v", telemetry, strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-")),
 			Namespace: "datadog",
 		},
 		Spec: batchv1.JobSpec{
@@ -659,6 +659,8 @@ func TestCalendarJavaApp(s OTelTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		mn, err := s.Env().FakeIntake.Client().GetMetricNames()
+		s.T().Log("CalendarJavaApp Metric Names", mn)
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar.api.hits", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-java-otel"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
@@ -678,6 +680,8 @@ func TestCalendarGoApp(s OTelTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		mn, err := s.Env().FakeIntake.Client().GetMetricNames()
+		s.T().Log("CalendarGoApp Metric Names", mn)
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-rest-go"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
