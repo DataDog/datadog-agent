@@ -172,6 +172,7 @@ close_failing_tests_stale_issues:
   tags: ["arch:amd64"]
   script:
   - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+  - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY
   - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
   - ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com; export ATLASSIAN_USERNAME
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
