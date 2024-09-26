@@ -31,24 +31,24 @@ type defaultEntityID string
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	parts := strings.SplitN(string(de), separator, 2)
+	_, id, separatorFound := strings.Cut(string(de), separator)
 
-	if len(parts) != 2 {
+	if !separatorFound {
 		return ""
 	}
 
-	return parts[1]
+	return id
 }
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	parts := strings.SplitN(string(de), separator, 2)
+	prefix, _, separatorFound := strings.Cut(string(de), separator)
 
-	if len(parts) != 2 {
+	if !separatorFound {
 		return ""
 	}
 
-	return EntityIDPrefix(parts[0])
+	return EntityIDPrefix(prefix)
 }
 
 // String implements EntityID#String
