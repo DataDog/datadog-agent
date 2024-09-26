@@ -23,7 +23,7 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
-	t.Skip()
+	t.Parallel()
 	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 

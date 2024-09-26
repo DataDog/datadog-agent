@@ -297,6 +297,14 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
 
+	if s.Env().Agent == nil {
+		s.T().Log("AGENT NIL")
+	}
+
+	if s.Env().Agent != nil {
+		s.T().Log("LinuxNodeAgent.LabelSelectors", s.Env().Agent.LinuxNodeAgent.LabelSelectors)
+	}
+
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
