@@ -676,15 +676,37 @@ feature:
 			skip: false,
 		},
 		{
-			name: "converts yaml parsed other type to match struct",
+			name: "converts yaml parsed int to match struct",
 			conf: `
 feature:
   value: 42
 `,
 			want: StringConfig{
-				Field: "42", // this currently fails, Viper parses to int and unmarshal will reflect that type
+				Field: "42",
 			},
-			skip: true,
+			skip: false,
+		},
+		{
+			name: "truncates large yaml floats instead of using exponents",
+			conf: `
+feature:
+  value: 4.2222222222222222222222
+`,
+			want: StringConfig{
+				Field: "4.222222222222222",
+			},
+			skip: false,
+		},
+		{
+			name: "converts yaml parsed float to match struct",
+			conf: `
+feature:
+  value: 4.2
+`,
+			want: StringConfig{
+				Field: "4.2",
+			},
+			skip: false,
 		},
 		{
 			name: "commas are part of the string and not a list",
