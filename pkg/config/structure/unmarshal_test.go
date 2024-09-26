@@ -86,6 +86,11 @@ network_devices:
 	assert.Equal(t, trapsCfg.Namespace, "abc")
 }
 
+type ServiceDescription struct {
+	Host     string
+	Endpoint Endpoint `mapstructure:",squash"`
+}
+
 type Endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
@@ -145,6 +150,31 @@ endpoints:
 			}
 		})
 	}
+}
+
+func TestUnmarshalKeyWithSquash(t *testing.T) {
+	confYaml := `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("service")
+
+	var svc = ServiceDescription{}
+	// fails without EnableSquash being given
+	err := UnmarshalKey(mockConfig, "service", &svc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "EnableSquash")
+
+	// succeeds
+	err = UnmarshalKey(mockConfig, "service", &svc, EnableSquash)
+	assert.NoError(t, err)
+
+	assert.Equal(t, svc.Host, "datad0g.com")
+	assert.Equal(t, svc.Endpoint.Name, "intake")
+	assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 }
 
 type FeatureConfig struct {
@@ -565,6 +595,46 @@ feature:
 			}
 		})
 	}
+}
+
+type FeatureConfigDiffCase struct {
+	ENaBLEd bool
+}
+
+func TestUnmarshalKeyCaseInsensitive(t *testing.T) {
+	confYaml := `
+feature:
+  EnABLeD: "true"
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	var feature = FeatureConfig{}
+	err := UnmarshalKey(mockConfig, "feature", &feature)
+	assert.NoError(t, err)
+
+	assert.Equal(t, feature.Enabled, true)
+
+	var diffcase = FeatureConfigDiffCase{}
+	err = UnmarshalKey(mockConfig, "feature", &diffcase)
+	assert.NoError(t, err)
+
+	assert.Equal(t, diffcase.ENaBLEd, true)
+}
+
+func TestUnmarshalKeyMissing(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: "true"
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	// If the data from the config is missing, UnmarshalKey is a no-op, does
+	// nothing, and returns no error
+	var endpoints = []Endpoint{}
+	err := UnmarshalKey(mockConfig, "config_providers", &endpoints)
+	assert.NoError(t, err)
 }
 
 func TestMapGetChildNotFound(t *testing.T) {

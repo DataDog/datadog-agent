@@ -424,6 +424,7 @@ The format of the profile is a json list of objects representing a vm. For each 
 - IP
 - architecture
 - name
+- ssh_user
 
 An example of an alien VMs profile:
 ```json
@@ -432,7 +433,8 @@ An example of an alien VMs profile:
         "ssh_key_path": "/home/user/.ssh/some-key.id_rsa",
         "ip": "xxx.yyy.aaa.bbb",
         "arch": "x86",
-        "name": "ubuntu-gcp"
+        "name": "ubuntu-gcp",
+        "ssh_user": "ubuntu"
     }
 ]
 ```

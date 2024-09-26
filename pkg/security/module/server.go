@@ -351,7 +351,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			extTagsCb:       extTagsCb,
 			service:         service,
 			sendAfter:       time.Now().Add(retention),
-			tags:            make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
+			tags:            tags,
 			actionReports:   actionReports,
 		}
 

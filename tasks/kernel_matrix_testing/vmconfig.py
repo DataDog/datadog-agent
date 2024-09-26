@@ -658,7 +658,7 @@ def gen_config_for_stack(
 
     ## get all possible (recipe, version, arch) combinations we can support.
     vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
-    if os.path.exists(vmconfig_file):
+    if os.path.exists(vmconfig_file) and not new:
         raise Exit(
             "Editing configuration is current not supported. Destroy the stack first to change the configuration."
         )

@@ -725,3 +725,23 @@ def download_to_tempfile(url, checksum=None):
             os.close(fd)
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+
+def experimental(message):
+    """
+    Marks this task as experimental and prints the message.
+
+    Note: This decorator must be placed after the `task` decorator.
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            fname = f.__name__
+            print(color_message(f"Warning: {fname} is experimental: {message}", Color.ORANGE), file=sys.stderr)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
