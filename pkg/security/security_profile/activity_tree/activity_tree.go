@@ -918,6 +918,7 @@ func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string
 	return fimPathsperExecPath, execAndParent
 }
 
+// ExtractSyscalls return the syscalls present in an activity tree
 func (at *ActivityTree) ExtractSyscalls() []string {
 	var syscalls []string
 

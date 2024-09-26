@@ -114,6 +114,18 @@ type SECLRuleOpts struct {
 	FIM        bool
 }
 
+// SeccompProfile represents a Seccomp profile
+type SeccompProfile struct {
+	DefaultAction string          `yaml:"defaultAction" json:"defaultAction"`
+	Syscalls      []SyscallPolicy `yaml:"syscalls" json:"syscalls"`
+}
+
+// SyscallPolicy represents the policy in a seccomp profile
+type SyscallPolicy struct {
+	Names  []string `yaml:"names" json:"names"`
+	Action string   `yaml:"action" json:"action"`
+}
+
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
 func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
 	adlc := &model.ActivityDumpLoadConfig{
@@ -1025,11 +1037,11 @@ func GenerateRules(ads []*ActivityDump, opts SECLRuleOpts) []*rules.RuleDefiniti
 }
 
 // GenerateSeccompProfile returns a seccomp a profile
-func GenerateSeccompProfile(ads []*ActivityDump) *rules.SeccompProfile {
+func GenerateSeccompProfile(ads []*ActivityDump) *SeccompProfile {
 
-	sp := &rules.SeccompProfile{
+	sp := &SeccompProfile{
 		DefaultAction: "SCMP_ACT_KILL",
-		Syscalls: []rules.SyscallPolicy{
+		Syscalls: []SyscallPolicy{
 			{
 				Action: "SCMP_ACT_ALLOW",
 				Names:  []string{},
