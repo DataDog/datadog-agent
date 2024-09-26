@@ -14,6 +14,7 @@ import (
 )
 
 const separator = "://"
+const separatorLength = len(separator)
 
 // EntityID represents a tagger entityID
 // An EntityID should be identified by a prefix and an id, and is represented as {prefix}://{id}
@@ -27,37 +28,39 @@ type EntityID interface {
 }
 
 // defaultEntityID implements EntityID as a plain string id
-type defaultEntityID string
+type defaultEntityID struct {
+	id string
+}
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	separatorIndex := strings.Index(string(de), separator)
+	separatorIndex := strings.Index(de.id, separator)
 
 	if separatorIndex == -1 {
 		return ""
 	}
 
-	return string(de)[separatorIndex+len(separator):]
+	return de.id[separatorIndex+separatorLength:]
 }
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	separatorIndex := strings.Index(string(de), separator)
+	separatorIndex := strings.Index(de.id, separator)
 
 	if separatorIndex == -1 {
 		return ""
 	}
 
-	return EntityIDPrefix(string(de)[:separatorIndex])
+	return EntityIDPrefix(de.id[:separatorIndex])
 }
 
 // String implements EntityID#String
 func (de defaultEntityID) String() string {
-	return string(de)
+	return de.id
 }
 
 func newDefaultEntityID(id string) EntityID {
-	return defaultEntityID(id)
+	return defaultEntityID{id: id}
 }
 
 // compositeEntityID implements EntityID as a struct of prefix and id
