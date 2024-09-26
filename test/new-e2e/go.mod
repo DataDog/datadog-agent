@@ -266,6 +266,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
 	github.com/hairyhenderson/go-codeowners v0.5.0
+	golang.org/x/text v0.17.0
 )
 
 require (
