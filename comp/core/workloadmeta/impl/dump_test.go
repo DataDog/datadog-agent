@@ -124,6 +124,7 @@ Hostname:
 Network IPs: 
 PID: 0
 Cgroup path: 
+GPU Activity: 
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -153,6 +154,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
+GPU Activity: 
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -182,6 +184,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
+GPU Activity: 
 `,
 				},
 			},
