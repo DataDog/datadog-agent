@@ -1050,7 +1050,7 @@ func GenerateSeccompProfile(ads []*ActivityDump) *SeccompProfile {
 	}
 
 	for _, ad := range ads {
-		syscalls := ad.ActivityTree.ExtractSyscalls()
+		syscalls := ad.ActivityTree.ExtractSyscalls(ad.Metadata.Arch)
 		sp.Syscalls[0].Names = append(sp.Syscalls[0].Names, syscalls...)
 
 	}

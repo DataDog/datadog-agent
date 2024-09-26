@@ -10,22 +10,9 @@ package model
 
 import (
 	"strings"
-	"unicode"
 )
 
 // MarshalText maps the syscall identifier to UTF-8-encoded text and returns the result
 func (s Syscall) MarshalText() ([]byte, error) {
 	return []byte(strings.ToLower(strings.TrimPrefix(s.String(), "Sys"))), nil
-}
-
-// ConvertSyscallName converts syscall into a unix format
-func (s Syscall) ConvertSyscallName() string {
-	var result []rune
-	for i, r := range s.String()[3:] {
-		if unicode.IsUpper(r) && i > 0 {
-			result = append(result, '_')
-		}
-		result = append(result, unicode.ToLower(r))
-	}
-	return string(result)
 }
