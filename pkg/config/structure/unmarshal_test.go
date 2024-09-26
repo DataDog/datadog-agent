@@ -6,7 +6,6 @@
 package structure
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -114,9 +113,9 @@ endpoints:
   apikey: abc3
 `,
 			want: []Endpoint{
-				Endpoint{Name: "intake", APIKey: "abc1"},
-				Endpoint{Name: "config", APIKey: "abc2"},
-				Endpoint{Name: "health", APIKey: "abc3"},
+				{Name: "intake", APIKey: "abc1"},
+				{Name: "config", APIKey: "abc2"},
+				{Name: "health", APIKey: "abc3"},
 			},
 		},
 		{
@@ -128,14 +127,14 @@ endpoints:
   apikey: abc2
 `,
 			want: []Endpoint{
-				Endpoint{Name: "intake", APIKey: ""},
-				Endpoint{Name: "config", APIKey: "abc2"},
+				{Name: "intake", APIKey: ""},
+				{Name: "config", APIKey: "abc2"},
 			},
 		},
 	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("endpoints")
 
@@ -238,7 +237,7 @@ feature:
 		//	},
 	}
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
@@ -371,7 +370,7 @@ feature:
 	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			if tc.skip {
 				t.Skip("Skipping test case")
 			}
@@ -439,7 +438,7 @@ feature:
 	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			if tc.skip {
 				t.Skip("Skipping test case")
 			}
@@ -569,7 +568,7 @@ feature:
 	}
 
 	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			if tc.skip {
 				t.Skip("Skipping test case")
 			}
