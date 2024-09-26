@@ -33,6 +33,7 @@ from tasks import (
     go_deps,
     installer,
     invoke_unit_tests,
+    jira,
     kmt,
     linter,
     modules,
@@ -170,6 +171,7 @@ ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
+ns.add_collection(jira)
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
