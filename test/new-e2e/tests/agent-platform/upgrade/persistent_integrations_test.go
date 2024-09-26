@@ -20,10 +20,12 @@ import (
 type persistentIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
 	pipelineID string
+	apiKey     string
 }
 
 func TestPersistentIntegrationsSuite(t *testing.T) {
 	pipelineID := os.Getenv("DEST_AGENT_PIPELINE_ID")
+	apiKey := os.Getenv("DD_API_KEY")
 
 	oses := []componentos.Descriptor{
 		componentos.Ubuntu2204,
@@ -46,7 +48,7 @@ func TestPersistentIntegrationsSuite(t *testing.T) {
 				tt.Logf("Testing %s-%s", os, arch)
 
 				e2e.Run(tt,
-					&persistentIntegrationsSuite{pipelineID: pipelineID},
+					&persistentIntegrationsSuite{pipelineID: pipelineID, apiKey: apiKey},
 					e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOSArch(os, arch)))),
 					e2e.WithStackName(fmt.Sprintf("upgrade-persistent-integrations-test-%s-%s", os.Flavor, arch)),
 				)
@@ -56,21 +58,26 @@ func TestPersistentIntegrationsSuite(t *testing.T) {
 }
 
 func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
-	apiKey := os.Getenv("DD_API_KEY")
+	var stdout string
 
 	// Install a datadog-agent release:
-	installAgentCmd := fmt.Sprintf("DD_API_KEY=%s DD_AGENT_MAJOR_VERSION=7 DD_AGENT_MINOR_VERSION=50 bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", apiKey)
-	v.Env().RemoteHost.MustExecute(installAgentCmd)
+	installAgentCmd := fmt.Sprintf("DD_API_KEY=%s DD_AGENT_MAJOR_VERSION=7 DD_AGENT_MINOR_VERSION=50 bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", v.apiKey)
+	stdout = v.Env().RemoteHost.MustExecute(installAgentCmd)
 
-	agentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
-	v.Require().Contains(agentVersion, "7.50")
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+	v.Require().Contains(stdout, "7.50")
 
 	// Install a marketplace integration (NVML):
 	v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration install -t datadog-nvml==1.0.0")
 	v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- /opt/datadog-agent/embedded/bin/pip3 install grpcio pynvml")
 
+	// Assert that the integration was installed successfully
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
+	v.Require().Contains(stdout, "Installed version: 1.0.0")
+
 	// Install your package from your pipeline:
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("TESTING_APT_URL=apttesting.datad0g.com TESTING_APT_REPO_VERSION=\"pipeline-%s-a7-arm64 7\" DD_API_KEY=%s DD_SITE=\"datadoghq.com\" bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", v.pipelineID, apiKey))
-	res := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
-	v.Assert().Contains(res, "Installed version: 1.0.0")
+	stdout = v.Env().RemoteHost.MustExecute(fmt.Sprintf("TESTING_APT_URL=apttesting.datad0g.com TESTING_APT_REPO_VERSION=\"pipeline-%s-a7-arm64 7\" DD_API_KEY=%s DD_SITE=\"datadoghq.com\" bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", v.pipelineID, v.apiKey))
+
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
+	v.Assert().Contains(stdout, "Installed version: 1.0.0")
 }
