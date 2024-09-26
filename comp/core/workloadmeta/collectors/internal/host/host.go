@@ -20,6 +20,10 @@ type HostTagManager struct {
 	config       config.Component
 }
 
+func GetFxOptions() fx.Option {
+	return fx.Provide(NewHostTagManager)
+}
+
 // NewHostTagManager creates a new HostTagManager instance with the specified duration and clock.
 func NewHostTagManager(deps dependencies) *HostTagManager {
 	return &HostTagManager{
