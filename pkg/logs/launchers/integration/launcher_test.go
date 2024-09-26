@@ -332,9 +332,6 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	assert.Nil(suite.T(), err)
 
 	defer func() {
-		file1.Close()
-		file2.Close()
-		file3.Close()
 		os.Remove(filename1)
 		os.Remove(filename2)
 		os.Remove(filename3)
@@ -344,6 +341,12 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
 	file3.Write(dataOneMB)
+
+	// Close the files immediately after writing to them so windows is able to
+	// delete them
+	file1.Close()
+	file2.Close()
+	file3.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
 
