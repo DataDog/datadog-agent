@@ -587,7 +587,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
-		_, _ = fmt.Fprintln(&sb, "GPU Activity:", c.Resources.GPUType)
+		_, _ = fmt.Fprintln(&sb, "GPU Type:", c.Resources.GPUType)
 	}
 
 	if len(c.Ports) > 0 && verbose {
