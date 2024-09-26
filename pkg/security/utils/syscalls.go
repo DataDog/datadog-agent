@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package utils groups multiple utils function that can be used by the secl package
-
 package utils
 
 // SyscallKey key representing the arch and syscall id
