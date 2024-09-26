@@ -496,6 +496,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if err != nil {
 		log.Errorf("could not get agent remote config version: %v", err)
 	}
+	availableSpace, err := d.installer.AvailableDiskSpace()
+	if err != nil {
+		log.Errorf("could not get available size: %v", err)
+	}
 
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -529,5 +533,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		}
 		packages = append(packages, p)
 	}
-	d.rc.SetState(packages)
+	d.rc.SetState(&pbgo.ClientUpdater{
+		Packages:           packages,
+		AvailableDiskSpace: availableSpace,
+	})
 }
