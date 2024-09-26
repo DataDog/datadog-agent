@@ -915,7 +915,7 @@ def get_preset_contexts(required_tests):
             generate_contexts(mq_contexts, [], all_contexts)
         if test in ["all", "conductor"]:
             generate_contexts(conductor_contexts, [], all_contexts)
-        if test in ["all", "ntegrations"]:
+        if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
     return all_contexts
 
