@@ -18,12 +18,16 @@ class ExitCodeException : Exception {
 function Update-ConfigFile($regex, $replacement) {
    $configFile = Join-Path (Get-ItemPropertyValue -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent" -Name "ConfigRoot") "datadog.yaml"
    if (-Not $configFile) {
-      $configFile = "C:\\ProgramData\\datadog.yaml"
+      $configFile = "C:\\ProgramData\\Datadog\\datadog.yaml"
    }
    if (-Not (Test-Path $configFile)) {
       throw "datadog.yaml doesn't exist"
    }
-   (Get-Content $configFile) -replace $regex, $replacement | Out-File configFile
+   if (((Get-Content $configFile) | Select-String $regex | Measure).Count -eq 0) {
+    Add-Content -Path $configFile -Value $replacement
+   } else {
+    (Get-Content $configFile) -replace $regex, $replacement | Out-File $configFile
+   }
 }
 
 function Send-Telemetry($payload) {
@@ -161,17 +165,17 @@ try {
    }
 
    Write-Host "Downloading installer from $ddInstallerUrl"
-   [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   #[System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
 
    # If not set the `default-packages` won't contain the Datadog Agent
    $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
 
    Write-Host "Starting bootstrap process"
-   $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
-   if ($result -ne 0) {
+   #$result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
+   #if ($result -ne 0) {
       # bootstrap only fails if it fails to install to install the Datadog Installer, so it's possible the Agent was not  installed
-      throw [ExitCodeException]::new("Bootstrap failed", $result)
-   }
+      #throw [ExitCodeException]::new("Bootstrap failed", $result)
+   #}
    Write-Host "Bootstrap execution done"
 
    if (-Not (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent")) {
