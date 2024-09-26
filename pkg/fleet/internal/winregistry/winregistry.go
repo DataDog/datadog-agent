@@ -54,12 +54,12 @@ func GetAgentUserName() (string, error) {
 
 	user, _, err := k.GetStringValue("installedUser")
 	if err != nil {
-		return "", fmt.Errorf("could not read installedUser in registry: %s", err)
+		return "", fmt.Errorf("could not read installedUser in registry: %w", err)
 	}
 
 	domain, _, err := k.GetStringValue("installedDomain")
 	if err != nil {
-		return "", fmt.Errorf("could not read installedDomain in registry: %s", err)
+		return "", fmt.Errorf("could not read installedDomain in registry: %w", err)
 	}
 
 	if domain != "" {
