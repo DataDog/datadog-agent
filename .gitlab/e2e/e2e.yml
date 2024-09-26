@@ -479,7 +479,9 @@ new-e2e-cspm:
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
-  rules: !reference [.on_deploy_nightly_repo_branch]
+  rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -494,6 +496,7 @@ generate-flakes-finder-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_ot
   tags: ["arch:amd64"]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
@@ -505,7 +508,9 @@ generate-flakes-finder-pipeline:
 trigger-flakes-finder:
   stage: e2e
   needs: [generate-flakes-finder-pipeline]
-  rules: !reference [.on_deploy_nightly_repo_branch]
+  rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
