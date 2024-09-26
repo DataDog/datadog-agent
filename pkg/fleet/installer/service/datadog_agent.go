@@ -245,7 +245,7 @@ func PromoteAgentExperiment(ctx context.Context) error {
 }
 
 // ConfigureAgent configures the stable agent
-func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repositories) error {
+func ConfigureAgent(ctx context.Context, cdn cdn.CDN, configs *repository.Repositories) error {
 	config, err := cdn.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get cdn config: %w", err)

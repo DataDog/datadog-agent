@@ -29,6 +29,7 @@ const (
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
+	envCDNLocalDirPath       = "DD_INSTALLER_CDN_LOCAL_DIR_PATH"
 )
 
 var defaultEnv = Env{
@@ -76,6 +77,8 @@ type Env struct {
 	AgentMinorVersion string
 
 	InstallScript InstallScriptEnv
+
+	CDNLocalDirPath string
 }
 
 // FromEnv returns an Env struct with values from the environment.
@@ -100,6 +103,8 @@ func FromEnv() *Env {
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 
 		InstallScript: installScriptEnvFromEnv(),
+
+		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
 	}
 }
 

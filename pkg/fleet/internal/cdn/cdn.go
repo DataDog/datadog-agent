@@ -36,7 +36,11 @@ var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+
 const configOrderID = "configuration_order"
 
 // CDN provides access to the Remote Config CDN.
-type CDN struct {
+type CDN interface {
+	Get(ctx context.Context) (*Config, error)
+}
+
+type cdnRemote struct {
 	env *env.Env
 }
 
@@ -53,14 +57,21 @@ type orderConfig struct {
 }
 
 // New creates a new CDN.
-func New(env *env.Env) *CDN {
-	return &CDN{
+func New(env *env.Env) CDN {
+	if env.CDNLocalDirPath != "" {
+		return newLocal(env)
+	}
+	return newRemote(env)
+}
+
+func newRemote(env *env.Env) CDN {
+	return &cdnRemote{
 		env: env,
 	}
 }
 
 // Get gets the configuration from the CDN.
-func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
+func (c *cdnRemote) Get(ctx context.Context) (_ *Config, err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	configLayers, err := c.getOrderedLayers(ctx)
@@ -72,7 +83,7 @@ func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
 
 // getOrderedLayers calls the Remote Config service to get the ordered layers.
 // Today it doesn't use the CDN, but it should in the future
-func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
+func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	// HACK(baptiste): Create a dedicated one-shot RC service just for the configuration
 	// We should use the CDN instead
 	config := pkgconfigsetup.Datadog()
@@ -165,18 +176,11 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		return nil, layersErr
 	}
 
-	// Order configs
 	if configOrder == nil {
 		return nil, fmt.Errorf("no configuration_order found")
 	}
-	orderedLayers := []*layer{}
-	for _, configName := range configOrder.Order {
-		if configLayer, ok := configLayers[configName]; ok {
-			orderedLayers = append(orderedLayers, configLayer)
-		}
-	}
 
-	return orderedLayers, nil
+	return orderLayers(*configOrder, configLayers), nil
 }
 
 func getHostTags(ctx context.Context, config model.Config) func() []string {
@@ -191,4 +195,14 @@ func getHostTags(ctx context.Context, config model.Config) func() []string {
 		tags = append(tags, "installer:true")
 		return tags
 	}
+}
+
+func orderLayers(configOrder orderConfig, configLayers map[string]*layer) []*layer {
+	orderedLayers := []*layer{}
+	for _, configName := range configOrder.Order {
+		if configLayer, ok := configLayers[configName]; ok {
+			orderedLayers = append(orderedLayers, configLayer)
+		}
+	}
+	return orderedLayers
 }

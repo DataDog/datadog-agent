@@ -10,6 +10,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,6 +88,11 @@ func RemoveAgent(ctx context.Context) (err error) {
 }
 
 // ConfigureAgent noop
-func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+func ConfigureAgent(_ context.Context, _ cdn.CDN, _ *repository.Repositories) error {
+	return nil
+}
+
+// WriteAgentConfig noop
+func WriteAgentConfig(_ *cdn.Config, _ string) error {
 	return nil
 }

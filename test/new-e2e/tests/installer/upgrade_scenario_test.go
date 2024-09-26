@@ -374,6 +374,65 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
 	s.TestUpgradeSuccessful()
 }
 
+func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
+	localCDN := host.NewLocalCDN(s.host)
+	localCDN.AddLayer("debug_logs", "\"log_level\": \"debug\"")
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+		"DD_REMOTE_POLICIES=true",
+		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	state := s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", "/etc/datadog-packages/datadog-agent/0121977846d898e67b43cde38be0b4368c0a17788d651a730f89f307b145f894", "root", "root")
+
+	localCDN.UpdateLayer("debug_logs", "\"log_level\": \"error\"")
+	s.executeConfigGoldenPath("0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
+	localCDN := host.NewLocalCDN(s.host)
+	localCDN.AddLayer("debug_logs", "\"log_level\": \"debug\"")
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+		"DD_REMOTE_POLICIES=true",
+		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	localCDN.UpdateLayer("debug_logs", "\"log_level\": \"error\"")
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, "0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
+	s.assertSuccessfulConfigStartExperiment(timestamp, "0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
+
+	// Host was left with a config experiment, we're now testing
+	// that we can still upgrade
+	timestamp = s.host.LastJournaldTimestamp()
+	s.mustStopConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigStopExperiment(timestamp)
+
+	localCDN.UpdateLayer("debug_logs", "\"log_level\": \"info\"")
+	s.executeConfigGoldenPath("0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
+}
+
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
 	s.T().Logf("Running start command: %s", cmd)
@@ -501,6 +560,117 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
+func (s *upgradeScenarioSuite) startConfigExperiment(pkg packageName, hash string) (string, error) {
+	cmd := fmt.Sprintf("sudo datadog-installer daemon start-config-experiment %s %s > /tmp/start_config_experiment.log 2>&1", pkg, hash)
+	s.T().Logf("Running start command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
+func (s *upgradeScenarioSuite) mustStartConfigExperiment(pkg packageName, version string) string {
+	output, err := s.startConfigExperiment(pkg, version)
+	require.NoError(s.T(), err, "Failed to start config experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/start_config_experiment.log"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
+	)
+	return output
+}
+
+func (s *upgradeScenarioSuite) promoteConfigExperiment(pkg packageName) (string, error) {
+	cmd := fmt.Sprintf("sudo datadog-installer daemon promote-config-experiment %s > /tmp/promote_config_experiment.log 2>&1", pkg)
+	s.T().Logf("Running promote command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
+func (s *upgradeScenarioSuite) mustPromoteConfigExperiment(pkg packageName) string {
+	output, err := s.promoteConfigExperiment(pkg)
+	require.NoError(s.T(), err, "Failed to promote config experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/promote_config_experiment.log"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
+	)
+	return output
+}
+
+func (s *upgradeScenarioSuite) stopConfigExperiment(pkg packageName) (string, error) {
+	cmd := fmt.Sprintf("sudo datadog-installer daemon stop-config-experiment %s > /tmp/stop_config_experiment.log 2>&1", pkg)
+	s.T().Logf("Running stop command: %s", cmd)
+	return s.Env().RemoteHost.Execute(cmd)
+}
+
+func (s *upgradeScenarioSuite) mustStopConfigExperiment(pkg packageName) string {
+	output, err := s.stopConfigExperiment(pkg)
+	require.NoError(s.T(), err, "Failed to stop experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/stop_config_experiment.log"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
+	)
+	return output
+}
+
+func (s *upgradeScenarioSuite) assertSuccessfulConfigStartExperiment(timestamp host.JournaldTimestamp, hash string) {
+	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
+
+	// Assert experiment is running
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnit).
+			Stopped(traceUnit).
+			Stopped(processUnit),
+		).
+		Unordered(host.SystemdEvents().
+			Starting(agentUnitXP).
+			Started(traceUnitXP).
+			Started(processUnitXP),
+		),
+	)
+
+	state := s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+}
+
+func (s *upgradeScenarioSuite) assertSuccessfulConfigPromoteExperiment(timestamp host.JournaldTimestamp, hash string) {
+	s.host.WaitForUnitActive(agentUnit)
+
+	// Assert experiment is promoted
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnitXP).
+			Stopped(processUnitXP).
+			Stopped(traceUnitXP),
+		).
+		Unordered(host.SystemdEvents().
+			Started(agentUnit).
+			Stopped(processUnit).
+			Stopped(traceUnit),
+		),
+	)
+
+	state := s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/stable", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", fmt.Sprintf("/etc/datadog-packages/datadog-agent/%s", hash), "root", "root")
+}
+
+func (s *upgradeScenarioSuite) assertSuccessfulConfigStopExperiment(timestamp host.JournaldTimestamp) {
+	// Assert experiment is stopped
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnitXP).
+			Stopped(processUnitXP).
+			Stopped(traceUnitXP),
+		).
+		Started(agentUnit).
+		Unordered(host.SystemdEvents().
+			Started(traceUnit).
+			Started(processUnit),
+		),
+	)
+
+	state := s.host.State()
+	state.AssertSymlinkExists("/etc/datadog-packages/datadog-agent/experiment", "/etc/datadog-packages/datadog-agent/stable", "root", "root")
+}
+
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 	socketPath := "/opt/datadog-packages/run/installer.sock"
 
@@ -603,4 +773,14 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	// We check the unit history instead
 	s.promoteExperiment(datadogInstaller)
 	s.assertSuccessfulInstallerPromoteExperiment(timestamp, previousInstallerImageVersion)
+}
+
+func (s *upgradeScenarioSuite) executeConfigGoldenPath(hash string) {
+	timestamp := s.host.LastJournaldTimestamp()
+	s.mustStartConfigExperiment(datadogAgent, hash)
+	s.assertSuccessfulConfigStartExperiment(timestamp, hash)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	s.mustPromoteConfigExperiment(datadogAgent)
+	s.assertSuccessfulConfigPromoteExperiment(timestamp, hash)
 }
