@@ -102,6 +102,7 @@ lint_macos:
     TEST_OUTPUT_FILE: test_output.json
   script:
     - echo $GOPATH
+    - echo $CI_PROJECT_DIR/modcache.tar.xz
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
