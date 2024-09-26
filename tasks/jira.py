@@ -2,7 +2,10 @@ import os
 import re
 import sys
 
-from atlassian import Jira
+try:
+    from atlassian import Jira
+except ImportError:
+    pass
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
 from datadog_api_client.v2.model.ci_app_aggregate_sort import CIAppAggregateSort
@@ -84,6 +87,13 @@ def close_failing_tests_stale_issues(_):
 
     This task is executed periodically.
     """
+    from atlassian import Jira
+
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jira.issue_add_comment('CELIANTST-1', 'Test comment')
+    exit()
     robot_name = 'Robot Slack SRE'
     re_test_name = re.compile('Test name: (.*)\n')
 
