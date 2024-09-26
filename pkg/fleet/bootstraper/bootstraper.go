@@ -29,7 +29,10 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}
+	return InstallDefaultPackages(ctx, env)
+}
 
+func InstallDefaultPackages(ctx context.Context, env *env.Env) error {
 	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {

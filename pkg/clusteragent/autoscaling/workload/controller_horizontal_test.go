@@ -111,7 +111,6 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 	f.scaler.AssertNumberOfCalls(f.t, "get", 1)
 	f.scaler.AssertNumberOfCalls(f.t, "update", expectedUpdateCalls)
 
-	args.fakePai.CurrentReplicas = pointer.Ptr[int32](args.statusReplicas)
 	if scaleActionExpected && args.scaleError == nil {
 		// Update fakePai with the new expected state
 		action := &datadoghq.DatadogPodAutoscalerHorizontalAction{
@@ -142,8 +141,9 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	autoscalerName := "test"
 
 	fakePai := &model.FakePodAutoscalerInternal{
-		Namespace: autoscalerNamespace,
-		Name:      autoscalerName,
+		Namespace:       autoscalerNamespace,
+		Name:            autoscalerName,
+		CurrentReplicas: pointer.Ptr[int32](5),
 	}
 
 	// Test case: no Spec, no action taken
@@ -165,7 +165,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
 
 	// Test case: Correct Spec and GVK, but no scaling values
-	// Should only update replica count
+	// Should do nothing
 	expectedGVK := schema.GroupVersionKind{
 		Group:   "apps",
 		Version: "v1",
@@ -304,7 +304,8 @@ func TestHorizontalControllerSyncScaleDecisions(t *testing.T) {
 				Replicas:  5,
 			},
 		},
-		TargetGVK: expectedGVK,
+		TargetGVK:       expectedGVK,
+		CurrentReplicas: pointer.Ptr[int32](5),
 	}
 
 	// Step: same number of replicas, no action taken, only updating status
