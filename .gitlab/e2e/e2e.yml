@@ -139,7 +139,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxGCP)HostnameSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
