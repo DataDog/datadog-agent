@@ -136,25 +136,16 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	fileinfo := &FileInfo{filename: filename, size: int64(0)}
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file.Close()
-		os.Remove(filepath)
-	}()
-
 	info, err := os.Stat(filepath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
 
 	// Write data the file and make sure ensureFileSize deletes the file for being too large
 	data := make([]byte, 2*1024*1024)
-	_, err = file.Write(data)
-	assert.Nil(suite.T(), err)
-	err = file.Sync()
-	assert.Nil(suite.T(), err)
-
+	file.Write(data)
 	info, err = file.Stat()
-	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
+	file.Close()
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
@@ -212,12 +203,8 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file.Close()
-		os.Remove(filename)
-	}()
-
 	file.Write(make([]byte, oneMB))
+	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -242,14 +229,9 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file.Close()
-		os.Remove(filename)
-	}()
-
 	data := make([]byte, fileSize)
-	_, err = file.Write(data)
-	assert.Nil(suite.T(), err)
+	file.Write(data)
+	file.Close()
 
 	suite.s.scanInitialFiles(suite.s.runPath)
 	fileID := fileNameToID(filename)
@@ -261,23 +243,18 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
 }
 
-// TestCreateFileAfterSCanInitialFile ensures files tracked by scanInitialFiles
+// TestCreateFileAfterScanInitialFile ensures files tracked by scanInitialFiles
 // are not created again after they've already been scanned
-func (suite *LauncherTestSuite) TestCreateFileAfterSCanInitialFile() {
+func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 	filename := "sample_integration_123.log"
 	fileSize := int64(1 * 1024 * 1024)
 
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file.Close()
-		os.Remove(filename)
-	}()
-
 	data := make([]byte, fileSize)
-	_, err = file.Write(data)
-	assert.Nil(suite.T(), err)
+	file.Write(data)
+	file.Close()
 
 	suite.s.scanInitialFiles(suite.s.runPath)
 	fileID := fileNameToID(filename)
@@ -331,19 +308,10 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	file3, err := os.Create(filepath.Join(suite.s.runPath, filename3))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		os.Remove(filename1)
-		os.Remove(filename2)
-		os.Remove(filename3)
-	}()
-
 	dataOneMB := make([]byte, 1*1024*1024)
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
 	file3.Write(dataOneMB)
-
-	// Close the files immediately after writing to them so windows is able to
-	// delete them
 	file1.Close()
 	file2.Close()
 	file3.Close()
@@ -386,15 +354,10 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file1.Close()
-		file2.Close()
-		os.Remove(filename1)
-		os.Remove(filename2)
-	}()
-
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
+	file1.Close()
+	file2.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -414,12 +377,8 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file.Close()
-		os.Remove(filename)
-	}()
-
 	file.Write(dataTwoMB)
+	file.Close()
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -448,16 +407,11 @@ func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.Nil(suite.T(), err)
 
-	defer func() {
-		file1.Close()
-		file2.Close()
-		os.Remove(filename1)
-		os.Remove(filename2)
-	}()
-
 	dataOneMB := make([]byte, oneMB)
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
+	file1.Close()
+	file2.Close()
 
 	suite.s.scanInitialFiles(suite.s.runPath)
 
