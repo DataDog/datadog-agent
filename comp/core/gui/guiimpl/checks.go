@@ -28,19 +28,19 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	configPaths = []string{
-		config.Datadog().GetString("confd_path"),    // Custom checks
-		filepath.Join(path.GetDistPath(), "conf.d"), // Default check configs
+		pkgconfigsetup.Datadog().GetString("confd_path"), // Custom checks
+		filepath.Join(path.GetDistPath(), "conf.d"),      // Default check configs
 	}
 
 	checkPaths = []string{
-		filepath.Join(path.GetDistPath(), "checks.d"),    // Custom checks
-		config.Datadog().GetString("additional_checksd"), // Custom checks
+		filepath.Join(path.GetDistPath(), "checks.d"),            // Custom checks
+		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
 		path.PyChecksPath, // Integrations-core checks
 	}
 )
@@ -247,7 +247,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var checkConfFolderPath, defaultCheckConfFolderPath string
 
 	if checkFolder != "" {
-		checkConfFolderPath, err = securejoin.SecureJoin(config.Datadog().GetString("confd_path"), checkFolder)
+		checkConfFolderPath, err = securejoin.SecureJoin(pkgconfigsetup.Datadog().GetString("confd_path"), checkFolder)
 		if err != nil {
 			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
 			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", err.Error())
@@ -260,7 +260,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		checkConfFolderPath = config.Datadog().GetString("confd_path")
+		checkConfFolderPath = pkgconfigsetup.Datadog().GetString("confd_path")
 		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d")
 	}
 
@@ -352,7 +352,7 @@ func getWheelsChecks() ([]string, error) {
 	}
 
 	for _, integration := range integrations {
-		if _, ok := config.StandardJMXIntegrations[integration]; !ok {
+		if _, ok := pkgconfigsetup.StandardJMXIntegrations[integration]; !ok {
 			pyChecks = append(pyChecks, integration)
 		}
 	}
@@ -391,7 +391,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations = append(integrations, goIntegrations...)
 
 	// Get jmx-checks
-	for integration := range config.StandardJMXIntegrations {
+	for integration := range pkgconfigsetup.StandardJMXIntegrations {
 		integrations = append(integrations, integration)
 	}
 

@@ -44,9 +44,9 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -743,7 +743,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
-	cw := deps.Config.(config.Writer)
+	cw := deps.Config.(model.Writer)
 	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
@@ -1147,19 +1147,19 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", "", false)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
-	assert.Equal("metric-container", metrics[0].OriginInfo.FromMsg)
+	assert.Equal("metric-container", metrics[0].OriginInfo.ContainerID)
 
 	// Event
 	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
 	assert.NoError(err)
 	assert.NotNil(event)
-	assert.Equal("event-container", event.OriginInfo.FromMsg)
+	assert.Equal("event-container", event.OriginInfo.ContainerID)
 
 	// Service check
 	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
-	assert.Equal("service-check-container", serviceCheck.OriginInfo.FromMsg)
+	assert.Equal("service-check-container", serviceCheck.OriginInfo.ContainerID)
 }
 
 func TestContainerIDParsing(t *testing.T) {
@@ -1191,19 +1191,19 @@ func TestOrigin(t *testing.T) {
 		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
 		assert.NoError(err)
 		assert.Len(metrics, 1)
-		assert.Equal("metric-container", metrics[0].OriginInfo.FromMsg)
+		assert.Equal("metric-container", metrics[0].OriginInfo.ContainerID)
 
 		// Event
 		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
 		assert.NoError(err)
 		assert.NotNil(event)
-		assert.Equal("event-container", event.OriginInfo.FromMsg)
+		assert.Equal("event-container", event.OriginInfo.ContainerID)
 
 		// Service check
 		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
 		assert.NoError(err)
 		assert.NotNil(serviceCheck)
-		assert.Equal("service-check-container", serviceCheck.OriginInfo.FromMsg)
+		assert.Equal("service-check-container", serviceCheck.OriginInfo.ContainerID)
 	})
 }
 

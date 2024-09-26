@@ -20,7 +20,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -89,7 +89,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 		instance:           instance,
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
-		isCLCRunner:        config.IsCLCRunner(),
+		isCLCRunner:        pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
 	}
 }
 
@@ -176,7 +176,7 @@ func (o *OrchestratorCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog().GetBool("leader_election") {
+		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
 			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 

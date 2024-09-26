@@ -294,7 +294,7 @@ class GitlabCIDiff:
 
         if only_summary:
             if not cli:
-                res.append(':warning: Diff too large to display on Github')
+                res.append(':warning: Diff too large to display on Github.')
         else:
             if self.modified:
                 wrap = len(self.modified) > max_detailed_jobs
@@ -382,7 +382,7 @@ class MultiGitlabCIDiff:
             return ''
 
         if len(self.diffs) == 1:
-            return self.diffs[0].diff.display(cli, **kwargs)
+            return self.diffs[0].diff.display(cli, job_url=job_url, **kwargs)
 
         def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
             if cli:
@@ -764,7 +764,7 @@ def generate_gitlab_full_configuration(
 
     # Override some variables with a dedicated context
     if context:
-        full_configuration['variables'] = full_configuration.get('variables', {}).update(context)
+        full_configuration.get('variables', {}).update(context)
     if compare_to:
         for value in full_configuration.values():
             if (
@@ -896,6 +896,15 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
+    integrations_core_contexts = [
+        ("RELEASE_VERSION_6", ["nightly"]),
+        ("RELEASE_VERSION_7", ["nightly-a7"]),
+        ("BUCKET_BRANCH", ["dev"]),
+        ("DEPLOY_AGENT", ["false"]),
+        ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
+        ("RUN_KITCHEN_TESTS", ["false"]),
+        ("RUN_E2E_TESTS", ["off"]),
+    ]
     all_contexts = []
     for test in required_tests:
         if test in ["all", "main"]:
@@ -906,6 +915,8 @@ def get_preset_contexts(required_tests):
             generate_contexts(mq_contexts, [], all_contexts)
         if test in ["all", "conductor"]:
             generate_contexts(conductor_contexts, [], all_contexts)
+        if test in ["all", "integrations"]:
+            generate_contexts(integrations_core_contexts, [], all_contexts)
     return all_contexts
 
 
@@ -983,7 +994,7 @@ def gitlab_configuration_is_modified(ctx):
                 print(f"Found a gitlab configuration file: {new_file}")
             else:
                 in_config = False
-        if in_config and line.startswith("@@"):
+        if in_config and line.startswith("@@") and os.path.exists(new_file):
             lines = changed_lines.match(line)
             start = int(lines.group(1))
             with open(new_file) as f:

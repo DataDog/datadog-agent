@@ -18,6 +18,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		return 10
 	case metrics.MetricSourceJmxCustom,
 		metrics.MetricSourceActivemq,
+		metrics.MetricSourceAnyscale,
+		metrics.MetricSourceAppgateSDP,
 		metrics.MetricSourceCassandra,
 		metrics.MetricSourceConfluentPlatform,
 		metrics.MetricSourceHazelcast,
@@ -41,6 +43,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNtp,
 		metrics.MetricSourceSystemd,
 		metrics.MetricSourceHelm,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubernetesAPIServer,
 		metrics.MetricSourceKubernetesStateCore,
 		metrics.MetricSourceOrchestrator,
@@ -215,13 +218,13 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubeAPIserverMetrics,
 		metrics.MetricSourceKubeControllerManager,
 		metrics.MetricSourceKubeDNS,
-		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubeMetricsServer,
 		metrics.MetricSourceKubeProxy,
 		metrics.MetricSourceKubeScheduler,
 		metrics.MetricSourceKubelet,
 		metrics.MetricSourceKubernetesState,
 		metrics.MetricSourceKyototycoon,
+		metrics.MetricSourceKyverno,
 		metrics.MetricSourceLighttpd,
 		metrics.MetricSourceLinkerd,
 		metrics.MetricSourceLinuxProcExtras,
@@ -262,6 +265,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceScylla,
 		metrics.MetricSourceSilk,
 		metrics.MetricSourceSinglestore,
+		metrics.MetricSourceSlurm,
 		metrics.MetricSourceSnowflake,
 		metrics.MetricSourceSpark,
 		metrics.MetricSourceSqlserver,
@@ -274,6 +278,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
+		metrics.MetricSourceTibcoEMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -851,8 +856,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 412
 	case metrics.MetricSourceAwsNeuron:
 		return 413
+	case metrics.MetricSourceAnyscale:
+		return 414
+	case metrics.MetricSourceAppgateSDP:
+		return 415
 	case metrics.MetricSourceKubeflow:
 		return 416
+	case metrics.MetricSourceSlurm:
+		return 417
+	case metrics.MetricSourceKyverno:
+		return 418
+	case metrics.MetricSourceTibcoEMS:
+		return 419
 	default:
 		return 0
 	}

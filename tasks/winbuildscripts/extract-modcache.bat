@@ -33,7 +33,7 @@ if exist %MODCACHE_XZ_FILE% (
     REM This shouldn't have any negative impact: since modules are
     REM stored per version and hash, files that get replaced will
     REM get replaced by the same files
-    Powershell -C "7z x %MODCACHE_TAR_FILE% -o%GOMODCACHE% -aoa -bt"
+    Powershell -C "7z x %MODCACHE_TAR_FILE% -o%GOMODCACHE%\cache -aoa -bt"
     @echo Modcache extracted
 ) else (
     @echo %MODCACHE_XZ_FILE% not found, dependencies will be downloaded

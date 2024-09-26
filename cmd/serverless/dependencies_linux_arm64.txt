@@ -139,12 +139,12 @@ github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults
 github.com/DataDog/datadog-agent/pkg/collector/check/id
 github.com/DataDog/datadog-agent/pkg/collector/check/stats
-github.com/DataDog/datadog-agent/pkg/config
 github.com/DataDog/datadog-agent/pkg/config/env
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
 github.com/DataDog/datadog-agent/pkg/config/setup
 github.com/DataDog/datadog-agent/pkg/config/setup/constants
+github.com/DataDog/datadog-agent/pkg/config/structure
 github.com/DataDog/datadog-agent/pkg/config/utils
 github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis
 github.com/DataDog/datadog-agent/pkg/errors
@@ -438,6 +438,7 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
+github.com/go-viper/mapstructure/v2/internal/errors
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -662,6 +663,7 @@ go.opentelemetry.io/contrib/config
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
+go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
 go.opentelemetry.io/contrib/propagators/b3
@@ -724,7 +726,6 @@ go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/tracetest
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.20.0
-go.opentelemetry.io/otel/semconv/v1.24.0
 go.opentelemetry.io/otel/semconv/v1.25.0
 go.opentelemetry.io/otel/semconv/v1.26.0
 go.opentelemetry.io/otel/trace

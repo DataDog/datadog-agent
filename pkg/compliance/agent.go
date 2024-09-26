@@ -23,19 +23,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v3/process"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -129,7 +130,7 @@ type Agent struct {
 }
 
 func xccdfEnabled() bool {
-	return config.Datadog().GetBool("compliance_config.xccdf.enabled") || config.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
+	return pkgconfigsetup.Datadog().GetBool("compliance_config.xccdf.enabled") || pkgconfigsetup.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It

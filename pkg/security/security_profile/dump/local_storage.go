@@ -193,24 +193,30 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 
 	// create output file
 	_ = os.MkdirAll(request.OutputDirectory, 0400)
-	file, err := os.Create(outputPath)
+	tmpOutputPath := outputPath + ".tmp"
+
+	file, err := os.Create(tmpOutputPath)
 	if err != nil {
-		return fmt.Errorf("couldn't persist to file [%s]: %w", outputPath, err)
+		return fmt.Errorf("couldn't persist to file [%s]: %w", tmpOutputPath, err)
 	}
 	defer file.Close()
 
 	// set output file access mode
-	if err = os.Chmod(outputPath, 0400); err != nil {
-		return fmt.Errorf("couldn't set mod for file [%s]: %w", outputPath, err)
+	if err := os.Chmod(tmpOutputPath, 0400); err != nil {
+		return fmt.Errorf("couldn't set mod for file [%s]: %w", tmpOutputPath, err)
 	}
 
 	// persist data to disk
-	if _, err = file.Write(raw.Bytes()); err != nil {
-		return fmt.Errorf("couldn't write to file [%s]: %w", outputPath, err)
+	if _, err := file.Write(raw.Bytes()); err != nil {
+		return fmt.Errorf("couldn't write to file [%s]: %w", tmpOutputPath, err)
 	}
 
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("could not close file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpOutputPath, outputPath); err != nil {
+		return fmt.Errorf("could not rename file from [%s] to [%s]: %w", tmpOutputPath, outputPath, err)
 	}
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)

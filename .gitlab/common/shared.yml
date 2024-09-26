@@ -21,33 +21,37 @@
 
 .setup_deb_signing_key: &setup_deb_signing_key
   - set +x
-  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY)
-  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE)
+  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY)" | gpg --import --batch
+  - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+  - DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE) || exit $?; export DEB_SIGNING_PASSPHRASE
 
 .setup_macos_github_app:
   # GitHub App rate-limits are per-app.
   # This balances the requests made to GitHub between the two apps we have set up.
   - |
     if [[ "$(( RANDOM % 2 ))" == "1" ]]; then
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID)
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 1"
     else
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY_2)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID_2)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID_2)
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY_2) || exit $?; export GITHUB_KEY_B64
+      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID_2) || exit $?; export GITHUB_APP_ID
+      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID_2) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 2"
     fi
 
 .setup_agent_github_app:
-  - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_KEY)
-  - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP_ID)
-  - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_INSTALLATION_ID)
+  - GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_KEY) || exit $?; export GITHUB_KEY_B64
+  - GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP_ID) || exit $?; export GITHUB_APP_ID
+  - GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
   - echo "Using agent GitHub App"
 
 # Install `dd-pkg` and lint packages produced by Omnibus, supports only deb and rpm packages
 .lint_linux_packages:
   - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
   - find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint
+  - |
+    if [ -n "$PACKAGE_REQUIRED_FILES_LIST" ]; then
+      find $OMNIBUS_PACKAGE_DIR \( -name '*.deb' -or -name '*.rpm' \) -a -not -name '*-dbg[_-]*' | xargs dd-pkg check-files --required-files ${PACKAGE_REQUIRED_FILES_LIST}
+    fi

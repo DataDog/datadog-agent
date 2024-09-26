@@ -10,18 +10,16 @@ import (
 	"context"
 	"testing"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/extension"
 )
 
 func getTestFactory(t *testing.T) extension.Factory {
-	conv, err := configstore.NewConfigStore()
-	require.NoError(t, err)
+	factories, err := components()
+	assert.NoError(t, err)
 
-	return NewFactory(conv)
+	return NewFactory(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
 }
 
 func TestNewFactory(t *testing.T) {
