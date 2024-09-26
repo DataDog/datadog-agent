@@ -22,7 +22,7 @@ type iaDisabledTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-//go:embed config/ia.yml
+//go:embed config/ia_disabled.yml
 var iaDisabledConfig string
 
 func TestOTelAgentIADisabled(t *testing.T) {
@@ -42,10 +42,30 @@ agents:
 	e2e.Run(t, &iaDisabledTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaDisabledConfig)))))
 }
 
-func (s *iaDisabledTestSuite) TestOTLPMetrics() {
-	utils.TestContainerMetrics(s)
+func (s *iaDisabledTestSuite) TestCalendarJavaApp() {
+	utils.TestCalendarJavaApp(s)
 }
 
-func (s *iaDisabledTestSuite) TestOTelFlare() {
-	utils.TestOTelFlare(s)
+func (s *iaDisabledTestSuite) TestCalendarGoApp() {
+	utils.TestCalendarGoApp(s)
+}
+
+func (s *iaDisabledTestSuite) TestOTLPTraces() {
+	utils.TestTraces(s)
+}
+
+func (s *iaDisabledTestSuite) TestOTLPMetrics() {
+	utils.TestMetrics(s)
+}
+
+func (s *iaDisabledTestSuite) TestOTLPLogs() {
+	utils.TestLogs(s)
+}
+
+func (s *iaDisabledTestSuite) TestHosts() {
+	utils.TestHosts(s)
+}
+
+func (s *iaDisabledTestSuite) TestPrometheusMetrics() {
+	utils.TestPrometheusMetrics(s)
 }

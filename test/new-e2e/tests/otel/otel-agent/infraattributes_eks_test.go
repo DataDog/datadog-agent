@@ -8,52 +8,49 @@ package otelagent
 
 import (
 	_ "embed"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type iaTestSuite struct {
+type iaEKSTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-//go:embed config/ia.yml
-var iaConfig string
-
-func TestOTelAgentIA(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+func TestOTelAgentIAEKS(t *testing.T) {
+	t.Skip()
+	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 
-func (s *iaTestSuite) TestCalendarJavaApp() {
+func (s *iaEKSTestSuite) TestCalendarJavaApp() {
 	utils.TestCalendarJavaApp(s)
 }
 
-func (s *iaTestSuite) TestCalendarGoApp() {
+func (s *iaEKSTestSuite) TestCalendarGoApp() {
 	utils.TestCalendarGoApp(s)
 }
 
-func (s *iaTestSuite) TestOTLPTraces() {
+func (s *iaEKSTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s)
 }
 
-func (s *iaTestSuite) TestOTLPMetrics() {
+func (s *iaEKSTestSuite) TestOTLPMetrics() {
 	utils.TestMetrics(s)
 }
 
-func (s *iaTestSuite) TestOTLPLogs() {
+func (s *iaEKSTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s)
 }
 
-func (s *iaTestSuite) TestHosts() {
+func (s *iaEKSTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaTestSuite) TestPrometheusMetrics() {
+func (s *iaEKSTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
 }
