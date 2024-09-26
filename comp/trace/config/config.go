@@ -48,7 +48,7 @@ type cfg struct {
 	// warnings are the warnings generated during setup
 	warnings *model.Warnings
 
-	// UpdateApiKeyFn is the callback func for API Key updates
+	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
 }
 
@@ -90,7 +90,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 
 func (c *cfg) updateAPIKey(oldKey, newKey string) {
 	// Update API Key on config, and propagate the signal to registered listeners
-	c.UpdateApiKey(newKey)
+	c.UpdateAPIKey(newKey)
 	if c.updateAPIKeyFn != nil {
 		c.updateAPIKeyFn(oldKey, newKey)
 	}

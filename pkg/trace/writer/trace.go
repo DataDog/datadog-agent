@@ -136,6 +136,7 @@ func NewTraceWriter(
 	return tw
 }
 
+// UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriter) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
 		if oldKey == s.cfg.apiKey {

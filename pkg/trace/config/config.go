@@ -555,7 +555,8 @@ func (c *AgentConfig) APIKey() string {
 	return c.Endpoints[0].APIKey
 }
 
-func (c *AgentConfig) UpdateApiKey(val string) {
+// UpdateAPIKey updates the API Key associated with the main endpoint.
+func (c *AgentConfig) UpdateAPIKey(val string) {
 	if len(c.Endpoints) == 0 {
 		return
 	}
