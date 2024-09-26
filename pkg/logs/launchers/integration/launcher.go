@@ -152,7 +152,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	fileToUpdate, exists := s.integrationToFile[log.IntegrationID]
 
 	if !exists {
-		ddLog.Warn("Failed to write log to file, file is nil")
+		ddLog.Warn("Failed to write log to file, file is nil for integration ID:", log.IntegrationID)
 		return
 	}
 
@@ -160,12 +160,13 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// Add 1 because we write the \n at the end as well
 	logSize := int64(len(log.Log)) + 1
 	if fileToUpdate.size+logSize > s.fileSizeMax {
-		s.combinedUsageSize -= fileToUpdate.size
 		file, err := os.Create(fileToUpdate.filename)
 		if err != nil {
 			ddLog.Error("Failed to delete and remake oversize file:", err)
 			return
 		}
+
+		s.combinedUsageSize -= fileToUpdate.size
 
 		err = file.Close()
 		if err != nil {
@@ -212,11 +213,12 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 
 // deleteFile deletes the given file
 func (s *Launcher) deleteFile(file *FileInfo) error {
-	err := os.Remove(filepath.Join(s.runPath, file.filename))
+	filename := filepath.Join(s.runPath, file.filename)
+	err := os.Remove(filename)
 	if err != nil {
 		return err
 	}
-	ddLog.Info("Successfully deleted log file.")
+	ddLog.Info("Successfully deleted log file:", filename)
 
 	s.combinedUsageSize -= file.size
 
@@ -348,21 +350,24 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 		integrationID := fileNameToID(fileInfo.filename)
 
 		s.integrationToFile[integrationID] = fileInfo
-
-		for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
-			leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
-
-			err := s.deleteFile(leastRecentlyModifiedFile)
-			if err != nil {
-				ddLog.Warn("Error deleting log file:", err)
-				break
-			}
-		}
-
 		s.combinedUsageSize += info.Size()
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	for s.combinedUsageSize > s.combinedUsageMax {
+		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
+
+		err = s.deleteFile(leastRecentlyModifiedFile)
+		if err != nil {
+			ddLog.Warn("Error deleting log file:", err)
+			break
+		}
+	}
 
 	return err
 }

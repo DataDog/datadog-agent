@@ -143,10 +143,11 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	// Write data the file and make sure ensureFileSize deletes the file for being too large
 	data := make([]byte, 2*1024*1024)
 	file.Write(data)
-	info, err = file.Stat()
+	file.Close()
+
+	info, err = os.Stat(filepath)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
-	file.Close()
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
