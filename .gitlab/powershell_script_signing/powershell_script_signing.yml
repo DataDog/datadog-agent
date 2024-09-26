@@ -2,6 +2,8 @@ powershell_script_signing:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   stage: choco_and_install_script_build
   needs: []
+  variables:
+    ARCH: "x64"
   rules:
     !reference [.manual]
   artifacts:
