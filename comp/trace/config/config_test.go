@@ -2581,7 +2581,7 @@ func TestDisableReceiverConfig(t *testing.T) {
 
 func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	var n int
-	callback := func(oldKey, newKey string) {
+	callback := func(_, _ string) {
 		n++
 	}
 
