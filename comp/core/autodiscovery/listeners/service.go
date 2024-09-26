@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -172,7 +172,7 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
 func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
-	if !config.Datadog().GetBool("logs_config.container_collect_all") {
+	if !pkgconfigsetup.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 

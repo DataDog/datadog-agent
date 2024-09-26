@@ -149,15 +149,28 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 
 	for {
-		select {
-		case <-fh.stop:
-			return
-		case <-validateTicker.C:
-			valid := fh.checkValidAPIKey()
-			if !valid {
-				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+		// only read from the health channel if the api key is valid
+		if valid {
+			select {
+			case <-fh.stop:
+				return
+			case <-validateTicker.C:
+				valid = fh.checkValidAPIKey()
+				if !valid {
+					fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				}
+			case <-fh.health.C:
 			}
-		case <-fh.health.C:
+		} else {
+			select {
+			case <-fh.stop:
+				return
+			case <-validateTicker.C:
+				valid = fh.checkValidAPIKey()
+				if !valid {
+					fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				}
+			}
 		}
 	}
 }

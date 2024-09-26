@@ -34,3 +34,9 @@ LOOP:
 
 	return fv
 }
+
+// RangeFilterValue defines a range value
+type RangeFilterValue struct {
+	Min int
+	Max int
+}

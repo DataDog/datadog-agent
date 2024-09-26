@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -121,7 +121,7 @@ func NewJMXFetch(logger jmxlogger.Component) *JMXFetch {
 
 // Monitor monitors this JMXFetch instance, waiting for JMX to stop. Gracefully handles restarting the JMXFetch process.
 func (j *JMXFetch) Monitor() {
-	limiter := newRestartLimiter(config.Datadog().GetInt("jmx_max_restarts"), float64(config.Datadog().GetInt("jmx_restart_interval")))
+	limiter := newRestartLimiter(pkgconfigsetup.Datadog().GetInt("jmx_max_restarts"), float64(pkgconfigsetup.Datadog().GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)
 
 	defer ticker.Stop()
@@ -192,7 +192,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		classpath = fmt.Sprintf("%s%s%s", j.JavaToolsJarPath, string(os.PathListSeparator), classpath)
 	}
 
-	globalCustomJars := config.Datadog().GetStringSlice("jmx_custom_jars")
+	globalCustomJars := pkgconfigsetup.Datadog().GetStringSlice("jmx_custom_jars")
 	if len(globalCustomJars) > 0 {
 		classpath = fmt.Sprintf("%s%s%s", strings.Join(globalCustomJars, string(os.PathListSeparator)), string(os.PathListSeparator), classpath)
 	}
@@ -209,13 +209,13 @@ func (j *JMXFetch) Start(manage bool) error {
 		reporter = "json"
 	default:
 		if j.DSD != nil && j.DSD.UdsListenerRunning() {
-			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog().GetString("dogstatsd_socket"))
+			reporter = fmt.Sprintf("statsd:unix://%s", pkgconfigsetup.Datadog().GetString("dogstatsd_socket"))
 		} else {
-			bindHost := config.GetBindHost()
+			bindHost := pkgconfigsetup.GetBindHost(pkgconfigsetup.Datadog())
 			if bindHost == "" || bindHost == "0.0.0.0" {
 				bindHost = "localhost"
 			}
-			reporter = fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog().GetString("dogstatsd_port"))
+			reporter = fmt.Sprintf("statsd:%s:%s", bindHost, pkgconfigsetup.Datadog().GetString("dogstatsd_port"))
 		}
 	}
 
@@ -226,14 +226,14 @@ func (j *JMXFetch) Start(manage bool) error {
 	// Specify a maximum memory allocation pool for the JVM
 	javaOptions := j.JavaOptions
 
-	useContainerSupport := config.Datadog().GetBool("jmx_use_container_support")
-	useCgroupMemoryLimit := config.Datadog().GetBool("jmx_use_cgroup_memory_limit")
+	useContainerSupport := pkgconfigsetup.Datadog().GetBool("jmx_use_container_support")
+	useCgroupMemoryLimit := pkgconfigsetup.Datadog().GetBool("jmx_use_cgroup_memory_limit")
 
 	if useContainerSupport && useCgroupMemoryLimit {
 		return fmt.Errorf("incompatible options %q and %q", jvmContainerSupport, jvmCgroupMemoryAwareness)
 	} else if useContainerSupport {
 		javaOptions += jvmContainerSupport
-		maxHeapSizeAsPercentRAM := config.Datadog().GetFloat64("jmx_max_ram_percentage")
+		maxHeapSizeAsPercentRAM := pkgconfigsetup.Datadog().GetFloat64("jmx_max_ram_percentage")
 		passOption := true
 		// These options overwrite the -XX:MaxRAMPercentage option, log a warning if they are found in the javaOptions
 		if strings.Contains(javaOptions, "Xmx") || strings.Contains(javaOptions, "XX:MaxHeapSize") {
@@ -278,11 +278,11 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost, err := config.GetIPCAddress()
+	ipcHost, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
-	ipcPort := config.Datadog().GetInt("cmd_port")
+	ipcPort := pkgconfigsetup.Datadog().GetInt("cmd_port")
 	if j.IPCHost != "" {
 		ipcHost = j.IPCHost
 	}
@@ -296,37 +296,37 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxMainClass,
 		"--ipc_host", ipcHost,
 		"--ipc_port", fmt.Sprintf("%v", ipcPort),
-		"--check_period", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_check_period")), // Period of the main loop of jmxfetch in ms
-		"--thread_pool_size", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
-		"--collection_timeout", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
-		"--reconnection_timeout", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
-		"--reconnection_thread_pool_size", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
+		"--check_period", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_check_period")), // Period of the main loop of jmxfetch in ms
+		"--thread_pool_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
+		"--collection_timeout", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
+		"--reconnection_timeout", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
+		"--reconnection_thread_pool_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
-		"--statsd_queue_size", fmt.Sprintf("%v", config.Datadog().GetInt("jmx_statsd_client_queue_size")), // Dogstatsd client queue size to use
+		"--statsd_queue_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_queue_size")), // Dogstatsd client queue size to use
 	)
 
-	if config.Datadog().GetBool("jmx_statsd_telemetry_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("jmx_statsd_telemetry_enabled") {
 		subprocessArgs = append(subprocessArgs, "--statsd_telemetry")
 	}
 
-	if config.Datadog().GetBool("jmx_telemetry_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("jmx_telemetry_enabled") {
 		subprocessArgs = append(subprocessArgs, "--jmxfetch_telemetry")
 	}
 
-	if config.Datadog().GetBool("jmx_statsd_client_use_non_blocking") {
+	if pkgconfigsetup.Datadog().GetBool("jmx_statsd_client_use_non_blocking") {
 		subprocessArgs = append(subprocessArgs, "--statsd_nonblocking")
 	}
 
-	if bufSize := config.Datadog().GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
+	if bufSize := pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
 		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", fmt.Sprintf("%d", bufSize))
 	}
 
-	if socketTimeout := config.Datadog().GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
+	if socketTimeout := pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
 		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", fmt.Sprintf("%d", socketTimeout))
 	}
 
-	if config.Datadog().GetBool("log_format_rfc3339") {
+	if pkgconfigsetup.Datadog().GetBool("log_format_rfc3339") {
 		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
 	}
 

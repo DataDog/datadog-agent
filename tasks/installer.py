@@ -27,6 +27,7 @@ def build(
     build_exclude=None,
     go_mod="mod",
     no_strip_binary=False,
+    no_cgo=False,
 ):
     """
     Build the updater.
@@ -52,6 +53,10 @@ def build(
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
+
+    if no_cgo:
+        env["CGO_ENABLED"] = "0"
+
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 

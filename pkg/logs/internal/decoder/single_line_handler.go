@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -38,7 +38,7 @@ func (h *SingleLineHandler) flush() {
 }
 
 func addTruncatedTag(msg *message.Message) {
-	if coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
 		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
 	}
 }

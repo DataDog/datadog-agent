@@ -383,7 +383,7 @@ class SSMParameterCall:
 def list_get_parameter_calls(file):
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
     # remove the first letter of the script name because '\f' is badly interpreted for windows paths
-    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? (-parameterName )?+(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:

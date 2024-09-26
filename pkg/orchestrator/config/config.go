@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -86,8 +86,8 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
-	if key := "api_key"; config.Datadog().IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(config.Datadog().GetString(key))
+	if key := "api_key"; pkgconfigsetup.Datadog().IsSet(key) {
+		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -95,12 +95,12 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
-	if k := OrchestratorNSKey("custom_sensitive_words"); config.Datadog().IsSet(k) {
-		oc.Scrubber.AddCustomSensitiveWords(config.Datadog().GetStringSlice(k))
+	if k := OrchestratorNSKey("custom_sensitive_words"); pkgconfigsetup.Datadog().IsSet(k) {
+		oc.Scrubber.AddCustomSensitiveWords(pkgconfigsetup.Datadog().GetStringSlice(k))
 	}
 
-	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); config.Datadog().IsSet(k) {
-		redact.UpdateSensitiveAnnotationsAndLabels(config.Datadog().GetStringSlice(k))
+	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); pkgconfigsetup.Datadog().IsSet(k) {
+		redact.UpdateSensitiveAnnotationsAndLabels(pkgconfigsetup.Datadog().GetStringSlice(k))
 	}
 
 	// The maximum number of resources per message and the maximum message size.
@@ -108,8 +108,8 @@ func (oc *OrchestratorConfig) Load() error {
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
 	setBoundedConfigIntValue(OrchestratorNSKey("max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
-	if k := key(processNS, "pod_queue_bytes"); config.Datadog().IsSet(k) {
-		if queueBytes := config.Datadog().GetInt(k); queueBytes > 0 {
+	if k := key(processNS, "pod_queue_bytes"); pkgconfigsetup.Datadog().IsSet(k) {
+		if queueBytes := pkgconfigsetup.Datadog().GetInt(k); queueBytes > 0 {
 			oc.PodQueueBytes = queueBytes
 		}
 	}
@@ -117,22 +117,22 @@ func (oc *OrchestratorConfig) Load() error {
 	// Orchestrator Explorer
 	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
-	oc.CollectorDiscoveryEnabled = config.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
-	oc.IsScrubbingEnabled = config.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
-	oc.ExtraTags = config.Datadog().GetStringSlice(OrchestratorNSKey("extra_tags"))
-	oc.IsManifestCollectionEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
-	oc.BufferedManifestEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
-	oc.ManifestBufferFlushInterval = config.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
+	oc.CollectorDiscoveryEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
+	oc.IsScrubbingEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
+	oc.ExtraTags = pkgconfigsetup.Datadog().GetStringSlice(OrchestratorNSKey("extra_tags"))
+	oc.IsManifestCollectionEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
+	oc.BufferedManifestEnabled = pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
+	oc.ManifestBufferFlushInterval = pkgconfigsetup.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
 
 	return nil
 }
 
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
-	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); config.Datadog().IsSet(k) {
+	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
-	} else if k := key(processNS, "orchestrator_additional_endpoints"); config.Datadog().IsSet(k) {
+	} else if k := key(processNS, "orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
@@ -141,7 +141,7 @@ func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints 
 }
 
 func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) error {
-	for endpointURL, apiKeys := range config.Datadog().GetStringMapStringSlice(k) {
+	for endpointURL, apiKeys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(k) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
@@ -160,7 +160,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 func extractOrchestratorDDUrl() (*url.URL, error) {
 	orchestratorURL := OrchestratorNSKey("orchestrator_dd_url")
 	processURL := key(processNS, "orchestrator_dd_url")
-	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(config.Datadog(), "https://orchestrator.", orchestratorURL, processURL))
+	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(pkgconfigsetup.Datadog(), "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
@@ -168,11 +168,11 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
-	if !config.Datadog().IsSet(configKey) {
+	if !pkgconfigsetup.Datadog().IsSet(configKey) {
 		return
 	}
 
-	val := config.Datadog().GetInt(configKey)
+	val := pkgconfigsetup.Datadog().GetInt(configKey)
 
 	if val <= 0 {
 		pkglog.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
@@ -188,7 +188,7 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 
 // IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
 func IsOrchestratorEnabled() (bool, string) {
-	enabled := config.Datadog().GetBool(OrchestratorNSKey("enabled"))
+	enabled := pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("enabled"))
 	var clusterName string
 	if enabled {
 		// Set clustername
@@ -200,11 +200,11 @@ func IsOrchestratorEnabled() (bool, string) {
 
 // IsOrchestratorECSExplorerEnabled checks if orchestrator ecs explorer features are enabled
 func IsOrchestratorECSExplorerEnabled() bool {
-	if !config.Datadog().GetBool(OrchestratorNSKey("enabled")) {
+	if !pkgconfigsetup.Datadog().GetBool(OrchestratorNSKey("enabled")) {
 		return false
 	}
 
-	if !config.Datadog().GetBool("ecs_task_collection_enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("ecs_task_collection_enabled") {
 		return false
 	}
 

@@ -54,12 +54,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -77,7 +78,7 @@ type DogstatsdComponents struct {
 
 const (
 	// loggerName is the name of the dogstatsd logger
-	loggerName pkgconfig.LoggerName = "DSD"
+	loggerName pkglogsetup.LoggerName = "DSD"
 )
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -246,7 +247,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 	}()
 
 	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
+	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
 	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = params.DefaultLogFile
@@ -257,7 +258,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		logFile = ""
 	}
 
-	err = pkgconfig.SetupLogger(
+	err = pkglogsetup.SetupLogger(
 		loggerName,
 		config.GetString("log_level"),
 		logFile,
@@ -265,6 +266,7 @@ func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Compone
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
+		pkgconfigsetup.Datadog(),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

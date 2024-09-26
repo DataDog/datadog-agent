@@ -7,17 +7,9 @@
 package serializers
 
 // nolint: deadcode, unused
-func getUint64Pointer(i *uint64) *uint64 {
-	if *i == 0 {
+func createNumPointer[I uint32 | uint64](i I) *I {
+	if i == 0 {
 		return nil
 	}
-	return i
-}
-
-// nolint: deadcode, unused
-func getUint32Pointer(i *uint32) *uint32 {
-	if *i == 0 {
-		return nil
-	}
-	return i
+	return &i
 }
