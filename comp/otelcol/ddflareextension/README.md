@@ -50,7 +50,7 @@ Contains a JSON of the latest health check, for example:
 ```
 - pprof: Found in `otel/otel-flare/pprof`
 
-Contains a allocs (`dd-autoconfigured_debug_pprof_allocs`), heap (`dd-autoconfigured_debug_pprof_heap`) and cpu (`dd-autoconfigured_debug_pprof_profile`) profile. Profiles can be opened with the pprof tool, e.g.
+Contains a allocs (`dd-autoconfigured_debug_pprof_allocs`), heap (`dd-autoconfigured_debug_pprof_heap`) and cpu (`dd-autoconfigured_debug_pprof_profile`) profile. Profiles can be opened with the [pprof tool](https://github.com/google/pprof), e.g.
 ```
 go tool pprof -http=: otel/otel-flare/pprof/dd-autoconfigured_debug_pprof_heap.dat
 ```
