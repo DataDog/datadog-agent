@@ -6,7 +6,10 @@
 package structure
 
 import (
+	"fmt"
+	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -89,7 +92,14 @@ type Endpoint struct {
 }
 
 func TestUnmarshalKeySliceOfStructures(t *testing.T) {
-	confYaml := `
+	testcases := []struct {
+		name string
+		conf string
+		want []Endpoint
+	}{
+		{
+			name: "simple wellformed",
+			conf: `
 endpoints:
 - name: intake
   apikey: abc1
@@ -97,40 +107,464 @@ endpoints:
   apikey: abc2
 - name: health
   apikey: abc3
-`
-	mockConfig := mock.NewFromYAML(t, confYaml)
-	mockConfig.SetKnown("endpoints")
+`,
+			want: []Endpoint{
+				Endpoint{Name: "intake", APIKey: "abc1"},
+				Endpoint{Name: "config", APIKey: "abc2"},
+				Endpoint{Name: "health", APIKey: "abc3"},
+			},
+		},
+		{
+			name: "missing a field is zero value",
+			conf: `
+endpoints:
+- name: intake
+- name: config
+  apikey: abc2
+`,
+			want: []Endpoint{
+				Endpoint{Name: "intake", APIKey: ""},
+				Endpoint{Name: "config", APIKey: "abc2"},
+			},
+		},
+	}
 
-	var endpoints = []Endpoint{}
-	err := UnmarshalKey(mockConfig, "endpoints", &endpoints)
-	assert.NoError(t, err)
+	for _, tc := range testcases {
+		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig.SetKnown("endpoints")
 
-	assert.Equal(t, len(endpoints), 3)
-	assert.Equal(t, endpoints[0].Name, "intake")
-	assert.Equal(t, endpoints[0].APIKey, "abc1")
-	assert.Equal(t, endpoints[1].Name, "config")
-	assert.Equal(t, endpoints[1].APIKey, "abc2")
-	assert.Equal(t, endpoints[2].Name, "health")
-	assert.Equal(t, endpoints[2].APIKey, "abc3")
+			var endpoints = []Endpoint{}
+			err := UnmarshalKey(mockConfig, "endpoints", &endpoints)
+			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
+
+			assert.Equal(t, len(endpoints), len(tc.want), "%s marshalled unexepected length of slices, wanted: %s got: %s", tc.name, len(tc.want), len(endpoints))
+			for i := range endpoints {
+				assert.Equal(t, endpoints[i].Name, tc.want[i].Name)
+				assert.Equal(t, endpoints[i].APIKey, tc.want[i].APIKey)
+			}
+		})
+	}
 }
 
 type FeatureConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-func TestUnmarshalKeyParseStringAsBool(t *testing.T) {
-	confYaml := `
+func TestUnmarshalKeyAsBool(t *testing.T) {
+	testcases := []struct {
+		name string
+		conf string
+		want bool
+	}{
+		{
+			name: "string value to true",
+			conf: `
 feature:
   enabled: "true"
-`
-	mockConfig := mock.NewFromYAML(t, confYaml)
-	mockConfig.SetKnown("feature")
+`,
+			want: true,
+		},
+		{
+			name: "yaml boolean value true",
+			conf: `
+feature:
+  enabled: true
+`,
+			want: true,
+		},
+		{
+			name: "string value to false",
+			conf: `
+feature:
+  enabled: "false"
+`,
+			want: false,
+		},
+		{
+			name: "yaml boolean value false",
+			conf: `
+feature:
+  enabled: false
+`,
+			want: false,
+		},
+		{
+			name: "missing value is false",
+			conf: `
+feature:
+  not_enabled: "the missing key should be false"
+`,
+			want: false,
+		},
+		//  TODO: should this include falsey ? (nil, zero values like empty string, etc.)
+		// 	{
+		//		name: "yaml empty string value false",
+		// 		conf: `
+		//feature:
+		//  enabled: ""
+		//`,
+		//		want: false,
+		//	},
+	}
+	for _, tc := range testcases {
+		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig.SetKnown("feature")
 
-	var feature = FeatureConfig{}
-	err := UnmarshalKey(mockConfig, "feature", &feature)
-	assert.NoError(t, err)
+			var feature = FeatureConfig{}
+			err := UnmarshalKey(mockConfig, "feature", &feature)
+			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 
-	assert.Equal(t, feature.Enabled, true)
+			assert.Equal(t, feature.Enabled, tc.want, "%s unexpected marshal value, want: %s got: %s", tc.name, tc.want, feature.Enabled)
+		})
+	}
+}
+
+type UintConfig struct {
+	Fielduint8  uint8  `yaml:"uint8"`
+	Fielduint16 uint16 `yaml:"uint16"`
+	Fielduint32 uint32 `yaml:"uint32"`
+	Fielduint64 uint64 `yaml:"uint64"`
+	Fieldint8   int8   `yaml:"int8"`
+	Fieldint16  int16  `yaml:"int16"`
+	Fieldint32  int32  `yaml:"int32"`
+	Fieldint64  int64  `yaml:"int64"`
+}
+
+func TestUnmarshalKeyAsInt(t *testing.T) {
+	testcases := []struct {
+		name string
+		conf string
+		want UintConfig
+		skip bool
+	}{
+		{
+			name: "value int config map",
+			conf: `
+feature:
+  uint8:  123
+  uint16: 1234
+  uint32: 1234
+  uint64: 1234
+  int8:  123
+  int16: 1234
+  int32: 1234
+  int64: 1234
+`,
+			want: UintConfig{
+				Fielduint8:  123,
+				Fielduint16: 1234,
+				Fielduint32: 1234,
+				Fielduint64: 1234,
+				Fieldint8:   123,
+				Fieldint16:  1234,
+				Fieldint32:  1234,
+				Fieldint64:  1234,
+			},
+			skip: false,
+		},
+		{
+			name: "missing field is zero value config map",
+			conf: `
+feature:
+  uint16: 1234
+  uint32: 1234
+  uint64: 1234
+  int8:  123
+  int16: 1234
+  int32: 1234
+  int64: 1234
+`,
+			want: UintConfig{
+				Fielduint8:  0,
+				Fielduint16: 1234,
+				Fielduint32: 1234,
+				Fielduint64: 1234,
+				Fieldint8:   123,
+				Fieldint16:  1234,
+				Fieldint32:  1234,
+				Fieldint64:  1234,
+			},
+			skip: false,
+		},
+		{
+			name: "overflow int config map",
+			conf: `
+feature:
+  uint8:  1234
+  uint16: 1234
+  uint32: 1234
+  uint64: 1234
+  int8:  123
+  int16: 1234
+  int32: 1234
+  int64: 1234
+`,
+			want: UintConfig{
+				Fielduint8:  math.MaxUint8, // actual 230 - unclear what this behavior should be
+				Fielduint16: 1234,
+				Fielduint32: 1234,
+				Fielduint64: 1234,
+				Fieldint8:   123,
+				Fieldint16:  1234,
+				Fieldint32:  1234,
+				Fieldint64:  1234,
+			},
+			skip: true,
+		},
+		{
+			name: "underflow int config map",
+			conf: `
+feature:
+  uint8:  -123
+  uint16: 1234
+  uint32: 1234
+  uint64: 1234
+  int8:  123
+  int16: 1234
+  int32: 1234
+  int64: 1234
+`,
+			want: UintConfig{
+				Fielduint8:  0, // actual 133 - unclear what this behavior should be
+				Fielduint16: 1234,
+				Fielduint32: 1234,
+				Fielduint64: 1234,
+				Fieldint8:   123,
+				Fieldint16:  1234,
+				Fieldint32:  1234,
+				Fieldint64:  1234,
+			},
+			skip: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+			if tc.skip {
+				t.Skip("Skipping test case")
+			}
+
+			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig.SetKnown("feature")
+
+			var feature = UintConfig{}
+			err := UnmarshalKey(mockConfig, "feature", &feature)
+			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
+			if err != nil {
+				t.FailNow()
+			}
+
+			confvalues := reflect.ValueOf(feature)
+			wantvalues := reflect.ValueOf(tc.want)
+
+			for i := 0; i < confvalues.NumField(); i++ {
+				wantType := strings.ReplaceAll(confvalues.Type().Field(i).Name, "Field", "")
+				actual := confvalues.Field(i).Type().Name()
+				assert.Equal(t, wantType, actual, "%s unexpected marshal type, want: %s got: %s", tc.name, wantType, actual)
+				assert.True(t, reflect.DeepEqual(wantvalues.Field(i).Interface(), confvalues.Field(i).Interface()), "%s marshalled values not equal, want: %s, got: %s", tc.name, wantvalues.Field(i), confvalues.Field(i))
+			}
+		})
+	}
+}
+
+type FloatConfig struct {
+	Fieldfloat32 float32 `yaml:"float32"`
+	Fieldfloat64 float64 `yaml:"float64"`
+}
+
+func TestUnmarshalKeyAsFloat(t *testing.T) {
+	testcases := []struct {
+		name string
+		conf string
+		want FloatConfig
+		skip bool
+	}{
+		{
+			name: "value float config map",
+			conf: `
+feature:
+  float32: 12.34
+  float64: 12.34
+`,
+			want: FloatConfig{
+				Fieldfloat32: 12.34,
+				Fieldfloat64: 12.34,
+			},
+			skip: false,
+		},
+		{
+			name: "missing field zero value float config map",
+			conf: `
+feature:
+  float64: 12.34
+`,
+			want: FloatConfig{
+				Fieldfloat32: 0.0,
+				Fieldfloat64: 12.34,
+			},
+			skip: false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+			if tc.skip {
+				t.Skip("Skipping test case")
+			}
+
+			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig.SetKnown("feature")
+
+			var feature = FloatConfig{}
+			err := UnmarshalKey(mockConfig, "feature", &feature)
+			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
+			if err != nil {
+				t.FailNow()
+			}
+
+			confvalues := reflect.ValueOf(feature)
+			wantvalues := reflect.ValueOf(tc.want)
+
+			for i := 0; i < confvalues.NumField(); i++ {
+				wantType := strings.ReplaceAll(confvalues.Type().Field(i).Name, "Field", "")
+				actual := confvalues.Field(i).Type().Name()
+				assert.Equal(t, wantType, actual, "%s unexpected marshal type, want: %s got: %s", tc.name, wantType, actual)
+				assert.True(t, reflect.DeepEqual(wantvalues.Field(i).Interface(), confvalues.Field(i).Interface()), "%s marshalled values not equal, want: %s, got: %s", tc.name, wantvalues.Field(i), confvalues.Field(i))
+			}
+		})
+	}
+}
+
+type StringConfig struct {
+	Field string `yaml:"value"`
+}
+
+func TestUnmarshalKeyAsString(t *testing.T) {
+	testcases := []struct {
+		name string
+		conf string
+		want StringConfig
+		skip bool
+	}{
+		{
+			name: "string value config map",
+			conf: `
+feature:
+  value: a string
+`,
+			want: StringConfig{
+				Field: "a string",
+			},
+			skip: false,
+		},
+		{
+			name: "quoted string config map",
+			conf: `
+feature:
+  value: "12.34"
+`,
+			want: StringConfig{
+				Field: "12.34",
+			},
+			skip: false,
+		},
+		{
+			name: "missing field is a empty string",
+			conf: `
+feature:
+  float64: 12.34
+`,
+			want: StringConfig{
+				Field: string(""),
+			},
+			skip: false,
+		},
+		{
+			name: "converts yaml parsed other type to match struct",
+			conf: `
+feature:
+  value: 42
+`,
+			want: StringConfig{
+				Field: "42", // this currently fails, Viper parses to int and unmarshal will reflect that type
+			},
+			skip: true,
+		},
+		{
+			name: "commas are part of the string and not a list",
+			conf: `
+feature:
+  value: not, a, list
+`,
+			want: StringConfig{
+				Field: "not, a, list",
+			},
+			skip: false,
+		},
+		{
+			name: "parses special characters",
+			conf: `
+feature:
+  value: ☺☻☹
+`,
+			want: StringConfig{
+				Field: "☺☻☹",
+			},
+			skip: false,
+		},
+		{
+			name: "does not parse invalid ascii to byte sequences",
+			conf: `
+feature:
+  value: \xff-\xff
+`,
+			want: StringConfig{
+				Field: `\xff-\xff`,
+			},
+			skip: false,
+		},
+		{
+			name: "retains string utf-8",
+			conf: `
+feature:
+  value: 日本語
+`,
+			want: StringConfig{
+				Field: "日本語",
+			},
+			skip: false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(fmt.Sprintf("%s", tc.name), func(t *testing.T) {
+			if tc.skip {
+				t.Skip("Skipping test case")
+			}
+
+			mockConfig := mock.NewFromYAML(t, tc.conf)
+			mockConfig.SetKnown("feature")
+
+			var feature = StringConfig{}
+			err := UnmarshalKey(mockConfig, "feature", &feature)
+			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
+			if err != nil {
+				t.FailNow()
+			}
+
+			confvalues := reflect.ValueOf(feature)
+			wantvalues := reflect.ValueOf(tc.want)
+
+			for i := 0; i < confvalues.NumField(); i++ {
+				wantType := "string"
+				actual := confvalues.Field(i).Type().Name()
+				assert.Equal(t, wantType, actual, "%s unexpected marshal type, want: %s got: %s", tc.name, wantType, actual)
+				assert.True(t, reflect.DeepEqual(wantvalues.Field(i).Interface(), confvalues.Field(i).Interface()), "%s marshalled values not equal, want: %s, got: %s", tc.name, wantvalues.Field(i), confvalues.Field(i))
+			}
+		})
+	}
 }
 
 func TestMapGetChildNotFound(t *testing.T) {
