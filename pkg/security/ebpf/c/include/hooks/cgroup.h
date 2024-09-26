@@ -9,6 +9,8 @@
 #include "structs/dentry_resolver.h"
 #include "maps.h"
 
+#define ROOT_CGROUP_PROCS_FILE_INO 2
+
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
     struct qstr parent_qstr;
@@ -149,6 +151,11 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
     default:
         // ignore
+        return 0;
+    }
+
+    // if the process is being moved to the root cgroup then we don't want to track it
+    if (resolver->key.ino == ROOT_CGROUP_PROCS_FILE_INO) {
         return 0;
     }
 
