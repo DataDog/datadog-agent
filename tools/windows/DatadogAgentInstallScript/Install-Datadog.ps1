@@ -116,8 +116,6 @@ function Start-ProcessWithOutput {
    return $process.ExitCode
 }
 
-Write-Host "Welcome to the Datadog Install Script"
-
 # Set some defaults if not provided
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
@@ -130,24 +128,29 @@ if (-Not $ddRemoteUpdates) {
    $ddRemoteUpdates = "false"
 }
 
-$myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-$myWindowsPrincipal = new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
-$adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
-if ($myWindowsPrincipal.IsInRole($adminRole)) {
-   # We are running "as Administrator"
-   $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
-}
-else {
-   # We are not running "as Administrator"
-   $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
-   $newProcess.Arguments = $myInvocation.MyCommand.Definition;
-   $newProcess.Verb = "runas";
-   $proc = [System.Diagnostics.Process]::Start($newProcess);
-   $proc.WaitForExit()
-   return $proc.ExitCode
-}
-
 try {
+   Write-Host "Welcome to the Datadog Install Script"
+   if (-not [Environment]::Is64BitProcess) {
+      throw "This command must be run in a 64-bit environment."
+   }
+
+   $myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+   $myWindowsPrincipal = new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
+   $adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
+   if ($myWindowsPrincipal.IsInRole($adminRole)) {
+      # We are running "as Administrator"
+      $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
+   }
+   else {
+      # We are not running "as Administrator"
+      $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
+      $newProcess.Arguments = $myInvocation.MyCommand.Definition;
+      $newProcess.Verb = "runas";
+      $proc = [System.Diagnostics.Process]::Start($newProcess);
+      $proc.WaitForExit()
+      return $proc.ExitCode
+   }
+
    # Powershell does not enable TLS 1.2 by default, & we want it enabled for faster downloads
    Write-Host "Forcing web requests to TLS v1.2"
    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -222,6 +225,6 @@ catch {
 }
 finally {
    Write-Host "Cleaning up..."
-   Remove-Item -Force $installer
+   Remove-Item -Force -EA SilentlyContinue $installer
 }
 Write-Host "Datadog Install Script finished!"
