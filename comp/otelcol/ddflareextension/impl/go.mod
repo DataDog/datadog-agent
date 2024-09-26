@@ -103,7 +103,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
@@ -163,6 +162,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.58.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.56.0-rc.3 // indirect
@@ -223,6 +223,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.0 // indirect

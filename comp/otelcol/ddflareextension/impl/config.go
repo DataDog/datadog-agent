@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	apiauth "github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
@@ -35,7 +34,6 @@ type Config struct {
 
 	factories              *otelcol.Factories
 	configProviderSettings otelcol.ConfigProviderSettings
-	authtoken              apiauth.Component
 }
 
 var _ component.Config = (*Config)(nil)

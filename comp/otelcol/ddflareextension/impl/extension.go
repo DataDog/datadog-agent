@@ -32,7 +32,7 @@ type ddExtension struct {
 	cfg *Config // Extension configuration.
 
 	telemetry   component.TelemetrySettings
-	server      *http.Server
+	server      *server
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
