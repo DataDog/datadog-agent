@@ -395,6 +395,31 @@ feature:
 			skip: false,
 		},
 		{
+			name: "float convert to int config map",
+			conf: `
+feature:
+  uint8:  12.0
+  uint16: 1234.0
+  uint32: 1234
+  uint64: 1234
+  int8:  12.3
+  int16: 12.9
+  int32: 12.34
+  int64: -12.34
+`,
+			want: UintConfig{
+				Fielduint8:  12,
+				Fielduint16: 1234,
+				Fielduint32: 1234,
+				Fielduint64: 1234,
+				Fieldint8:   12,
+				Fieldint16:  12, // TODO: truncates the float and does not round, expected?
+				Fieldint32:  12,
+				Fieldint64:  -12,
+			},
+			skip: false,
+		},
+		{
 			name: "missing field is zero value config map",
 			conf: `
 feature:
@@ -533,6 +558,45 @@ feature:
 			want: FloatConfig{
 				Fieldfloat32: 0.0,
 				Fieldfloat64: 12.34,
+			},
+			skip: false,
+		},
+		{
+			name: "converts ints to float config map",
+			conf: `
+feature:
+  float32: 12
+  float64: 12
+`,
+			want: FloatConfig{
+				Fieldfloat32: 12.0,
+				Fieldfloat64: 12.0,
+			},
+			skip: false,
+		},
+		{
+			name: "converts negatives to float config map",
+			conf: `
+feature:
+  float32: -12
+  float64: -12.34
+`,
+			want: FloatConfig{
+				Fieldfloat32: -12.0,
+				Fieldfloat64: -12.34,
+			},
+			skip: false,
+		},
+		{
+			name: "starting decimal to float config map",
+			conf: `
+feature:
+  float32: .34
+  float64: -.34
+`,
+			want: FloatConfig{
+				Fieldfloat32: 0.34,
+				Fieldfloat64: -0.34,
 			},
 			skip: false,
 		},
