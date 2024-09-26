@@ -30,18 +30,20 @@ import (
 type Client struct {
 	sync.Mutex
 
-	site  string
-	orgID int64
+	site            string
+	orgID           int64
+	orgUUIDProvider OrgUUIDProvider
 
-	configLocalStore   *localStore
-	configTUFClient    *client.Client
+	configLocalStore *localStore
+	configTUFClient  *client.Client
+
 	configRootOverride string
+	directorLocalStore *localStore
+	directorTUFClient  *client.Client
 
-	directorLocalStore   *localStore
-	directorTUFClient    *client.Client
 	directorRootOverride string
-
-	targetStore *targetStore
+	targetStore          *targetStore
+	orgStore             *orgStore
 
 	cachedVerify     bool
 	cachedVerifyTime time.Time
@@ -49,7 +51,7 @@ type Client struct {
 	// TUF transaction tracker
 	transactionalStore *transactionalStore
 
-	verifyOrg func() error
+	orgVerificationEnabled bool
 }
 
 // CoreAgentClient is an uptane client that fetches the latest configs from the Core Agent
@@ -57,9 +59,6 @@ type CoreAgentClient struct {
 	*Client
 	configRemoteStore   *remoteStoreConfig
 	directorRemoteStore *remoteStoreDirector
-
-	orgStore        *orgStore
-	orgUUIDProvider OrgUUIDProvider
 }
 
 // CDNClient is an uptane client that fetches the latest configs from the server over HTTP(s)
@@ -107,15 +106,14 @@ func NewCoreAgentClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, opti
 	c = &CoreAgentClient{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
-		orgStore:            orgStore,
-		orgUUIDProvider:     orgUUIDProvider,
 		Client: &Client{
-			targetStore:        targetStore,
-			transactionalStore: transactionalStore,
+			orgStore:               orgStore,
+			orgUUIDProvider:        orgUUIDProvider,
+			targetStore:            targetStore,
+			transactionalStore:     transactionalStore,
+			orgVerificationEnabled: true,
 		},
 	}
-	// TODO 🤮ugly 🤮ugly 🤮ugly 🤮
-	c.Client.verifyOrg = c.verifyOrg
 
 	for _, o := range options {
 		o(c.Client)
@@ -191,6 +189,7 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOption) (c *CDNClient, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
 	targetStore := newTargetStore(transactionalStore)
+	orgStore := newOrgStore(transactionalStore)
 
 	httpClient := &http.Client{}
 
@@ -198,16 +197,19 @@ func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOptio
 		configRemoteStore:   newCDNRemoteConfigStore(httpClient, site, apiKey),
 		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, site, apiKey),
 		Client: &Client{
-			site:               site,
-			targetStore:        targetStore,
-			transactionalStore: transactionalStore,
+			site:                   site,
+			targetStore:            targetStore,
+			transactionalStore:     transactionalStore,
+			orgStore:               orgStore,
+			orgVerificationEnabled: false,
+			orgUUIDProvider: func() (string, error) {
+				return "", nil
+			},
 		},
 	}
 	for _, o := range options {
 		o(c.Client)
 	}
-	// TODO 🤮ugly 🤮ugly 🤮ugly 🤮
-	c.Client.verifyOrg = func() error { return nil }
 
 	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, site, c.configRootOverride); err != nil {
 		return nil, err
@@ -388,7 +390,7 @@ func (c *Client) verify() error {
 }
 
 // StoredOrgUUID returns the org UUID given by the backend
-func (c *CoreAgentClient) StoredOrgUUID() (string, error) {
+func (c *Client) StoredOrgUUID() (string, error) {
 	// This is an important block of code : to avoid being locked out
 	// of the agent in case of a wrong uuid being stored, we link an
 	// org UUID storage to a root version. What this means in practice
@@ -415,7 +417,10 @@ func (c *CoreAgentClient) StoredOrgUUID() (string, error) {
 	return orgUUID, nil
 }
 
-func (c *CoreAgentClient) verifyOrg() error {
+func (c *Client) verifyOrg() error {
+	if !c.orgVerificationEnabled {
+		return nil
+	}
 	rawCustom, err := c.configLocalStore.GetMetaCustom(metaSnapshot)
 	if err != nil {
 		return fmt.Errorf("could not obtain snapshot custom: %v", err)

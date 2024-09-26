@@ -205,6 +205,7 @@ type CoreAgentService struct {
 type uptaneClient interface {
 	State() (uptane.State, error)
 	DirectorRoot(version uint64) ([]byte, error)
+	StoredOrgUUID() (string, error)
 	Targets() (data.TargetFiles, error)
 	TargetFile(path string) ([]byte, error)
 	TargetsMeta() ([]byte, error)
@@ -216,7 +217,6 @@ type uptaneClient interface {
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
-	StoredOrgUUID() (string, error)
 }
 
 // cdnUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the CDN.

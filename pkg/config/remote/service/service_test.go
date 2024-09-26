@@ -179,8 +179,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clo
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.clock = clock
-	service.coreAgentUptane = uptane
-	service.Service.uptane = uptane
+	service.uptane = uptane
 	return service
 }
 
@@ -1170,8 +1169,7 @@ func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane) *HTTPClient {
 	client, err := NewHTTPClient(t.TempDir(), site, k, "9.9.9")
 	require.NoError(t, err)
 	if uptaneClient != nil {
-		client.cdnUptane = uptaneClient
-		client.Service.uptane = uptaneClient
+		client.uptane = uptaneClient
 	}
 	return client
 }
