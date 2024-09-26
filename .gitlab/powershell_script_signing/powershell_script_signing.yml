@@ -1,6 +1,8 @@
 powershell_script_signing:
   tags: ["runner:windows-docker", "windowsversion:1809"]
   stage: choco_and_install_script_build
+  rules:
+    !reference [.manual]
   artifacts:
     expire_in: 2 weeks
     paths:

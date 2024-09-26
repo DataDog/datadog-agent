@@ -8,6 +8,8 @@ include:
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
+  - .gitlab/powershell_script_signing/powershell_script_signing.yml
+  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
