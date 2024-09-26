@@ -306,9 +306,9 @@ def list_parameters(_, type):
     List all SSM parameters used in the datadog-agent repository.
     """
     if type == "ssm":
-        section_pattern = re.compile(r"AWS SSM")
+        section_pattern = re.compile(r"aws ssm variables")
     elif type == "vault":
-        section_pattern = re.compile(r"Vault secrets")
+        section_pattern = re.compile(r"vault variables")
     else:
         raise Exit(f"{color_message('Error', Color.RED)}: pattern must be in [ssm, vault], not |{type}|")
     in_param_section = False
@@ -316,9 +316,9 @@ def list_parameters(_, type):
     params = defaultdict(list)
     with open(".gitlab-ci.yml") as f:
         for line in f:
-            start_section = section_pattern.search(line)
-            if start_section:
-                in_param_section = True
+            section = section_pattern.search(line)
+            if section:
+                in_param_section = not in_param_section
             if in_param_section:
                 if len(line.strip()) == 0:
                     break
