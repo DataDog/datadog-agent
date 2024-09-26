@@ -49,8 +49,7 @@ function Send-Telemetry($payload) {
 }
 
 function Show-Error($errorMessage, $errorCode) {
-   # Report as warning for prettier output and not having to deal with script termination
-   Write-Warning @"
+   Write-Error -ErrorAction Continue @"
     Datadog Install script failed:
 
     Error message: $($errorMessage)
@@ -109,7 +108,12 @@ function Start-ProcessWithOutput {
    $stderr = Register-ObjectEvent -InputObject $process -EventName 'ErrorDataReceived' `
       -Action {
       if (![String]::IsNullOrEmpty($EventArgs.Data)) {
-         Write-Warning $EventArgs.Data
+         # Print stderr from process into host stderr
+         # Unfortunately that means this output cannot be captured from within PowerShell
+         # and it won't work within PowerShell ISE because it is not a console host.
+         [Console]::ForegroundColor = 'red'
+         [Console]::Error.WriteLine($EventArgs.Data)
+         [Console]::ResetColor()
       }
    }
    [void]$process.Start()
