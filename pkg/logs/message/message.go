@@ -362,5 +362,5 @@ func TruncatedReasonTag(reason string) string {
 
 // MultiLineSourceTag returns a tag for multiline logs.
 func MultiLineSourceTag(source string) string {
-	return fmt.Sprintf("auto_multiline:%s", source)
+	return fmt.Sprintf("multiline:%s", source)
 }
