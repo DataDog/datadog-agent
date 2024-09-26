@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix an issue where TCP traceroute latency was not being calculated correctly.
+    Fixes an issue where TCP traceroute latency was not being calculated correctly.
