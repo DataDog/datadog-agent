@@ -28,7 +28,7 @@ func TestDump(t *testing.T) {
 			Name: "ctr-image",
 		},
 		Resources: wmdef.ContainerResources{
-			GPUType: "nvidia.com/gpu",
+			GPUType: "nvidia",
 		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
 		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
@@ -54,7 +54,7 @@ func TestDump(t *testing.T) {
 		PID:        1,
 		CgroupPath: "/default/ctr-id",
 		Resources: wmdef.ContainerResources{
-			GPUType: "nvidia.com/gpu",
+			GPUType: "nvidia",
 		},
 	}
 
@@ -130,7 +130,7 @@ Hostname:
 Network IPs: 
 PID: 0
 Cgroup path: 
-GPU Type: nvidia.com/gpu
+GPU Type: nvidia
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -160,7 +160,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-GPU Type: nvidia.com/gpu
+GPU Type: nvidia
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -190,7 +190,7 @@ Hostname:
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-GPU Type: nvidia.com/gpu
+GPU Type: nvidia
 `,
 				},
 			},
