@@ -275,7 +275,7 @@ feature:
   enabled: 1
 `,
 			want: true,
-			skip: true,
+			skip: false,
 		},
 		{
 			name: "string 'n' value is false",
@@ -320,7 +320,7 @@ feature:
   enabled: 0
 `,
 			want: false,
-			skip: true,
+			skip: false,
 		},
 		{
 			name: "yaml empty string value false",

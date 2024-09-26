@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -249,6 +250,9 @@ func (n *leafNodeImpl) ChildrenKeys() ([]string, error) {
 func (n *leafNodeImpl) GetBool() (bool, error) {
 	if n.val.Kind() == reflect.Bool {
 		return n.val.Bool(), nil
+	} else if n.val.Kind() == reflect.Int {
+		stringVal := strconv.FormatInt(n.val.Int(), 10)
+		return convertToBool(stringVal)
 	} else if n.val.Kind() == reflect.String {
 		return convertToBool(n.val.String())
 	}
