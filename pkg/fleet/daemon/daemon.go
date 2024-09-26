@@ -94,15 +94,19 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	return newDaemon(rc, installer, env), nil
+	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc/daemon")
+	if err != nil {
+		return nil, err
+	}
+	return newDaemon(rc, installer, env, cdn), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
 		installer:     installer,
-		cdn:           cdn.New(env),
+		cdn:           cdn,
 		requests:      make(chan remoteAPIRequest, 32),
 		catalog:       catalog{},
 		stopChan:      make(chan struct{}),
@@ -233,6 +237,7 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	defer d.m.Unlock()
 	d.rc.Close()
 	close(d.stopChan)
+	d.cdn.Close()
 	d.requestsWG.Wait()
 	return nil
 }

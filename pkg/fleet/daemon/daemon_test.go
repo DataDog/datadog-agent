@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -97,6 +98,11 @@ func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method s
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
 	args := m.Called(ctx, method)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) Close() error {
+	args := m.Called()
 	return args.Error(0)
 }
 
@@ -186,8 +192,13 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
+	env := &env.Env{RemoteUpdates: true}
+	cdn, err := cdn.New(env, t.TempDir())
+	require.NoError(t, err)
+	daemon := newDaemon(rc, pm, env, cdn)
+	require.NoError(t, err)
 	i := &testInstaller{
-		daemonImpl: newDaemon(rc, pm, &env.Env{RemoteUpdates: true}),
+		daemonImpl: daemon,
 		rcc:        rcc,
 		pm:         pm,
 	}
