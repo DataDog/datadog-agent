@@ -163,3 +163,15 @@ notify_failure_summary_daily:
         echo 'Sending weekly summary'
         inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
+
+close_failing_tests_stale_issues:
+  stage: notify
+  needs: []
+  # TODO: Rules once a week
+  tags: ["arch:amd64"]
+  script:
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+  - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
+  - ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com; export ATLASSIAN_USERNAME
+  - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+  - inv -e jira.close-failing-tests-stale-issues
