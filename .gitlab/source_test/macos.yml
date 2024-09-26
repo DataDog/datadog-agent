@@ -84,7 +84,7 @@ lint_macos:
   stage: source_test
   allow_failure: true
   extends: .macos_gitlab
-  needs: ["setup_agent_version"]
+  needs: ["go_deps", "go_tools_deps"]
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
@@ -96,10 +96,12 @@ lint_macos:
   rules:
     !reference [.manual]
   extends: .macos_gitlab
-  needs: ["setup_agent_version"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
