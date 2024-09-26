@@ -4,6 +4,7 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
+  - echo $GOPATH/pkg/mod/cache
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 

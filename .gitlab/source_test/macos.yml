@@ -86,6 +86,7 @@ lint_macos:
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
   script:
+    - echo $GOPATH
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e linter.go --cpus 12 --timeout 60
@@ -100,6 +101,7 @@ lint_macos:
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - echo $GOPATH
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
