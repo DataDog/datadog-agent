@@ -51,7 +51,7 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		bootstrapCommand(),
 		installCommand(),
-		installDefaultCommand(),
+		setupCommand(),
 		removeCommand(),
 		installExperimentCommand(),
 		removeExperimentCommand(),
@@ -217,14 +217,14 @@ func bootstrapCommand() *cobra.Command {
 	return cmd
 }
 
-func installDefaultCommand() *cobra.Command {
+func setupCommand() *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:     "install-default",
+		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstraperCmd("install-default")
+			b := newBootstraperCmd("setup")
 			defer func() { b.Stop(err) }()
 			ctx, cancel := context.WithTimeout(b.ctx, timeout)
 			defer cancel()
