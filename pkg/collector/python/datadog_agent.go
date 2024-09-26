@@ -614,12 +614,12 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 var (
-	telemetryHistograms = new(sync.Map)
+	telemetryMap = new(sync.Map)
 )
 
 func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
 	var key = checkName + "." + metricName
-	histogram, _ := telemetryHistograms.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+	histogram, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
 		checkName,
 		metricName,
 		nil,
@@ -630,13 +630,9 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 	return histogram.(telemetry.Histogram)
 }
 
-var (
-	telemetryCounters = new(sync.Map)
-)
-
 func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
 	var key = checkName + "." + metricName
-	counter, _ := telemetryCounters.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	counter, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		checkName,
 		metricName,
 		nil,
@@ -646,13 +642,9 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 	return counter.(telemetry.Counter)
 }
 
-var (
-	telemetryGauges = new(sync.Map)
-)
-
 func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
 	var key = checkName + "." + metricName
-	gauge, _ := telemetryGauges.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+	gauge, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		checkName,
 		metricName,
 		nil,
