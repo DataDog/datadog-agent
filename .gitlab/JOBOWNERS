@@ -146,12 +146,11 @@ new-e2e-discovery*                     @Datadog/universal-service-monitoring
 new-e2e-ndm*                           @DataDog/network-device-monitoring
 new-e2e-npm*                           @DataDog/Networks
 new-e2e-cws*                           @DataDog/agent-security
-new-e2e-windows-agent*                 @DataDog/windows-agent
+new-e2e-windows*                       @DataDog/windows-agent
 new-e2e-orchestrator*                  @DataDog/container-app
 e2e_pre_test*                          @DataDog/agent-devx-loops
 new-e2e-remote-config*                 @DataDog/remote-config
 new-e2e-installer*                     @DataDog/fleet
-new-e2e-windows-service-test           @DataDog/windows-agent
 new-e2e_windows_powershell_module_test @DataDog/windows-kernel-integrations
 
 # Kernel matrix testing
