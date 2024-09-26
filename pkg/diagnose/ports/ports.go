@@ -76,8 +76,8 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		if port.Pid == 0 {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
+				Result:    diagnosis.DiagnosisWarning,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process. Verify the process that is using this port is an Agent process.", value),
 			})
 			continue
 		}
@@ -86,8 +86,8 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		if port.Process == "" && port.Pid != 0 {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
-				Result:    diagnosis.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process (PID=%d).", value, port.Pid),
+				Result:    diagnosis.DiagnosisWarning,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process (PID=%d). Verify that the process that is using this port is an Agent process.", value, port.Pid),
 			})
 			continue
 		}
