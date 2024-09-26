@@ -15,6 +15,8 @@ import (
 
 // InitPython sets up the Python environment
 func InitPython(paths ...string) {
+	log.Infof("InitPython")
+
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
 	// print the Python info if the interpreter was embedded
