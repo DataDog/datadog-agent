@@ -529,7 +529,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"UNKNOWN": {
+					"EMPTY_PARAMETERS": {
 						postgres.UnknownOP: adjustCount(2),
 					},
 					"dummy": {
@@ -730,4 +730,88 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 		}
 		return reflect.DeepEqual(expectedStats, found)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
+}
+
+func (s *postgresProtocolParsingSuite) TestExtractParameters() {
+	t := s.T()
+
+	units := []struct {
+		name     string
+		expected string
+		event    ebpf.EbpfEvent
+	}{
+		{
+			name:     "query_size longer than the actual length of the content",
+			expected: "version and status",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("SHOW version and status")),
+					Original_query_size: 64,
+				},
+			},
+		},
+		{
+			name:     "query_size shorter than the actual length of the content",
+			expected: "param1 param2",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    createFragment([]byte("COMMAND param1 param2 param3")),
+					Original_query_size: 21,
+				},
+			},
+		},
+		{
+			name:     "command has trailing zeros",
+			expected: "param",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{'S', 'O', 'M', 'E', ' ', 'p', 'a', 'r', 'a', 'm', 0, 0, 0},
+					Original_query_size: 13,
+				},
+			},
+		},
+		{
+			name:     "malformed command with wrong query_size",
+			expected: "bc",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{0, 0, 'a', ' ', 'b', 'c', 0, 0, 0},
+					Original_query_size: 12,
+				},
+			},
+		},
+		{
+			name:     "empty content with spaces and nils",
+			expected: "",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{' ', 0, ' ', 0, ' ', 0, 0, 0},
+					Original_query_size: 8,
+				},
+			},
+		},
+		{
+			name:     "content with control codes only",
+			expected: "EMPTY_PARAMETERS",
+			event: ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
+					Request_fragment:    [ebpf.BufferSize]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0},
+					Original_query_size: 10,
+				},
+			},
+		},
+	}
+	for _, unit := range units {
+		t.Run(unit.name, func(t *testing.T) {
+			e := postgres.NewEventWrapper(&unit.event)
+			require.NotNil(t, e)
+			require.Equal(t, unit.expected, e.Parameters())
+		})
+	}
+}
+
+func createFragment(fragment []byte) [ebpf.BufferSize]byte {
+	var b [ebpf.BufferSize]byte
+	copy(b[:], fragment)
+	return b
 }

@@ -78,12 +78,13 @@ func (e *EventWrapper) extractParameters() string {
 	b := getFragment(&e.Tx)
 	idxParam := bytes.IndexByte(b, ' ') // trim the string to a space, it will give the parameter
 	if idxParam == -1 {
-		return ""
+		return "EMPTY_PARAMETERS"
 	}
 	idxParam++
-	idxEnd := bytes.IndexByte(b, '\x00') // trim trailing nulls
-	if idxEnd > idxParam {
-		return string(b[idxParam:idxEnd])
+
+	idxEnd := bytes.IndexByte(b[idxParam:], '\x00') // trim trailing nulls
+	if idxEnd != -1 {
+		return string(b[idxParam : idxParam+idxEnd])
 	}
 	return string(b[idxParam:])
 }
@@ -115,7 +116,7 @@ func (e *EventWrapper) extractTableName() string {
 // Parameters returns the table name or run-time parameter.
 func (e *EventWrapper) Parameters() string {
 	if !e.parametersSet {
-		if e.operation == ShowOP {
+		if e.operation == ShowOP || e.operation == UnknownOP {
 			e.parameters = e.extractParameters()
 		} else {
 			e.parameters = e.extractTableName()
