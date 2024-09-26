@@ -87,13 +87,7 @@ def close_failing_tests_stale_issues(_):
 
     This task is executed periodically.
     """
-    from atlassian import Jira
 
-    username = os.environ['ATLASSIAN_USERNAME']
-    password = os.environ['ATLASSIAN_PASSWORD']
-    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
-    jira.issue_add_comment('CELIANTST-1', 'Test comment')
-    exit()
     robot_name = 'Robot Slack SRE'
     re_test_name = re.compile('Test name: (.*)\n')
 
