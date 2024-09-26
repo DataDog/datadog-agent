@@ -64,7 +64,6 @@ tests_macos:
 
 .lint_macos_gitlab:
   stage: source_test
-  allow_failure: true
   extends: .macos_gitlab
   needs: ["setup_agent_version"]
   script:
@@ -111,6 +110,7 @@ lint_macos_gitlab_amd64:
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
+  allow_failure: true
   rules:
     - !reference [.on_main]
     - !reference [.manual]
