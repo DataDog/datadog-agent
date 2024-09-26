@@ -1,0 +1,8 @@
+powershell_script_deploy:
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  stage: choco_and_install_script_deploy
+  rules:
+    !reference [.manual]
+  needs: ["powershell_script_signing"]
+  script:
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/Install-Datadog.ps1 s3://dd-agent/scripts/Install-Datadog.ps1 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

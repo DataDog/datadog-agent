@@ -91,8 +91,8 @@ stages:
   - deploy_cws_instrumentation
   - deploy_dca
   - trigger_release
-  - choco_build
-  - choco_deploy
+  - choco_and_install_script_build
+  - choco_and_install_script_deploy
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test

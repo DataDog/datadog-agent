@@ -1,0 +1,12 @@
+powershell_script_signing:
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  stage: choco_and_install_script_build
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg
+  script:
+    - mkdir .omnibus\pkg
+    - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
+    - copy tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 .omnibus\pkg
+  
