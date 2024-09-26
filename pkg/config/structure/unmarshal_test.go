@@ -185,6 +185,7 @@ func TestUnmarshalKeyAsBool(t *testing.T) {
 		name string
 		conf string
 		want bool
+		skip bool
 	}{
 		{
 			name: "string value to true",
@@ -193,6 +194,7 @@ feature:
   enabled: "true"
 `,
 			want: true,
+			skip: false,
 		},
 		{
 			name: "yaml boolean value true",
@@ -201,6 +203,7 @@ feature:
   enabled: true
 `,
 			want: true,
+			skip: false,
 		},
 		{
 			name: "string value to false",
@@ -209,6 +212,7 @@ feature:
   enabled: "false"
 `,
 			want: false,
+			skip: false,
 		},
 		{
 			name: "yaml boolean value false",
@@ -217,6 +221,7 @@ feature:
   enabled: false
 `,
 			want: false,
+			skip: false,
 		},
 		{
 			name: "missing value is false",
@@ -225,19 +230,115 @@ feature:
   not_enabled: "the missing key should be false"
 `,
 			want: false,
+			skip: false,
 		},
-		//  TODO: should this include falsey ? (nil, zero values like empty string, etc.)
-		// 	{
-		//		name: "yaml empty string value false",
-		// 		conf: `
-		//feature:
-		//  enabled: ""
-		//`,
-		//		want: false,
-		//	},
+		{
+			name: "string 'y' value is true",
+			conf: `
+feature:
+  enabled: y
+`,
+			want: true,
+			skip: false,
+		},
+		{
+			name: "string 'yes' value is true",
+			conf: `
+feature:
+  enabled: yes
+`,
+			want: true,
+			skip: false,
+		},
+		{
+			name: "string 'on' value is true",
+			conf: `
+feature:
+  enabled: on
+`,
+			want: true,
+			skip: false,
+		},
+		{
+			name: "string '1' value is true",
+			conf: `
+feature:
+  enabled: "1"
+`,
+			want: true,
+			skip: false,
+		},
+		{
+			name: "int 1 value is true",
+			conf: `
+feature:
+  enabled: 1
+`,
+			want: true,
+			skip: true,
+		},
+		{
+			name: "string 'n' value is false",
+			conf: `
+feature:
+  enabled: n
+`,
+			want: false,
+			skip: false,
+		},
+		{
+			name: "string 'no' value is false",
+			conf: `
+feature:
+  enabled: no
+`,
+			want: false,
+			skip: false,
+		},
+		{
+			name: "string 'off' value is false",
+			conf: `
+feature:
+  enabled: off
+`,
+			want: false,
+			skip: false,
+		},
+		{
+			name: "string '0' value is false",
+			conf: `
+feature:
+  enabled: "0"
+`,
+			want: false,
+			skip: false,
+		},
+		{
+			name: "int 0 value is false",
+			conf: `
+feature:
+  enabled: 0
+`,
+			want: false,
+			skip: true,
+		},
+		{
+			name: "yaml empty string value false",
+			conf: `
+feature:
+  enabled: ""
+`,
+			want: false,
+			skip: true, // TODO: should this include falsey ? (nil, zero values like empty string, etc.)
+		},
 	}
+
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.skip {
+				t.Skip("Skipping test case")
+			}
+
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
