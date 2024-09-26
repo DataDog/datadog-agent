@@ -15,6 +15,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
@@ -42,8 +43,6 @@ const (
 	DefaultNumPaths = 1
 	// DefaultMinTTL defines the default minimum TTL
 	DefaultMinTTL = 1
-	// DefaultMaxTTL defines the default maximum TTL
-	DefaultMaxTTL = 30
 	// DefaultDelay defines the default delay
 	DefaultDelay = 50 //msec
 	// DefaultOutputFormat defines the default output format
@@ -117,12 +116,12 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = DefaultMaxTTL
+		maxTTL = setup.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
 	if cfg.Timeout == 0 {
-		timeout = setup.DefaultNetworkPathTimeout * time.Millisecond
+		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
 		timeout = cfg.Timeout
 	}
@@ -227,9 +226,10 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 
 func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolTCP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolTCP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -289,9 +289,10 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 	}
 
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolUDP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolUDP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,

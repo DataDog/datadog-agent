@@ -35,19 +35,35 @@ func (os defaulObjectStore[T]) Size() int {
 }
 
 // ListObjects implements ObjectStore#ListObjects
-func (os defaulObjectStore[T]) ListObjects() []T {
+func (os defaulObjectStore[T]) ListObjects(filter *types.Filter) []T {
 	objects := make([]T, 0)
 
-	for _, object := range os {
-		objects = append(objects, object)
+	if filter == nil {
+		for _, object := range os {
+			objects = append(objects, object)
+		}
+	} else {
+		for entityID, object := range os {
+			if filter.MatchesPrefix(entityID.GetPrefix()) {
+				objects = append(objects, object)
+			}
+		}
 	}
 
 	return objects
 }
 
 // ForEach implements ObjectStore#ForEach
-func (os defaulObjectStore[T]) ForEach(apply types.ApplyFunc[T]) {
-	for id, object := range os {
-		apply(id, object)
+func (os defaulObjectStore[T]) ForEach(filter *types.Filter, apply types.ApplyFunc[T]) {
+	if filter == nil {
+		for id, object := range os {
+			apply(id, object)
+		}
+	} else {
+		for id, object := range os {
+			if filter.MatchesPrefix(id.GetPrefix()) {
+				apply(id, object)
+			}
+		}
 	}
 }

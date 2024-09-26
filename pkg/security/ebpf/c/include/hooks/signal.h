@@ -6,6 +6,10 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     /* TODO: implement the event for pid equal to 0 or -1. */
     if (pid < 1) {
         return 0;

@@ -129,3 +129,17 @@ const (
 	// Process is the prefix `process`
 	Process EntityIDPrefix = "process"
 )
+
+// AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
+func AllPrefixesSet() map[EntityIDPrefix]struct{} {
+	return map[EntityIDPrefix]struct{}{
+		ContainerID:            {},
+		ContainerImageMetadata: {},
+		ECSTask:                {},
+		Host:                   {},
+		KubernetesDeployment:   {},
+		KubernetesMetadata:     {},
+		KubernetesPodUID:       {},
+		Process:                {},
+	}
+}

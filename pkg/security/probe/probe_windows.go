@@ -20,7 +20,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1111,6 +1110,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
+
+	p.processKiller.SendStats(p.statsdClient)
+
 	return nil
 }
 
@@ -1386,8 +1388,13 @@ func (p *Probe) Origin() string {
 	return ""
 }
 
+// EnableEnforcement sets the enforcement mode
+func (p *WindowsProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
+}
+
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)

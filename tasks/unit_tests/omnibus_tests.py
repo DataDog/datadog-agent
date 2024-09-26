@@ -41,7 +41,7 @@ def _run_calls_to_string(mock_calls):
         'CI_PIPELINE_ID': '',
         'RELEASE_VERSION_7': 'nightly',
         'S3_OMNIBUS_CACHE_BUCKET': 'omnibus-cache',
-        'API_KEY_ORG2_SSM_NAME': 'api-key',
+        'API_KEY_ORG2': 'api-key',
     },
     clear=True,
 )

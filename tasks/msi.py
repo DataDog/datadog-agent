@@ -2,6 +2,7 @@
 msi namespaced tasks
 """
 
+import hashlib
 import mmap
 import os
 import shutil
@@ -11,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import download_to_tempfile, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
@@ -29,6 +30,8 @@ SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentIns
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
+# Match to AgentInstaller.cs BinSource
+AGENT_BIN_SOURCE_DIR = os.path.join('C:\\', 'opt', 'datadog-agent', 'bin', 'agent')
 
 NUGET_PACKAGES_DIR = os.path.join(BUILD_ROOT_DIR, 'packages')
 NUGET_CONFIG_FILE = os.path.join(BUILD_ROOT_DIR, 'NuGet.config')
@@ -433,3 +436,85 @@ def MsiClosing(obj):
         yield obj
     finally:
         obj.Close()
+
+
+def get_msm_info(ctx, release_version):
+    """
+    Get the merge module info from the release.json for the given release_version
+    """
+    env = load_release_versions(ctx, release_version)
+    base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
+    msm_info = {}
+    if 'WINDOWS_DDNPM_VERSION' in env:
+        info = {
+            'filename': 'DDNPM.msm',
+            'build': env['WINDOWS_DDNPM_DRIVER'],
+            'version': env['WINDOWS_DDNPM_VERSION'],
+            'shasum': env['WINDOWS_DDNPM_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddnpminstall-{info['version']}.msm"
+        msm_info['DDNPM'] = info
+    if 'WINDOWS_DDPROCMON_VERSION' in env:
+        info = {
+            'filename': 'DDPROCMON.msm',
+            'build': env['WINDOWS_DDPROCMON_DRIVER'],
+            'version': env['WINDOWS_DDPROCMON_VERSION'],
+            'shasum': env['WINDOWS_DDPROCMON_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddprocmoninstall-{info['version']}.msm"
+        msm_info['DDPROCMON'] = info
+    if 'WINDOWS_APMINJECT_VERSION' in env:
+        info = {
+            'filename': 'ddapminstall.msm',
+            'build': env['WINDOWS_APMINJECT_MODULE'],
+            'version': env['WINDOWS_APMINJECT_VERSION'],
+            'shasum': env['WINDOWS_APMINJECT_SHASUM'],
+        }
+        info['url'] = f"{base_url}/{info['build']}/ddapminstall-{info['version']}.msm"
+        msm_info['APMINJECT'] = info
+    return msm_info
+
+
+@task(
+    iterable=['drivers'],
+    help={
+        'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
+        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+    },
+)
+def fetch_driver_msm(ctx, drivers=None, release_version=None):
+    """
+    Fetch the driver merge modules (.msm) that are consumed by the Agent MSI.
+
+    Defaults to the versions provided in the @release_version section of release.json
+    """
+    ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
+    if not release_version:
+        release_version = 'nightly-a7'
+
+    msm_info = get_msm_info(ctx, release_version)
+    if not drivers:
+        # if user did not specify drivers, use the ones in the release.json
+        drivers = msm_info.keys()
+
+    for driver in drivers:
+        driver = driver.upper()
+        if driver not in ALLOWED_DRIVERS:
+            raise Exit(f"Invalid driver: {driver}, choose from {ALLOWED_DRIVERS}")
+
+        info = msm_info[driver]
+        url = info['url']
+        shasum = info['shasum']
+        path = os.path.join(AGENT_BIN_SOURCE_DIR, info['filename'])
+
+        # download from url with requests package
+        checksum = hashlib.sha256()
+        with download_to_tempfile(url, checksum) as tmp_path:
+            # check sha256
+            if checksum.hexdigest().lower() != shasum.lower():
+                raise Exit(f"Checksum mismatch for {url}")
+            # move to final path
+            shutil.move(tmp_path, path)
+
+        print(f"Updated {driver}")
+        print(f"\t-> Downloaded {url} to {path}")

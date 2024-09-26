@@ -6,7 +6,6 @@
 package tagstore
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -39,7 +38,6 @@ func (s *StoreTestSuite) SetupTest() {
 	s.clock.Add(time.Since(time.Unix(0, 0)))
 
 	mockConfig := configmock.New(s.T())
-	fmt.Println("New Checkpoint: ", mockConfig)
 	s.tagstore = newTagStoreWithClock(mockConfig, s.clock, telemetryStore)
 }
 

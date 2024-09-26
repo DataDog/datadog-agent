@@ -41,14 +41,14 @@ func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Comman
 		Short: "security profile commands",
 	}
 
-	securityProfileCmd.AddCommand(securityProfileShowCommands(globalParams)...)
+	securityProfileCmd.AddCommand(showSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(listSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(saveSecurityProfileCommands(globalParams)...)
 
 	return []*cobra.Command{securityProfileCmd}
 }
 
-func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func showSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &securityProfileCliParams{
 		GlobalParams: globalParams,
 	}

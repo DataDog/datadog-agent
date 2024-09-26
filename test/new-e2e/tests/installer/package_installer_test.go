@@ -15,7 +15,7 @@ type packageInstallerSuite struct {
 	packageBaseSuite
 }
 
-func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
+func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageInstallerSuite{
 		packageBaseSuite: newPackageSuite("installer", os, arch, method, awshost.WithoutFakeIntake()),
 	}

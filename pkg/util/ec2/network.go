@@ -30,9 +30,9 @@ func GetPublicIPv4(ctx context.Context) (string, error) {
 var networkIDFetcher = cachedfetch.Fetcher{
 	Name: "VPC IDs",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		resp, err := getMetadataItem(ctx, imdsNetworkMacs, false)
+		resp, err := getMetadataItem(ctx, imdsNetworkMacs, true)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("EC2: GetNetworkID failed to get mac addresses: %w", err)
 		}
 
 		macs := strings.Split(strings.TrimSpace(resp), "\n")
@@ -43,9 +43,9 @@ var networkIDFetcher = cachedfetch.Fetcher{
 				continue
 			}
 			mac = strings.TrimSuffix(mac, "/")
-			id, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/vpc-id", imdsNetworkMacs, mac), false)
+			id, err := getMetadataItem(ctx, fmt.Sprintf("%s/%s/vpc-id", imdsNetworkMacs, mac), true)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("EC2: GetNetworkID failed to get vpc id for mac %s: %w", mac, err)
 			}
 			vpcIDs.Add(id)
 		}

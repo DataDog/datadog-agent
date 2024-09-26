@@ -19,6 +19,7 @@ import (
 var defaultLocalEnvironments = map[string]string{
 	"aws": "agent-sandbox",
 	"az":  "agent-sandbox",
+	"gcp": "agent-sandbox",
 }
 
 // NewLocalProfile creates a new local profile

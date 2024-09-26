@@ -15,8 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 type KubeletOrchestratorTestSuite struct {
@@ -85,14 +86,15 @@ func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 }
 
 func TestKubeletOrchestratorTestSuite(t *testing.T) {
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"trace",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 	suite.Run(t, new(KubeletOrchestratorTestSuite))
 }

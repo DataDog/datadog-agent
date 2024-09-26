@@ -34,7 +34,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://gcr.io/datadoghq/apm-library-java-package:1",
 		"oci://gcr.io/datadoghq/apm-library-ruby-package:2",
 		"oci://gcr.io/datadoghq/apm-library-js-package:5",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:2",
+		"oci://gcr.io/datadoghq/apm-library-dotnet-package:3",
 		"oci://gcr.io/datadoghq/apm-library-python-package:2",
 	}, packages)
 }
