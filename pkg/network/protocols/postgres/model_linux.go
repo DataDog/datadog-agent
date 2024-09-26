@@ -76,9 +76,16 @@ func (e *EventWrapper) Operation() Operation {
 // extractParameters returns the string following the command
 func (e *EventWrapper) extractParameters() string {
 	b := getFragment(&e.Tx)
-	idxStart := bytes.Index(b, []byte(" ")) + 1 // trim operation
-	idxEnd := bytes.Index(b, []byte("\x00"))    // trim trailing nulls
-	return string(b[idxStart:idxEnd])
+	idxParam := bytes.IndexByte(b, ' ') // trim the string to a space, it will give the parameter
+	if idxParam == -1 {
+		return ""
+	}
+	idxParam++
+	idxEnd := bytes.IndexByte(b, '\x00') // trim trailing nulls
+	if idxEnd > idxParam {
+		return string(b[idxParam:idxEnd])
+	}
+	return string(b[idxParam:])
 }
 
 var re = regexp.MustCompile(`(?i)if\s+exists`)
