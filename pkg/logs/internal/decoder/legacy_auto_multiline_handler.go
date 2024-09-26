@@ -207,7 +207,7 @@ func (h *LegacyAutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) 
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true, h.tailerInfo)
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true, h.tailerInfo, "legacy_multi_line")
 	h.source.RegisterInfo(h.multiLineHandler.countInfo)
 	h.source.RegisterInfo(h.multiLineHandler.linesCombinedInfo)
 	// stay with the multiline handler
