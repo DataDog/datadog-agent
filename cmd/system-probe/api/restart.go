@@ -16,10 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) {
+func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, telemetry telemetry.Component) {
 	vars := mux.Vars(r)
 	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
 

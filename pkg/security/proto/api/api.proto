@@ -46,7 +46,7 @@ message RuleSetReportMessage{
 message EventTypePolicy{
     string EventType = 1;
     uint32 Mode = 2;
-    uint32 Flags = 3;
+    // field 3 is deprecated
     Approvers Approvers = 4;
 }
 

@@ -1,12 +1,12 @@
+using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
+using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.DirectoryServices.ActiveDirectory;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Windows.Forms;
-using Datadog.CustomActions.Extensions;
-using Datadog.CustomActions.Interfaces;
-using Datadog.CustomActions.Native;
-using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
@@ -526,14 +526,12 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult ProcessDdAgentUserCredentials(Session session)
         {
             return new ProcessUserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(
                 calledFromUIControl: false);
         }
 
-        [CustomAction]
         public static ActionResult ProcessDdAgentUserCredentialsUI(Session session)
         {
             return new ProcessUserCustomActions(new SessionWrapper(session)).ProcessDdAgentUserCredentials(

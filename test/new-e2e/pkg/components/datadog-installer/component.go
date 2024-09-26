@@ -10,11 +10,11 @@ package installer
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/common"
+	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"strings"
 )
@@ -58,7 +58,7 @@ func WithInstallURL(url string) func(*Configuration) error {
 }
 
 // NewConfig creates a default config
-func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
+func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
@@ -72,14 +72,14 @@ func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 }
 
 // NewInstaller creates a new instance of an on-host Agent Installer
-func NewInstaller(e aws.Environment, host *remoteComp.Host, options ...Option) (*Component, error) {
+func NewInstaller(e config.Env, host *remoteComp.Host, options ...Option) (*Component, error) {
 
 	params, err := NewConfig(e, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	hostInstaller, err := components.NewComponent(&e, e.Namer.ResourceName("datadog-installer"), func(comp *Component) error {
+	hostInstaller, err := components.NewComponent(e, e.CommonNamer().ResourceName("datadog-installer"), func(comp *Component) error {
 		comp.namer = e.CommonNamer().WithPrefix("datadog-installer")
 		comp.Host = host
 

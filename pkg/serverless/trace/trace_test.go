@@ -59,7 +59,7 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	assert.IsType(t, noopTraceAgent{}, agent)
 }
 
-func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
+func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
 	lambdaSpanChan := make(chan *pb.Span)

@@ -1,7 +1,7 @@
-using System;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using System;
 
 namespace Datadog.CustomActions
 {
@@ -16,7 +16,6 @@ namespace Datadog.CustomActions
         /// </remarks>
         /// <param name="s">The session object.</param>
         /// <returns><see cref="ActionResult.Success"/></returns>
-        [CustomAction]
         public static ActionResult Patch(Session s)
         {
             ISession session = new SessionWrapper(s);

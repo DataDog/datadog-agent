@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package filter exposes interfaces and implementations for packet capture
 package filter
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"syscall"
 	"time"
@@ -19,12 +20,16 @@ import (
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/bpf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer__dns"
+const (
+	telemetryModuleName = "network_tracer__filter"
+	defaultSnapLen      = 4096
+)
 
 // Telemetry
 var packetSourceTelemetry = struct {
@@ -42,49 +47,91 @@ var packetSourceTelemetry = struct {
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
 	*afpacket.TPacket
-	socketFilter *manager.Probe
 
 	exit chan struct{}
 }
 
-// NewPacketSource creates an AFPacketSource using the provided BPF filter
-func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AFPacketSource, error) {
+// AFPacketInfo holds information about a packet
+type AFPacketInfo struct {
+	// PktType corresponds to sll_pkttype in the
+	// sockaddr_ll struct; see packet(7)
+	// https://man7.org/linux/man-pages/man7/packet.7.html
+	PktType uint8
+}
+
+// OptSnapLen specifies the maximum length of the packet to read
+//
+// Defaults to 4096 bytes
+type OptSnapLen int
+
+// NewAFPacketSource creates an AFPacketSource using the provided BPF filter
+func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
+	snapLen := defaultSnapLen
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case OptSnapLen:
+			snapLen = int(o)
+			if snapLen <= 0 || snapLen > 65536 {
+				return nil, fmt.Errorf("snap len should be between 0 and 65536")
+			}
+		default:
+			return nil, fmt.Errorf("unknown option %+v", opt)
+		}
+	}
+
+	frameSize, blockSize, numBlocks, err := afpacketComputeSize(size, snapLen, os.Getpagesize())
+	if err != nil {
+		return nil, fmt.Errorf("error computing mmap'ed buffer parameters: %w", err)
+	}
+
+	log.Debugf("creating tpacket source with frame_size=%d block_size=%d num_blocks=%d", frameSize, blockSize, numBlocks)
 	rawSocket, err := afpacket.NewTPacket(
-		afpacket.OptPollTimeout(1*time.Second),
-		// This setup will require ~4Mb that is mmap'd into the process virtual space
-		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-		afpacket.OptFrameSize(4096),
-		afpacket.OptBlockSize(4096*128),
-		afpacket.OptNumBlocks(8),
+		afpacket.OptPollTimeout(time.Second),
+		afpacket.OptFrameSize(frameSize),
+		afpacket.OptBlockSize(blockSize),
+		afpacket.OptNumBlocks(numBlocks),
+		afpacket.OptAddPktType(true),
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
 
-	if filter != nil {
-		// The underlying socket file descriptor is private, hence the use of reflection
-		// Point socket filter program to the RAW_SOCKET file descriptor
-		// Note the filter attachment itself is triggered by the ebpf.Manager
-		filter.SocketFD = int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
-	} else {
-		err = rawSocket.SetBPF(bpfFilter)
-		if err != nil {
-			return nil, fmt.Errorf("error setting classic bpf filter: %w", err)
-		}
-	}
-
 	ps := &AFPacketSource{
-		TPacket:      rawSocket,
-		socketFilter: filter,
-		exit:         make(chan struct{}),
+		TPacket: rawSocket,
+		exit:    make(chan struct{}),
 	}
 	go ps.pollStats()
 
 	return ps, nil
 }
 
+// SetEbpf attaches an eBPF socket filter to the AFPacketSource
+func (p *AFPacketSource) SetEbpf(filter *manager.Probe) error {
+	// The underlying socket file descriptor is private, hence the use of reflection
+	// Point socket filter program to the RAW_SOCKET file descriptor
+	// Note the filter attachment itself is triggered by the ebpf.Manager
+	f := reflect.ValueOf(p.TPacket).Elem().FieldByName("fd")
+	if !f.IsValid() {
+		return fmt.Errorf("could not find fd field in TPacket object")
+	}
+
+	if !f.CanInt() {
+		return fmt.Errorf("fd TPacket field is not an int")
+	}
+
+	filter.SocketFD = int(f.Int())
+	return nil
+}
+
+// SetBPF attaches a (classic) BPF socket filter to the AFPacketSource
+func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
+	return p.TPacket.SetBPF(filter)
+}
+
 // VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []byte, info PacketInfo, t time.Time) error) error {
+	pktInfo := &AFPacketInfo{}
 	for {
 		// allow the read loop to be prematurely interrupted
 		select {
@@ -108,14 +155,15 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 			return err
 		}
 
-		if err := visit(data, stats.Timestamp); err != nil {
+		pktInfo.PktType = stats.AncillaryData[0].(afpacket.AncillaryPktType).Type
+		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}
 	}
 }
 
-// PacketType is the gopacket.LayerType for this source
-func (p *AFPacketSource) PacketType() gopacket.LayerType {
+// LayerType is the gopacket.LayerType for this source
+func (p *AFPacketSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 
@@ -159,4 +207,58 @@ func (p *AFPacketSource) pollStats() {
 			return
 		}
 	}
+}
+
+// afpacketComputeSize computes the block_size and the num_blocks in such a way that the
+// allocated mmap buffer is close to but smaller than target_size_mb.
+// The restriction is that the block_size must be divisible by both the
+// frame size and page size.
+//
+// See https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
+func afpacketComputeSize(targetSize, snaplen, pageSize int) (frameSize, blockSize, numBlocks int, err error) {
+	frameSize = tpacketAlign(unix.TPACKET_HDRLEN) + tpacketAlign(snaplen)
+	if frameSize <= pageSize {
+		frameSize = int(nextPowerOf2(int64(frameSize)))
+		if frameSize <= pageSize {
+			blockSize = pageSize
+		}
+	} else {
+		// align frameSize to pageSize
+		frameSize = (frameSize + pageSize - 1) & ^(pageSize - 1)
+		blockSize = frameSize
+	}
+
+	numBlocks = targetSize / blockSize
+	if numBlocks == 0 {
+		return 0, 0, 0, fmt.Errorf("buffer size is too small")
+	}
+
+	blockSizeInc := blockSize
+	for numBlocks > afpacket.DefaultNumBlocks {
+		blockSize += blockSizeInc
+		numBlocks = targetSize / blockSize
+	}
+
+	return frameSize, blockSize, numBlocks, nil
+}
+
+func tpacketAlign(x int) int {
+	return (x + unix.TPACKET_ALIGNMENT - 1) & ^(unix.TPACKET_ALIGNMENT - 1)
+}
+
+// nextPowerOf2 rounds up `v` to the next power of 2
+//
+// Taken from Hacker's Delight by Henry S. Warren, Jr.,
+// https://en.wikipedia.org/wiki/Hacker%27s_Delight
+func nextPowerOf2(v int64) int64 {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v |= v >> 32
+	v++
+
+	return v
 }

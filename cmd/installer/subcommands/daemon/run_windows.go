@@ -8,6 +8,9 @@
 package daemon
 
 import (
+	"context"
+	"syscall"
+
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
@@ -18,19 +21,24 @@ import (
 )
 
 type windowsService struct {
-	global     *command.GlobalParams
-	shutdowner fx.Shutdowner
+	*fx.App
+}
+
+func getFxOptions(global *command.GlobalParams) []fx.Option {
+	return []fx.Option{
+		getCommonFxOption(global),
+		fxutil.FxAgentBase(true),
+		// Force the instantiation of some components
+		fx.Invoke(func(_ pid.Component) {}),
+		fx.Invoke(func(_ localapi.Component) {}),
+		fx.Invoke(func(_ telemetry.Component) {}),
+	}
 }
 
 func runFxWrapper(global *command.GlobalParams) error {
 	return svc.Run(&windowsService{
-		global: global,
-	})
-}
-
-func run(s *windowsService, shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
-	s.shutdowner = shutdowner
-	return nil
+		App: fx.New(getFxOptions(global)...),
+	}, syscall.SIGINT, syscall.SIGTERM)
 }
 
 func (s *windowsService) Init(_ svc.Environment) error {
@@ -38,14 +46,15 @@ func (s *windowsService) Init(_ svc.Environment) error {
 }
 
 func (s *windowsService) Start() error {
-	return fxutil.OneShot(
-		run,
-		getCommonFxOption(s.global),
-		fx.Supply(s),
-	)
+	// Default start timeout is 15s, which is fine for us.
+	startCtx, cancel := context.WithTimeout(context.Background(), s.StartTimeout())
+	defer cancel()
+	return s.App.Start(startCtx)
 }
 
 func (s *windowsService) Stop() error {
-	_ = s.shutdowner.Shutdown()
-	return nil
+	// Default stop timeout is 15s, which is fine for us.
+	stopCtx, cancel := context.WithTimeout(context.Background(), s.StopTimeout())
+	defer cancel()
+	return s.App.Stop(stopCtx)
 }

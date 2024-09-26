@@ -80,7 +80,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     // This overwrites the resolver fields on this syscall, but that's ok because the executed file has already been written to the map/pathnames ebpf map.
     syscall->resolver.key = syscall->exec.linux_binprm.interpreter;
     syscall->resolver.dentry = get_file_dentry(file);
-    syscall->resolver.discarder_type = 0;
+    syscall->resolver.discarder_event_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -291,8 +291,6 @@ int hook_do_exit(ctx_t *ctx) {
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
     if (tgid == pid && pid_tgid_execing == NULL) {
-        expire_pid_discarder(tgid);
-
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {

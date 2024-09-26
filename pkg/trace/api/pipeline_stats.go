@@ -82,8 +82,9 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 		}
 		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
-			log.Debugf("Setting header X-Datadog-Container-Tags=%s for pipeline stats proxy", ctags)
+			ctagsHeader := normalizeHTTPHeader(ctags)
+			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for pipeline stats proxy", ctagsHeader)
 		}
 		req.Header.Set("X-Datadog-Additional-Tags", tags)
 		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for pipeline stats proxy", tags)

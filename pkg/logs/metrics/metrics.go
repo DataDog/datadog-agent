@@ -70,6 +70,9 @@ var (
 	DestinationHttpRespByStatusAndUrl = expvar.Map{}
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+
+	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
+	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
 )
 
 func init() {

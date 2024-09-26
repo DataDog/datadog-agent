@@ -120,7 +120,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
-	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "checks.json")
+	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
 	// We want to be notified when the collector add or removed a check.
 	// TODO: (component) - This entire metadata provider should be part of the collector. Once the collector is a
@@ -138,7 +138,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 	// This should be removed when migrated to collector component
 	if icExpvar := expvar.Get("inventories"); icExpvar == nil {
 		expvar.Publish("inventories", expvar.Func(func() interface{} {
-			return ic.getPayload()
+			return ic.getPayload(false)
 		}))
 	}
 
@@ -191,19 +191,24 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 	return res
 }
 
-func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.JSONMarshaler {
+	return ic.getPayload(true)
+}
+
+func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarshaler {
 	ic.m.Lock()
 	defer ic.m.Unlock()
 
 	payloadData := make(checksMetadata)
 	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
+	withConfigs = withConfigs && invChecksEnabled
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, invChecksEnabled)
+				cm := check.GetMetadata(c, withConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					for key, val := range checkData.metadata {

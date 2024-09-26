@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
@@ -33,9 +34,9 @@ type Tagger struct {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(telemetryStore *telemetry.Store) *Tagger {
+func NewTagger(cfg config.Component, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
-		store:          tagstore.NewTagStore(telemetryStore),
+		store:          tagstore.NewTagStore(cfg, telemetryStore),
 		telemetryStore: telemetryStore,
 	}
 }
@@ -63,13 +64,15 @@ func (t *Tagger) Stop() error {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	tags := t.store.Lookup(entityID, cardinality)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags := t.store.Lookup(id, cardinality)
 	return tags, nil
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
 func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags := t.store.LookupHashed(entityID, cardinality)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags := t.store.LookupHashed(id, cardinality)
 
 	if tags.Len() == 0 {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
@@ -84,7 +87,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags, err := t.store.LookupStandard(id)
 	if err != nil {
 		return []string{}, err
 	}
@@ -127,7 +131,7 @@ func (t *Tagger) LoadState(state []types.Entity) {
 	for _, entity := range state {
 		t.store.ProcessTagInfo([]*types.TagInfo{{
 			Source:               "replay",
-			Entity:               entity.ID,
+			EntityID:             entity.ID,
 			HighCardTags:         entity.HighCardinalityTags,
 			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
 			LowCardTags:          entity.LowCardinalityTags,
@@ -141,5 +145,6 @@ func (t *Tagger) LoadState(state []types.Entity) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	return t.store.GetEntity(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	return t.store.GetEntity(id)
 }

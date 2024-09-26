@@ -46,11 +46,11 @@ func (l KlogRedirectLogger) Write(b []byte) (int, error) {
 	case 'I':
 		InfoStackDepth(l.stackDepth, msg)
 	case 'W':
-		WarnStackDepth(l.stackDepth, msg)
+		_ = WarnStackDepth(l.stackDepth, msg)
 	case 'E':
-		ErrorStackDepth(l.stackDepth, msg)
+		_ = ErrorStackDepth(l.stackDepth, msg)
 	case 'F':
-		CriticalStackDepth(l.stackDepth, msg)
+		_ = CriticalStackDepth(l.stackDepth, msg)
 	default:
 		InfoStackDepth(l.stackDepth, msg)
 	}

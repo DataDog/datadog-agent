@@ -157,7 +157,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 			NetNS:  curNs,
 		}
 		require.Eventually(t, func() bool {
-			trans = ct.GetTranslationForConn(cs)
+			trans = ct.GetTranslationForConn(&cs)
 			return trans != nil
 		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for TCP NAT conntrack entry for %s", cs.String())
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
@@ -173,7 +173,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 			Type:   network.TCP,
 			NetNS:  curNs,
 		}
-		trans = ct.GetTranslationForConn(cs)
+		trans = ct.GetTranslationForConn(&cs)
 		assert.Nil(t, trans)
 	})
 
@@ -199,7 +199,7 @@ func testConntracker(t *testing.T, serverIP, clientIP net.IP, ct netlink.Conntra
 			NetNS:  curNs,
 		}
 		require.Eventually(t, func() bool {
-			trans = ct.GetTranslationForConn(cs)
+			trans = ct.GetTranslationForConn(&cs)
 			return trans != nil
 		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for UDP NAT conntrack entry for %s", cs.String())
 		assert.Equal(t, util.AddressFromNetIP(serverIP), trans.ReplSrcIP)
@@ -230,7 +230,7 @@ func testConntrackerCrossNamespace(t *testing.T, ct netlink.Conntracker) {
 		NetNS:  testIno,
 	}
 	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(cs)
+		trans = ct.GetTranslationForConn(&cs)
 		return trans != nil
 	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
 
@@ -286,7 +286,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		NetNS:  testIno,
 	}
 	require.Eventually(t, func() bool {
-		trans = ct.GetTranslationForConn(cs)
+		trans = ct.GetTranslationForConn(&cs)
 		return trans != nil
 	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
 

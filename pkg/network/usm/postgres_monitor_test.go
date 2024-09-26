@@ -34,15 +34,17 @@ import (
 )
 
 const (
-	postgresPort           = "5432"
-	repeatCount            = ebpf.BufferSize / len("table_")
-	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
-	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
-	selectAllQuery         = "SELECT * FROM dummy"
-	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
-	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
-	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
-	truncateTableQuery     = "TRUNCATE TABLE dummy"
+	postgresPort             = "5432"
+	repeatCount              = ebpf.BufferSize / len("table_")
+	createTableQuery         = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
+	updateSingleValueQuery   = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
+	selectAllQuery           = "SELECT * FROM dummy"
+	selectParameterizedQuery = "SELECT * FROM dummy WHERE id = $1"
+	dropTableQuery           = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery         = "DELETE FROM dummy WHERE id = 1"
+	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery       = "TRUNCATE TABLE dummy"
+	showQuery                = "SHOW search_path"
 )
 
 var (
@@ -474,6 +476,115 @@ func testDecoding(t *testing.T, isTLS bool) {
 						postgres.SelectOP: adjustCount(2),
 					},
 				}, isTLS)
+			},
+		},
+		// This test validates that the SHOW command is currently not supported.
+		{
+			name: "show command",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(showQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that the sql transaction is not supported.
+		{
+			name: "transaction",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQueryTX(tx, selectAllQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(2),
+					},
+					"dummy": {
+						postgres.SelectOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		{
+			name: "batched queries",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				require.NoError(t, pg.SendBatch(createInsertQuery("value-1"), selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.InsertOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that parameterized queries are currently not supported.
+		{
+			name: "parameterized select",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(selectParameterizedQuery, "value-1"))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{}, isTLS)
 			},
 		},
 	}

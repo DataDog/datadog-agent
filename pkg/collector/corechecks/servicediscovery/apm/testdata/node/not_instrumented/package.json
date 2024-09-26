@@ -1,0 +1,7 @@
+{
+  "name": "foopackage",
+  "dependencies": {
+    "bar": ">=1.9.0",
+    "foo": "1.0.1"
+  }
+}

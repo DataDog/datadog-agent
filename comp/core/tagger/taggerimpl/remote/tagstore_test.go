@@ -14,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const (
-	entityID        = "foo://bar"
-	anotherEntityID = "foo://quux"
+var (
+	entityID        types.EntityID = types.NewEntityID("foo", "bar")
+	anotherEntityID types.EntityID = types.NewEntityID("foo", "quux")
 )
 
 func TestProcessEvent_AddAndModify(t *testing.T) {
@@ -49,7 +50,8 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 	}
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := newTagStore(telemetryStore)
+	cfg := configmock.New(t)
+	store := newTagStore(cfg, telemetryStore)
 	store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
@@ -86,7 +88,8 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := newTagStore(telemetryStore)
+	cfg := configmock.New(t)
+	store := newTagStore(cfg, telemetryStore)
 	store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
@@ -100,8 +103,9 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 
 func TestProcessEvent_Replace(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	cfg := configmock.New(t)
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	store := newTagStore(telemetryStore)
+	store := newTagStore(cfg, telemetryStore)
 
 	store.processEvents([]types.EntityEvent{
 		{

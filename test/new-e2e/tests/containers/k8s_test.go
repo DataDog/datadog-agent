@@ -929,8 +929,16 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
 	}
 
+	// Record old pod, so we can be sure we are not looking at the incorrect one after deletion
+	oldPods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
+	})
+	suite.Require().NoError(err)
+	suite.Require().Len(oldPods.Items, 1)
+	oldPod := oldPods.Items[0]
+
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err := suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+	err = suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
@@ -948,6 +956,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			return
 		}
 		pod = pods.Items[0]
+		if !assert.NotEqual(c, oldPod.Name, pod.Name) {
+			return
+		}
 	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
 
 	suite.Require().Len(pod.Spec.Containers, 1)
@@ -983,17 +994,22 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}
 	}
 
+	volumesMarkedAsSafeToEvict := strings.Split(
+		pod.Annotations["cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"], ",",
+	)
+
 	if suite.Contains(hostPathVolumes, "datadog") {
 		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
+		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
-	volumeMounts := make(map[string]string)
+	volumeMounts := make(map[string][]string)
 	for _, volumeMount := range pod.Spec.Containers[0].VolumeMounts {
-		volumeMounts[volumeMount.Name] = volumeMount.MountPath
+		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
 	if suite.Contains(volumeMounts, "datadog") {
-		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
+		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 
 	switch language {
@@ -1006,12 +1022,19 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}
 		}
 
-		if suite.Contains(env, "PYTHONPATH") {
-			suite.Equal("/datadog-lib/", env["PYTHONPATH"])
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
 		}
-		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
+
+		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
+		}
+
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
+			suite.ElementsMatch([]string{
+				"/opt/datadog-packages/datadog-apm-inject",
+				"/opt/datadog/apm/library",
+			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
 

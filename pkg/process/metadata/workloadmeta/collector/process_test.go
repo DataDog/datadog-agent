@@ -90,8 +90,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	// pass actual config component

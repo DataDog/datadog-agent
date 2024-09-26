@@ -23,7 +23,7 @@ import (
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -152,7 +152,7 @@ func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(pkgconfig.IsContainerized())
+	payload := gohai.GetPayloadWithProcesses(env.IsContainerized())
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)

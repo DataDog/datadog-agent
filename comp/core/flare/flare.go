@@ -160,14 +160,15 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		return "", err
 	}
 
+	fb.Logf("Flare creation time: %s", time.Now().Format(time.RFC3339)) //nolint:errcheck
 	if fb.IsLocal() {
 		// If we have a ipcError we failed to reach the agent process, else the user requested a local flare
 		// from the CLI.
-		msg := []byte("local flare was requested")
+		msg := "local flare was requested"
 		if ipcError != nil {
-			msg = []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
+			msg = fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError)
 		}
-		fb.AddFile("local", msg) //nolint:errcheck
+		fb.AddFile("local", []byte(msg)) //nolint:errcheck
 	}
 
 	for name, data := range pdata {
@@ -175,6 +176,9 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
+	//
+	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
+	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {

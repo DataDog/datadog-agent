@@ -20,14 +20,12 @@ $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
 }
-& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
-
 
 & inv -e security-agent.kitchen-prepare --skip-linters
 
 $err = $LASTEXITCODE
-Write-Host Test result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "kitchen prepare failed $err"
     [Environment]::Exit($err)
 }
+Write-Host Test passed

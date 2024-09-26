@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -56,7 +56,7 @@ type UDSListener struct {
 	trafficCapture          replay.Component
 	pidMap                  pidmap.Component
 	OriginDetection         bool
-	config                  config.Reader
+	config                  model.Reader
 
 	wmeta optional.Option[workloadmeta.Component]
 
@@ -79,7 +79,7 @@ type UDSListener struct {
 // CloseFunction is a function that closes a connection
 type CloseFunction func(unixConn *net.UnixConn) error
 
-func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Reader) (bool, error) {
+func setupUnixConn(conn *net.UnixConn, originDetection bool, config model.Reader) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
 		if err != nil {
@@ -133,7 +133,7 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{

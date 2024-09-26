@@ -128,6 +128,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "3. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("3. stringssssssize20"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)
@@ -135,6 +136,7 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...con", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 4, output.RawDataLen)
 
 	// second line + TRUNCATED too long
@@ -143,10 +145,12 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "4. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("4. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continue...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, 9, output.RawDataLen)
 
 	// continuous too long lines
@@ -159,14 +163,17 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "5. stringssssssize20...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("5. stringssssssize20"), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...continu             ...TRUNCATED...", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len(longLineTracingSpaces), output.RawDataLen)
 
 	output = <-outputChan
 	assert.Equal(t, "...TRUNCATED...end", string(output.GetContent()))
+	assert.True(t, output.ParsingExtra.IsTruncated)
 	assert.Equal(t, len("end\n"), output.RawDataLen)
 
 	assertNothingInChannel(t, outputChan)

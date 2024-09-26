@@ -13,7 +13,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -48,16 +48,23 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
+
+	fileLimits := a.config.GetInt("logs_config.open_files_limit")
+	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
+	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
-		a.config.GetInt("logs_config.open_files_limit"),
+		fileLimits,
 		filelauncher.DefaultSleepDuration,
-		a.config.GetBool("logs_config.validate_pod_container_id"),
-		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
+		fileValidatePodContainer,
+		fileScanPeriod,
+		fileWildcardSelectionMode,
+		a.flarecontroller,
+		a.tagger))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		a.sources, integrationsLogs))
 
@@ -72,7 +79,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)

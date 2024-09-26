@@ -1,10 +1,10 @@
+using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
+using ICSharpCode.SharpZipLib.Tar;
 using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.IO;
-using Datadog.CustomActions.Extensions;
 using System.Text;
-using Datadog.CustomActions.Interfaces;
-using ICSharpCode.SharpZipLib.Tar;
 
 namespace Datadog.CustomActions
 {
@@ -147,7 +147,6 @@ namespace Datadog.CustomActions
             return DecompressPythonDistribution(session, "embedded3", "embedded3.COMPRESSED", "Python 3", size);
         }
 
-        [CustomAction]
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return DecompressPythonDistributions(new SessionWrapper(session));
@@ -187,7 +186,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult PrepareDecompressPythonDistributions(Session session)
         {
             return PrepareDecompressPythonDistributions(new SessionWrapper(session));

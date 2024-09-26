@@ -69,9 +69,8 @@ func MockModule() fxutil.Module {
 		config.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		telemetryimpl.MockModule(),
-		workloadmetafx.Module(),
 	)
 }
 

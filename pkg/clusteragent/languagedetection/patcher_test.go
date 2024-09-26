@@ -64,8 +64,7 @@ func TestRun(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mocklogger := logmock.New(t)
 
@@ -299,8 +298,7 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mocklogger := logmock.New(t)
 

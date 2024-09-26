@@ -6,7 +6,6 @@
 package stats
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +44,7 @@ type Concentrator struct {
 	agentHostname string
 	agentVersion  string
 	statsd        statsd.ClientInterface
+	peerTagKeys   []string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -53,7 +53,6 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{
 		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		BucketInterval:         bsize,
-		PeerTags:               conf.ConfiguredPeerTags(),
 	}, now)
 	c := Concentrator{
 		spanConcentrator: sc,
@@ -64,6 +63,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		agentVersion:     conf.AgentVersion,
 		statsd:           statsd,
 		bsize:            bsize,
+		peerTagKeys:      conf.ConfiguredPeerTags(),
 	}
 	return &c
 }
@@ -103,17 +103,6 @@ func (c *Concentrator) Run() {
 func (c *Concentrator) Stop() {
 	close(c.exit)
 	c.exitWG.Wait()
-}
-
-// computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func computeStatsForSpanKind(s *pb.Span) bool {
-	k := strings.ToLower(s.Meta["span.kind"])
-	switch k {
-	case "server", "consumer", "client", "producer":
-		return true
-	default:
-		return false
-	}
 }
 
 // Input specifies a set of traces originating from a certain payload.
@@ -168,7 +157,10 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		c.spanConcentrator.addSpan(s, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
+		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys)
+		if ok {
+			c.spanConcentrator.addSpan(statSpan, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
+		}
 	}
 }
 

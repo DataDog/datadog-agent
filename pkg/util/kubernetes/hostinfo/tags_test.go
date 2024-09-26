@@ -8,12 +8,55 @@
 package hostinfo
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
+
+type mockMetadataAsTags struct {
+	configutils.MetadataAsTags
+	nodeLabelsAsTags      map[string]string
+	nodeAnnotationsAsTags map[string]string
+}
+
+var _ configutils.MetadataAsTags = &mockMetadataAsTags{}
+
+// GetNodeLabelsAsTags implements MetadataAsTags#GetNodeLabelsAsTags
+func (m *mockMetadataAsTags) GetNodeLabelsAsTags() map[string]string {
+	return m.nodeLabelsAsTags
+}
+
+// GetNodeAnnotationsAsTags implements MetadataAsTags#GetNodeAnnotationsAsTags
+func (m *mockMetadataAsTags) GetNodeAnnotationsAsTags() map[string]string {
+	return m.nodeAnnotationsAsTags
+}
+
+func newMockMetadataAsTags(nodeLabelsAsTags, nodeAnnotationsAsTags map[string]string) configutils.MetadataAsTags {
+	return &mockMetadataAsTags{
+		nodeLabelsAsTags:      nodeLabelsAsTags,
+		nodeAnnotationsAsTags: nodeAnnotationsAsTags,
+	}
+}
+
+func TestKubeNodeTagsProvider__getNodeLabelsAsTags(t *testing.T) {
+	labelsAsTagsFromConfig := map[string]string{
+		"foo": "bar",
+	}
+
+	expectedNodeLabelsAsTags := map[string]string{
+		"foo":               "bar",
+		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
+	}
+
+	metadataAsTags := newMockMetadataAsTags(labelsAsTagsFromConfig, map[string]string{})
+	kubeNodeTagsProvider := KubeNodeTagsProvider{metadataAsTags}
+	labelsAsTags := kubeNodeTagsProvider.getNodeLabelsAsTags()
+	assert.Truef(t, reflect.DeepEqual(labelsAsTags, expectedNodeLabelsAsTags), "Expected %v, found %v", expectedNodeLabelsAsTags, labelsAsTags)
+}
 
 func TestExtractTags(t *testing.T) {
 	gkeLabels := map[string]string{
@@ -111,50 +154,6 @@ func TestExtractTags(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			tags := extractTags(tc.nodeLabels, tc.labelsToTags)
 			assert.ElementsMatch(t, tc.expectedTags, tags)
-		})
-	}
-}
-
-func TestGetLabelsToTags(t *testing.T) {
-	tests := []struct {
-		name               string
-		configLabelsAsTags map[string]string
-		expectLabelsAsTags map[string]string
-	}{
-		{
-			name: "no labels in config",
-			expectLabelsAsTags: map[string]string{
-				"kubernetes.io/role": "kube_node_role",
-			},
-		},
-		{
-			name: "override node role label",
-			configLabelsAsTags: map[string]string{
-				"kubernetes.io/role": "role",
-			},
-			expectLabelsAsTags: map[string]string{
-				"kubernetes.io/role": "role",
-			},
-		},
-		{
-			name: "lower case all labels",
-			configLabelsAsTags: map[string]string{
-				"A": "a",
-			},
-			expectLabelsAsTags: map[string]string{
-				"kubernetes.io/role": "kube_node_role",
-				"a":                  "a",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			config := configmock.New(t)
-			config.SetWithoutSource("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
-
-			actuaLabelsAsTags := getLabelsToTags()
-			assert.Equal(t, test.expectLabelsAsTags, actuaLabelsAsTags)
 		})
 	}
 }

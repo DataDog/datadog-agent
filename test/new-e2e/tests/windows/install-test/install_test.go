@@ -18,9 +18,10 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 func TestInstall(t *testing.T) {
@@ -38,6 +39,13 @@ func (s *testInstallSuite) TestInstall() {
 	// initialize test helper
 	t := s.newTester(vm)
 
+	// create a dummy auth-token with known value to be replaced
+	tokenValue := "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0"
+	err := vm.MkdirAll(windowsAgent.DefaultConfigRoot)
+	s.Require().NoError(err)
+	_, err = vm.WriteFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"), []byte(tokenValue))
+	s.Require().NoError(err)
+
 	// install the agent
 	remoteMSIPath := s.installAgentPackage(vm, s.AgentPackage)
 
@@ -51,8 +59,18 @@ func (s *testInstallSuite) TestInstall() {
 		s.T().FailNow()
 	}
 	s.testCodeSignatures(t, remoteMSIPath)
-
+	s.testAuthTokenReplacement(tokenValue)
 	s.uninstallAgentAndRunUninstallTests(t)
+}
+
+// testAuthTokenReplacement confirms that a new auth token was created.
+func (s *testInstallSuite) testAuthTokenReplacement(oldAuth string) {
+	vm := s.Env().RemoteHost
+	newAuth, err := vm.ReadFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"))
+	s.Require().NoError(err)
+	stringNewAuth := strings.TrimSpace(string(newAuth))
+	oldAuth = strings.TrimSpace(oldAuth)
+	s.Assert().NotEqual(stringNewAuth, oldAuth)
 }
 
 // testCodeSignatures checks the code signatures of the installed files.

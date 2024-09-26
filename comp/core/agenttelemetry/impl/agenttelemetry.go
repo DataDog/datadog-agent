@@ -114,6 +114,18 @@ func createAtel(
 		return &atel{}
 	}
 
+	if sender == nil {
+		sender, err = createSender(cfgComp, logComp)
+		if err != nil {
+			logComp.Errorf("Failed to create agent telemetry sender: %s", err.Error())
+			return &atel{}
+		}
+	}
+
+	if runner == nil {
+		runner = newRunnerImpl()
+	}
+
 	return &atel{
 		enabled:    true,
 		cfgComp:    cfgComp,
@@ -128,26 +140,18 @@ func createAtel(
 
 // NewComponent creates a new agent telemetry component.
 func NewComponent(req Requires) agenttelemetry.Component {
-	sender, err := createSender(req.Config, req.Log)
-	if err != nil {
-		return &atel{}
-	}
-
-	runner := newRunnerImpl()
-
 	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
 	a := createAtel(
 		req.Config,
 		req.Log,
 		req.Telemetry,
 		req.Status,
-		sender,
-		runner,
+		nil,
+		nil,
 	)
 
-	// If agent telemetry is enabled, add the start and stop hooks
+	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		// Instruct FX to start and stop the agent telemetry
 		req.Lifecycle.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()

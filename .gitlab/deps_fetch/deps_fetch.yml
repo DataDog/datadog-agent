@@ -4,15 +4,15 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
 
 .cache:
@@ -40,19 +40,24 @@ go_deps:
     # If the cache already contains the dependencies, don't redownload them
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
     - inv -e deps --verbose
-    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
+    - inv -e install-tools
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
   cache:
+    # The `cache:key:files` only accepts up to two path ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+    # Ideally, we should also include the https://github.com/DataDog/datadog-agent/blob/main/.custom-gcl.yml file to
+    # avoid issues if a plugin is added in one PR and enabled in another. However, we decided to accept this limitation
+    # because the probability for this to happen is very low and go mod files are modified frequently so the risk of
+    # failing a job because of a network issue when building the custom binary is very low, but still exists.
     - key:
         files:
-          - go.mod
-          - ./**/go.mod
-        prefix: "go_deps"
+          - \**/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "go_deps_modcache"
       paths:
         - modcache.tar.xz
 
@@ -60,9 +65,8 @@ go_tools_deps:
   extends: .cache
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
-    - inv -e download-tools
-    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    - inv -e install-tools
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -71,7 +75,8 @@ go_tools_deps:
     - key:
         files:
           - ./**/go.mod
-        prefix: "go_tools_deps"
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "go_tools_deps_modcache"
       paths:
         - modcache_tools.tar.xz
 
@@ -79,9 +84,8 @@ go_e2e_deps:
   extends: .cache
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
-    - source /root/.bashrc
     - inv -e new-e2e-tests.deps
-    - cd $GOPATH/pkg/mod/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -90,6 +94,7 @@ go_e2e_deps:
     - key:
         files:
           - ./test/new-e2e/go.mod
-        prefix: "go_e2e_deps"
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz

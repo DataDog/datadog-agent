@@ -1,6 +1,7 @@
 import os
 import pathlib
 import platform
+import shutil
 import sys
 import tarfile
 
@@ -100,7 +101,7 @@ def upload_to_codecov(
     ctx: Context,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
-    debug: bool = False,
+    debug_cache: bool = False,
 ):
     """
     Uploads coverage data of all modules to Codecov.
@@ -109,7 +110,7 @@ def upload_to_codecov(
 
     Flags:   --pull-coverage-cache: [For dev branches] Pull the coverage cache from main parent commit.
              --push-coverage-cache: [For main]         Push the coverage cache to the S3 bucket.
-             --debug:                                  Print debug information.
+             --debug-cache:                            Used to debug the cache.
     """
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
@@ -121,7 +122,7 @@ def upload_to_codecov(
 
     if pull_coverage_cache:
         with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
-            apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), debug=debug)
+            apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), keep_temp_files=debug_cache)
     if push_coverage_cache:
         with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
@@ -176,12 +177,68 @@ def upload_coverage_to_s3(ctx: Context):
     print(color_message(f'Successfully removed the local {COV_ARCHIVE_NAME}', Color.GREEN))
 
 
-def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = False):
+def _get_dev_coverage_files(dev_cov_lines: str) -> set[str]:
+    browsed_dev_files = set()
+    for line in dev_cov_lines:
+        file_path = line.split(':')[0]
+        browsed_dev_files.add(file_path)
+    return browsed_dev_files
+
+
+def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
+    """
+    Merge the dev coverage file into the main coverage file line by line. For example with the following files:
+
+    main coverage file:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:332.2,332.29 1 0
+    github.com/DataDog/datadog-agent/cmd/agent/common/common.go:35.32,43.2 1 0
+
+    dev coverage file:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:85.30,87.4 1 0
+
+    The output will be:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:85.30,87.4 1 0
+    github.com/DataDog/datadog-agent/cmd/agent/common/common.go:35.32,43.2 1 0
+    """
+    with open(main_cov_file, encoding='utf-8') as main_cov:
+        main_cov_lines = main_cov.readlines()
+        main_mode_line = main_cov_lines.pop(0)
+    with open(dev_cov_file, encoding='utf-8') as dev_cov:
+        dev_cov_lines = dev_cov.readlines()
+        dev_mode_line = dev_cov_lines.pop(0)
+
+    # Check if the mode is the same in both files.
+    if dev_mode_line != main_mode_line:
+        raise Exit(
+            color_message(
+                f"Error: the mode in the dev coverage file ({dev_mode_line}) is different from the one in the main coverage file {main_mode_line}.",
+                Color.RED,
+            ),
+            code=1,
+        )
+    final_file_lines = []
+    browsed_dev_files = _get_dev_coverage_files(dev_cov_lines)
+
+    for line in main_cov_lines:
+        file_path = line.split(':')[0]
+        if file_path not in browsed_dev_files:
+            final_file_lines.append(line)
+
+    final_file_lines = [main_mode_line] + sorted(final_file_lines + dev_cov_lines)
+    with open(main_cov_file, 'w', encoding='utf-8') as main_cov:
+        main_cov.writelines(final_file_lines)
+
+
+def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: bool = False):
     """
     Download the coverage cache archive from S3 for the given commit SHA
     and extract it to the right folders.
 
     :param from_commit_sha: The commit SHA from which to restore the coverage cache. It needs at least the 8 first characters.
+    :param keep_temp_files: Whether to keep the coverage.out files that were generated during the tests.
     """
     if not from_commit_sha or len(from_commit_sha) < 8:
         raise Exit(color_message("Error: the commit SHA is missing or invalid.", Color.RED), code=1)
@@ -195,17 +252,28 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = Fal
     else:
         raise Exit(color_message(f'Failed to restore coverage cache from {cache_key}', Color.RED), code=1)
 
-    # Extract only the missing coverage files from the archive
+    # Rename the coverage files to avoid conflicts: coverage.out -> coverage.out.dev
+    dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(PROFILE_COV)]
+    for f in dev_cov_files:
+        os.rename(f, f"{f}.dev")
+
+    # Extract the coverage.out files from main to their folder
     with tarfile.open(f"{downloaded_archive}", "r:gz") as tgz:
-        curr_cov_files = [str(p) for p in pathlib.Path(".").rglob(PROFILE_COV)]
-        main_cov_files = tgz.getnames()
-        missing_cov_files = list(set(main_cov_files) - set(curr_cov_files))
-        if debug:
-            print(f"Current coverage files: {sorted(curr_cov_files)}")
-            print(f"Main coverage files: {main_cov_files}")
-            print(f"Missing coverage files: {sorted(missing_cov_files)}")
-        missing_members = [f for f in tgz.getmembers() if f.name in missing_cov_files]
-        tgz.extractall(path='.', members=missing_members)
+        tgz.extractall(path='.')
+
+    # Merge the dev coverage files into the main coverage files
+    for dev_cov_file in dev_cov_files:
+        main_cov_file = dev_cov_file.replace(".dev", "")
+        if os.path.exists(main_cov_file):
+            _merge_dev_in_main_coverage(main_cov_file, dev_cov_file)
+            if not keep_temp_files:
+                os.remove(dev_cov_file)
+        else:
+            if not keep_temp_files:
+                # If there's no main coverage file, just rename the dev one
+                os.rename(dev_cov_file, main_cov_file)
+            else:
+                shutil.copy(dev_cov_file, main_cov_file)
 
     # Remove the local archive
     print(color_message(f'Successfully extracted coverage cache from {downloaded_archive}', Color.GREEN))

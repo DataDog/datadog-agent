@@ -43,6 +43,7 @@ func newDatadogSingleClient(cfg configComponent.Component, logger logComp.Compon
 	}
 
 	if appKey == "" || apiKey == "" {
+		logger.Warn("If metrics provider is enabled, Datadog application key must be set for read access to metrics.")
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
 

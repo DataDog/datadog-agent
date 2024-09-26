@@ -223,8 +223,7 @@ func TestStartError(t *testing.T) {
 
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -241,8 +240,7 @@ func TestPullNoContainers(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -284,8 +282,7 @@ func TestPullActiveContainer(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -324,8 +321,7 @@ func TestPullStoppedContainer(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -364,8 +360,7 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -405,8 +400,7 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -441,8 +435,7 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{
@@ -479,8 +472,7 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	// and initialize it out-of-band below. That's OK.
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	c := collector{

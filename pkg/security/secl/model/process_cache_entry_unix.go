@@ -106,19 +106,23 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 }
 
 // GetContainerPIDs return the pids
-func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
-	var pids []uint32
+func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
+	var (
+		pids  []uint32
+		paths []string
+	)
 
 	for pc != nil {
 		if pc.ContainerID == "" {
 			break
 		}
 		pids = append(pids, pc.Pid)
+		paths = append(paths, pc.FileEvent.PathnameStr)
 
 		pc = pc.Ancestor
 	}
 
-	return pids
+	return pids, paths
 }
 
 // SetParentOfForkChild set the parent of a fork child

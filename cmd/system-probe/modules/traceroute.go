@@ -21,12 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type traceroute struct {
@@ -39,8 +36,8 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (module.Module, error) {
-	runner, err := tracerouteutil.NewRunner(telemetry)
+func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	runner, err := tracerouteutil.NewRunner(deps.Telemetry)
 	if err != nil {
 		return &traceroute{}, err
 	}
@@ -88,7 +85,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		runCount := runCounter.Inc()
-		logTracerouteRequests(cfg.DestHostname, id, runCount, start)
+		logTracerouteRequests(cfg, id, runCount, start)
 	})
 
 	return nil
@@ -100,9 +97,9 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (t *traceroute) Close() {}
 
-func logTracerouteRequests(host string, client string, runCount uint64, start time.Time) {
-	args := []interface{}{host, client, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroute in %s"
+func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
+	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, cfg.Protocol, runCount, time.Since(start)}
+	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d&protocol=%s (count: %d): retrieved traceroute in %s"
 	switch {
 	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
@@ -122,7 +119,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
 	}
-	timeout, err := parseUint(req, "timeout", 32)
+	timeout, err := parseUint(req, "timeout", 64)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
@@ -132,7 +129,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		DestHostname: host,
 		DestPort:     uint16(port),
 		MaxTTL:       uint8(maxTTL),
-		TimeoutMs:    uint(timeout),
+		Timeout:      time.Duration(timeout),
 		Protocol:     payload.Protocol(protocol),
 	}, nil
 }

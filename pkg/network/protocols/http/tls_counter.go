@@ -16,7 +16,7 @@ import (
 type TLSCounter struct {
 	counterPlain     *libtelemetry.Counter
 	counterGnuTLS    *libtelemetry.Counter
-	counterOpenSLL   *libtelemetry.Counter
+	counterOpenSSL   *libtelemetry.Counter
 	counterJavaTLS   *libtelemetry.Counter
 	counterGoTLS     *libtelemetry.Counter
 	counterIstioTLS  *libtelemetry.Counter
@@ -29,7 +29,7 @@ func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tag
 		// tls_library:none is a must, as prometheus metrics must have the same cardinality of tags
 		counterPlain:     metricGroup.NewCounter(metricName, append(tags, "encrypted:false", "tls_library:none")...),
 		counterGnuTLS:    metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:gnutls")...),
-		counterOpenSLL:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:openssl")...),
+		counterOpenSSL:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:openssl")...),
 		counterJavaTLS:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:java")...),
 		counterGoTLS:     metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:go")...),
 		counterIstioTLS:  metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:istio")...),

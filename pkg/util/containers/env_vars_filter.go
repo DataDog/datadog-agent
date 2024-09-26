@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -43,12 +43,12 @@ var (
 func EnvVarFilterFromConfig() EnvFilter {
 	envFilterOnce.Do(func() {
 		configEnvVars := make([]string, 0)
-		dockerEnvs := config.Datadog().GetStringMapString("docker_env_as_tags")
+		dockerEnvs := pkgconfigsetup.Datadog().GetStringMapString("docker_env_as_tags")
 		for envName := range dockerEnvs {
 			configEnvVars = append(configEnvVars, envName)
 		}
 
-		containerEnvs := config.Datadog().GetStringMapString("container_env_as_tags")
+		containerEnvs := pkgconfigsetup.Datadog().GetStringMapString("container_env_as_tags")
 		for envName := range containerEnvs {
 			configEnvVars = append(configEnvVars, envName)
 		}

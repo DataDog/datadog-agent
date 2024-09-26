@@ -16,24 +16,43 @@ type rdnsQuerierConfig struct {
 	workers  int
 	chanSize int
 
-	rateLimiterEnabled bool
-	rateLimitPerSec    int
+	cache       cacheConfig
+	rateLimiter rateLimiterConfig
+}
 
-	cacheEnabled         bool
-	cacheEntryTTL        time.Duration
-	cacheCleanInterval   time.Duration
-	cachePersistInterval time.Duration
+type cacheConfig struct {
+	enabled         bool
+	entryTTL        time.Duration
+	cleanInterval   time.Duration
+	persistInterval time.Duration
+	maxRetries      int
+	maxSize         int
+}
+
+type rateLimiterConfig struct {
+	enabled                bool
+	limitPerSec            int
+	limitThrottledPerSec   int
+	throttleErrorThreshold int
+	recoveryIntervals      int
+	recoveryInterval       time.Duration
 }
 
 const (
 	defaultWorkers  = 10
-	defaultChanSize = 1000
+	defaultChanSize = 5000
 
-	defaultRateLimitPerSec = 1000
+	defaultCacheEntryTTL        = 24 * time.Hour
+	defaultCacheCleanInterval   = 2 * time.Hour
+	defaultCachePersistInterval = 2 * time.Hour
+	defaultCacheMaxRetries      = 10
+	defaultCacheMaxSize         = 1_000_000
 
-	defaultCacheEntryTTL        = time.Hour
-	defaultCacheCleanInterval   = 30 * time.Minute
-	defaultCachePersistInterval = 30 * time.Minute
+	defaultRateLimitPerSec                 = 1000
+	defaultRateLimitThrottledPerSec        = 1
+	defaultRateLimitThrottleErrorThreshold = 10
+	defaultRateLimitRecoveryIntervals      = 5
+	defaultRateLimitRecoveryInterval       = 5 * time.Second
 )
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
@@ -44,17 +63,26 @@ func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 		workers:  agentConfig.GetInt("reverse_dns_enrichment.workers"),
 		chanSize: agentConfig.GetInt("reverse_dns_enrichment.chan_size"),
 
-		rateLimiterEnabled: agentConfig.GetBool("reverse_dns_enrichment.rate_limiter.enabled"),
-		rateLimitPerSec:    agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_per_sec"),
+		cache: cacheConfig{
+			enabled:         agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
+			entryTTL:        agentConfig.GetDuration("reverse_dns_enrichment.cache.entry_ttl"),
+			cleanInterval:   agentConfig.GetDuration("reverse_dns_enrichment.cache.clean_interval"),
+			persistInterval: agentConfig.GetDuration("reverse_dns_enrichment.cache.persist_interval"),
+			maxRetries:      agentConfig.GetInt("reverse_dns_enrichment.cache.max_retries"),
+			maxSize:         agentConfig.GetInt("reverse_dns_enrichment.cache.max_size"),
+		},
 
-		cacheEnabled:         agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
-		cacheEntryTTL:        agentConfig.GetDuration("reverse_dns_enrichment.cache.entry_ttl"),
-		cacheCleanInterval:   agentConfig.GetDuration("reverse_dns_enrichment.cache.clean_interval"),
-		cachePersistInterval: agentConfig.GetDuration("reverse_dns_enrichment.cache.persist_interval"),
+		rateLimiter: rateLimiterConfig{
+			enabled:                agentConfig.GetBool("reverse_dns_enrichment.rate_limiter.enabled"),
+			limitPerSec:            agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_per_sec"),
+			limitThrottledPerSec:   agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec"),
+			throttleErrorThreshold: agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.throttle_error_threshold"),
+			recoveryIntervals:      agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.recovery_intervals"),
+			recoveryInterval:       agentConfig.GetDuration("reverse_dns_enrichment.rate_limiter.recovery_interval"),
+		},
 	}
 
 	c.setDefaults()
-
 	return c
 }
 
@@ -71,21 +99,42 @@ func (c *rdnsQuerierConfig) setDefaults() {
 		c.chanSize = defaultChanSize
 	}
 
-	if c.rateLimiterEnabled {
-		if c.rateLimitPerSec <= 0 {
-			c.rateLimitPerSec = defaultRateLimitPerSec
+	if c.cache.enabled {
+		if c.cache.entryTTL <= 0 {
+			c.cache.entryTTL = defaultCacheEntryTTL
+		}
+		if c.cache.cleanInterval <= 0 {
+			c.cache.cleanInterval = defaultCacheCleanInterval
+		}
+		if c.cache.persistInterval <= 0 {
+			c.cache.persistInterval = defaultCachePersistInterval
+		}
+		if c.cache.maxRetries < 0 {
+			c.cache.maxRetries = defaultCacheMaxRetries
+		}
+		if c.cache.maxSize <= 0 {
+			c.cache.maxSize = defaultCacheMaxSize
 		}
 	}
 
-	if c.cacheEnabled {
-		if c.cacheEntryTTL <= 0 {
-			c.cacheEntryTTL = defaultCacheEntryTTL
+	if c.rateLimiter.enabled {
+		if c.rateLimiter.limitPerSec <= 0 {
+			c.rateLimiter.limitPerSec = defaultRateLimitPerSec
 		}
-		if c.cacheCleanInterval <= 0 {
-			c.cacheCleanInterval = defaultCacheCleanInterval
+		if c.rateLimiter.limitThrottledPerSec <= 0 {
+			c.rateLimiter.limitThrottledPerSec = defaultRateLimitThrottledPerSec
 		}
-		if c.cachePersistInterval <= 0 {
-			c.cachePersistInterval = defaultCachePersistInterval
+		if c.rateLimiter.limitThrottledPerSec > c.rateLimiter.limitPerSec {
+			c.rateLimiter.limitThrottledPerSec = c.rateLimiter.limitPerSec
+		}
+		if c.rateLimiter.throttleErrorThreshold <= 0 {
+			c.rateLimiter.throttleErrorThreshold = defaultRateLimitThrottleErrorThreshold
+		}
+		if c.rateLimiter.recoveryIntervals <= 0 {
+			c.rateLimiter.recoveryIntervals = defaultRateLimitRecoveryIntervals
+		}
+		if c.rateLimiter.recoveryInterval <= 0 {
+			c.rateLimiter.recoveryInterval = defaultRateLimitRecoveryInterval
 		}
 	}
 }

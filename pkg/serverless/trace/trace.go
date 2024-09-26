@@ -8,23 +8,23 @@ package trace
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
@@ -60,8 +60,8 @@ const tcpRemotePortMetaKey = "tcp.remote.port"
 // dnsAddressMetaKey is the key of the span meta containing the DNS address
 const dnsAddressMetaKey = "dns.address"
 
-// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API
-const lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
+// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
+var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
 const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
@@ -97,7 +97,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
+		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
@@ -106,13 +106,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			var compressor compression.Component
-			if tc.HasFeature("zstd-encoding") {
-				compressor = zstd.NewComponent()
-			} else {
-				compressor = gzip.NewComponent()
-			}
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, compressor)
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
@@ -257,3 +251,9 @@ func (t noopTraceAgent) SetTags(map[string]string)           {}
 func (t noopTraceAgent) SetTargetTPS(float64)                {}
 func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
 func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
+
+func init() {
+	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
+		lambdaRuntimeURLPrefix = fmt.Sprintf("http://%s", lambdaRuntime)
+	}
+}

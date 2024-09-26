@@ -93,9 +93,14 @@ func (r *Repository) GetState() (State, error) {
 	if err != nil {
 		return State{}, err
 	}
+	stable := repository.stable.Target()
+	experiment := repository.experiment.Target()
+	if experiment == stable {
+		experiment = ""
+	}
 	return State{
-		Stable:     repository.stable.Target(),
-		Experiment: repository.experiment.Target(),
+		Stable:     stable,
+		Experiment: experiment,
 	}, nil
 }
 
@@ -157,6 +162,10 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	if err != nil {
 		return fmt.Errorf("could not set first stable: %w", err)
 	}
+	err = repository.setExperimentToStable()
+	if err != nil {
+		return fmt.Errorf("could not set first experiment: %w", err)
+	}
 	return nil
 }
 
@@ -175,7 +184,10 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable package does not exist, invalid state")
+		return fmt.Errorf("stable link does not exist, invalid state")
+	}
+	if !repository.experiment.Exists() {
+		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
 	err = repository.setExperiment(name, sourcePath)
 	if err != nil {
@@ -187,9 +199,8 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // PromoteExperiment promotes the experiment to stable.
 //
 // 1. Cleanup the repository.
-// 2. Set the stable link to the experiment package.
-// 3. Delete the experiment link.
-// 4. Cleanup the repository to remove the previous stable package.
+// 2. Set the stable link to the experiment package. The experiment link stays in place.
+// 3. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
@@ -200,18 +211,17 @@ func (r *Repository) PromoteExperiment() error {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable package does not exist, invalid state")
+		return fmt.Errorf("stable link does not exist, invalid state")
 	}
 	if !repository.experiment.Exists() {
-		return fmt.Errorf("experiment package does not exist, invalid state")
+		return fmt.Errorf("experiment link does not exist, invalid state")
+	}
+	if repository.stable.Target() == repository.experiment.Target() {
+		return fmt.Errorf("no experiment to promote")
 	}
 	err = repository.stable.Set(*repository.experiment.packagePath)
 	if err != nil {
 		return fmt.Errorf("could not set stable: %w", err)
-	}
-	err = repository.experiment.Delete()
-	if err != nil {
-		return fmt.Errorf("could not delete experiment link: %w", err)
 	}
 
 	// Read repository again to re-load the list of locked packages
@@ -229,7 +239,7 @@ func (r *Repository) PromoteExperiment() error {
 // DeleteExperiment deletes the experiment.
 //
 // 1. Cleanup the repository.
-// 2. Delete the experiment link.
+// 2. Sets the experiment link to the stable link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
 	repository, err := readRepository(r.rootPath, r.locksPath)
@@ -241,14 +251,14 @@ func (r *Repository) DeleteExperiment() error {
 		return fmt.Errorf("could not cleanup repository: %w", err)
 	}
 	if !repository.stable.Exists() {
-		return fmt.Errorf("stable package does not exist, invalid state")
+		return fmt.Errorf("stable link does not exist, invalid state")
 	}
 	if !repository.experiment.Exists() {
-		return nil
+		return fmt.Errorf("experiment link does not exist, invalid state")
 	}
-	err = repository.experiment.Delete()
+	err = repository.setExperimentToStable()
 	if err != nil {
-		return fmt.Errorf("could not delete experiment link: %w", err)
+		return fmt.Errorf("could not set experiment to stable: %w", err)
 	}
 
 	// Read repository again to re-load the list of locked packages
@@ -328,6 +338,11 @@ func (r *repositoryFiles) setExperiment(name string, sourcePath string) error {
 	return r.experiment.Set(path)
 }
 
+// setExperimentToStable moves the experiment to stable.
+func (r *repositoryFiles) setExperimentToStable() error {
+	return r.experiment.Set(r.stable.linkPath)
+}
+
 func (r *repositoryFiles) setStable(name string, sourcePath string) error {
 	path, err := movePackageFromSource(name, r.rootPath, r.lockedPackages, sourcePath)
 	if err != nil {
@@ -367,6 +382,15 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 }
 
 func (r *repositoryFiles) cleanup() error {
+	// migrate old repositories that are missing the experiment link
+	if r.stable.Exists() && !r.experiment.Exists() {
+		err := r.setExperimentToStable()
+		if err != nil {
+			return fmt.Errorf("could not migrate old repository without experiment link: %w", err)
+		}
+	}
+
+	// remove left-over packages
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return fmt.Errorf("could not read root directory: %w", err)

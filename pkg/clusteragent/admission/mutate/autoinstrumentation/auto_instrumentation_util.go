@@ -50,6 +50,12 @@ func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymen
 	var libList []libInfo
 	for container, languages := range deployment.InjectableLanguages {
 		for lang := range languages {
+			// There's a mismatch between language detection and auto-instrumentation.
+			// The Node language is a js lib.
+			if lang == "node" {
+				lang = "js"
+			}
+
 			l := language(lang)
 			libList = append(libList, l.defaultLibInfo(registry, container.Name))
 		}

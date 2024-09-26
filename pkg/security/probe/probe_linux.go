@@ -8,9 +8,7 @@ package probe
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -21,7 +19,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
@@ -33,7 +31,7 @@ func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadme
 		}
 		p.PlatformProbe = pp
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts, wmeta, telemetry)
+		pp, err := NewEBPFProbe(p, config, opts, telemetry)
 		if err != nil {
 			return nil, err
 		}

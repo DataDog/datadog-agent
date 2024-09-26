@@ -98,7 +98,8 @@ func (tf *trapForwarder) Stop() {
 }
 
 func (tf *trapForwarder) run() {
-	flushTicker := time.NewTicker(10 * time.Second).C
+	flushTicker := time.NewTicker(10 * time.Second)
+	defer flushTicker.Stop()
 	for {
 		select {
 		case <-tf.stopChan:
@@ -106,7 +107,7 @@ func (tf *trapForwarder) run() {
 			return
 		case packet := <-tf.trapsIn:
 			tf.sendTrap(packet)
-		case <-flushTicker:
+		case <-flushTicker.C:
 			tf.sender.Commit() // Commit metrics
 		}
 	}

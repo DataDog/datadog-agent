@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -52,7 +52,7 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 		alertType := event.AlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), types.HighCardinality)
+			t, err := tagger.Tag(types.NewEntityID(types.ContainerID, e.ID).String(), types.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
@@ -174,7 +174,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 
-	excludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
+	excludePauseContainers := pkgconfigsetup.Datadog().GetBool("exclude_pause_container")
 
 	// Only used when excludePauseContainers is true
 	var pauseContainers setPauseContainers

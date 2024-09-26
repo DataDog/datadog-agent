@@ -84,6 +84,11 @@ var windowsFiles = []string{
 	"datadog.reg",
 }
 
+// linuxFiles contains files that are specific to Linux
+var linuxFiles = []string{
+	"agent_open_files.txt",
+}
+
 var profilingFiles = []string{
 	"profiles/core-1st-heap.pprof",
 	"profiles/core-2nd-heap.pprof",

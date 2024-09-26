@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -19,7 +20,7 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
+func NewProcessDiscoveryCheck(config pkgconfigmodel.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
 		scrubber:  procutil.NewDefaultDataScrubber(),
@@ -31,7 +32,7 @@ func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	config ddconfig.Reader
+	config pkgconfigmodel.Reader
 
 	probe      procutil.Probe
 	scrubber   *procutil.DataScrubber
@@ -64,7 +65,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 		return false
 	}
 
-	if ddconfig.IsECSFargate() {
+	if env.IsECSFargate() {
 		log.Debug("Process discovery is not supported on ECS Fargate")
 		return false
 	}

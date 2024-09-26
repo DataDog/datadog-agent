@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -80,7 +81,11 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		return v1TaskToV4Task(task), errors.New(err)
 	}
 
-	taskWithTags, err := c.metaV3or4(metaURI, "v4").GetTaskWithTags(ctx)
+	taskWithTags, err := v3or4.NewClient(metaURI, "v4", v3or4.WithTryOption(
+		c.metadataRetryInitialInterval,
+		c.metadataRetryMaxElapsedTime,
+		func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
+	).GetTaskWithTags(ctx)
 	if err != nil {
 		log.Warnf("failed to get task with tags from metadata v4 API: %s", err)
 		return v1TaskToV4Task(task), err

@@ -48,8 +48,7 @@ func TestServiceNameFromTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			taggerFunc = tt.tFunc
-			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity); got != tt.want {
+			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity, tt.tFunc); got != tt.want {
 				t.Errorf("ServiceNameFromTags() = %v, want %v", got, tt.want)
 			}
 		})

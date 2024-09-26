@@ -19,10 +19,11 @@ import (
 
 	"github.com/hashicorp/go-version"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
@@ -40,11 +41,11 @@ const (
 func detectAgentV1URL() (string, error) {
 	urls := make([]string, 0, 3)
 
-	if len(config.Datadog().GetString("ecs_agent_url")) > 0 {
-		urls = append(urls, config.Datadog().GetString("ecs_agent_url"))
+	if len(pkgconfigsetup.Datadog().GetString("ecs_agent_url")) > 0 {
+		urls = append(urls, pkgconfigsetup.Datadog().GetString("ecs_agent_url"))
 	}
 
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentV1ContainerURLs(context.TODO())
 		if err != nil {
@@ -53,7 +54,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := system.GetDefaultGateway(config.Datadog().GetString("proc_root"))
+		gw, err := system.GetDefaultGateway(pkgconfigsetup.Datadog().GetString("proc_root"))
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}
@@ -79,7 +80,7 @@ func detectAgentV1URL() (string, error) {
 func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
 
-	if !config.IsFeaturePresent(config.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return nil, errors.New("Docker feature not activated")
 	}
 
@@ -87,7 +88,7 @@ func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	ecsConfig, err := du.Inspect(ctx, config.Datadog().GetString("ecs_agent_container_name"), false)
+	ecsConfig, err := du.Inspect(ctx, pkgconfigsetup.Datadog().GetString("ecs_agent_container_name"), false)
 	if err != nil {
 		return nil, err
 	}

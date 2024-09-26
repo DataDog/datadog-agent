@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package sysctl implements reading of system parameters such as system limits
 package sysctl
 
 import (

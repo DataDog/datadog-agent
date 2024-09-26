@@ -10,7 +10,6 @@ package checks
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -20,7 +19,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg := configmock.New(t)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -28,7 +27,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -36,7 +35,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
+		enabledChecks := getEnabledChecks(t, cfg, configmock.NewSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 }
@@ -49,7 +48,7 @@ func TestConnectionsCheckLinux(t *testing.T) {
 	// Make sure the connections check is disabled on the core agent
 	// and enabled in the process agent when process checks run in core agent
 	t.Run("run in core agent", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 		scfg.SetWithoutSource("network_config.enabled", true)
@@ -73,7 +72,7 @@ func TestProcessCheckLinux(t *testing.T) {
 	// Make sure process checks run on the core agent only
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 
@@ -95,7 +94,7 @@ func TestProcessDiscoveryLinux(t *testing.T) {
 	// Make sure process discovery checks run on the core agent only
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {
-		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)

@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    While using the AWS Lambda Extension, when a Lambda Function is invoked by 
+    a [properly instrumented][1] Step Function, the Lambda Function will create
+    its Trace and Parent IDs deterministically based on the Step Function's 
+    execution context. 
+    [1]: https://docs.datadoghq.com/serverless/step_functions/installation/?tab=custom "Install Serverless Monitoring for AWS Step Functions"
+

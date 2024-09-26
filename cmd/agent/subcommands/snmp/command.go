@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
@@ -184,20 +185,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(scanDevice,
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
+				compressionimpl.Module(),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
-				forwarder.Bundle(),
-				eventplatformimpl.Module(),
+				forwarder.Bundle(defaultforwarder.NewParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				orchestratorimpl.Module(),
 				fx.Provide(
-					defaultforwarder.NewParams,
 					orchestratorimpl.NewDefaultParams,
-					eventplatformimpl.NewDefaultParams,
 					demultiplexerimpl.NewDefaultParams,
 				),
 			)

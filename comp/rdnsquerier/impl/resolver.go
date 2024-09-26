@@ -14,12 +14,16 @@ type resolver interface {
 	lookup(string) (string, error)
 }
 
-func newResolver(_ *rdnsQuerierConfig) resolver {
-	return &resolverImpl{}
+func newResolver(config *rdnsQuerierConfig) resolver {
+	return &resolverImpl{
+		config: config,
+	}
 }
 
 // Resolver implementation for default resolver
-type resolverImpl struct{}
+type resolverImpl struct {
+	config *rdnsQuerierConfig
+}
 
 func (r *resolverImpl) lookup(addr string) (string, error) {
 	// net.LookupAddr() can return both a non-zero length slice of hostnames and an error, but when
@@ -27,7 +31,6 @@ func (r *resolverImpl) lookup(addr string) (string, error) {
 	// specifying other DNS resolvers is not supported, if we get an error we know that no valid
 	// hostname was returned.
 	hostnames, err := net.LookupAddr(addr)
-
 	if err != nil {
 		return "", err
 	}

@@ -9,29 +9,18 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-func newConfig(t *testing.T) {
-	originalConfig := config.SystemProbe
-	t.Cleanup(func() {
-		config.SystemProbe = originalConfig
-	})
-	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	config.InitSystemProbeConfig(config.SystemProbe)
-}
-
 func TestEventMonitor(t *testing.T) {
-	newConfig(t)
+	mock.NewSystemProbe(t)
 
 	for i, tc := range []struct {
 		cws, fim, processEvents, networkEvents bool
@@ -71,26 +60,12 @@ func TestEventMonitor(t *testing.T) {
 }
 
 func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
-	t.Run("does nothing for windows", func(t *testing.T) {
-		if runtime.GOOS != "windows" {
-			t.Skip("This is only for windows")
-		}
-		config.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
-		Adjust(cfg)
-
-		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
-	})
 	t.Run("does nothing for unsupported", func(t *testing.T) {
 		if runtime.GOOS == "windows" || runtime.GOOS == "linux" {
 			t.Skip("This is only for unsupported")
 		}
-		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
+		cfg := mock.NewSystemProbe(t)
 		Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
@@ -99,41 +74,19 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 
 func TestEnableDiscovery(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
-		config.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-discovery:
-  enabled: true
-`)
+		cfg := mock.NewSystemProbe(t)
+		cfg.SetWithoutSource("discovery.enabled", true)
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
-		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_DISCOVERY_ENABLED", "true")
-		cfg := config.SystemProbe
-
+		cfg := mock.NewSystemProbe(t)
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
 	})
 
 	t.Run("default", func(t *testing.T) {
-		config.ResetSystemProbeConfig(t)
-		cfg := config.SystemProbe
-
+		cfg := mock.NewSystemProbe(t)
 		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
 	})
-}
-
-func configurationFromYAML(t *testing.T, yaml string) config.Config {
-	f, err := os.CreateTemp(t.TempDir(), "system-probe.*.yaml")
-	require.NoError(t, err)
-	defer f.Close()
-
-	b := []byte(yaml)
-	n, err := f.Write(b)
-	require.NoError(t, err)
-	require.Equal(t, len(b), n)
-	f.Sync()
-
-	_, _ = New(f.Name(), "")
-	return config.SystemProbe
 }

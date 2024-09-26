@@ -44,7 +44,7 @@ const onlyParentOfFlakeFailed = `{"Time":"2024-06-14T22:24:52.156240262Z","Actio
 `
 
 func TestFlakeInOutput(t *testing.T) {
-	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil)
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, out.Failed)
 	assert.Equal(t, fmt.Sprintf(flakyFormat, "a/b/c", "testname"), out.Flaky)
@@ -52,7 +52,7 @@ func TestFlakeInOutput(t *testing.T) {
 }
 
 func TestFailedInOutput(t *testing.T) {
-	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(failedTestData)), nil)
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(failedTestData)), nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testname"), out.Failed)
 	assert.Empty(t, out.Flaky)
@@ -60,7 +60,7 @@ func TestFailedInOutput(t *testing.T) {
 }
 
 func TestRerunInOutput(t *testing.T) {
-	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(rerunTestData)), nil)
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(rerunTestData)), nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, out.Failed)
 	assert.Empty(t, out.Flaky)
@@ -68,7 +68,7 @@ func TestRerunInOutput(t *testing.T) {
 }
 
 func TestOnlyParentOfFlakeFailed(t *testing.T) {
-	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(onlyParentOfFlakeFailed)), nil)
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(onlyParentOfFlakeFailed)), nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testparent"), out.Failed)
 	assert.Empty(t, out.Flaky)

@@ -32,7 +32,7 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 
 	var msg *message.Message
 
-	fmt.Fprintf(conn, "hello world\n")
+	fmt.Fprint(conn, "hello world\n")
 	msg = <-msgChan
 	assert.Equal(t, "hello world", string(msg.GetContent()))
 

@@ -21,6 +21,8 @@ import (
 const ciscoSDWANMetricPrefix = "cisco_sdwan."
 const timestampExpiration = 6 * time.Hour
 
+const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface_user_tags"
+
 // SDWanSender implements methods for sending Cisco SD-Wan metrics and metadata
 type SDWanSender struct {
 	sender       sender.Sender
@@ -74,12 +76,14 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 
 	for _, entry := range interfaceStats {
 		deviceTags := ms.getDeviceTags(entry.VmanageSystemIP)
+
+		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
+
 		interfaceTags := []string{
 			"interface:" + entry.Interface,
 			fmt.Sprintf("vpn_id:%d", int(entry.VpnID)),
 		}
 
-		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
 		itf, foundInterface := interfacesMap[itfID]
 
 		tags := append(deviceTags, interfaceTags...)
@@ -88,6 +92,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			index, err := itf.Index()
 			if err == nil {
 				tags = append(tags, fmt.Sprintf("interface_index:%d", index))
+				tags = append(tags, fmt.Sprintf("%s:%s:%s:%d", interfaceUserTagResourcePrefix, ms.namespace, entry.VmanageSystemIP, index))
 			}
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
@@ -372,8 +377,8 @@ func (ms *SDWanSender) getPrefixedDeviceTags(prefix string, systemIP string) []s
 
 	var remoteTags []string
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, "device_namespace") {
-			// No need to tag remote devices by namespace
+		if strings.HasPrefix(tag, "device_namespace") || strings.HasPrefix(tag, payload.DeviceUserTagResourcePrefix) || strings.HasPrefix(tag, interfaceUserTagResourcePrefix) {
+			// No need to tag remote devices by namespace or user tags
 			continue
 		}
 		remoteTags = append(remoteTags, prefix+tag)

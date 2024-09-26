@@ -132,7 +132,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 	// Add each file one by one up to the limit
 	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
 		file := inputFiles[j]
-		if shouldIgnore(validatePodContainerID, file) {
+		if ShouldIgnore(validatePodContainerID, file) {
 			continue
 		}
 		filesToTail = append(filesToTail, file)
@@ -348,7 +348,7 @@ func (p *FileProvider) applyOrdering(files []*tailer.File) {
 	}
 }
 
-// shouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
+// ShouldIgnore resolves symlinks in /var/log/containers in order to use that redirection
 // to validate that we will be reading a file for the correct container.
 //
 // We have to make sure that the file we just detected is tagged with the correct
@@ -361,7 +361,7 @@ func (p *FileProvider) applyOrdering(files []*tailer.File) {
 // See these links for more info:
 //   - https://github.com/kubernetes/kubernetes/issues/58638
 //   - https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter/issues/105
-func shouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
+func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	// this method needs a source config to detect whether we should ignore that file or not
 	if file == nil || file.Source == nil || file.Source.Config() == nil {
 		return false

@@ -19,6 +19,7 @@ import (
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
@@ -42,6 +43,7 @@ type DockerSocketTailer struct {
 	source      *sources.LogSource
 	pipeline    chan *message.Message
 	readTimeout time.Duration
+	tagger      tagger.Component
 
 	// registry is used to calculate `since`
 	registry auditor.Registry
@@ -57,7 +59,7 @@ type DockerSocketTailer struct {
 }
 
 // NewDockerSocketTailer Creates a new docker socket tailer
-func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry) *DockerSocketTailer {
+func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil:  dockerutil,
 		ContainerID: containerID,
@@ -65,6 +67,7 @@ func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID str
 		pipeline:    pipeline,
 		readTimeout: readTimeout,
 		registry:    registry,
+		tagger:      tagger,
 		ctx:         nil,
 		cancel:      nil,
 		stopped:     nil,
@@ -81,7 +84,9 @@ func (t *DockerSocketTailer) tryStartTailer() (*dockerTailerPkg.Tailer, chan str
 		t.source,
 		t.pipeline,
 		erroredContainerID,
-		t.readTimeout)
+		t.readTimeout,
+		t.tagger,
+	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {
 		log.Warnf("Could not recover tailing from last committed offset %v: %v",

@@ -24,7 +24,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info
+from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 if TYPE_CHECKING:
@@ -284,7 +284,14 @@ def destroy_ec2_instances(ctx: Context, stack: str):
     if not os.path.exists(stack_output):
         return
 
-    infra = build_infrastructure(stack)
+    try:
+        infra = build_infrastructure(stack)
+    except RuntimeError:
+        warn(
+            f"[-] Failed to read stack output file {stack_output}, this might be due to stack not being created properly. If you know there are EC2 instances remaining, please use the AWS console to terminate them."
+        )
+        return
+
     ips: list[str] = []
     for arch, instance in infra.items():
         if arch != "local":

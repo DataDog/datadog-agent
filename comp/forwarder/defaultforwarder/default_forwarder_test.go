@@ -12,10 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -28,9 +26,7 @@ func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
 }
 
 func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
-	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	))
+	mockConfig := config.NewMock(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 

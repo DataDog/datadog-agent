@@ -13,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+var (
+	// list of binaries that can't be killed
+	binariesExcluded = []string{}
+)
+
 // KillFromUserspace tries to kill from userspace
 func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, _ *model.Event) error {
 	if sig != model.SIGKILL {
@@ -21,9 +26,9 @@ func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, _ *model.Event
 	return winutil.KillProcess(int(pid), 0)
 }
 
-func (p *ProcessKiller) getPids(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]uint32, error) {
+func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, _ *model.ProcessCacheEntry) ([]uint32, []string, error) {
 	if scope == "container" {
-		return nil, errors.New("container scope not supported")
+		return nil, nil, errors.New("container scope not supported")
 	}
-	return []uint32{ev.ProcessContext.Pid}, nil
+	return []uint32{ev.ProcessContext.Pid}, []string{ev.ProcessContext.FileEvent.PathnameStr}, nil
 }

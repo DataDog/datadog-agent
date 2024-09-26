@@ -43,7 +43,7 @@ DEFAULT_BRANCHES = {
 }
 
 
-def _load_release_json():
+def load_release_json():
     with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
@@ -292,7 +292,7 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
 
     release_entry = release_entry_for(new_version.major)
     print(f"Updating {release_entry} for {new_version}")
@@ -304,7 +304,7 @@ def update_release_json(new_version: Version, max_version: Version):
 
 
 def _get_release_json_value(key):
-    release_json = _load_release_json()
+    release_json = load_release_json()
 
     path = key.split('::')
 
@@ -318,7 +318,7 @@ def _get_release_json_value(key):
 
 
 def set_new_release_branch(branch):
-    rj = _load_release_json()
+    rj = load_release_json()
 
     rj["base_branch"] = branch
 
@@ -349,7 +349,7 @@ def find_previous_tags(build, repos, all_keys):
     Finds the previous tags for the given repositories in the release.json file.
     """
     tags = {}
-    release_json = _load_release_json()
+    release_json = load_release_json()
     for key in all_keys:
         r = key.casefold().removesuffix("_version").replace("_", "-")
         repo = next((repo for repo in repos if r in repo), None)

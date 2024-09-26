@@ -46,7 +46,7 @@ func TestParseParams(t *testing.T) {
 				DestHostname: "1.2.3.4",
 				DestPort:     42,
 				MaxTTL:       35,
-				TimeoutMs:    1000,
+				Timeout:      1000,
 			},
 		},
 	}

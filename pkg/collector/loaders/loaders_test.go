@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -75,7 +74,7 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	require.Len(t, LoaderCatalog(senderManager, logReceiver), 2)
 	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver)[1])
 	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver)[0])

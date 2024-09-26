@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
@@ -34,7 +34,7 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 
 func TestDiscovery(t *testing.T) {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
-	config.Datadog().SetWithoutSource("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -85,7 +85,7 @@ func TestDiscovery(t *testing.T) {
 
 func TestDiscoveryCache(t *testing.T) {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscoveryCache"))
-	config.Datadog().SetWithoutSource("run_path", path)
+	pkgconfigsetup.Datadog().SetWithoutSource("run_path", path)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

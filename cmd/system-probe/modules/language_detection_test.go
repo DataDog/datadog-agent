@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -25,7 +26,11 @@ import (
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 )
 
-const mockPid = 1
+var mockPid int32
+
+func init() {
+	mockPid = int32(os.Getpid())
+}
 
 func TestLanguageDetectionEndpoint(t *testing.T) {
 	mockGoLanguage := languagemodels.Language{Name: languagemodels.Go, Version: "go version go1.19.10 linux/arm64"}

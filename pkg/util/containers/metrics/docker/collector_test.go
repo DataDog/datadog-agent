@@ -89,8 +89,7 @@ func TestGetContainerIDForPID(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		config.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	collector := dockerCollector{

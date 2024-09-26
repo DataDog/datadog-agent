@@ -10,6 +10,8 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	datadogclientimpl "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
@@ -18,6 +20,11 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			datadogclientimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[datadogclient.Component](),
+		fx.Provide(func(c datadogclient.Component) optional.Option[datadogclient.Component] {
+			if _, ok := c.(*datadogclientimpl.ImplNone); ok {
+				return optional.NewNoneOption[datadogclient.Component]()
+			}
+			return optional.NewOption[datadogclient.Component](c)
+		}),
 	)
 }

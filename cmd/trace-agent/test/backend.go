@@ -13,12 +13,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.uber.org/atomic"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
+	"github.com/DataDog/zstd"
 	"github.com/tinylib/msgp/msgp"
 	"google.golang.org/protobuf/proto"
 )
@@ -150,13 +152,17 @@ func readCloserFromRequest(req *http.Request) (io.ReadCloser, error) {
 		Reader: req.Body,
 		Closer: req.Body,
 	}
-	if req.Header.Get("Accept-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(req.Body)
+
+	encoding := strings.ToLower(req.Header.Get("Content-Encoding"))
+	switch encoding {
+	case "zstd":
+		return zstd.NewReader(req.Body), nil
+	case "gzip":
+		reader, err := gzip.NewReader(req.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer gz.Close()
-		rc.Reader = gz
+		return reader, nil
 	}
 	return rc, nil
 }

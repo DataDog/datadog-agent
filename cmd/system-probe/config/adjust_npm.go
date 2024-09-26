@@ -11,7 +11,6 @@ import (
 	"math"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +23,9 @@ const (
 	defaultMaxTrackedConnections = 65536
 )
 
-func adjustNetwork(cfg config.Config) {
+func adjustNetwork(cfg model.Config) {
+	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
+
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {
@@ -98,5 +99,25 @@ func adjustNetwork(cfg config.Config) {
 	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
 		log.Warn("disabling NPM connection rollups since USM connection rollups are not enabled")
 		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
+	}
+
+	// disable features that are not supported on certain
+	// configs/platforms
+	var disableConfigs []struct {
+		key, reason string
+	}
+	if ebpflessEnabled {
+		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
+		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
+			{netNS("enable_protocol_classification"), notSupportedEbpfless},
+			{evNS("network_process", "enabled"), notSupportedEbpfless}}...,
+		)
+	}
+
+	for _, c := range disableConfigs {
+		if cfg.GetBool(c.key) {
+			log.Warnf("disabling %s: %s", c.key, c.reason)
+			cfg.Set(c.key, false, model.SourceAgentRuntime)
+		}
 	}
 }

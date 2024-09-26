@@ -13,7 +13,7 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -41,7 +41,7 @@ type criCollector struct {
 func newCRICollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
-	if !config.IsFeaturePresent(config.Cri) {
+	if !env.IsFeaturePresent(env.Cri) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 

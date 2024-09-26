@@ -70,6 +70,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, "sysprobe-config", defaultSysProbeConfPath, "path to system-probe.yaml config")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "path to the directory containing fleet policies")
+	_ = SecurityAgentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {

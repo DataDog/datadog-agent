@@ -348,7 +348,7 @@ func (fgc *FileGeneratorContext) start(wg *sync.WaitGroup) {
 		fgc.mountWordDir()
 		defer fgc.unmountWordDir()
 		remountTicker := time.NewTicker(fgc.config.RemountEvery)
-
+		defer remountTicker.Stop()
 		var testEnd *time.Time
 		started := false
 		fgc.resetFirstStates()

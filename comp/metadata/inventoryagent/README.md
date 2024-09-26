@@ -125,6 +125,7 @@ The payload is a JSON dict with the following fields
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
+  - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -162,8 +163,8 @@ Here an example of an inventory payload:
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
         "full_configuration": "<entire yaml configuration for the agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
-        "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
+        "file_configuration": "check_runners: 4\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
         "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",

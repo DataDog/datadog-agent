@@ -9,55 +9,36 @@ package kubeapiserver
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
-	for key := range mapInput {
-		for _, filter := range keyFilters {
-			if filter.MatchString(key) {
-				delete(mapInput, key)
-				// we can break now since the key is already excluded.
-				break
-			}
-		}
+// groupResourceToGVRString is a helper function that converts a group resource string to
+// a group-version-resource string
+// a group resource string is in the form `{resource}.{group}` or `{resource}` (example: deployments.apps, pods)
+// a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
+// if the groupResource argument is not in the correct format, an empty string is returned
+func groupResourceToGVRString(groupResource string) string {
+	parts := strings.Split(groupResource, ".")
+
+	if len(parts) > 2 {
+		// incorrect format
+		log.Errorf("unexpected group resource format %q. correct format should be `{resource}.{group}` or `{resource}`", groupResource)
+	} else if len(parts) == 1 {
+		// format is `{resource}`
+		return parts[0]
+	} else {
+		// format is `{resource}/{group}`
+		return fmt.Sprintf("%s//%s", parts[1], parts[0])
 	}
 
-	return mapInput
-}
-
-func parseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
-	var parsedFilters []*regexp.Regexp
-	var errors []error
-	for _, exclude := range annotationsExclude {
-		filter, err := filterToRegex(exclude)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		parsedFilters = append(parsedFilters, filter)
-	}
-
-	return parsedFilters, utilserror.NewAggregate(errors)
-}
-
-// filterToRegex checks a filter's regex
-func filterToRegex(filter string) (*regexp.Regexp, error) {
-	r, err := regexp.Compile(filter)
-	if err != nil {
-		errormsg := fmt.Errorf("invalid regex '%s': %s", filter, err)
-		return nil, errormsg
-	}
-	return r, nil
+	return ""
 }
 
 // cleanDuplicateVersions detects if different versions are requested for the same resource within the same group

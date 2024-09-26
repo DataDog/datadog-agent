@@ -12,14 +12,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/docker/docker/api/types/swarm"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // GetMetadata returns metadata about the docker runtime such as docker_version and if docker_swarm is enabled or not.
 func GetMetadata() (map[string]string, error) {
-	if !config.IsFeaturePresent(config.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return nil, errors.New("Docker feature deactivated")
 	}
 

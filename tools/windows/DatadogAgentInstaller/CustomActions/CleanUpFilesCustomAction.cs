@@ -51,7 +51,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult CleanupFiles(Session session)
         {
             return CleanupFiles(new SessionWrapper(session));

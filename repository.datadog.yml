@@ -26,3 +26,4 @@ excludes:
   - ^6\.[0-9]+\.x$
   - ^gh-pages$
   - ^.*DO-NOT-DELETE$
+  - ^agent-v5$

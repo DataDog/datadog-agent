@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,7 +167,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	}
 
 	// We need to have a source to remove
-	sources, _ := scheduler.createSources(configSource)
+	sources, _ := CreateSources(configSource)
 	spy.Sources = sources
 
 	scheduler.Unschedule([]integration.Config{configSource})
@@ -213,7 +213,7 @@ func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
 				ClusterCheck:  false,
 			}
 			configmock.New(t)
-			pkgconfig.Datadog().Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
+			pkgconfigsetup.Datadog().Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
 			scheduler.Schedule([]integration.Config{configSource})
 			if rcLogCfgSchedEnabled {
 				require.Equal(t, 1, len(spy.Events))

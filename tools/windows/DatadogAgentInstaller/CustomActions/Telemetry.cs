@@ -1,9 +1,9 @@
-using System;
-using Microsoft.Deployment.WindowsInstaller;
-using System.Collections.Generic;
-using System.Reflection;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace Datadog.CustomActions
 {
@@ -81,13 +81,11 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Report(new SessionWrapper(session), "agent.installation.error");
         }
 
-        [CustomAction]
         public static ActionResult ReportSuccess(Session session)
         {
             return Report(new SessionWrapper(session), "agent.installation.success");

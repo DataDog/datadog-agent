@@ -168,3 +168,12 @@ type ErrFieldReadOnly struct {
 func (e ErrFieldReadOnly) Error() string {
 	return fmt.Sprintf("read-only field `%s`", e.Field)
 }
+
+// ErrValueOutOfRange error when the given value is not having the correct range for the type
+type ErrValueOutOfRange struct {
+	Field string
+}
+
+func (e ErrValueOutOfRange) Error() string {
+	return fmt.Sprintf("incorrect value for type `%s`, out of range", e.Field)
+}

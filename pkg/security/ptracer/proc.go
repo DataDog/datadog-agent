@@ -282,7 +282,7 @@ func (ctx *CWSPtracerCtx) scanProcfs() {
 		every = 500 * time.Millisecond
 	}
 	ticker := time.NewTicker(every)
-
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:

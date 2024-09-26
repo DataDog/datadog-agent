@@ -40,7 +40,6 @@ type WERDumpFile struct {
 func EnableWERGlobalDumps(host *components.RemoteHost, dumpFolder string) error {
 
 	cmd := fmt.Sprintf(`
-		$ErrorActionPreference='stop'
 		mkdir '%s' -Force
 		icacls.exe '%s' /grant 'Everyone:(OI)(CI)F'
 		New-Item -Path '%s' -Force

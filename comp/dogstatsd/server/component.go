@@ -39,9 +39,10 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newServer))
+		fx.Provide(newServer),
+		fx.Supply(params))
 }
 
 // MockModule defines the fx options for the mock component.

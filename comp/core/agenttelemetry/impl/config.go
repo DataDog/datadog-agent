@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -236,7 +237,7 @@ var defaultProfiles = `
           - check_name:network
           - check_name:io
           - check_name:file_handle
-      metrics:  
+      metrics:
         - name: checks.runs
           aggregate_tags:
             - check_name
@@ -256,6 +257,10 @@ var defaultProfiles = `
         - name: logs.destination_http_resp
           aggregate_tags:
             - status_code
+        - name: oracle.activity_samples_count
+        - name: oracle.activity_latency
+        - name: oracle.statement_metrics
+        - name: oracle.statement_plan_errors
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
@@ -483,7 +488,7 @@ func compileConfig(cfg *Config) error {
 // Parse agent telemetry config
 func parseConfig(cfg config.Component) (*Config, error) {
 	// Is it enabled?
-	if !cfg.GetBool("agent_telemetry.enabled") {
+	if !pkgconfigsetup.IsAgentTelemetryEnabled(cfg) {
 		return &Config{
 			Enabled: false,
 		}, nil

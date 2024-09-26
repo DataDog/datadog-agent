@@ -34,6 +34,8 @@ from tasks.modules import DEFAULT_MODULES
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
         'skip': 'Only run tests not matching the regular expression',
+        'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
+        'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
     },
 )
 def run(
@@ -59,6 +61,8 @@ def run(
     junit_tar="",
     test_run_name="",
     test_washer=False,
+    agent_image="",
+    cluster_agent_image="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -74,19 +78,25 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = {}
+    env_vars = {}
     if profile:
-        envVars["E2E_PROFILE"] = profile
+        env_vars["E2E_PROFILE"] = profile
 
-    parsedParams = {}
+    parsed_params = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
             raise Exit(message=f"wrong format given for config parameter, expects key=value, actual: {param}", code=1)
-        parsedParams[parts[0]] = parts[1]
+        parsed_params[parts[0]] = parts[1]
 
-    if parsedParams:
-        envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
+    if agent_image:
+        parsed_params["ddagent:fullImagePath"] = agent_image
+
+    if cluster_agent_image:
+        parsed_params["ddagent:clusterAgentFullImagePath"] = cluster_agent_image
+
+    if parsed_params:
+        env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
@@ -128,7 +138,7 @@ def run(
         modules=[e2e_module],
         args=args,
         cmd=cmd,
-        env=envVars,
+        env=env_vars,
         junit_tar=junit_tar,
         save_result_json="",
         test_profiler=None,
@@ -160,9 +170,10 @@ def run(
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
         'output': 'Cleans up local test output directory, default False',
+        'skip_destroy': 'Skip stack\'s resources removal. Use it only if your resources are already removed by other means, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False, output=False):
+def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -177,7 +188,7 @@ def clean(ctx, locks=True, stacks=False, output=False):
             print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
-        _clean_stacks(ctx)
+        _clean_stacks(ctx, skip_destroy)
 
     if output:
         _clean_output()
@@ -252,17 +263,19 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context):
+def _clean_stacks(ctx: Context, skip_destroy: bool):
     print("🧹 Clean up stack")
-    stacks = _get_existing_stacks(ctx)
 
-    for stack in stacks:
-        print(f"🗑️  Destroying stack {stack}")
-        _destroy_stack(ctx, stack)
+    if not skip_destroy:
+        stacks = _get_existing_stacks(ctx)
+        for stack in stacks:
+            print(f"🔥 Destroying stack {stack}")
+            _destroy_stack(ctx, stack)
 
+    # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
-        print(f"🗑️ Cleaning up stack {stack}")
+        print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
 
@@ -295,10 +308,13 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
+                print(
+                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
+                )
+                print(ret.stdout)
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
                         "red",
                     ),
                     1,
@@ -311,7 +327,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 env=_get_default_env(),
             )
         if ret is not None and ret.exited != 0:
-            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):

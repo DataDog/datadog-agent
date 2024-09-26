@@ -120,15 +120,14 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmetafx.Module(),
+
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
+				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType
 					if config.GetBool("process_config.remote_workloadmeta") {
@@ -183,10 +182,12 @@ func RunCheckCmd(deps Dependencies) error {
 		names = append(names, ch.Name())
 
 		_, processModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+		_, networkTracerModuleEnabled := deps.Syscfg.SysProbeObject().EnabledModules[sysconfig.NetworkTracerModule]
 		cfg := &checks.SysProbeConfig{
-			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
-			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
-			ProcessModuleEnabled: processModuleEnabled,
+			MaxConnsPerMessage:         deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
+			SystemProbeAddress:         deps.Syscfg.SysProbeObject().SocketAddress,
+			ProcessModuleEnabled:       processModuleEnabled,
+			NetworkTracerModuleEnabled: networkTracerModuleEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {

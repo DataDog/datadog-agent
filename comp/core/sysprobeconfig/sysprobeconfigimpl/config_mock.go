@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -50,15 +51,15 @@ func NewMock(t *testing.T) sysprobeconfig.Component {
 }
 
 func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
-	old := config.SystemProbe
-	config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())
+	old := setup.SystemProbe()
+	setup.SetSystemProbe(model.NewConfig("mock", "XXXX", strings.NewReplacer()))
 	c := &cfg{
-		warnings: &config.Warnings{},
-		Config:   config.SystemProbe,
+		warnings: &model.Warnings{},
+		Config:   setup.SystemProbe(),
 	}
 
 	// call InitSystemProbeConfig to set defaults.
-	config.InitSystemProbeConfig(config.SystemProbe)
+	setup.InitSystemProbeConfig(setup.SystemProbe())
 
 	// Viper's `GetXxx` methods read environment variables at the time they are
 	// called, if those names were passed explicitly to BindEnv*(), so we must
@@ -80,11 +81,11 @@ func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 	// Overrides are explicit and will take precedence over any other
 	// setting
 	for k, v := range deps.Params.Overrides {
-		config.SystemProbe.SetWithoutSource(k, v)
+		setup.SystemProbe().SetWithoutSource(k, v)
 	}
 
 	// swap the existing config back at the end of the test.
-	t.Cleanup(func() { config.SystemProbe = old })
+	t.Cleanup(func() { setup.SetSystemProbe(old) })
 
 	syscfg, err := setupConfig(deps)
 	if err != nil {

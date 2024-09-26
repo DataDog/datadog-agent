@@ -8,9 +8,18 @@ package model
 
 // Service represents a listening process.
 type Service struct {
-	PID   int      `json:"pid"`
-	Name  string   `json:"name"`
-	Ports []uint16 `json:"ports"`
+	PID                int      `json:"pid"`
+	Name               string   `json:"name"`
+	GeneratedName      string   `json:"generated_name"`
+	DDService          string   `json:"dd_service"`
+	DDServiceInjected  bool     `json:"dd_service_injected"`
+	Ports              []uint16 `json:"ports"`
+	APMInstrumentation string   `json:"apm_instrumentation"`
+	Language           string   `json:"language"`
+	RSS                uint64   `json:"rss"`
+	CommandLine        []string `json:"cmdline"`
+	StartTimeSecs      uint64   `json:"start_time"`
+	CPUCores           float64  `json:"cpu_cores"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.

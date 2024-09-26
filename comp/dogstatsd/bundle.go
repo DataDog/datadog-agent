@@ -17,12 +17,12 @@ import (
 // team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(params server.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		serverdebugimpl.Module(),
 		replayfx.Module(),
 		pidmapimpl.Module(),
-		server.Module())
+		server.Module(params))
 }
 
 // ClientBundle defines the fx options for this bundle.

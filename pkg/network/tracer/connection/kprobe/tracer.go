@@ -29,15 +29,11 @@ import (
 
 const probeUID = "net"
 
-//nolint:revive // TODO(NET) Fix revive linter
 type TracerType int
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypePrebuilt TracerType = iota
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeRuntimeCompiled
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeCORE
 )
 

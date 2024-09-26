@@ -95,8 +95,7 @@ func TestPodWatcherStartStop(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pw := newPodWatcher(wlm, nil)
 	ctx, cancel := context.WithCancel(context.Background())

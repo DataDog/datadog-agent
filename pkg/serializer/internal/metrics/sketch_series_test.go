@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -97,7 +97,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := SketchSeriesList{SketchesSource: metrics.NewSketchesSourceTest()}
 			payload, _ := sl.Marshal()
@@ -126,7 +126,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
@@ -174,7 +174,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 
@@ -230,7 +230,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedSize)
 
@@ -297,7 +297,7 @@ func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			sl := metrics.NewSketchesSourceTest()
 

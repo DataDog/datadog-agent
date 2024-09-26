@@ -27,7 +27,7 @@ var _ EventHandler = new(RingBufferHandler)
 type RingBufferHandler struct {
 	RecordGetter func() *ringbuf.Record
 
-	dataChannel chan *DataEvent
+	dataChannel chan DataEvent
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
@@ -39,7 +39,7 @@ func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
 		RecordGetter: func() *ringbuf.Record {
 			return ringPool.Get()
 		},
-		dataChannel: make(chan *DataEvent, dataChannelSize),
+		dataChannel: make(chan DataEvent, dataChannelSize),
 		// This channel is not really used in the context of ring buffers but
 		// it's here so `RingBufferHandler` and `PerfHandler` can be used
 		// interchangeably
@@ -53,11 +53,11 @@ func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.Rin
 		return
 	}
 
-	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record}
+	c.dataChannel <- DataEvent{Data: record.RawSample, rr: record}
 }
 
 // DataChannel returns the channel with event data
-func (c *RingBufferHandler) DataChannel() <-chan *DataEvent {
+func (c *RingBufferHandler) DataChannel() <-chan DataEvent {
 	return c.dataChannel
 }
 

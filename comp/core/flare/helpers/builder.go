@@ -174,6 +174,14 @@ func (fb *builder) logError(format string, params ...interface{}) error {
 	return err
 }
 
+func (fb *builder) Logf(format string, params ...interface{}) error {
+	_, err := fb.logFile.WriteString(fmt.Sprintf(format, params...) + "\n")
+	if err != nil {
+		return fb.logError("error writing log: %v", err)
+	}
+	return nil
+}
+
 func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) error {
 	content, err := cb()
 	if err != nil {

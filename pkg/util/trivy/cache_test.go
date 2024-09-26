@@ -239,8 +239,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	image1 := &workloadmeta.ContainerImageMetadata{
@@ -398,7 +397,6 @@ type cacheDeps struct {
 func createCacheDeps(t *testing.T) cacheDeps {
 	return fxutil.Test[cacheDeps](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }

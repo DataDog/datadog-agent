@@ -36,30 +36,6 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     return 0;
 }
 
-int __attribute__((always_inline)) handle_discard_pid(void *data) {
-    if (!is_runtime_request()) {
-        return 0;
-    }
-
-    struct discard_pid_t discarder;
-    bpf_probe_read(&discarder, sizeof(discarder), data);
-
-    return discard_pid(discarder.req.event_type, discarder.pid, discarder.req.timeout);
-}
-
-int __attribute__((always_inline)) handle_expire_pid_discarder(void *data) {
-    if (!is_runtime_request()) {
-        return 0;
-    }
-
-    u32 pid;
-    bpf_probe_read(&pid, sizeof(pid), data);
-
-    expire_pid_discarder(pid);
-
-    return 0;
-}
-
 int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
     if (!is_runtime_request()) {
         return 0;
@@ -116,8 +92,6 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     switch (op) {
     case DISCARD_INODE_OP:
         return handle_discard_inode(data);
-    case DISCARD_PID_OP:
-        return handle_discard_pid(data);
     case RESOLVE_PATH_OP:
         return handle_dr_request(ctx, data, DR_ERPC_KEY);
     case USER_SESSION_CONTEXT_OP:
@@ -126,8 +100,6 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_register_span_memory(data);
     case EXPIRE_INODE_DISCARDER_OP:
         return handle_expire_inode_discarder(data);
-    case EXPIRE_PID_DISCARDER_OP:
-        return handle_expire_pid_discarder(data);
     case BUMP_DISCARDERS_REVISION:
         return handle_bump_discarders_revision(data);
 #if USE_RING_BUFFER == 1

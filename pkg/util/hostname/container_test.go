@@ -12,18 +12,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFromContainerNotContainerized(t *testing.T) {
 	defer func() {
-		configIsContainerized = config.IsContainerized
+		configIsContainerized = env.IsContainerized
 	}()
 	configIsContainerized = func() bool { return false }
 
@@ -33,16 +32,16 @@ func TestFromContainerNotContainerized(t *testing.T) {
 
 func TestFromContainer(t *testing.T) {
 	defer func() {
-		configIsContainerized = config.IsContainerized
-		configIsFeaturePresent = config.IsFeaturePresent
+		configIsContainerized = env.IsContainerized
+		configIsFeaturePresent = env.IsFeaturePresent
 		kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
 		dockerGetHostname = docker.GetHostname
 		kubeletGetHostname = kubelet.GetHostname
 	}()
 
 	configIsContainerized = func() bool { return true }
-	enabledFeature := config.Kubernetes
-	configIsFeaturePresent = func(f config.Feature) bool { return f == enabledFeature }
+	enabledFeature := env.Kubernetes
+	configIsFeaturePresent = func(f env.Feature) bool { return f == enabledFeature }
 	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "kubernetes-hostname", nil }
 	dockerGetHostname = func(context.Context) (string, error) { return "docker-hostname", nil }
 	kubeletGetHostname = func(context.Context) (string, error) { return "kubelet-hostname", nil }
@@ -67,7 +66,7 @@ func TestFromContainer(t *testing.T) {
 	assert.Error(t, err)
 
 	// Docker
-	enabledFeature = config.Docker
+	enabledFeature = env.Docker
 
 	hostname, err = fromContainer(ctx, "")
 	require.NoError(t, err)
@@ -80,15 +79,15 @@ func TestFromContainer(t *testing.T) {
 
 func TestFromContainerInvalidHostname(t *testing.T) {
 	defer func() {
-		configIsContainerized = config.IsContainerized
-		configIsFeaturePresent = config.IsFeaturePresent
+		configIsContainerized = env.IsContainerized
+		configIsFeaturePresent = env.IsFeaturePresent
 		kubernetesGetKubeAPIServerHostname = kubernetes.GetKubeAPIServerHostname
 		dockerGetHostname = docker.GetHostname
 		kubeletGetHostname = kubelet.GetHostname
 	}()
 
 	configIsContainerized = func() bool { return true }
-	configIsFeaturePresent = func(config.Feature) bool { return true }
+	configIsFeaturePresent = func(env.Feature) bool { return true }
 	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	dockerGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	kubeletGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }

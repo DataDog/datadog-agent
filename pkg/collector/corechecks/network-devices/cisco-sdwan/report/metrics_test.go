@@ -167,7 +167,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_drops", 65, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_drops", 2, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
 	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
@@ -178,7 +178,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
 	require.Equal(t, map[string]float64{
-		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10,dd.internal.resource:ndm_interface_user_tags:my-ns:10.0.0.1:10": 10000,
 	}, sender.lastTimeSent)
 }
 

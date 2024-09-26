@@ -11,6 +11,7 @@ package container
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -60,14 +61,17 @@ type Launcher struct {
 	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
 
 	wmeta optional.Option[workloadmeta.Component]
+
+	tagger tagger.Component
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component]) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component], tagger tagger.Component) *Launcher {
 	launcher := &Launcher{
 		sources: sources,
 		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
 		wmeta:   wmeta,
+		tagger:  tagger,
 	}
 	return launcher
 }
@@ -81,7 +85,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 
-	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta)
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta, l.tagger)
 	go l.run(ctx, sourceProvider)
 }
 

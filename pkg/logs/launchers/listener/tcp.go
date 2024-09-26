@@ -72,7 +72,9 @@ func (l *TCPListener) Stop() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stop <- struct{}{}
-	l.listener.Close()
+	if l.listener != nil {
+		l.listener.Close()
+	}
 	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {
 		stopper.Add(tailer)

@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -25,7 +24,7 @@ import "C"
 
 func testSubmitMetric(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -101,7 +100,7 @@ func testSubmitMetric(t *testing.T) {
 
 func testSubmitMetricEmptyTags(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -121,7 +120,7 @@ func testSubmitMetricEmptyTags(t *testing.T) {
 
 func testSubmitMetricEmptyHostname(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -141,7 +140,7 @@ func testSubmitMetricEmptyHostname(t *testing.T) {
 
 func testSubmitServiceCheck(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -160,7 +159,7 @@ func testSubmitServiceCheck(t *testing.T) {
 
 func testSubmitServiceCheckEmptyTag(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -179,7 +178,7 @@ func testSubmitServiceCheckEmptyTag(t *testing.T) {
 
 func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -198,7 +197,7 @@ func testSubmitServiceCheckEmptyHostame(t *testing.T) {
 
 func testSubmitEvent(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -235,7 +234,7 @@ func testSubmitEvent(t *testing.T) {
 
 func testSubmitHistogramBucket(t *testing.T) {
 	sender := mocksender.NewMockSender(checkid.ID("testID"))
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 
@@ -259,7 +258,7 @@ func testSubmitHistogramBucket(t *testing.T) {
 
 func testSubmitEventPlatformEvent(t *testing.T) {
 	sender := mocksender.NewMockSender("testID")
-	logReceiver := optional.NewOption(mock.Mock())
+	logReceiver := optional.NewNoneOption[integrations.Component]()
 	release := scopeInitCheckContext(sender.GetSenderManager(), logReceiver)
 	defer release()
 

@@ -16,6 +16,7 @@ from invoke.context import Context
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
+from tasks.testwasher import FLAKY_TEST_INDICATOR
 
 
 def load_and_validate(
@@ -68,6 +69,8 @@ def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWN
     except gitlab.exceptions.GitlabGetError:
         test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
+    known_flaky_tests = {}
+
     if test_output:
         for line in test_output.splitlines():
             json_test = json.loads(line)
@@ -84,10 +87,21 @@ def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWN
                     # we yield here to merge child Test objects with their parents.
                     if '/' in name:  # Subtests have a name of the form "Test/Subtest"
                         continue
+
                     failed_tests[(package, name)] = Test(owners, name, package)
                 elif action == "pass" and (package, name) in failed_tests:
                     print(f"Test {name} from package {package} passed after retry, removing from output")
                     del failed_tests[(package, name)]
+                elif action == "output":
+                    # Register flaky tests
+                    if FLAKY_TEST_INDICATOR in json_test['Output']:
+                        known_flaky_tests[(package, name)] = Test(owners, name, package)
+
+    # Skip flaky tests
+    for package, name in known_flaky_tests.keys():
+        if (package, name) in failed_tests:
+            print(f"Test {name} from package {package} is flaky, removing from output")
+            del failed_tests[(package, name)]
 
     return failed_tests.values()
 

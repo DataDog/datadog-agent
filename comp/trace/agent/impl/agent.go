@@ -30,7 +30,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -161,7 +161,7 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 	}
 	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
 
-	cgmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	cgmem, err := agentrt.SetGoMemLimit(env.IsContainerized())
 	if err != nil {
 		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
 	}
