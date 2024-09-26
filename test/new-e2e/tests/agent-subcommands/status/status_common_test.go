@@ -6,6 +6,7 @@
 package status
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 	"time"
@@ -16,6 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+//go:embed fixtures/custom_check.yaml
+var customCheckYaml []byte
+
+//go:embed fixtures/custom_check.py
+var customCheckPython []byte
 
 type baseStatusSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -100,9 +107,13 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 			shouldBePresent: false,
 		},
 		{
-			name:             "Collector",
-			shouldBePresent:  true,
-			shouldContain:    []string{"Instance ID:", "[OK]"},
+			name:            "Collector",
+			shouldBePresent: true,
+			shouldContain: []string{"Instance ID:", "[OK]",
+				// Following lines check the presence of checks metadata
+				"metadata:",
+				"custom_metadata_key: custom_metadata_value",
+			},
 			shouldNotContain: []string{"Errors"},
 		},
 		{

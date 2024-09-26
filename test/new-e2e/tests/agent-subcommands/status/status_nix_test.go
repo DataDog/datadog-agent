@@ -22,7 +22,10 @@ type linuxStatusSuite struct {
 
 func TestLinuxStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
+		agentparams.WithFile("/etc/datadog-agent/conf.d/custom_check.yaml", string(customCheckYaml), true),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
+	))))
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
