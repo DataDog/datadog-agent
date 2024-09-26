@@ -9,6 +9,7 @@ package bootstraper
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -17,17 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-const (
-	installerPackage = "datadog-installer"
-)
-
 // Bootstrap bootstraps the installer and uses it to install the default packages.
 func Bootstrap(ctx context.Context, env *env.Env) error {
 	version := "latest"
-	if env.DefaultPackagesVersionOverride[installerPackage] != "" {
-		version = env.DefaultPackagesVersionOverride[installerPackage]
+	if env.DefaultPackagesVersionOverride[bootstrap.InstallerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[bootstrap.InstallerPackage]
 	}
-	installerURL := oci.PackageURL(env, installerPackage, version)
+	installerURL := oci.PackageURL(env, bootstrap.InstallerPackage, version)
 	err := bootstrap.Install(ctx, env, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
@@ -37,7 +34,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 
 // InstallDefaultPackages installs the default packages.
 func InstallDefaultPackages(ctx context.Context, env *env.Env) error {
-	cmd := exec.NewInstallerExec(env, exec.StableInstallerPath)
+	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get default packages: %w", err)
