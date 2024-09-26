@@ -221,7 +221,7 @@ func installDefaultCommand() *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:     "install-default",
-		Short:   "Install and setup the default packages.",
+		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			b := newBootstraperCmd("install-default")
