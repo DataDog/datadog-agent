@@ -144,6 +144,7 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	data := make([]byte, 2*1024*1024)
 	file.Write(data)
 	info, err = file.Stat()
+	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
 	file.Close()
 
