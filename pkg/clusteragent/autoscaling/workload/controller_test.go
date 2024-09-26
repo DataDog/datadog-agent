@@ -372,47 +372,51 @@ func TestLeaderCreateDeleteLocalHeap(t *testing.T) {
 		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
 	}
 
+	currentNs := common.GetMyNamespace()
+	dpaID := fmt.Sprintf("%s/dpa-0", currentNs)
+	dpa1ID := fmt.Sprintf("%s/dpa-1", currentNs)
+	dpa2ID := fmt.Sprintf("%s/dpa-2", currentNs)
+
 	dpaTime := testTime.Add(-1 * time.Hour)
 	dpa1Time := testTime
 	dpa2Time := testTime.Add(1 * time.Hour)
 
 	// Read newly created DPA
-	dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, dpaTime, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
-	dpa1, dpaTyped1 := newFakePodAutoscaler("default", "dpa-1", 1, dpa1Time, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
-	dpa2, dpaTyped2 := newFakePodAutoscaler("default", "dpa-2", 1, dpa2Time, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+	dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-0", 1, dpaTime, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+	dpa1, dpaTyped1 := newFakePodAutoscaler(currentNs, "dpa-1", 1, dpa1Time, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+	dpa2, dpaTyped2 := newFakePodAutoscaler(currentNs, "dpa-2", 1, dpa2Time, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
 
 	f.InformerObjects = append(f.InformerObjects, dpa, dpa1)
 	f.Objects = append(f.Objects, dpaTyped, dpaTyped1)
 
-	f.RunControllerSync(true, "default/dpa-1")
+	f.RunControllerSync(true, dpa1ID)
 	// Check that DatadogPodAutoscaler object is inserted into heap
 	assert.Equal(t, 1, f.autoscalingHeap.MaxHeap.Len())
-	assert.Equal(t, "default/dpa-1", f.autoscalingHeap.MaxHeap.Peek().Key)
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to be in heap")
+	assert.Equal(t, dpa1ID, f.autoscalingHeap.MaxHeap.Peek().Key)
+	assert.Truef(t, f.autoscalingHeap.Keys[dpa1ID], "Expected dpa-1 to be in heap")
 
 	f.InformerObjects = append(f.InformerObjects, dpa2)
 	f.Objects = append(f.Objects, dpaTyped2)
 	// Check that multiple objects can be inserted with ordering preserved
-	f.RunControllerSync(true, "default/dpa-2")
+	f.RunControllerSync(true, dpa2ID)
 	assert.Equal(t, 2, f.autoscalingHeap.MaxHeap.Len())
-	assert.Equal(t, "default/dpa-2", f.autoscalingHeap.MaxHeap.Peek().Key)
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to be in heap")
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
+	assert.Equal(t, dpa2ID, f.autoscalingHeap.MaxHeap.Peek().Key)
+	assert.Truef(t, f.autoscalingHeap.Keys[dpa1ID], "Expected dpa-1 to be in heap")
+	assert.Truef(t, f.autoscalingHeap.Keys[dpa2ID], "Expected dpa-2 to be in heap")
 
-	f.RunControllerSync(true, "default/dpa-0")
+	f.RunControllerSync(true, dpaID)
 	// Check that heap ordering is preserved and limit is not exceeeded
 	assert.Equal(t, 2, f.autoscalingHeap.MaxHeap.Len())
-	assert.Equal(t, "default/dpa-1", f.autoscalingHeap.MaxHeap.Peek().Key)
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to be in heap")
-	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to not be in heap")
+	assert.Equal(t, dpa1ID, f.autoscalingHeap.MaxHeap.Peek().Key)
+	assert.Truef(t, f.autoscalingHeap.Keys[dpaID], "Expected dpa-0 to be in heap")
+	assert.Truef(t, f.autoscalingHeap.Keys[dpa1ID], "Expected dpa-1 to be in heap")
+	assert.Falsef(t, f.autoscalingHeap.Keys[dpa2ID], "Expected dpa-2 to not be in heap")
 
 	// Check that when object (dpa1) is deleted from Kubernetes, heap is updated accordingly
 	f.InformerObjects = nil
 	f.Objects = nil
-	f.RunControllerSync(true, "default/dpa-1")
+	f.RunControllerSync(true, dpa1ID)
 
-	currentNs := common.GetMyNamespace()
 	dpaStatusUpdate := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DatadogPodAutoscaler",
@@ -480,11 +484,11 @@ func TestLeaderCreateDeleteLocalHeap(t *testing.T) {
 	assert.Len(t, f.store.GetAll(), 2)
 	f.InformerObjects = append(f.InformerObjects, dpa2)
 	f.Objects = append(f.Objects, dpaTyped2)
-	f.RunControllerSync(true, "default/dpa-2")
+	f.RunControllerSync(true, dpa2ID)
 
 	assert.Equal(t, 2, f.autoscalingHeap.MaxHeap.Len())
-	assert.Equal(t, "default/dpa-2", f.autoscalingHeap.MaxHeap.Peek().Key)
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
-	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
-	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
+	assert.Equal(t, dpa2ID, f.autoscalingHeap.MaxHeap.Peek().Key)
+	assert.Truef(t, f.autoscalingHeap.Keys[dpaID], "Expected dpa-0 to be in heap")
+	assert.Falsef(t, f.autoscalingHeap.Keys[dpa1ID], "Expected dpa-1 to not be in heap")
+	assert.Truef(t, f.autoscalingHeap.Keys[dpa2ID], "Expected dpa-2 to be in heap")
 }
