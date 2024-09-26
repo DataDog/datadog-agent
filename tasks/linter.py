@@ -613,7 +613,9 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+        if "rules" in config[test] and not any(
+            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+        ):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
             else:

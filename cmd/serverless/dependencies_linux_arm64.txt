@@ -144,6 +144,7 @@ github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
 github.com/DataDog/datadog-agent/pkg/config/setup
 github.com/DataDog/datadog-agent/pkg/config/setup/constants
+github.com/DataDog/datadog-agent/pkg/config/structure
 github.com/DataDog/datadog-agent/pkg/config/utils
 github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis
 github.com/DataDog/datadog-agent/pkg/errors

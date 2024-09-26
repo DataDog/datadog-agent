@@ -29,7 +29,7 @@ const (
 	AUIDApproverType = "auid"
 )
 
-type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, error)
+type kfiltersGetter func(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error)
 
 // KFilterGetters var contains all the kfilter getters
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
@@ -104,7 +104,9 @@ func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) 
 	return newKFilterWithUInt64Flags(tableName, flags...)
 }
 
-func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]activeKFilter, error) {
+func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]activeKFilter, []eval.Field, error) {
+	var fieldHandled []eval.Field
+
 	stringValues := func(fvs rules.FilterValues) []string {
 		var values []string
 		for _, v := range fvs {
@@ -124,36 +126,50 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 		case prefix + model.NameSuffix:
 			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, stringValues(values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, activeKFilters...)
-
+			fieldHandled = append(fieldHandled, field)
 		case prefix + model.PathSuffix:
 			for _, value := range stringValues(values) {
 				basename := path.Base(value)
 				activeKFilter, err := newBasenameKFilter(BasenameApproverKernelMapName, eventType, basename)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				kfilters = append(kfilters, activeKFilter)
 			}
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
 
-	return kfilters, nil
+	return kfilters, fieldHandled, nil
 }
 
-func fimKFiltersGetter(event model.EventType, fields []eval.Field) kfiltersGetter {
-	return func(approvers rules.Approvers) (ActiveKFilters, error) {
-		var kfilters []activeKFilter
+func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersGetter {
+	return func(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+		var (
+			kfilters     []activeKFilter
+			fieldHandled []eval.Field
+		)
+
 		for _, field := range fields {
-			kfilter, err := getBasenameKFilters(event, field, approvers)
+			kfilter, handled, err := getBasenameKFilters(eventType, field, approvers)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter...)
+			fieldHandled = append(fieldHandled, handled...)
 		}
-		return newActiveKFilters(kfilters...), nil
+
+		kfs, handled, err := getProcessKFilters(model.FileOpenEventType, approvers)
+		if err != nil {
+			return nil, nil, err
+		}
+		kfilters = append(kfilters, kfs...)
+		fieldHandled = append(fieldHandled, handled...)
+
+		return newActiveKFilters(kfilters...), fieldHandled, nil
 	}
 }
 
