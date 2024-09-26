@@ -32,6 +32,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	return InstallDefaultPackages(ctx, env)
 }
 
+// InstallDefaultPackages installs the default packages.
 func InstallDefaultPackages(ctx context.Context, env *env.Env) error {
 	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
 	defaultPackages, err := cmd.DefaultPackages(ctx)
