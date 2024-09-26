@@ -84,3 +84,12 @@ func testSetExternalTags(t *testing.T) {
 		"- - test_hostname\n  - test_source_type:\n    - tag1\n    - tag2\n",
 		string(yamlPayload))
 }
+
+func testEmitAgentTelemetry(t *testing.T) {
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+
+	// Test second time for laziness check
+	// EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+
+	assert.True(t, true)
+}

@@ -361,5 +361,13 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 
 //export emitAgentTelemetry
 func emitAgentTelemetry(check *C.char, metric *C.char, value C.float, metricType *C.char) {
-	// NOOP
+	checkName := C.GoString(check)
+	metricName := C.GoString(metric)
+	metricValue := float64(value)
+	metricTypeStr := C.GoString(metricType)
+
+	// Check that arguments passed over the bridge successfully
+	if checkName != "test_check" || metricName != "test_metric" || metricValue != 1.0 || (metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram") {
+		panic("unexpected arguments")
+	}
 }
