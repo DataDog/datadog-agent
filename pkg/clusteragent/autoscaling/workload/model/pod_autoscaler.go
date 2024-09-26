@@ -276,6 +276,11 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 	}
 }
 
+// UpdateCreationTimestamp updates the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) UpdateCreationTimestamp(creationTimestamp time.Time) {
+	p.creationTimestamp = creationTimestamp
+}
+
 //
 // Getters
 //
