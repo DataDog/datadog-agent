@@ -32,5 +32,9 @@ build do
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
+
+    # Remove the debug information
+    command "strip lib/libjemalloc.so.2"
+
     command "make -j #{workers} install"
 end
