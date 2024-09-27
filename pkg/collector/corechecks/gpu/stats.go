@@ -7,52 +7,68 @@ package gpu
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StatsProcessor is responsible for processing the data from the GPU eBPF probe and generating metrics from it
 type StatsProcessor struct {
-	key                    *model.StreamKey
+	// key is the key of the stream this processor is processing
+	key *model.StreamKey
+
+	// totalThreadSecondsUsed is the total amount of thread-seconds used by the GPU in the current interval
 	totalThreadSecondsUsed float64
-	sender                 sender.Sender
-	gpuMaxThreads          int
-	lastCheck              time.Time
-	measuredInterval       time.Duration
-	timeResolver           *sectime.Resolver
-	currentAllocs          []*model.MemoryAllocation
-	pastAllocs             []*model.MemoryAllocation
-	lastKernelEnd          time.Time
-	firstKernelStart       time.Time
-	sentEvents             int
+
+	// sender is the sender to use to send metrics
+	sender sender.Sender
+
+	// gpuMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization computations
+	gpuMaxThreads int
+
+	// lastCheck is the last time the processor was checked
+	lastCheck time.Time
+
+	// measuredInterval is the interval between the last two checks
+	measuredInterval time.Duration
+
+	// timeResolver is the time resolver to use to resolve timestamps
+	timeResolver *sectime.Resolver
+
+	// currentAllocs is the list of current memory allocations
+	currentAllocs []*model.MemoryAllocation
+
+	// pastAllocs is the list of past memory allocations
+	pastAllocs []*model.MemoryAllocation
+
+	// lastKernelEnd is the timestamp of the last kernel end
+	lastKernelEnd time.Time
+
+	// firstKernelStart is the timestamp of the first kernel start
+	firstKernelStart time.Time
+
+	// sentEvents is the number of events sent by this processor
+	sentEvents int
+
+	// maxTimestampLastMetric is the maximum timestamp of the last metric sent
 	maxTimestampLastMetric time.Time
-	utilizationNormFactor  float64
+
+	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
+	// allows distributing the utilization over all the streams that are enqueued
+	utilizationNormFactor float64
 }
 
-func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bool) {
-	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.Start)
-	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.End)
+// processKernelSpan processes a kernel span
+func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan) {
+	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
+	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
 
 	if sp.firstKernelStart.IsZero() || tsStart.Before(sp.firstKernelStart) {
 		sp.firstKernelStart = tsStart
-	}
-
-	realDuration := tsEnd.Sub(tsStart)
-	event := event.Event{
-		SourceTypeName: CheckName,
-		EventType:      "gpu-kernel",
-		Title:          "GPU kernel launch",
-		Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s, pid=%d", tsStart, tsEnd, span.AvgThreadCount, realDuration, sp.key.Pid),
-		Ts:             tsStart.Unix(),
-	}
-	fmt.Printf("spanev: %v\n", event)
-
-	if sendEvent {
-		sp.sender.Event(event)
 	}
 
 	// we only want to consider data that was not already processed in the previous interval
@@ -66,53 +82,47 @@ func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bo
 	}
 }
 
-func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
+func (sp *StatsProcessor) processPastData(data *model.StreamData) {
 	for _, span := range data.Spans {
-		sp.processKernelSpan(span, true)
+		sp.processKernelSpan(span)
 	}
 
 	for _, span := range data.Allocations {
-		ev := event.Event{
-			AlertType:      event.AlertTypeInfo,
-			Priority:       event.PriorityLow,
-			AggregationKey: "gpu-0",
-			SourceTypeName: CheckName,
-			EventType:      "gpu-memory",
-			Title:          fmt.Sprintf("GPU mem alloc size %d", span.Size),
-			Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
-			Ts:             sp.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
-		}
-
+		// Send events on memory leak
 		if span.IsLeaked {
-			ev.Priority = event.PriorityNormal
-			ev.AlertType = event.AlertTypeWarning
-			ev.Title += " (leaked)"
-		}
+			start := sp.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
+			end := sp.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
 
-		fmt.Printf("memev: %v\n", ev)
-		sp.sender.Event(ev)
+			ev := event.Event{
+				AlertType:      event.AlertTypeWarning,
+				Priority:       event.PriorityNormal,
+				SourceTypeName: CheckName,
+				EventType:      "gpu-memory-leak",
+				Title:          "Leaked GPU memory allocation",
+				Text:           fmt.Sprintf("PID %d leaked %d bytes of memory, allocated at time %s", sp.key.Pid, span.Size, start),
+				Ts:             end.Unix(),
+			}
+
+			sp.sender.Event(ev)
+		}
 	}
 
 	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
 }
 
-func (sp *StatsProcessor) processCurrentData(data *model.StreamCurrentData) {
-	if data.Span != nil {
-		sp.processKernelSpan(data.Span, false)
+func (sp *StatsProcessor) processCurrentData(data *model.StreamData) {
+	for _, span := range data.Spans {
+		sp.processKernelSpan(span)
 	}
 
-	sp.currentAllocs = data.CurrentAllocations
+	sp.currentAllocs = data.Allocations
 }
 
+// getTags returns the tags to use for the metrics
 func (sp *StatsProcessor) getTags() []string {
 	return []string{
 		fmt.Sprintf("pid:%d", sp.key.Pid),
 	}
-}
-
-type memAllocTsPoint struct {
-	ts   uint64
-	size int64
 }
 
 func (sp *StatsProcessor) getGPUUtilization() float64 {
@@ -133,7 +143,6 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 	intervalSecs := sp.measuredInterval.Seconds()
 	if intervalSecs > 0 {
 		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor
-		fmt.Printf("GPU utilization: %f, totalUsed %f\n", utilization, sp.totalThreadSecondsUsed)
 
 		if sp.sentEvents == 0 {
 			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
@@ -145,59 +154,45 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 		}
 	}
 
-	fmt.Printf("past: %+v, current: %+v\n", sp.pastAllocs, sp.currentAllocs)
+	var memTsBuilder tseriesBuilder
 
-	points := make([]memAllocTsPoint, 0, len(sp.currentAllocs)+2*len(sp.pastAllocs))
 	for _, alloc := range sp.currentAllocs {
-		points = append(points, memAllocTsPoint{ts: alloc.Start, size: int64(alloc.Size)})
+		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
+		memTsBuilder.AddEventStart(uint64(startEpoch), int64(alloc.Size))
 	}
+
 	for _, alloc := range sp.pastAllocs {
-		points = append(points, memAllocTsPoint{ts: alloc.Start, size: int64(alloc.Size)})
-		points = append(points, memAllocTsPoint{ts: alloc.End, size: -int64(alloc.Size)})
-	}
-
-	// sort by timestamp. Stable so that allocations that start and end at the same time are processed in the order they were added
-	slices.SortStableFunc(points, func(a, b memAllocTsPoint) int {
-		return int(a.ts - b.ts)
-	})
-
-	currentMemory := int64(0)
-	maxMemory := int64(0)
-	pointsPerSecond := make([]memAllocTsPoint, 0)
-	for i := range points {
-		tsEpochCurrent := sp.timeResolver.ResolveMonotonicTimestamp(points[i].ts).Unix()
-		if i > 0 {
-			tsEpochPrev := int64(pointsPerSecond[len(pointsPerSecond)-1].ts)
-			if tsEpochCurrent != tsEpochPrev {
-				pointsPerSecond = append(pointsPerSecond, memAllocTsPoint{ts: uint64(tsEpochCurrent), size: 0})
-			}
-		} else if i == 0 {
-			pointsPerSecond = append(pointsPerSecond, memAllocTsPoint{ts: uint64(tsEpochCurrent), size: 0})
-		}
-
-		pointsPerSecond[len(pointsPerSecond)-1].size += points[i].size
-		currentMemory += points[i].size
-		maxMemory = max(maxMemory, currentMemory)
+		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
+		endEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
+		memTsBuilder.AddEvent(uint64(startEpoch), uint64(endEpoch), int64(alloc.Size))
 	}
 
 	lastCheckEpoch := sp.lastCheck.Unix()
-	fmt.Printf("GPU memory: %d, max %d, lastCheckEpoch: %d, points: %+v\n", currentMemory, maxMemory, lastCheckEpoch, pointsPerSecond)
 
-	totalMemBytes := 0
-	for _, point := range pointsPerSecond {
-		hadMemory := totalMemBytes > 0
-		totalMemBytes += int(point.size)
-		if point.ts > uint64(lastCheckEpoch) && (totalMemBytes > 0 || hadMemory) {
-			fmt.Printf("gjulian.cudapoc.memory: %d, ts %d\n", totalMemBytes, point.ts)
-			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", float64(totalMemBytes), "", sp.getTags(), float64(point.ts))
-			if int64(point.ts) > sp.maxTimestampLastMetric.Unix() {
-				sp.maxTimestampLastMetric = time.Unix(int64(point.ts), 0)
+	points, maxValue := memTsBuilder.Build()
+	tags := sp.getTags()
+	sentPoints := false
+
+	for _, point := range points {
+		// Do not send points that are before the last check, those have been already sent
+		// Also do not send points that are 0, unless we have already sent some points, in which case
+		// we need them to close the series
+		if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
+			err := sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", float64(point.value), "", tags, float64(point.time))
+			if err != nil {
+				log.Errorf("cannot send metric: %v", err)
+				continue
 			}
+
+			if int64(point.time) > sp.maxTimestampLastMetric.Unix() {
+				sp.maxTimestampLastMetric = time.Unix(int64(point.time), 0)
+			}
+
+			sentPoints = true
 		}
 	}
 
-	fmt.Printf("gjulian.cudapoc.max_memory: %d\n", maxMemory)
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", float64(maxMemory), "", sp.getTags(), float64(now.Unix()))
+	sp.sender.Gauge("gjulian.cudapoc.max_memory", float64(maxValue), "", tags)
 	sp.sentEvents++
 }
 

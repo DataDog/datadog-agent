@@ -135,17 +135,6 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get GPU devices: %s", err)
 	}
 
-	for _, device := range gpuDevices {
-		cores, err := device.GetMaxThreads()
-		if err != nil {
-			return fmt.Errorf("get GPU device cores: %s", err)
-		}
-		name, ret := device.GetName()
-		if err := wrapNvmlError(ret); err != nil {
-			return fmt.Errorf("get GPU device name: %s", err)
-		}
-	}
-
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("get gpu check: %s", err)
@@ -168,6 +157,7 @@ func (m *Check) Run() error {
 		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
 	}
 
+	// TODO: Multiple GPUs are not supported yet
 	gpuThreads, err := gpuDevices[0].GetMaxThreads()
 	if err != nil {
 		return fmt.Errorf("get GPU device threads: %s", err)
