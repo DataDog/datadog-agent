@@ -358,7 +358,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 	}
 }
 
-func TestLeaderCreateDeleteLocalHeap(t *testing.T) {
+func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 	testTime := time.Now()
 	f := newFixture(t, testTime)
 
