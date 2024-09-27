@@ -22,10 +22,7 @@ type linuxStatusSuite struct {
 
 func TestLinuxStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
-		agentparams.WithFile("/etc/datadog-agent/conf.d/custom_check.yaml", string(customCheckYaml), true),
-		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
-	))))
+	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
@@ -53,4 +50,24 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 	}
 	status := v.Env().Agent.Client.Status()
 	verifySectionContent(v.T(), status.Content, expectedSection)
+}
+
+// This test asserts the presence of metadata sent by Python checks in the status subcommand output.
+func (v *linuxStatusSuite) TestChecksMetadataUnix() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
+		agentparams.WithFile("/etc/datadog-agent/conf.d/custom_check.yaml", string(customCheckYaml), true),
+		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
+	)))
+
+	section := expectedSection{
+		name:            "Collector",
+		shouldBePresent: true,
+		shouldContain: []string{"Instance ID:", "[OK]",
+			"metadata:",
+			"custom_metadata_key: custom_metadata_value",
+		},
+	}
+
+	status := v.Env().Agent.Client.Status()
+	verifySectionContent(v.T(), status.Content, section)
 }

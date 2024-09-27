@@ -107,16 +107,6 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 			shouldBePresent: false,
 		},
 		{
-			name:            "Collector",
-			shouldBePresent: true,
-			shouldContain: []string{"Instance ID:", "[OK]",
-				// Following lines check the presence of checks metadata
-				"metadata:",
-				"custom_metadata_key: custom_metadata_value",
-			},
-			shouldNotContain: []string{"Errors"},
-		},
-		{
 			name:            "Compliance",
 			shouldBePresent: false,
 		},

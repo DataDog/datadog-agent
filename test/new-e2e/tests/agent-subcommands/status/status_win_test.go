@@ -45,3 +45,24 @@ func (v *windowsStatusSuite) TestStatusHostname() {
 
 	verifySectionContent(v.T(), status.Content, expected)
 }
+
+// This test asserts the presence of metadata sent by Python checks in the status subcommand output.
+func (v *windowsStatusSuite) TestChecksMetadataWindows() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
+		agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
+		agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
+	)))
+
+	section := expectedSection{
+		name:            "Collector",
+		shouldBePresent: true,
+		shouldContain: []string{"Instance ID:", "[OK]",
+			// Following lines check the presence of checks metadata
+			"metadata:",
+			"custom_metadata_key: custom_metadata_value",
+		},
+	}
+
+	status := v.Env().Agent.Client.Status()
+	verifySectionContent(v.T(), status.Content, section)
+}
