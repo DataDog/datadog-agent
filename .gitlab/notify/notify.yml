@@ -179,7 +179,7 @@ close_failing_tests_stale_issues:
     # Weekly on Friday
     - |
       if [ "$weekday" != "Friday" ]; then
-        echo "This script is run weekly on Friday"
+        echo "This script is run weekly on Fridays"
         exit
       fi
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
