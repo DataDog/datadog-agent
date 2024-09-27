@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Process Agent argument scrubbing to account for spaces in quotes arguments.
