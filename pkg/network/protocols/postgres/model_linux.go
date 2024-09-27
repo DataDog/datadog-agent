@@ -21,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// EmptyParameters represents the case where the non-empty query has no parameters
+	EmptyParameters = "EMPTY_PARAMETERS"
+)
+
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (operation and table name) multiple times.
 type EventWrapper struct {
@@ -78,11 +83,14 @@ func (e *EventWrapper) extractParameters() string {
 	b := getFragment(&e.Tx)
 	idxParam := bytes.IndexByte(b, ' ') // trim the string to a space, it will give the parameter
 	if idxParam == -1 {
-		return "EMPTY_PARAMETERS"
+		return EmptyParameters
 	}
 	idxParam++
 
 	idxEnd := bytes.IndexByte(b[idxParam:], '\x00') // trim trailing nulls
+	if idxEnd == 0 {
+		return EmptyParameters
+	}
 	if idxEnd != -1 {
 		return string(b[idxParam : idxParam+idxEnd])
 	}
@@ -116,7 +124,7 @@ func (e *EventWrapper) extractTableName() string {
 // Parameters returns the table name or run-time parameter.
 func (e *EventWrapper) Parameters() string {
 	if !e.parametersSet {
-		if e.operation == ShowOP || e.operation == UnknownOP {
+		if e.operation == ShowOP {
 			e.parameters = e.extractParameters()
 		} else {
 			e.parameters = e.extractTableName()
