@@ -36,8 +36,9 @@ func (b *tseriesBuilder) Build() ([]tsPoint, int64) {
 	})
 
 	maxValue := int64(0)
+	currentValue := int64(0)
 
-	// Now we build the time series by summing the values at each point, accounting for the unit factor.
+	// Now we build the time series by doing a cumulative sum of the values at each point, accounting for the unit factor.
 	// Multiple points can end up at the same rounded timestamp.
 	tseries := make([]tsPoint, 0)
 	for i := range b.points {
@@ -45,22 +46,22 @@ func (b *tseriesBuilder) Build() ([]tsPoint, int64) {
 		currentRoundedTime := b.points[i].time
 		if i > 0 {
 			prevRoundedTime := tseries[len(tseries)-1].time
-			prevValue := tseries[len(tseries)-1].value
 
 			// We advanced past the last timeseries point, so create a new one
 			if currentRoundedTime != prevRoundedTime {
 				tseries = append(tseries, tsPoint{time: currentRoundedTime, value: 0})
-
-				// Update the maximum too
-				maxValue = max(maxValue, prevValue)
 			}
 		} else if i == 0 {
 			// Always add the first point
 			tseries = append(tseries, tsPoint{time: uint64(currentRoundedTime), value: 0})
 		}
 
-		// Update the current value
-		tseries[len(tseries)-1].value += b.points[i].value
+		// Update the current value for this point
+		currentValue += b.points[i].value
+
+		// assign it to the current point and update the maximum
+		tseries[len(tseries)-1].value = currentValue
+		maxValue = max(maxValue, currentValue)
 	}
 
 	return tseries, maxValue
