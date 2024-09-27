@@ -23,7 +23,6 @@ import (
 // to the appropriate stream handler.
 type CudaEventConsumer struct {
 	eventHandler   ddebpf.EventHandler
-	requests       chan chan struct{}
 	once           sync.Once
 	closed         chan struct{}
 	streamHandlers map[model.StreamKey]*StreamHandler
