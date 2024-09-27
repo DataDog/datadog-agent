@@ -99,7 +99,7 @@ func (m *Check) ensureInitialized() error {
 }
 
 // ensureProcessor ensures that there is a stats processor for the given key
-func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThreads int, checkDuration time.Duration) {
+func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThreads int, checkDuration time.Duration, metadata *model.StreamMetadata) {
 	if _, ok := m.statProcessors[key.Pid]; !ok {
 		m.statProcessors[key.Pid] = &StatsProcessor{
 			key: key,
@@ -112,6 +112,7 @@ func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThre
 	m.statProcessors[key.Pid].measuredInterval = checkDuration
 	m.statProcessors[key.Pid].timeResolver = m.timeResolver
 	m.statProcessors[key.Pid].lastCheck = m.lastCheckTime
+	m.statProcessors[key.Pid].metadata = metadata
 }
 
 // Run executes the check
@@ -163,13 +164,13 @@ func (m *Check) Run() error {
 	usedProcessors := make(map[uint32]bool)
 
 	for _, data := range stats.CurrentData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
+		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration, &data.Metadata)
 		m.statProcessors[data.Key.Pid].processCurrentData(data)
 		usedProcessors[data.Key.Pid] = true
 	}
 
 	for _, data := range stats.PastData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
+		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration, &data.Metadata)
 		m.statProcessors[data.Key.Pid].processPastData(data)
 		usedProcessors[data.Key.Pid] = true
 	}

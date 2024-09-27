@@ -68,6 +68,9 @@ type StatsProcessor struct {
 	// utilizationNormFactor is the factor to normalize the utilization by, to account for the fact that we might have more kernels enqueued than the GPU can run in parallel. This factor
 	// allows distributing the utilization over all the streams that are enqueued
 	utilizationNormFactor float64
+
+	// Metadata associated to this stream
+	metadata *model.StreamMetadata
 }
 
 // processKernelSpan processes a kernel span
@@ -130,6 +133,7 @@ func (sp *StatsProcessor) processCurrentData(data *model.StreamData) {
 func (sp *StatsProcessor) getTags() []string {
 	return []string{
 		fmt.Sprintf("pid:%d", sp.key.Pid),
+		fmt.Sprintf("container_id:%s", sp.metadata.ContainerID),
 	}
 }
 
