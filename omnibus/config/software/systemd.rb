@@ -32,8 +32,6 @@ source url: "https://github.com/systemd/systemd/archive/refs/tags/v#{version}.ta
 relative_path "#{name}-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
   # We only need the headers for coreos/go-systemd, and building
   # libsystemd itself would be fairly complicated as our toolchain doesn't
   # default include `/usr/include` in its default include path, while systemd
