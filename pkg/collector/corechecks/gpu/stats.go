@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // StatsProcessor is responsible for processing the data from the GPU eBPF probe and generating metrics from it
@@ -139,15 +138,21 @@ func (sp *StatsProcessor) setGPUUtilizationNormalizationFactor(factor float64) {
 	sp.utilizationNormFactor = factor
 }
 
-func (sp *StatsProcessor) markInterval(now time.Time) {
+func (sp *StatsProcessor) markInterval(now time.Time) error {
 	intervalSecs := sp.measuredInterval.Seconds()
 	if intervalSecs > 0 {
 		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor
 
 		if sp.sentEvents == 0 {
-			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
+			err := sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
+			if err != nil {
+				return fmt.Errorf("cannot send metric: %w", err)
+			}
 		}
-		sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
+		err := sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
+		if err != nil {
+			return fmt.Errorf("cannot send metric: %w", err)
+		}
 
 		if sp.lastKernelEnd.After(sp.maxTimestampLastMetric) {
 			sp.maxTimestampLastMetric = sp.lastKernelEnd
@@ -180,8 +185,7 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 		if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
 			err := sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", float64(point.value), "", tags, float64(point.time))
 			if err != nil {
-				log.Errorf("cannot send metric: %v", err)
-				continue
+				return fmt.Errorf("cannot send metric: %w", err)
 			}
 
 			if int64(point.time) > sp.maxTimestampLastMetric.Unix() {
@@ -194,10 +198,12 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 
 	sp.sender.Gauge("gjulian.cudapoc.max_memory", float64(maxValue), "", tags)
 	sp.sentEvents++
+
+	return nil
 }
 
 // finish ensures that all metrics sent by this processor are properly closed with a 0 value
-func (sp *StatsProcessor) finish(now time.Time) {
+func (sp *StatsProcessor) finish(now time.Time) error {
 	lastTs := now
 
 	// Don't mark events as lasting more than what they should.
@@ -205,7 +211,16 @@ func (sp *StatsProcessor) finish(now time.Time) {
 		lastTs = sp.maxTimestampLastMetric.Add(time.Second)
 	}
 
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	err := sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	if err != nil {
+		return fmt.Errorf("cannot send metric: %w", err)
+	}
+	err = sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	if err != nil {
+		return fmt.Errorf("cannot send metric: %w", err)
+	}
+	err = sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	if err != nil {
+		return fmt.Errorf("cannot send metric: %w", err)
+	}
 }

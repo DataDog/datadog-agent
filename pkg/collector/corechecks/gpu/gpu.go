@@ -190,10 +190,17 @@ func (m *Check) Run() error {
 	for _, processor := range m.statProcessors {
 		if usedProcessors[processor.key.Pid] {
 			processor.setGPUUtilizationNormalizationFactor(normFactor)
-			processor.markInterval(now)
+			err := processor.markInterval(now)
+			if err != nil {
+				return fmt.Errorf("mark interval: %s", err)
+			}
 		} else {
-			processor.finish(now)
+			err := processor.finish(now)
+			// delete even in an error case, as we don't want to keep the processor around
 			delete(m.statProcessors, processor.key.Pid)
+			if err != nil {
+				return fmt.Errorf("finish processor: %s", err)
+			}
 		}
 	}
 
