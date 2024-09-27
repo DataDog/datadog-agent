@@ -12,7 +12,7 @@ type MemoryAllocation struct {
 	// Start is the UNIX timestamp of the allocation event
 	Start uint64 `json:"start"`
 
-	// End is the UNIX timestamp of the deallocation event
+	// End is the UNIX timestamp of the deallocation event. If 0, this means the allocation was not deallocated yet
 	End uint64 `json:"end"`
 
 	// Size is the size of the allocation in bytes
@@ -38,23 +38,18 @@ type StreamKey struct {
 	Stream uint64 `json:"stream"`
 }
 
-// StreamPastData contains kernel spans and allocations that are no longer active
-type StreamPastData struct {
+// StreamData contains kernel spans and allocations for a stream
+type StreamData struct {
 	Key         StreamKey           `json:"key"`
 	Spans       []*KernelSpan       `json:"spans"`
 	Allocations []*MemoryAllocation `json:"allocations"`
 }
 
-// StreamCurrentData contains the current kernel span and allocations for a stream.
-type StreamCurrentData struct {
-	Key                StreamKey           `json:"key"`
-	Span               *KernelSpan         `json:"span"`
-	CurrentMemoryUsage uint64              `json:"current_memory_usage"`
-	CurrentAllocations []*MemoryAllocation `json:"current_allocations"`
-}
-
 // GPUStats contains the past and current data for all streams
 type GPUStats struct {
-	PastData    []*StreamPastData    `json:"past_kernel_spans"`
-	CurrentData []*StreamCurrentData `json:"current_kernel_spans"`
+	// PastData contains the past kernel spans and allocations for all streams
+	PastData []*StreamData `json:"past_kernel_spans"`
+
+	// CurrentData contains currently active kernel spans and allocations for all streams
+	CurrentData []*StreamData `json:"current_kernel_spans"`
 }

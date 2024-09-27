@@ -110,12 +110,12 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 	return &span
 }
 
-func (sh *StreamHandler) getPastData(flush bool) *model.StreamPastData {
+func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
 	}
 
-	data := &model.StreamPastData{
+	data := &model.StreamData{
 		Spans:       sh.kernelSpans,
 		Allocations: sh.allocations,
 	}
@@ -128,24 +128,22 @@ func (sh *StreamHandler) getPastData(flush bool) *model.StreamPastData {
 	return data
 }
 
-func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamCurrentData {
+func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
 		return nil
 	}
 
-	data := &model.StreamCurrentData{
-		Span:               sh.getCurrentKernelSpan(now),
-		CurrentMemoryUsage: 0,
+	data := &model.StreamData{
+		Spans: []*model.KernelSpan{sh.getCurrentKernelSpan(now)},
 	}
 
 	for _, alloc := range sh.memAllocEvents {
-		data.CurrentAllocations = append(data.CurrentAllocations, &model.MemoryAllocation{
+		data.Allocations = append(data.Allocations, &model.MemoryAllocation{
 			Start:    alloc.Header.Ktime_ns,
 			End:      0,
 			Size:     alloc.Size,
 			IsLeaked: false,
 		})
-		data.CurrentMemoryUsage += alloc.Size
 	}
 
 	return data
