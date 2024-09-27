@@ -10,6 +10,7 @@ package module
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
@@ -33,12 +34,14 @@ const (
 )
 
 const (
-	// maxSizeEnvsMap - maximum size of environment variable map
+	// maxSizeEnvsMap - maximum number of returned environment variables
 	maxSizeEnvsMap = 400
 	// defSizeEnvsMap - default size for environment variables map
 	defSizeEnvsMap = 200
 	// defSizeReadBuf - default buffer size for reading from proc/pid/environ
-	defSizeReadBuf = 2000
+	defSizeReadBuf = 2048
+	// defSizeEnvBuf - default buffer size for storing processed environment variable
+	defSizeEnvBuf = 100
 	// envVarDdService - name of target environment variable DD_SERVICE
 	envVarDdService = "DD_SERVICE"
 	// envVarDdTags - name of target environment variable DD_TAGS
@@ -52,12 +55,12 @@ const (
 )
 
 // map of environment variables of interest
-var targetEnvs = map[string]bool{
-	envVarDdService:          true,
-	envVarDdTags:             true,
-	envVarDdInjectionEnabled: true,
-	envVarDiscoveryEnabled:   true,
-	envVarOtelServiceName:    true,
+var targetEnvs = []string{
+	envVarDdService,
+	envVarDdTags,
+	envVarDdInjectionEnabled,
+	envVarDiscoveryEnabled,
+	envVarOtelServiceName,
 }
 
 // getInjectionMeta gets metadata from auto injector injection, if
@@ -189,24 +192,37 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 // otherwise collect all environment variables.
 type EnvScanner struct {
 	file    *os.File          // open pointer to environment variables file
-	targets map[string]bool   // map of target environment variables to search or nil
+	targets map[uint64]string // map of environment variables of interest
 	buffer  []byte            // buffer for reading a fragment from a file
 	end     int               // last index of data read
 	err     error             // last detected error
 	envs    map[string]string // collected environment variables
-	lastEnv string            // the last processed environment variable
+	env     []byte            // the last processed environment variable
 }
 
-func NewEnvScanner(path string, bufSize int, targets map[string]bool) *EnvScanner {
+// NewEnvScanner returns a new [EnvScanner] to read from path.
+func NewEnvScanner(path string, bufSize int, targets []string) *EnvScanner {
+
+	targetsMap := make(map[uint64]string)
+	targetsNum := len(targets)
+
+	if targetsNum == 0 {
+		targetsNum = defSizeEnvsMap
+	} else {
+		for _, target := range targets {
+			targetsMap[hashBytes([]byte(target))] = target
+		}
+	}
+
 	file, err := os.Open(path)
 	return &EnvScanner{
 		file:    file,
-		targets: targets,
+		targets: targetsMap,
 		buffer:  make([]byte, bufSize),
 		end:     bufSize,
 		err:     err,
-		envs:    make(map[string]string, defSizeEnvsMap),
-		lastEnv: "",
+		envs:    make(map[string]string, targetsNum),
+		env:     make([]byte, 0, defSizeEnvBuf),
 	}
 }
 
@@ -217,22 +233,33 @@ func (es *EnvScanner) Finish() {
 	}
 }
 
+// hashBytes return hash value of a bytes array using FNV-1a hash function
+func hashBytes(b []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(b)
+	return h.Sum64()
+}
+
 // addEnvToMapIfTarget add env. variable to map if it matches target or target map is empty.
-func (es *EnvScanner) addEnvToMapIfTarget(env string) {
+func (es *EnvScanner) addEnvToMapIfTarget() {
 	if len(es.envs) == maxSizeEnvsMap {
 		es.err = fmt.Errorf("proc environment scanner can't add more than max (%d)", maxSizeEnvsMap)
 		return
 	}
-	name, val, found := strings.Cut(env, "=")
-	if found {
-		if len(es.targets) > 0 {
-			_, exists := es.targets[name]
-			if exists {
-				es.envs[name] = val
-			}
-		} else {
-			es.envs[name] = val
+	eq := bytes.IndexByte(es.env, '=')
+	if eq == -1 {
+		return
+	}
+	if len(es.targets) > 0 {
+		h := hashBytes(es.env[:eq])
+		_, exists := es.targets[h]
+		if exists {
+			name := string(es.env[:eq])
+			es.envs[name] = string(es.env[eq+1:])
 		}
+	} else {
+		name := string(es.env[:eq])
+		es.envs[name] = string(es.env[eq+1:])
 	}
 }
 
@@ -267,16 +294,17 @@ func (es *EnvScanner) ScanFile() error {
 		if strLen >= 0 {
 			// zero length means NULL was encountered immediately.
 			if strLen > 0 {
-				es.lastEnv += string(es.buffer[cursor : cursor+strLen])
+				es.env = append(es.env, es.buffer[cursor:cursor+strLen]...)
 			}
-			es.addEnvToMapIfTarget(es.lastEnv)
+			es.addEnvToMapIfTarget()
 			if es.err != nil {
 				return es.err
 			}
-			es.lastEnv = ""
+			// reset processed env. var.
+			es.env = es.env[:0]
 			cursor += strLen + 1
 		} else {
-			es.lastEnv += string(es.buffer[cursor:es.end])
+			es.env = append(es.env, es.buffer[cursor:es.end]...)
 			break
 		}
 	}
@@ -296,7 +324,7 @@ func getEnvironPath(proc *process.Process) string {
 // getServiceEnvs searches the environment variables of interest in the proc file by reading the file in chunks.
 func getServiceEnvs(proc *process.Process, buffSize int, onlyTargets bool) (map[string]string, error) {
 	targets := targetEnvs
-	if onlyTargets == false {
+	if !onlyTargets {
 		targets = nil
 	}
 	es := NewEnvScanner(getEnvironPath(proc), buffSize, targets)
