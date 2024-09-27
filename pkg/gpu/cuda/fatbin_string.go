@@ -110,13 +110,13 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[FATBIN_DATA_KIND_PTX-1]
-	_ = x[FATBIN_DATA_KIND_SM-2]
+	_ = x[fatbinDataKindPtx-1]
+	_ = x[fatbinDataKindSm-2]
 }
 
-const _fatbinDataKind_name = "FATBIN_DATA_KIND_PTXFATBIN_DATA_KIND_SM"
+const _fatbinDataKind_name = "fatbinDataKindPtxfatbinDataKindSm"
 
-var _fatbinDataKind_index = [...]uint8{0, 20, 39}
+var _fatbinDataKind_index = [...]uint8{0, 17, 33}
 
 func (i fatbinDataKind) String() string {
 	i -= 1
