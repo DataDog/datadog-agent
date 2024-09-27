@@ -39,15 +39,15 @@ agents:
 }
 
 func (s *completeTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s)
+	utils.TestTraces(s, true)
 }
 
 func (s *completeTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s)
+	utils.TestMetrics(s, true)
 }
 
 func (s *completeTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s)
+	utils.TestLogs(s, true)
 }
 
 func (s *completeTestSuite) TestHosts() {
@@ -56,4 +56,12 @@ func (s *completeTestSuite) TestHosts() {
 
 func (s *completeTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
+}
+
+func (s *completeTestSuite) TestCalendarJavaApp() {
+	utils.TestCalendarJavaApp(s)
+}
+
+func (s *completeTestSuite) TestCalendarGoApp() {
+	utils.TestCalendarGoApp(s)
 }

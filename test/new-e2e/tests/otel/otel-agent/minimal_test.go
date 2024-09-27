@@ -31,15 +31,15 @@ func TestOTelAgentMinimal(t *testing.T) {
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s)
+	utils.TestTraces(s, true)
 }
 
 func (s *minimalTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s)
+	utils.TestMetrics(s, true)
 }
 
 func (s *minimalTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s)
+	utils.TestLogs(s, true)
 }
 
 func (s *minimalTestSuite) TestHosts() {
@@ -56,4 +56,12 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 
 func (s *minimalTestSuite) TestOTelFlare() {
 	utils.TestOTelFlare(s)
+}
+
+func (s *minimalTestSuite) TestCalendarJavaApp() {
+	utils.TestCalendarJavaApp(s)
+}
+
+func (s *minimalTestSuite) TestCalendarGoApp() {
+	utils.TestCalendarGoApp(s)
 }

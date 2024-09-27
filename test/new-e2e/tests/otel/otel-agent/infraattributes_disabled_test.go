@@ -51,15 +51,15 @@ func (s *iaDisabledTestSuite) TestCalendarGoApp() {
 }
 
 func (s *iaDisabledTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s)
+	utils.TestTraces(s, false)
 }
 
 func (s *iaDisabledTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s)
+	utils.TestMetrics(s, false)
 }
 
 func (s *iaDisabledTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s)
+	utils.TestLogs(s, false)
 }
 
 func (s *iaDisabledTestSuite) TestHosts() {

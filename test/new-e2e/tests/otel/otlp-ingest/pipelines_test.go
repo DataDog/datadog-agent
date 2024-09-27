@@ -44,15 +44,15 @@ agents:
 }
 
 func (s *otlpIngestTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s)
+	utils.TestTraces(s, false)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s)
+	utils.TestMetrics(s, false)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s)
+	utils.TestLogs(s, false)
 }
 
 func (s *otlpIngestTestSuite) TestHosts() {

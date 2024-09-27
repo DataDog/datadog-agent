@@ -42,7 +42,7 @@ type OTelTestSuite interface {
 }
 
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
-func TestTraces(s OTelTestSuite) {
+func TestTraces(s OTelTestSuite, infraAttributes bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -57,7 +57,18 @@ func TestTraces(s OTelTestSuite) {
 		traces, err = s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
-	}, 2*time.Minute, 10*time.Second)
+		trace := traces[0]
+		assert.NotEmpty(s.T(), trace.TracerPayloads)
+		tp := trace.TracerPayloads[0]
+		assert.NotEmpty(s.T(), tp.Chunks)
+		assert.NotEmpty(s.T(), tp.Chunks[0].Spans)
+		assert.Equal(s.T(), service, tp.Chunks[0].Spans[0].Service)
+		if infraAttributes {
+			ctags, ok := getContainerTags(s.T(), tp)
+			assert.True(s.T(), ok)
+			assert.NotNil(s.T(), ctags["kube_ownerref_kind"])
+		}
+	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", traces)
 	s.T().Log("num traces", len(traces))
@@ -121,7 +132,7 @@ func TestAPMStats(s OTelTestSuite, numTraces int) {
 }
 
 // TestMetrics tests that OTLP metrics are received through OTel pipelines as expected
-func TestMetrics(s OTelTestSuite) {
+func TestMetrics(s OTelTestSuite, infraAttributes bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -133,10 +144,14 @@ func TestMetrics(s OTelTestSuite) {
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service), "kube_ownerref_kind:job"}))
+		tags := []string{fmt.Sprintf("service:%v", service)}
+		if infraAttributes {
+			tags = append(tags, "kube_ownerref_kind:job")
+		}
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got metrics", s.T().Name(), metrics)
 
 	for _, metricSeries := range metrics {
@@ -166,7 +181,7 @@ func TestMetrics(s OTelTestSuite) {
 }
 
 // TestLogs tests that OTLP logs are received through OTel pipelines as expected
-func TestLogs(s OTelTestSuite) {
+func TestLogs(s OTelTestSuite, infraAttributes bool) {
 	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
@@ -180,10 +195,14 @@ func TestLogs(s OTelTestSuite) {
 	var logs []*aggregator.Log
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+		if infraAttributes {
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:job"}))
+		} else {
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 	s.T().Log("Got logs", logs)
 
 	require.NotEmpty(s.T(), logs)
@@ -661,12 +680,12 @@ func TestCalendarJavaApp(s OTelTestSuite) {
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
-		s.T().Log("CalendarJavaApp Metric Names", mn)
+		s.T().Log("CalendarJavaApp Metric Names", s.T().Name(), mn)
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar.api.hits", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-java-otel"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
-	s.T().Log("Got metrics", metrics)
+	s.T().Log("Got metrics", s.T().Name(), metrics)
 }
 
 // TestCalendarGoApp tests that OTLP metrics are received through OTel pipelines as expected
@@ -683,12 +702,12 @@ func TestCalendarGoApp(s OTelTestSuite) {
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
-		s.T().Log("CalendarGoApp Metric Names", mn)
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-rest-go"}))
+		s.T().Log("CalendarGoApp Metric Names", s.T().Name(), mn)
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-rest-go", "kube_ownerref_kind:replicaset"}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
-	s.T().Log("Got metrics", metrics)
+	s.T().Log("Got metrics", s.T().Name(), metrics)
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
