@@ -42,8 +42,8 @@ type Endpoint struct {
 	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
 	Prefix                  string
-	UseCompression          bool  `mapstructure:"use_compression" json:"use_compression"`
-	CompressionLevel        int   `mapstructure:"compression_level" json:"compression_level"`
+	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
+	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	IsMRF                   bool `mapstructure:"-" json:"-"`
 	ConnectionResetInterval time.Duration

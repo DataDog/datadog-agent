@@ -228,14 +228,17 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		}
 
 		var endpoint Endpoint
-		err := parseAddress(mrfURL, &endpoint, defaultNoSSL, false)
+		err = parseAddress(mrfURL, &endpoint, defaultNoSSL, false)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
+		apiKey := pkgconfigutils.SanitizeAPIKey(coreConfig.GetString("multi_region_failover.api_key"))
+
 		additionals = append(additionals, Endpoint{
 			IsMRF:            true,
-			APIKey:           coreConfig.GetString("multi_region_failover.api_key"),
+			apiKeyGetter:     func() string { return apiKey },
+			isReliable:       true,
 			Host:             endpoint.Host,
 			Port:             endpoint.Port,
 			useSSL:           endpoint.useSSL,
