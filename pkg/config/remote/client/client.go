@@ -138,7 +138,7 @@ func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFe
 }
 
 func newAgentGRPCClient(ipcAddress string, cmdPort string) (pbgo.AgentSecureClient, error) {
-	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
+	c, err := ddgrpc.GetDDAgentSecureClient(ipcAddress, cmdPort, grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
 	))
 	if err != nil {

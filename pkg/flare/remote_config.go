@@ -52,7 +52,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ipcAddress, pkgconfigsetup.GetIPCPort())
 	if err != nil {
 		return err
 	}

@@ -19,9 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	cache "github.com/patrickmn/go-cache"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 )
 
 const (
@@ -99,7 +100,7 @@ func getHostnameWithContext(ctx context.Context) (string, error) {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+		client, err := grpc.GetDDAgentClient(ipcAddress, pkgconfigsetup.GetIPCPort())
 		if err != nil {
 			return err
 		}
