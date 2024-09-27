@@ -8,7 +8,6 @@ package gpu
 import (
 	"debug/elf"
 	"fmt"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -56,16 +55,6 @@ func (ctx *systemContext) queryDevices() error {
 }
 
 func (ctx *systemContext) getFileData(path string) (*fileData, error) {
-	path, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("error getting absolute path: %w", err)
-	}
-
-	path, err = filepath.EvalSymlinks(path)
-	if err != nil {
-		return nil, fmt.Errorf("error reading link %s: %w", path, err)
-	}
-
 	if fd, ok := ctx.fileData[path]; ok {
 		return fd, nil
 	}
