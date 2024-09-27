@@ -20,6 +20,19 @@ const (
 	WebhooksControllerName = "webhooks"
 )
 
+// Mutation errors
+const (
+	InvalidInput         = "invalid_input"
+	InternalError        = "internal_error"
+	ConfigInjectionError = "config_injection_error"
+)
+
+// Status tags
+const (
+	StatusSuccess = "success"
+	StatusError   = "error"
+)
+
 // Telemetry metrics
 var (
 	ReconcileSuccess = telemetry.NewGaugeWithOpts("admission_webhooks", "reconcile_success",
@@ -32,10 +45,7 @@ var (
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
-		[]string{"mutation_type", "injected", "language", "auto_detected"}, "Number of pod mutation attempts by mutation type (agent config, standard tags, lib injection).",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
-	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason", "language", "auto_detected"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
+		[]string{"mutation_type", "status", "injected", "error"}, "Number of pod mutation attempts by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{"mutation_type"}, "Number of mutation webhook requests received.",
@@ -59,6 +69,20 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
 		[]string{"language", "auto_detected", "injection_type"}, "Number of library injection failures by language and injection type",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	CWSExecInstrumentationAttempts = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"cws_exec_instrumentation_attempts",
+		[]string{"mode", "injected", "reason"},
+		"Distribution of exec requests instrumentation attempts by CWS Instrumentation mode",
+		prometheus.LinearBuckets(0, 1, 1),
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	CWSPodInstrumentationAttempts = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"cws_pod_instrumentation_attempts",
+		[]string{"mode", "injected", "reason"},
+		"Distribution of pod requests instrumentation attempts by CWS Instrumentation mode",
+		prometheus.LinearBuckets(0, 1, 1),
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
 		[]string{}, "Number of valid remote configurations.",

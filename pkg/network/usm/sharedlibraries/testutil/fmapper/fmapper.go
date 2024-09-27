@@ -22,7 +22,7 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	done := make(chan bool, 1)
 
-	readers := make([]*mmap.ReaderAt, len(os.Args)-1)
+	readers := make([]*mmap.ReaderAt, 0, len(os.Args)-1)
 	defer func() {
 		for _, r := range readers {
 			_ = r.Close()

@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -20,22 +21,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 )
 
 type testIteration struct {
-	name                string                     // test name
-	result              EventFilteringProfileState // expected result
-	newProfile          bool                       // true if a new profile have to be generated for this test
-	containerCreatedAt  time.Duration              // time diff from t0
-	addFakeProcessNodes int64                      // number of fake process nodes to add (adds 1024 to approx size)
-	eventTimestampRaw   time.Duration              // time diff from t0
-	eventType           model.EventType            // only exec for now, TODO: add dns
-	eventProcessPath    string                     // exec path
-	eventDNSReq         string                     // dns request name (only for eventType == DNSEventType)
-	loopUntil           time.Duration              // if not 0, will loop until the given duration is reached
-	loopIncrement       time.Duration              // if loopUntil is not 0, will increment this duration at each loop
+	name                string                           // test name
+	result              model.EventFilteringProfileState // expected result
+	newProfile          bool                             // true if a new profile have to be generated for this test
+	containerCreatedAt  time.Duration                    // time diff from t0
+	addFakeProcessNodes int64                            // number of fake process nodes to add (adds 1024 to approx size)
+	eventTimestampRaw   time.Duration                    // time diff from t0
+	eventType           model.EventType                  // only exec for now, TODO: add dns
+	eventProcessPath    string                           // exec path
+	eventDNSReq         string                           // dns request name (only for eventType == DNSEventType)
+	loopUntil           time.Duration                    // if not 0, will loop until the given duration is reached
+	loopIncrement       time.Duration                    // if loopUntil is not 0, will increment this duration at each loop
 }
 
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
@@ -47,7 +49,7 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 
 	// setting process
 	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = defaultContainerID
+	event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(defaultContainerID)
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
 	event.ProcessCacheEntry.Args = "foo"
@@ -55,16 +57,12 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	case model.DNSEventType:
 		event.DNS.Name = ti.eventDNSReq
 		event.DNS.Type = 1  // A
 		event.DNS.Class = 1 // INET
 		event.DNS.Size = uint16(len(ti.eventDNSReq))
 		event.DNS.Count = 1
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		break
 	}
 
 	// setting process ancestor
@@ -87,7 +85,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// checking warmup period for exec:
 		{
 			name:                "warmup-exec/not-warmup",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -97,7 +95,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "warmup-exec/warmup",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod + time.Second,
 			addFakeProcessNodes: 0,
@@ -108,7 +106,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "warmup-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -118,7 +116,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "warmup-dns/not-warmup",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -129,7 +127,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "warmup-dns/insert-dns-process2",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -139,7 +137,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "warmup-dns/warmup",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod + time.Second,
 			addFakeProcessNodes: 0,
@@ -152,7 +150,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// dont insert dns process if not already present:
 		{
 			name:                "dont-insert-dns-process/add-first-exec-event",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -162,7 +160,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "dont-insert-dns-process/wait-stable-period",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -172,7 +170,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "dont-insert-dns-process/reject-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -185,7 +183,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// checking stable period for exec:
 		{
 			name:                "stable-exec/add-first-event",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -195,7 +193,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-exec/add-second-event",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -205,7 +203,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-exec/wait-stable-period",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -215,7 +213,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-exec/still-stable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -225,7 +223,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-exec/dont-get-unstable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -235,7 +233,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-exec/meanwhile-dns-still-learning",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -247,7 +245,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "stable-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -257,7 +255,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/add-first-event",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -268,7 +266,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/add-second-event",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -279,7 +277,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/wait-stable-period",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -290,7 +288,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/still-stable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -301,7 +299,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/dont-get-unstable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -312,7 +310,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "stable-dns/meanwhile-exec-still-learning",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -324,7 +322,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// checking unstable period for exec:
 		{
 			name:                "unstable-exec/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -334,7 +332,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-exec/wait-unstable-period",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -346,7 +344,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-exec/still-unstable",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -356,7 +354,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-exec/still-unstable-after-stable-period",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -366,7 +364,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-exec/meanwhile-dns-still-learning",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -378,7 +376,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "unstable-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -388,7 +386,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-dns/wait-unstable-period",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -401,7 +399,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-dns/still-unstable",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -412,7 +410,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-dns/still-unstable-after-stable-period",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -423,7 +421,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "unstable-dns/meanwhile-exec-still-learning",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -435,7 +433,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// checking max size threshold different cases for exec:
 		{
 			name:                "profile-at-max-size-exec/add-first-event",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          true,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: 0,
@@ -445,7 +443,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/warmup-stable",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess,
@@ -455,7 +453,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/warmup-unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess,
@@ -465,7 +463,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/stable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -475,7 +473,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -485,7 +483,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/warmup-NOT-at-max-size",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          true,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess - 1,
@@ -495,7 +493,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-exec/NOT-at-max-size",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess - 1,
@@ -506,7 +504,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "profile-at-max-size-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -516,7 +514,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/add-first-event",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: 0,
@@ -527,7 +525,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/warmup-stable",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess,
@@ -538,7 +536,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/warmup-unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess,
@@ -549,7 +547,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/stable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -560,7 +558,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -571,7 +569,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/insert-dns-process2",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -581,7 +579,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/warmup-NOT-at-max-size",
-			result:              WorkloadWarmup,
+			result:              model.WorkloadWarmup,
 			newProfile:          false,
 			containerCreatedAt:  0,
 			addFakeProcessNodes: MaxNbProcess - 2,
@@ -592,7 +590,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/insert-dns-process3",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -602,7 +600,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-dns/NOT-at-max-size",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess - 2,
@@ -615,7 +613,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// checking from max-size to stable, for exec:
 		{
 			name:                "profile-at-max-size-to-stable-exec/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -625,7 +623,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-exec/max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -635,7 +633,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-exec/stable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -645,7 +643,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-exec/meanwhile-dns-still-at-max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -657,7 +655,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "profile-at-max-size-to-stable-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -667,7 +665,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-dns/max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -678,7 +676,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-dns/stable",
-			result:              StableEventType,
+			result:              model.StableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -689,7 +687,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-stable-dns/meanwhile-exec-still-at-max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -701,7 +699,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// from checking max-size to unstable for exec:
 		{
 			name:                "profile-at-max-size-to-unstable-exec/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -711,7 +709,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-exec/max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -721,7 +719,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-exec/unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -733,7 +731,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-exec/unstable",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -743,7 +741,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-exec/meanwhile-dns-still-at-max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -755,7 +753,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		// and for dns:
 		{
 			name:                "profile-at-max-size-to-unstable-dns/insert-dns-process",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          true,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -765,7 +763,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-dns/insert-dns-process2",
-			result:              AutoLearning,
+			result:              model.AutoLearning,
 			newProfile:          false,
 			containerCreatedAt:  -AnomalyDetectionWorkloadWarmupPeriod - time.Second,
 			addFakeProcessNodes: 0,
@@ -775,7 +773,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-dns/max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: MaxNbProcess,
@@ -786,7 +784,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-dns/unstable",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -799,7 +797,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-dns/unstable",
-			result:              UnstableEventType,
+			result:              model.UnstableEventType,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -810,7 +808,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 		},
 		{
 			name:                "profile-at-max-size-to-unstable-dns/meanwhile-exec-still-at-max-size",
-			result:              ProfileAtMaxSize,
+			result:              model.ProfileAtMaxSize,
 			newProfile:          false,
 			containerCreatedAt:  time.Minute * -5,
 			addFakeProcessNodes: 0,
@@ -841,17 +839,25 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
 			if ti.newProfile || profile == nil {
-				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
+				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
-						ID: defaultContainerID,
+						ContainerID: containerutils.ContainerID(defaultContainerID),
+					},
+					CGroupContext: model.CGroupContext{
+						CGroupID: containerutils.CGroupID(defaultContainerID),
 					},
 					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})
 				profile.loadedNano = uint64(t0.UnixNano())
 			}
 			profile.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
+			ctx := profile.GetVersionContextIndex(0)
+			if ctx == nil {
+				t.Fatal(errors.New("profile should have one ctx"))
+			}
+			ctx.firstSeenNano = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 
 			if ti.loopUntil != 0 {
 				currentIncrement := time.Duration(0)
@@ -865,12 +871,12 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)
-					assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+					assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 					currentIncrement += ti.loopIncrement
 				}
 			} else { // only run once
 				event := craftFakeEvent(t0, &ti, defaultContainerID)
-				assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+				assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 			}
 
 			// TODO: also check profile stats and global metrics

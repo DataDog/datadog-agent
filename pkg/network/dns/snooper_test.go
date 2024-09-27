@@ -109,7 +109,7 @@ func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
 	cfg.DNSTimeout = 1 * time.Second
 	cfg.CollectDNSDomains = collectDomain
 
-	rdns, err := NewReverseDNS(cfg)
+	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
 
 	return rdns.(*dnsMonitor)
@@ -384,13 +384,13 @@ func TestParsingError(t *testing.T) {
 	cfg.CollectLocalDNS = false
 	cfg.CollectDNSDomains = false
 	cfg.DNSTimeout = 15 * time.Second
-	rdns, err := NewReverseDNS(cfg)
+	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
 	defer rdns.Close()
 
 	reverseDNS := rdns.(*dnsMonitor)
 	// Pass a byte array of size 1 which should result in parsing error
-	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
+	err = reverseDNS.processPacket(make([]byte, 1), 0, time.Now())
 	require.NoError(t, err)
 	assert.True(t, cacheTelemetry.length.Load() == 0)
 	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)

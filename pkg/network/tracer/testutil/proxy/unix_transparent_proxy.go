@@ -9,8 +9,10 @@
 package proxy
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -39,6 +41,8 @@ type UnixTransparentProxyServer struct {
 	remoteAddr string
 	// useTLS indicates whether the proxy should use TLS to connect to the remote address.
 	useTLS bool
+	// useControl indicates whether the proxy should expect control messages on the client socket
+	useControl bool
 	// isReady is a flag indicating whether the server is ready to accept connections.
 	isReady atomic.Bool
 	// wg is a wait group used to wait for the server to stop.
@@ -48,11 +52,12 @@ type UnixTransparentProxyServer struct {
 }
 
 // NewUnixTransparentProxyServer returns a new instance of a UnixTransparentProxyServer.
-func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS bool) *UnixTransparentProxyServer {
+func NewUnixTransparentProxyServer(unixPath, remoteAddr string, useTLS, useControl bool) *UnixTransparentProxyServer {
 	return &UnixTransparentProxyServer{
 		unixPath:   unixPath,
 		remoteAddr: remoteAddr,
 		useTLS:     useTLS,
+		useControl: useControl,
 	}
 }
 
@@ -140,19 +145,87 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	defer remoteConn.Close()
 
 	var streamWait sync.WaitGroup
-	streamWait.Add(2)
 
-	streamConn := func(dst io.Writer, src io.Reader, cleanup func()) {
-		defer streamWait.Done()
-		if cleanup != nil {
-			defer cleanup()
+	if p.useControl {
+		streamWait.Add(1)
+		go func() {
+			defer streamWait.Done()
+
+			unixReader := bufio.NewReader(unixSocketConn)
+			remoteReader := bufio.NewReader(remoteConn)
+
+			// Reuse this buffer instead of allocating new ones every time both
+			// for efficiency and to attempt to work around some issues with
+			// page migration kicking in and leading to minor page faults in TLS
+			// probes and flaky tests on some kernel versions.
+			big := make([]byte, 1024*1024)
+
+			for {
+				buf := big[0:8]
+				_, err := io.ReadFull(unixReader, buf)
+				if err != nil {
+					break
+				}
+				readSize := binary.BigEndian.Uint64(buf)
+
+				if readSize != 0 {
+					if readSize > uint64(len(big)) {
+						log.Error("read size too large", readSize)
+						break
+					}
+					buf := big[0:readSize]
+					_, err = io.ReadFull(unixReader, buf)
+					if err != nil {
+						break
+					}
+					// Note that the net package sets TCP_NODELAY by default,
+					// so this will send out each write individually, which is
+					// what we want.
+					_, err = remoteConn.Write(buf)
+					if err != nil {
+						break
+					}
+				}
+
+				buf = big[0:8]
+				_, err = io.ReadFull(unixReader, buf)
+				if err != nil {
+					break
+				}
+				readSize = binary.BigEndian.Uint64(buf)
+
+				if readSize != 0 {
+					if readSize > uint64(len(big)) {
+						log.Error("read size too large", readSize)
+						break
+					}
+					buf := big[0:readSize]
+					_, err = io.ReadFull(remoteReader, buf)
+					if err != nil {
+						break
+					}
+
+					_, err = unixSocketConn.Write(buf)
+					if err != nil {
+						break
+					}
+				}
+			}
+		}()
+	} else {
+		streamWait.Add(2)
+		streamConn := func(dst io.Writer, src io.Reader, cleanup func()) {
+			defer streamWait.Done()
+			if cleanup != nil {
+				defer cleanup()
+			}
+			_, _ = io.Copy(dst, src)
 		}
-		_, _ = io.Copy(dst, src)
-	}
 
-	// If the unix socket is closed, we can close the remote as well.
-	go streamConn(remoteConn, unixSocketConn, func() { _ = remoteConn.Close() })
-	go streamConn(unixSocketConn, remoteConn, nil)
+		// If the unix socket is closed, we can close the remote as well.
+		go streamConn(remoteConn, unixSocketConn, func() { _ = remoteConn.Close() })
+		go streamConn(unixSocketConn, remoteConn, nil)
+	}
 
 	streamWait.Wait()
 }

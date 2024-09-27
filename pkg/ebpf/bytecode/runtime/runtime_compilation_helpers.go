@@ -52,7 +52,7 @@ var defaultFlags = []string{
 }
 
 // compileToObjectFile compiles the input ebpf program & returns the compiled output
-func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, llcFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
+func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalFlags, kernelHeaders []string) (CompiledOutput, CompilationResult, error) {
 	flags, flagHash := computeFlagsAndHash(additionalFlags)
 
 	outputFile, err := getOutputFilePath(outputDir, filename, inHash, flagHash)
@@ -76,7 +76,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 		}
 
 		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
-		if kv >= kernel.VersionCode(4, 10, 0) || family == "rhel" {
+		if len(kernelHeaders) > 0 && (kv >= kernel.VersionCode(4, 10, 0) || family == "rhel") {
 			var helperPath string
 			helperPath, err = includeHelperAvailability(kernelHeaders)
 			if err != nil {
@@ -86,7 +86,7 @@ func compileToObjectFile(inFile, outputDir, filename, inHash string, additionalF
 			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
-		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, llcFlags, kernelHeaders); err != nil {
+		if err := compiler.CompileToObjectFile(inFile, outputFile, flags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
 

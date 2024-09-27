@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -42,13 +42,13 @@ func (l *DsdCaptureDurationRuntimeSetting) Name() string {
 }
 
 // Get returns the current value of the runtime setting
-func (l *DsdCaptureDurationRuntimeSetting) Get() (interface{}, error) {
+func (l *DsdCaptureDurationRuntimeSetting) Get(_ config.Component) (interface{}, error) {
 	// TODO
 	return 0, nil
 }
 
 // Set changes the value of the runtime setting
-func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source model.Source) error {
+func (l *DsdCaptureDurationRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	var err error
 
 	s, ok := v.(string)
@@ -63,6 +63,6 @@ func (l *DsdCaptureDurationRuntimeSetting) Set(v interface{}, source model.Sourc
 
 	// TODO
 	// common.DSD.Capture.SetDuration(d)
-	config.Datadog.Set(l.value, s, source)
+	config.Set(l.value, s, source)
 	return nil
 }

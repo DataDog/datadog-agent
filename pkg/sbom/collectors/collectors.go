@@ -9,8 +9,8 @@ package collectors
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -38,7 +38,7 @@ type Collector interface {
 	// CleanCache cleans the collector cache
 	CleanCache() error
 	// Init initializes the collector
-	Init(config.Config, optional.Option[workloadmeta.Component]) error
+	Init(config.Component, optional.Option[workloadmeta.Component]) error
 	// Scan performs a scan
 	Scan(context.Context, sbom.ScanRequest) sbom.ScanResult
 	// Channel returns the channel to send scan results

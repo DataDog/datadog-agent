@@ -1,0 +1,10 @@
+/usr/lib/systemd/system/datadog-agent-security.service
+/usr/lib/systemd/system/datadog-agent-process.service
+/usr/lib/systemd/system/datadog-agent.service
+/usr/lib/systemd/system/datadog-agent-trace.service
+/usr/lib/systemd/system/datadog-agent-sysprobe.service
+/etc/init/datadog-agent.conf
+/etc/init/datadog-agent-sysprobe.conf
+/etc/init/datadog-agent-trace.conf
+/etc/init/datadog-agent-process.conf
+/etc/init/datadog-agent-security.conf

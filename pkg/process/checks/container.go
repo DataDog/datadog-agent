@@ -6,16 +6,18 @@
 package checks
 
 import (
-	"context"
+	"fmt"
+	"math"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,9 +27,10 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
+func NewContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
+		wmeta:  wmeta,
 	}
 }
 
@@ -35,7 +38,7 @@ func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
 type ContainerCheck struct {
 	sync.Mutex
 
-	config ddconfig.Reader
+	config pkgconfigmodel.Reader
 
 	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
@@ -45,14 +48,25 @@ type ContainerCheck struct {
 	containerFailedLogLimit *log.Limit
 
 	maxBatchSize int
+	wmeta        workloadmeta.Component
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
-	c.containerProvider = proccontainers.GetSharedContainerProvider()
+func (c *ContainerCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ bool) error {
+	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	var tu *net.RemoteSysProbeUtil
+	var err error
+	if syscfg.NetworkTracerModuleEnabled {
+		// Calling the remote tracer will cause it to initialize and check connectivity
+		tu, err = net.GetRemoteSystemProbeUtil(syscfg.SystemProbeAddress)
+		if err != nil {
+			log.Warnf("could not initiate connection with system probe: %s", err)
+		}
+	}
+
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -115,6 +129,12 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	if len(containers)%c.maxBatchSize != 0 {
 		groupSize++
 	}
+
+	// For no chunking, set groupsize as 1 to ensure one chunk
+	if options != nil && options.NoChunking {
+		groupSize = 1
+	}
+
 	chunked := chunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
@@ -131,7 +151,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	}
 
 	numContainers := float64(len(containers))
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }
@@ -141,7 +162,7 @@ func (c *ContainerCheck) Cleanup() {}
 
 // chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
 func chunkContainers(containers []*model.Container, chunks int) [][]*model.Container {
-	perChunk := (len(containers) / chunks) + 1
+	perChunk := int(math.Ceil(float64(len(containers)) / float64(chunks)))
 	chunked := make([][]*model.Container, 0, chunks)
 	chunk := make([]*model.Container, 0, perChunk)
 

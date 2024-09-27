@@ -16,6 +16,10 @@ If you are intrigued, continue reading. If not, continue all the same :point_dow
 
 First, you'll want to [set up](setup.md) your development environment.
 
+## Agent development guidelines
+
+To know more about the general design of the Agent and how to add code and feature read our section on [Components](https://datadoghq.dev/datadog-agent/components/overview/).
+
 ## Navigation
 
 Desktop readers can use keyboard shortcuts to navigate.

@@ -25,9 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,7 +134,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !http.TLSSupported(c) {
+	if !c.EnableJavaTLSSupport || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 
@@ -158,10 +158,12 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name return the program's name.
 func (p *javaTLSProgram) Name() string {
 	return "Java TLS"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (p *javaTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[javaTLSConnectionsMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
@@ -260,15 +262,18 @@ func (p *javaTLSProgram) newJavaProcess(pid uint32) {
 	}
 }
 
+// PreStart subscribes to the exec events to inject the java agent.
 func (p *javaTLSProgram) PreStart(*manager.Manager) error {
 	p.cleanupExec = p.processMonitor.SubscribeExec(p.newJavaProcess)
 	return nil
 }
 
+// PostStart is a no-op.
 func (p *javaTLSProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
+// Stop unsubscribes from the exec events.
 func (p *javaTLSProgram) Stop(*manager.Manager) {
 	if p.cleanupExec != nil {
 		p.cleanupExec()
@@ -279,8 +284,10 @@ func (p *javaTLSProgram) Stop(*manager.Manager) {
 	}
 }
 
+// DumpMaps is a no-op.
 func (p *javaTLSProgram) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
+// GetStats is a no-op.
 func (p *javaTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }

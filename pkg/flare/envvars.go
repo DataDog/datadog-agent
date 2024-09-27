@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var allowedEnvvarNames = []string{
@@ -55,8 +55,9 @@ var allowedEnvvarNames = []string{
 	"DD_APM_IGNORE_RESOURCES",
 	"DD_MAX_EPS ", // deprecated
 	"DD_APM_MAX_EPS",
-	"DD_APM_TPS", //deprecated
-	"DD_APM_MAX_TPS",
+	"DD_APM_TPS",     //deprecated
+	"DD_APM_MAX_TPS", // deprecated
+	"DD_APM_TARGET_TPS",
 	"DD_APM_ERROR_TPS",
 	"DD_APM_ENABLE_RARE_SAMPLER",
 	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
@@ -137,7 +138,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	allowed = append(allowed, config.Datadog.GetEnvVars()...)
+	allowed = append(allowed, pkgconfigsetup.Datadog().GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

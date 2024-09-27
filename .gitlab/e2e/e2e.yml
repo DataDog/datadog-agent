@@ -1,113 +1,36 @@
 ---
 # e2e stage
-# Contains jobs which runs e2e tests on our Docker images.
-
-.k8s_e2e_template:
-  stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  tags: ["arch:amd64"]
-  dependencies: []
-  variables:
-    LANG: C.UTF-8
-  before_script:
-    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
-
-.k8s-e2e-cws-cspm-init:
-  - set +x
-  - export DATADOG_AGENT_SITE=datadoghq.com
-  - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
-  - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
-  - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
-
-.k8s_e2e_template_needs_dev:
-  extends: .k8s_e2e_template
-  needs:
-    - dev_branch_multiarch-a7
-    - dca_dev_branch
-
-.k8s_e2e_template_dev:
-  extends: .k8s_e2e_template_needs_dev
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
-
-.k8s_e2e_template_dev_with_cws_cspm_init:
-  extends: .k8s_e2e_template_needs_dev
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
-
-.k8s_e2e_template_needs_main:
-  extends: .k8s_e2e_template
-  needs:
-    - dev_master-a7
-    - dca_dev_master
-
-.k8s_e2e_template_main_with_cws_cspm_init:
-  extends: .k8s_e2e_template_needs_main
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
-
-.k8s_e2e_template_main:
-  extends: .k8s_e2e_template_needs_main
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
-
-k8s-e2e-cws-dev:
-  extends: .k8s_e2e_template_dev_with_cws_cspm_init
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: cws
-
-k8s-e2e-cws-main:
-  extends: .k8s_e2e_template_main_with_cws_cspm_init
-  rules: !reference [.on_main]
-  retry: 1
-  variables:
-    ARGO_WORKFLOW: cws
-
-k8s-e2e-cspm-dev:
-  extends: .k8s_e2e_template_dev_with_cws_cspm_init
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: cspm
-
-k8s-e2e-cspm-main:
-  extends: .k8s_e2e_template_main_with_cws_cspm_init
-  rules: !reference [.on_main]
-  retry: 1
-  variables:
-    ARGO_WORKFLOW: cspm
-
-k8s-e2e-otlp-dev:
-  extends: .k8s_e2e_template_dev
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: otlp
-
-k8s-e2e-otlp-main:
-  extends: .k8s_e2e_template_main
-  rules: !reference [.on_main]
-  variables:
-    ARGO_WORKFLOW: otlp
-
+# Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
   stage: e2e
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
   before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME > $E2E_PUBLIC_KEY_PATH
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
+    # The app is called `agent-e2e-tests`
+    - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_ID) || exit $?; export ARM_CLIENT_ID
+    - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_SECRET) || exit $?; export ARM_CLIENT_SECRET
+    - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_TENANT_ID) || exit $?; export ARM_TENANT_ID
+    - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_SUBSCRIPTION_ID) || exit $?; export ARM_SUBSCRIPTION_ID
+    # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
+    # The service account is called `agent-e2e-tests`
+    - GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS) || exit $?; export GOOGLE_CREDENTIALS
+    # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
+    SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
@@ -117,55 +40,43 @@ k8s-e2e-otlp-main:
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      # This file will be consumed by the `e2e_test_junit_upload` job in next stage to push the report to datadog.
-      # If you create a new job from this template, do not forget to update the `dependencies` of the `e2e_test_junit_upload` job.
-      - junit-*.tgz
       # Root directory of the e2e tests output, if used by the test
       - $E2E_OUTPUT_DIR
+      # junit tarball, kept for investigations
+      - junit-*.tgz
     reports:
-      junit: test/new-e2e/junit-*.xml
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
-.new_e2e_template_needs_kitchen_deploy:
+.needs_new_e2e_template:
+  - go_e2e_deps
+
+.new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
   needs:
-    - job: deploy_deb_testing-a6_x64
-      optional: true
-    - job: deploy_deb_testing-a6_arm64
-      optional: true
-    - job: deploy_deb_testing-a7_x64
-      optional: true
-    - job: deploy_deb_testing-a7_arm64
-      optional: true
-    - job: deploy_deb_testing-u7_arm64
-      optional: true
-    - job: deploy_rpm_testing-a6_x64
-      optional: true
-    - job: deploy_rpm_testing-a6_arm64
-      optional: true
-    - job: deploy_rpm_testing-a7_x64
-      optional: true
-    - job: deploy_rpm_testing-a7_arm64
-      optional: true
-    - job: deploy_suse_rpm_testing_x64-a6
-      optional: true
-    - job: deploy_suse_rpm_testing_x64-a7
-      optional: true
-    - job: deploy_suse_rpm_testing_arm64-a7
-      optional: true
-    - job: deploy_windows_testing-a6
-      optional: true
-    - job: deploy_windows_testing-a7
-      optional: true
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+
+.new_e2e_template_needs_deb_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
   needs:
+    - !reference [.needs_new_e2e_template]
     - qa_agent
     - qa_dca
     - qa_dogstatsd
@@ -176,86 +87,158 @@ new-e2e-containers:
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_container_or_e2e_changes_or_manual]
-  needs:
-    - qa_agent
-    - qa_dca
-    - qa_dogstatsd
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
+      # Temporarily disable old version of Kubernetes
+      # On this version, the reported kubernetes CPU usage appears to be significantly off
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
 
 new-e2e-remote-config:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_rc_or_e2e_changes_or_manual]
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
 new-e2e-agent-shared-components:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_asc_or_e2e_changes_or_manual]
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_subcommands_or_e2e_changes_or_manual]
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestLinuxStatusSuite
-      - EXTRA_PARAMS: --run TestWindowsStatusSuite
-      - EXTRA_PARAMS: --run TestLinuxHealthSuite
-      - EXTRA_PARAMS: --run TestWindowsHealthSuite
-      - EXTRA_PARAMS: --run TestLinuxConfigSuite
-      - EXTRA_PARAMS: --run TestWindowsConfigSuite
-      - EXTRA_PARAMS: --run TestLinuxHostnameSuite
-      - EXTRA_PARAMS: --run TestWindowsHostnameSuite
-      - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
-      - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
-      - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
-      - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
-      - EXTRA_PARAMS: --run TestLinuxFlareSuite
-      - EXTRA_PARAMS: --run TestWindowsFlareSuite
-      - EXTRA_PARAMS: --run TestLinuxSecretSuite
-      - EXTRA_PARAMS: --run TestWindowsSecretSuite
-      - EXTRA_PARAMS: --run TestLinuxCheckSuite
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
+
+new-e2e-windows-service-test:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestServiceBehavior
+
+# Temporary job for hunting a crash
+new-e2e-windows-service-test-nofim:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestNoFIMServiceBehavior
 
 new-e2e-language-detection:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_language-detection_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
 
-new-e2e-npm:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_npm_or_e2e_changes_or_manual]
+new-e2e-npm-packages:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_x64
+    - deploy_windows_testing-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+
+new-e2e-npm-docker:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_aml_or_e2e_changes_or_manual]
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_dca
+  rules:
+    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metric-logs
-    TEAM: agent-metric-logs
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
 
 new-e2e-cws:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_cws_or_e2e_changes_or_manual]
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_cws_instrumentation
+    - qa_agent
+    - qa_dca
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -264,10 +247,34 @@ new-e2e-cws:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
+      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  allow_failure: true
+
+new-e2e-discovery:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_discovery_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/discovery
+    TEAM: universal-service-monitoring
 
 new-e2e-process:
-  extends: .new_e2e_template_needs_kitchen_deploy
-  rules: !reference [.on_process_or_e2e_changes_or_manual]
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_dca
+  rules:
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -275,15 +282,20 @@ new-e2e-process:
 new-e2e-orchestrator:
   extends:
     - .new_e2e_template_needs_container_deploy
-  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
 
 new-e2e-apm:
   extends: .new_e2e_template
-  rules: !reference [.on_apm_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_apm_or_e2e_changes]
+    - !reference [.manual]
   needs:
+    - !reference [.needs_new_e2e_template]
     - qa_agent
     - deploy_deb_testing-a7_x64
   variables:
@@ -296,14 +308,216 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
-new-e2e-updater:
-  extends: .new_e2e_template_needs_kitchen_deploy
+new-e2e-installer:
+  extends: .new_e2e_template
   rules:
-    !reference [.on_updater_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - qa_installer_oci
+    - qa_agent_oci
   variables:
-    TARGETS: ./tests/updater
+    TARGETS: ./tests/installer
     TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
 
-#   ^    If you create a new job here that extends `.new_e2e_template`,
-#  /!\   do not forget to add it in the `dependencies` statement of the
-# /___\  `e2e_test_junit_upload` job in the `.gitlab/e2e_test_junit_upload.yml` file
+new-e2e-installer-windows:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - qa_installer_oci
+    - qa_agent_oci
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
+    - CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7) || exit $?; export CURRENT_AGENT_VERSION
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/installer
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "windows"
+
+new-e2e-installer-ansible:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - qa_installer_oci
+    - qa_agent_oci
+  variables:
+    TARGETS: ./tests/installer
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "ansible"
+
+new-e2e-ndm-netflow:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_netflow_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
+
+new-e2e-ndm-snmp:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_ndm_snmp_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring
+
+new-e2e-windows-systemprobe:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_systemprobe_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
+  variables:
+    TARGETS: ./tests/sysprobe-functional
+    TEAM: windows-kernel-integrations
+
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-kernel-integrations
+
+new-e2e-otel:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+  variables:
+    TARGETS: ./tests/otel
+    TEAM: otel
+
+.new-e2e_package_signing:
+  variables:
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+
+new-e2e-package-signing-amazonlinux-a6-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_amazonlinux_a7_x86_64
+    - .new-e2e_package_signing
+  rules: !reference [.on_default_new_e2e_tests]
+
+new-e2e-package-signing-debian-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_debian_a7_x86_64
+    - .new-e2e_package_signing
+  rules: !reference [.on_default_new_e2e_tests]
+
+new-e2e-package-signing-suse-a7-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_suse_a7_x86_64
+    - .new-e2e_package_signing
+  rules: !reference [.on_default_new_e2e_tests]
+
+new-e2e-cspm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cspm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+
+generate-flakes-finder-pipeline:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: e2e
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - qa_installer_oci
+    - qa_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+    - qa_agent_ot
+  tags: ["arch:amd64"]
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - inv -e testwasher.generate-flake-finder-pipeline
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+
+trigger-flakes-finder:
+  stage: e2e
+  needs: [generate-flakes-finder-pipeline]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: flake-finder-gitlab-ci.yml
+        job: generate-flakes-finder-pipeline
+  allow_failure: true

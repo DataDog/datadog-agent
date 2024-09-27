@@ -6,6 +6,8 @@
   rules:
     !reference [.manual]
   stage: deps_build
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   script:
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
@@ -90,5 +92,5 @@ build_processed_btfhub_archive:
     KUBERNETES_CPU_REQUEST: 32
   script:
     - inv -e system-probe.process-btfhub-archive --branch $BTFHUB_ARCHIVE_BRANCH
-    - $S3_CP_CMD btfs-x86_64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
-    - $S3_CP_CMD btfs-arm64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD btfs-x86_64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-x86_64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD btfs-arm64.tar $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-arm64.tar --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers

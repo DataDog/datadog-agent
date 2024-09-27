@@ -11,11 +11,15 @@ import (
 )
 
 var (
-	//go:embed 1.director.json
-	rootDirector1 []byte
+	//go:embed prod.1.director.json
+	prodRootDirector1 []byte
+	//go:embed prod.1.config.json
+	prodRootConfig1 []byte
 
-	//go:embed 1.config.json
-	rootConfig1 []byte
+	//go:embed staging.1.director.json
+	stagingRootDirector1 []byte
+	//go:embed staging.1.config.json
+	stagingRootConfig1 []byte
 )
 
 // EmbeddedRoot is an embedded root
@@ -24,32 +28,42 @@ type EmbeddedRoot []byte
 // EmbeddedRoots is a map of version => EmbeddedRoot
 type EmbeddedRoots map[uint64]EmbeddedRoot
 
-var rootsDirector = EmbeddedRoots{
-	1: rootDirector1,
-}
+var (
+	prodRootsDirector = EmbeddedRoots{1: prodRootDirector1}
+	prodRootsConfig   = EmbeddedRoots{1: prodRootConfig1}
 
-var rootsConfig = EmbeddedRoots{
-	1: rootConfig1,
-}
+	stagingRootsDirector = EmbeddedRoots{1: stagingRootDirector1}
+	stagingRootsConfig   = EmbeddedRoots{1: stagingRootConfig1}
+)
 
 // RootsDirector returns all the roots of the director repo
-func RootsDirector(directorRootOverride string) EmbeddedRoots {
+func RootsDirector(site string, directorRootOverride string) EmbeddedRoots {
 	if directorRootOverride != "" {
 		return EmbeddedRoots{
 			1: EmbeddedRoot(directorRootOverride),
 		}
 	}
-	return rootsDirector
+	switch site {
+	case "datad0g.com":
+		return stagingRootsDirector
+	default:
+		return prodRootsDirector
+	}
 }
 
 // RootsConfig returns all the roots of the director repo
-func RootsConfig(configRootOverride string) EmbeddedRoots {
+func RootsConfig(site string, configRootOverride string) EmbeddedRoots {
 	if configRootOverride != "" {
 		return EmbeddedRoots{
 			1: EmbeddedRoot(configRootOverride),
 		}
 	}
-	return rootsConfig
+	switch site {
+	case "datad0g.com":
+		return stagingRootsConfig
+	default:
+		return prodRootsConfig
+	}
 }
 
 // Last returns the last root the EmbeddedRoots

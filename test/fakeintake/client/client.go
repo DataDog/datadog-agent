@@ -44,21 +44,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 )
 
 const (
+	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -75,14 +79,29 @@ const (
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
+	ndmflowEndpoint              = "/api/v2/ndmflow"
+	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Option is a configuration option for the client
+type Option func(*Client)
+
+// WithoutStrictFakeintakeIDCheck disables strict fakeintake ID check
+func WithoutStrictFakeintakeIDCheck() Option {
+	return func(c *Client) {
+		c.strictFakeintakeIDCheck = false
+	}
+}
+
+// Client is a fake intake client
 type Client struct {
-	fakeIntakeURL string
+	fakeintakeID            string
+	fakeIntakeURL           string
+	strictFakeintakeIDCheck bool
+	fakeintakeIDMutex       sync.RWMutex
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -99,12 +118,16 @@ type Client struct {
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
+	ndmflowAggregator              aggregator.NDMFlowAggregator
+	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(fakeIntakeURL string) *Client {
-	return &Client{
+func NewClient(fakeIntakeURL string, opts ...Option) *Client {
+	client := &Client{
+		strictFakeintakeIDCheck:        true,
+		fakeintakeIDMutex:              sync.RWMutex{},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -121,7 +144,14 @@ func NewClient(fakeIntakeURL string) *Client {
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
+		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
+		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
 }
 
 // PayloadFilter is used to filter payloads by name and resource type
@@ -242,6 +272,64 @@ func (c *Client) getAPMStats() error {
 	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getNDMFlows() error {
+	payloads, err := c.getFakePayloads(ndmflowEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
+}
+
+// FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
+// metrics matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
+	metrics, err := c.getMetric(name)
+	if err != nil {
+		return nil, err
+	}
+	return filterPayload(metrics, options...)
+}
+
+// FilterCheckRuns fetches fakeintake on `/api/v1/check_run` endpoint and returns
+// metrics matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterCheckRuns(name string, options ...MatchOpt[*aggregator.CheckRun]) ([]*aggregator.CheckRun, error) {
+	checkRuns, err := c.GetCheckRun(name)
+	if err != nil {
+		return nil, err
+	}
+	return filterPayload(checkRuns, options...)
+}
+
+// FilterLogs fetches fakeintake on `/api/v2/logs` endpoint, unpackage payloads and returns
+// logs matching `service` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]) ([]*aggregator.Log, error) {
+	logs, err := c.getLog(service)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	return filterPayload(logs, options...)
+}
+
+// FilterContainerImages fetches fakeintake on `/api/v2/contimage` endpoint and returns
+// container images matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggregator.ContainerImagePayload]) ([]*aggregator.ContainerImagePayload, error) {
+	images, err := c.getContainerImage(name)
+	if err != nil {
+		return nil, err
+	}
+	// apply filters one after the other
+	return filterPayload(images, options...)
+}
+
+func (c *Client) getServiceDiscoveries() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
 // TODO: handle multiple flares / flush when returning latest flare
 func (c *Client) GetLatestFlare() (flare.Flare, error) {
@@ -327,34 +415,6 @@ func (c *Client) GetMetricNames() ([]string, error) {
 	return c.metricAggregator.GetNames(), nil
 }
 
-// FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
-// metrics matching `name` and any [MatchOpt](#MatchOpt) options
-func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.MetricSeries]) ([]*aggregator.MetricSeries, error) {
-	metrics, err := c.getMetric(name)
-	if err != nil {
-		return nil, err
-	}
-	// apply filters one after the other
-	filteredMetrics := []*aggregator.MetricSeries{}
-	for _, metric := range metrics {
-		matchCount := 0
-		for _, matchOpt := range options {
-			isMatch, err := matchOpt(metric)
-			if err != nil {
-				return nil, err
-			}
-			if !isMatch {
-				break
-			}
-			matchCount++
-		}
-		if matchCount == len(options) {
-			filteredMetrics = append(filteredMetrics, metric)
-		}
-	}
-	return filteredMetrics, nil
-}
-
 // WithTags filters by `tags`
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 	return func(payload P) (bool, error) {
@@ -401,9 +461,7 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 	}
 }
 
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
-//
-//nolint:revive // TODO(APL) Fix revive linter
+// WithMetricValueHigherThan filters metrics with values higher than `minValue`
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -424,44 +482,14 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
-// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// GetLogServiceNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
 		return nil, err
 	}
 	return c.logAggregator.GetNames(), nil
-}
-
-// FilterLogs fetches fakeintake on `/api/v2/logs` endpoint, unpackage payloads and returns
-// logs matching `service` and any [MatchOpt](#MatchOpt) options
-func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]) ([]*aggregator.Log, error) {
-	logs, err := c.getLog(service)
-	if err != nil {
-		return nil, err
-	}
-	// apply filters one after the other
-	filteredLogs := []*aggregator.Log{}
-	for _, log := range logs {
-		matchCount := 0
-		for _, matchOpt := range options {
-			isMatch, err := matchOpt(log)
-			if err != nil {
-				return nil, err
-			}
-			if !isMatch {
-				break
-			}
-			matchCount++
-		}
-		if matchCount == len(options) {
-			filteredLogs = append(filteredLogs, log)
-		}
-	}
-	return filteredLogs, nil
 }
 
 // WithMessageContaining filters logs by message containing `content`
@@ -500,10 +528,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
-// FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
+// GetCheckRun fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
@@ -630,34 +656,6 @@ func (c *Client) GetContainerImageNames() ([]string, error) {
 	return c.containerImageAggregator.GetNames(), nil
 }
 
-// FilterContainerImages fetches fakeintake on `/api/v2/contimage` endpoint and returns
-// container images matching `name` and any [MatchOpt](#MatchOpt) options
-func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggregator.ContainerImagePayload]) ([]*aggregator.ContainerImagePayload, error) {
-	images, err := c.getContainerImage(name)
-	if err != nil {
-		return nil, err
-	}
-	// apply filters one after the other
-	filteredImages := []*aggregator.ContainerImagePayload{}
-	for _, image := range images {
-		matchCount := 0
-		for _, matchOpt := range options {
-			isMatch, err := matchOpt(image)
-			if err != nil {
-				return nil, err
-			}
-			if !isMatch {
-				break
-			}
-			matchCount++
-		}
-		if matchCount == len(options) {
-			filteredImages = append(filteredImages, image)
-		}
-	}
-	return filteredImages, nil
-}
-
 // GetContainerLifecycleEvents fetches fakeintake on `/api/v2/contlcycle` endpoint and returns
 // all received container lifecycle payloads
 func (c *Client) GetContainerLifecycleEvents() ([]*aggregator.ContainerLifecyclePayload, error) {
@@ -777,13 +775,40 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			panic("fakeintake call timed out")
+		}
 		if err != nil {
 			return err
 		}
+
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+			var errStr string
+			if errBody, _ := io.ReadAll(tmpResp.Body); len(errBody) > 0 {
+				errStr = string(errBody)
+			}
+			return fmt.Errorf("expected %d got %d: %s", http.StatusOK, tmpResp.StatusCode, errStr)
 		}
+		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
+		// If the fakeintake ID is not set yet we set the one we get from the first request
+		// If the fakeintake does not return its id in the header we do not check it
+		requestFakeintakeID := tmpResp.Header.Get(fakeintakeIDHeader)
+		if c.strictFakeintakeIDCheck && requestFakeintakeID != "" {
+			if c.fakeintakeID == "" {
+				c.fakeintakeIDMutex.Lock()
+				c.fakeintakeID = requestFakeintakeID
+				c.fakeintakeIDMutex.Unlock()
+			} else {
+				c.fakeintakeIDMutex.RLock()
+				currentFakeintakeID := c.fakeintakeID
+				c.fakeintakeIDMutex.RUnlock()
+				if currentFakeintakeID != requestFakeintakeID {
+					panic(fmt.Sprintf("expected fakeintakeID %s got %s: The fakeintake probably restarted during your test", currentFakeintakeID, requestFakeintakeID))
+				}
+			}
+		}
+
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
@@ -839,4 +864,56 @@ func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
 		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
 	}
 	return stats, nil
+}
+
+// GetNDMFlows fetches fakeintake on `/api/v2/ndmflows` endpoint and returns all received ndmflow payloads
+func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
+	err := c.getNDMFlows()
+	if err != nil {
+		return nil, err
+	}
+	var ndmflows []*aggregator.NDMFlow
+	for _, name := range c.ndmflowAggregator.GetNames() {
+		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
+	}
+	return ndmflows, nil
+}
+
+// filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
+func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T]) ([]T, error) {
+	// apply filters one after the other
+	filteredPayloads := make([]T, 0, len(payloads))
+	for _, payload := range payloads {
+		matchCount := 0
+		for _, matchOpt := range options {
+			isMatch, err := matchOpt(payload)
+			if err != nil {
+				return nil, err
+			}
+			if !isMatch {
+				break
+			}
+			matchCount++
+		}
+		if matchCount == len(options) {
+			filteredPayloads = append(filteredPayloads, payload)
+		}
+	}
+	return filteredPayloads, nil
+}
+
+// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
+// all received service discovery payloads
+func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
+	err := c.getServiceDiscoveries()
+	if err != nil {
+		return nil, err
+	}
+
+	names := c.serviceDiscoveryAggregator.GetNames()
+	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
+	for _, name := range names {
+		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+	return payloads, nil
 }

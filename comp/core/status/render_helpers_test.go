@@ -8,6 +8,7 @@ package status
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,9 @@ func TestNtpWarning(t *testing.T) {
 func TestMkHuman(t *testing.T) {
 	f := 1695783.0
 	fStr := mkHuman(f)
-	if fStr != "1,695,783" {
-		t.Errorf("Large number formatting is incorrectly adding commas in agent statuses")
-	}
+	assert.Equal(t, "1,695,783", fStr, "Large number formatting is incorrectly adding commas in agent statuses")
+
+	assert.Equal(t, "1", mkHuman(1))
+	assert.Equal(t, "1", mkHuman("1"))
+	assert.Equal(t, "1.5", mkHuman(float32(1.5)))
 }

@@ -30,28 +30,27 @@ type Destination struct {
 	shouldRetry         bool
 	retryLock           sync.Mutex
 	lastRetryError      error
-	isHA                bool
+	isMRF               bool
 }
 
 // NewDestination returns a new destination.
 func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext *client.DestinationsContext, shouldRetry bool, status statusinterface.Status) *Destination {
-	prefix := endpoint.APIKey + string(' ')
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 	return &Destination{
-		prefixer:            newPrefixer(prefix),
+		prefixer:            newPrefixer(endpoint.GetAPIKey),
 		delimiter:           NewDelimiter(useProto),
 		connManager:         NewConnectionManager(endpoint, status),
 		destinationsContext: destinationsContext,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
-		isHA:                endpoint.IsHA,
+		isMRF:               endpoint.IsMRF,
 	}
 }
 
-// IsHA indicates that this destination is a High Availability destination.
-func (d *Destination) IsHA() bool {
-	return d.isHA
+// IsMRF indicates that this destination is a Multi-Region Failover destination.
+func (d *Destination) IsMRF() bool {
+	return d.isMRF
 }
 
 // Target is the address of the destination.

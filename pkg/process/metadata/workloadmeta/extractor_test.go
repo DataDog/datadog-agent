@@ -13,7 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,9 +37,9 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 }
 
 func TestExtractor(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -106,8 +107,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Deletion)
 
 	// Assert that if no process is created or terminated, the cache is not updated nor a diff generated
 	extractor.Extract(map[int32]*procutil.Process{
@@ -155,7 +156,7 @@ func TestExtractor(t *testing.T) {
 
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(2), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Creation)
 	assert.ElementsMatch(t, []*ProcessEntity{
 		{
 			Pid:          Pid1,
@@ -164,7 +165,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 
 	// Process creation generates a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -201,8 +202,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Deletion)
 
 	// Process creation and deletion generate a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -239,7 +240,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId2,
 		},
-	}, diff.creation)
+	}, diff.Creation)
 	assert.ElementsMatch(t, []*ProcessEntity{
 		{
 			Pid:          Pid2,
@@ -248,7 +249,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 }
 
 func BenchmarkHashProcess(b *testing.B) {
@@ -272,9 +273,9 @@ func BenchmarkHashProcess(b *testing.B) {
 // asserts that the extractor is able to properly handle updating a ContainerID from "" to a valid cid, and
 // will re-generate the EventSet for that process once the pidToCid mapping is up-to-date.
 func TestLateContainerId(t *testing.T) {
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -285,7 +286,7 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 1,
-		creation: []*ProcessEntity{
+		Creation: []*ProcessEntity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  "",
@@ -294,7 +295,7 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		Deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
 
 	var (
@@ -310,7 +311,7 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 2,
-		creation: []*ProcessEntity{
+		Creation: []*ProcessEntity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  ctrId1,
@@ -319,6 +320,6 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		Deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
 }

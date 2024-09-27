@@ -1,6 +1,8 @@
 name "freetds"
 default_version "1.1.36"
 
+dependency "unixodbc"
+
 version "1.1.36" do
   source sha256: "1c306e658e10a325eefddfd662cec3a6d9065fe61c515f26d4f1fb6c4c62405d"
 end

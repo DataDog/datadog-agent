@@ -1,10 +1,9 @@
 using System;
 using System.Security.AccessControl;
-using Newtonsoft.Json;
 using Datadog.CustomActions.Interfaces;
-using System.ServiceProcess;
+using Newtonsoft.Json;
 
-namespace Datadog.CustomActions.RollbackData
+namespace Datadog.CustomActions.Rollback
 {
     class ServicePermissionRollbackData : IRollbackAction
     {

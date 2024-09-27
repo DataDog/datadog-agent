@@ -12,37 +12,37 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(senderManager sender.SenderManager, hostname string, opts RSAOptions, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname string, opts RSAOptions, wmeta workloadmeta.Component) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	// on windows do no telemetry
-	telemetry, err := newTelemetry(senderManager, wmeta, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
+	profContainersTelemetry, err := newProfContainersTelemetry(statsdClient, wmeta, opts.LogProfiledWorkloads)
 	if err != nil {
-		return nil, errors.New("failed to initialize the telemetry reporter")
+		return nil, errors.New("failed to initialize the profiled containers telemetry reporter")
 	}
+
 	// on windows do no storage manager
-	storage, err := dump.NewSecurityAgentStorageManager(senderManager)
+	storage, err := dump.NewAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityAgent{
-		client:               client,
-		hostname:             hostname,
-		telemetry:            telemetry,
-		storage:              storage,
-		running:              atomic.NewBool(false),
-		connected:            atomic.NewBool(false),
-		eventReceived:        atomic.NewUint64(0),
-		activityDumpReceived: atomic.NewUint64(0),
+		client:                  client,
+		hostname:                hostname,
+		profContainersTelemetry: profContainersTelemetry,
+		storage:                 storage,
+		running:                 atomic.NewBool(false),
+		connected:               atomic.NewBool(false),
+		eventReceived:           atomic.NewUint64(0),
+		activityDumpReceived:    atomic.NewUint64(0),
 	}, nil
 }

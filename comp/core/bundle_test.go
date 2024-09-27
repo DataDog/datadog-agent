@@ -10,11 +10,12 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), fx.Supply(BundleParams{}))
+	fxutil.TestBundle(t, Bundle(), fx.Supply(BundleParams{}), fx.Supply(pidimpl.NewParams("")))
 }
 
 func TestMockBundleDependencies(t *testing.T) {

@@ -3,6 +3,6 @@
 # Contains jobs to build container images of the Agent.
 
 include:
-  - /.gitlab/container_build/docker_linux.yml
-  - /.gitlab/container_build/docker_windows.yml
-  - /.gitlab/container_build/fakeintake.yml
+  - .gitlab/container_build/docker_linux.yml
+  - .gitlab/container_build/docker_windows.yml
+  - .gitlab/container_build/fakeintake.yml

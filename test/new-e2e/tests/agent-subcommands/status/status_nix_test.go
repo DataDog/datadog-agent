@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 type linuxStatusSuite struct {
@@ -20,11 +21,12 @@ type linuxStatusSuite struct {
 }
 
 func TestLinuxStatusSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
 	status := v.Env().Agent.Client.Status()

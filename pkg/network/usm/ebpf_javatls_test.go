@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 )
 
 func createJavaTempFile(t *testing.T, dir string) string {
@@ -36,7 +36,7 @@ func TestJavaInjection(t *testing.T) {
 	t.Skip("JavaTLS tests are currently disabled")
 	cfg := networkconfig.New()
 	cfg.EnableJavaTLSSupport = true
-	if !http.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) {
 		t.Skip("Java injection tests are not supported on this machine")
 	}
 
@@ -53,7 +53,7 @@ func TestJavaInjection(t *testing.T) {
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "Wait.class") + " " + filepath.Join(fakeAgentDir, "Wait.class"))
 	require.NoError(t, err)
 
-	commonTearDown := func(t *testing.T, ctx map[string]interface{}) {
+	commonTearDown := func(_ *testing.T, ctx map[string]interface{}) {
 		cfg.JavaAgentArgs = ctx["JavaAgentArgs"].(string)
 
 		testfile := ctx["testfile"].(string)
@@ -87,7 +87,7 @@ func TestJavaInjection(t *testing.T) {
 				ctx["testfile"] = createJavaTempFile(t, fakeAgentDir)
 				cfg.JavaAgentArgs += ",testfile=/v/" + filepath.Base(ctx["testfile"].(string))
 			},
-			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:8u151-jre", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 			},
@@ -109,7 +109,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ""
 			},
-			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir, regexp.MustCompile(`AnotherWait pid.*`))
@@ -130,7 +130,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentAllowRegex = ""
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
-			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				// if RunJavaVersion failing to start it's probably because the java process has not been injected
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir), "Failed running Java version")
 				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir, regexp.MustCompile(`JustWait pid.*`))
@@ -150,7 +150,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*AnotherWait.*"
 			},
-			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 				javatestutil.RunJavaVersionAndWaitForRejection(t, "openjdk:21-oraclelinux8", "Wait AnotherWait", fakeAgentDir, regexp.MustCompile(`AnotherWait pid.*`))
 			},
@@ -169,7 +169,7 @@ func TestJavaInjection(t *testing.T) {
 				cfg.JavaAgentAllowRegex = ".*JustWait.*"
 				cfg.JavaAgentBlockRegex = ".*JustWait.*"
 			},
-			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:21-oraclelinux8", "Wait JustWait", fakeAgentDir), "Failed running Java version")
 			},
 			validation: commonValidation,
@@ -189,7 +189,7 @@ func TestJavaInjection(t *testing.T) {
 			t.Cleanup(func() {
 				javaTLSProg.Stop(nil)
 			})
-			require.NoError(t, javaTLSProg.(*javaTLSProgram).processMonitor.Initialize())
+			require.NoError(t, javaTLSProg.(*javaTLSProgram).processMonitor.Initialize(true))
 
 			tt.postTracerSetup(t, tt.context)
 			tt.validation(t, tt.context)

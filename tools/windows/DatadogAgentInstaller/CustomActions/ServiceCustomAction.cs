@@ -1,16 +1,15 @@
+using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
+using Datadog.CustomActions.Rollback;
+using Microsoft.Deployment.WindowsInstaller;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.AccessControl;
-using System.Security.Authentication.ExtendedProtection;
 using System.Security.Principal;
 using System.ServiceProcess;
-using Datadog.CustomActions.Extensions;
-using Datadog.CustomActions.Interfaces;
-using Datadog.CustomActions.Native;
-using Datadog.CustomActions.RollbackData;
-using Microsoft.Deployment.WindowsInstaller;
-using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -105,7 +104,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
@@ -193,11 +191,7 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
 
-            var installCWS = _session.Property("INSTALL_CWS");
-            if (!string.IsNullOrEmpty(installCWS))
-            {
-                _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            }
+            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -229,10 +223,7 @@ namespace Datadog.CustomActions
                 Constants.AgentServiceName,
             };
 
-            if (!string.IsNullOrEmpty(_session.Property("INSTALL_CWS")))
-            {
-                services.Add(Constants.SecurityAgentServiceName);
-            }
+            services.Add(Constants.SecurityAgentServiceName);
 
             foreach (var serviceName in services)
             {
@@ -268,7 +259,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        [CustomAction]
         public static ActionResult ConfigureServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServices();
@@ -288,7 +278,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult ConfigureServicesRollback(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServicesRollback();
@@ -403,7 +392,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult StopDDServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices(false);
@@ -425,13 +413,12 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to stop services: {e}");
+                _session.Log($"Failed to start services: {e}");
                 // Allow service start to fail and continue the install
             }
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult StartDDServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServices();
@@ -444,7 +431,6 @@ namespace Datadog.CustomActions
             return StopDDServices(true);
         }
 
-        [CustomAction]
         public static ActionResult StartDDServicesRollback(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServicesRollback();

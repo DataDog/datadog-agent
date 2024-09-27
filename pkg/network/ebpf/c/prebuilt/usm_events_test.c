@@ -2,6 +2,7 @@
 #include "ktypes.h"
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
+#include "bpf_metadata.h"
 
 #include <uapi/linux/ptrace.h>
 

@@ -98,17 +98,3 @@ func Test_makeStringBatches(t *testing.T) {
 		})
 	}
 }
-
-func Test_CopyStrings(t *testing.T) {
-	tags := []string{"aa", "bb"}
-	newTags := CopyStrings(tags)
-	assert.Equal(t, tags, newTags)
-	assert.NotEqual(t, fmt.Sprintf("%p", tags), fmt.Sprintf("%p", newTags))
-	assert.NotEqual(t, fmt.Sprintf("%p", &tags[0]), fmt.Sprintf("%p", &newTags[0]))
-}
-
-func Test_BoolToFloat64(t *testing.T) {
-	assert.Equal(t, BoolToFloat64(true), 1.0)
-	assert.Equal(t, BoolToFloat64(false), 0.0)
-
-}

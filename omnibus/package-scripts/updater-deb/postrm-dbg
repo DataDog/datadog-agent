@@ -1,9 +1,0 @@
-#!/bin/sh
-#
-# Perform necessary datadog-updater removal steps after package is uninstalled.
-#
-# .deb: STEP 3 of 5
-
-## NOTHING HERE
-
-exit 0

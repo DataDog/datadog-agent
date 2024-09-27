@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
@@ -89,7 +90,7 @@ func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string
 func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCacheEntry {
 	// setting process
 	process := model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	process.ContainerID = containerID
+	process.ContainerID = containerutils.ContainerID(containerID)
 	process.FileEvent.PathnameStr = test.processPath
 	process.FileEvent.BasenameStr = filepath.Base(test.processPath)
 	process.Argv0 = filepath.Base(test.processPath)
@@ -104,7 +105,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 
 	// setting process ancestor
 	process.Ancestor = model.NewPlaceholderProcessCacheEntry(41, 41, false)
-	process.Ancestor.ContainerID = containerID
+	process.Ancestor.ContainerID = containerutils.ContainerID(containerID)
 	process.Ancestor.FileEvent.PathnameStr = test.parentProcessPath
 	process.Ancestor.FileEvent.BasenameStr = filepath.Base(test.parentProcessPath)
 	process.Ancestor.Argv0 = filepath.Base(test.parentProcessPath)
@@ -131,7 +132,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	process.Ancestor.Ancestor.FileEvent.PathnameStr = "/usr/bin/systemd"
 	process.Ancestor.Ancestor.FileEvent.BasenameStr = "systemd"
 	if test.granpaInsideContainer {
-		process.Ancestor.Ancestor.ContainerID = containerID
+		process.Ancestor.Ancestor.ContainerID = containerutils.ContainerID(containerID)
 	}
 	process.Ancestor.Ancestor.FileEvent.Inode = 40
 	process.Ancestor.Ancestor.FileEvent.MountID = 40
@@ -688,11 +689,14 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								dump.Metadata.ContainerID = contID
 								at = dump.ActivityTree
 							} else /* profileTree */ {
-								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType})
+								profile := profile.NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
 								profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
-									ContainerContext: model.ContainerContext{ID: contID},
+									ContainerContext: model.ContainerContext{
+										ContainerID: containerutils.ContainerID(contID),
+									},
+									CGroupContext:    model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
 									WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}
@@ -702,7 +706,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 						process := craftFakeProcess(defaultContainerID, &ti)
 
-						node, newProcessNode, err := at.CreateProcessNode(process, gentype, dryRun, nil)
+						node, newProcessNode, err := at.CreateProcessNode(process, "tag", gentype, dryRun, nil)
 
 						assert.Equal(t, ti.resultErr, err)
 						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)
@@ -764,7 +768,7 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 		}
 
 		t.Run(test, func(t *testing.T) {
-			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, activity_tree.Runtime, false, nil)
+			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -24,8 +24,10 @@ type Hello struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Hello) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
+	h.daemon.LambdaLibraryStateLock.Lock()
+	defer h.daemon.LambdaLibraryStateLock.Unlock()
 	h.daemon.LambdaLibraryDetected = true
 }
 
@@ -36,7 +38,7 @@ type Flush struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *Flush) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
@@ -53,6 +55,7 @@ type StartInvocation struct {
 
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
+	s.daemon.SetExecutionSpanIncomplete(true)
 	startTime := time.Now()
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -75,6 +78,9 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Debug("a context has been found, sending the context to the tracer")
 		w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().TraceID))
 		w.Header().Set(invocationlifecycle.SamplingPriorityHeader, fmt.Sprintf("%v", s.daemon.InvocationProcessor.GetExecutionInfo().SamplingPriority))
+		if s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex != "" {
+			w.Header().Set(invocationlifecycle.TraceTagsHeader, fmt.Sprintf("%s=%s", invocationlifecycle.Upper64BitsTag, s.daemon.InvocationProcessor.GetExecutionInfo().TraceIDUpper64Hex))
+		}
 	}
 }
 
@@ -86,6 +92,7 @@ type EndInvocation struct {
 
 func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
+	e.daemon.SetExecutionSpanIncomplete(false)
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
 	coldStartTags := e.daemon.ExecutionContext.GetColdStartTagsForRequestID(ecs.LastRequestID)
@@ -134,7 +141,7 @@ type TraceContext struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))

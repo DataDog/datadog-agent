@@ -69,17 +69,18 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getSELinuxProbes()...)
 	allProbes = append(allProbes, getBPFProbes(fentry)...)
 	allProbes = append(allProbes, getPTraceProbes(fentry)...)
-	allProbes = append(allProbes, getMMapProbes(fentry)...)
+	allProbes = append(allProbes, getMMapProbes()...)
 	allProbes = append(allProbes, getMProtectProbes(fentry)...)
 	allProbes = append(allProbes, getModuleProbes(fentry)...)
 	allProbes = append(allProbes, getSignalProbes(fentry)...)
 	allProbes = append(allProbes, getSpliceProbes(fentry)...)
 	allProbes = append(allProbes, getFlowProbes()...)
 	allProbes = append(allProbes, getNetDeviceProbes()...)
-	allProbes = append(allProbes, GetTCProbes()...)
+	allProbes = append(allProbes, GetTCProbes(true)...)
 	allProbes = append(allProbes, getBindProbes(fentry)...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
+	allProbes = append(allProbes, GetOnDemandProbes()...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -108,7 +109,6 @@ func AllMaps() []*manager.Map {
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
-		{Name: "pid_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table

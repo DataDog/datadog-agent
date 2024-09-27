@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
-type RunParams struct {
+// Params contains the flags of the run subcommand.
+type Params struct {
 	*subcommands.GlobalParams
 
 	// PIDFilePath contains the value of the --pidfile flag.
@@ -27,9 +27,8 @@ type RunParams struct {
 	MemProfile string
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
+func setOSSpecificParamFlags(_ *cobra.Command, _ *Params) {}
 
-func runTraceAgentCommand(cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentCommand(cliParams *Params, defaultConfPath string) error {
 	return runTraceAgentProcess(context.Background(), cliParams, defaultConfPath)
 }

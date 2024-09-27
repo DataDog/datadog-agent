@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/archiver/v3"
-
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -57,7 +56,7 @@ func newBuilder(root string, hostname string, localFlare bool) (*builder, error)
 	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
 	fb.scrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
-		ReplFunc: func(b []byte) []byte {
+		ReplFunc: func(_ []byte) []byte {
 			return []byte("api_key: \"********\"")
 		},
 	})
@@ -148,9 +147,7 @@ func (fb *builder) Save() (string, error) {
 	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
 	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
 	// directory. This prevents other users from being able to read local flares.
-
-	// File format is determined based on archivePath extension, so zip
-	err := archiver.Archive([]string{fb.flareDir}, archiveTmpPath)
+	err := archive.Zip([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}
@@ -175,6 +172,14 @@ func (fb *builder) logError(format string, params ...interface{}) error {
 	err := log.Errorf(format, params...)
 	_, _ = fb.logFile.WriteString(err.Error() + "\n")
 	return err
+}
+
+func (fb *builder) Logf(format string, params ...interface{}) error {
+	_, err := fb.logFile.WriteString(fmt.Sprintf(format, params...) + "\n")
+	if err != nil {
+		return fb.logError("error writing log: %v", err)
+	}
+	return nil
 }
 
 func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) error {
@@ -271,7 +276,7 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	}
 	fb.permsInfos.add(srcDir)
 
-	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, err error) error {
+	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
 		if f == nil {
 			return nil
 		}
@@ -316,7 +321,7 @@ func (fb *builder) RegisterFilePerm(path string) {
 }
 
 func (fb *builder) RegisterDirPerm(path string) {
-	_ = filepath.Walk(path, func(src string, f os.FileInfo, err error) error {
+	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
 		if f != nil {
 			fb.RegisterFilePerm(src)
 		}

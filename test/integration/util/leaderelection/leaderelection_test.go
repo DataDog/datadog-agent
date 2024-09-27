@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -108,8 +110,8 @@ func TestSuiteAPIServer(t *testing.T) {
 			os.Remove(getApiserverComposePath(tt.version))
 		}()
 
-		mockConfig := config.Mock(t)
-		config.SetFeatures(t, config.Kubernetes)
+		mockConfig := configmock.New(t)
+		env.SetFeatures(t, env.Kubernetes)
 		mockConfig.SetWithoutSource("leader_election_default_resource", tt.leaderElectionDefaultResource)
 
 		// Start compose stack
@@ -136,7 +138,7 @@ func TestSuiteAPIServer(t *testing.T) {
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -186,7 +188,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 
 	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
 	leader.HolderIdentity = holderIdentity

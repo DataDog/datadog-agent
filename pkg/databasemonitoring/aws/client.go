@@ -36,12 +36,15 @@ type Client struct {
 }
 
 // NewRDSClient creates a new AWS client for querying RDS
-func NewRDSClient() (*Client, string, error) {
-	// get region from instance metadata
-	identity, err := ec2.GetInstanceIdentity(context.Background())
-	if err != nil {
-		return nil, "", err
+func NewRDSClient(region string) (*Client, string, error) {
+	if region == "" {
+		identity, err := ec2.GetInstanceIdentity(context.Background())
+		if err != nil {
+			return nil, "", err
+		}
+		region = identity.Region
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	// Try to load shared AWS configuration.
@@ -49,12 +52,12 @@ func NewRDSClient() (*Client, string, error) {
 	// * Environment Variables
 	// * Shared Configuration and Shared Credentials files.
 	cfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(identity.Region),
+		awsconfig.WithRegion(region),
 	)
 	if err != nil {
-		return nil, identity.Region, err
+		return nil, region, err
 	}
 
 	svc := rds.NewFromConfig(cfg)
-	return &Client{client: svc}, identity.Region, nil
+	return &Client{client: svc}, region, nil
 }

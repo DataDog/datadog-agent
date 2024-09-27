@@ -1,6 +1,6 @@
 from invoke import task
 
-from tasks.libs.junit_upload_core import junit_upload_from_tgz
+from tasks.libs.common.junit_upload_core import junit_upload_from_tgz
 
 
 @task()

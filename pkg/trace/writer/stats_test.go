@@ -63,7 +63,7 @@ func assertPayload(assert *assert.Assertions, testSets []*pb.StatsPayload, paylo
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsWriter()
+		sw, srv := testStatsWriter()
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -96,15 +96,15 @@ func TestStatsWriter(t *testing.T) {
 				}},
 			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 
 	t.Run("buildPayloads", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, _, _ := testStatsWriter()
+		sw, _ := testStatsWriter()
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
 		// time window (start: 0, duration 1e9).
@@ -112,22 +112,24 @@ func TestStatsWriter(t *testing.T) {
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
 			AgentVersion:  "agent-version",
-			Stats: []*pb.ClientStatsPayload{{
-				Hostname:         testHostname,
-				Env:              testEnv,
-				Version:          "version",
-				Lang:             "lang",
-				TracerVersion:    "tracer-version",
-				RuntimeID:        "runtime-id",
-				Sequence:         34,
-				AgentAggregation: "aggregation",
-				Service:          "service",
-				ContainerID:      "container-id",
-				Stats: []*pb.ClientStatsBucket{
-					testutil.RandomBucket(5),
-					testutil.RandomBucket(5),
-					testutil.RandomBucket(5),
-				}},
+			Stats: []*pb.ClientStatsPayload{
+				{
+					Hostname:         testHostname,
+					Env:              testEnv,
+					Version:          "version",
+					Lang:             "lang",
+					TracerVersion:    "tracer-version",
+					RuntimeID:        "runtime-id",
+					Sequence:         34,
+					AgentAggregation: "aggregation",
+					Service:          "service",
+					ContainerID:      "container-id",
+					Stats: []*pb.ClientStatsBucket{
+						testutil.RandomBucket(5),
+						testutil.RandomBucket(5),
+						testutil.RandomBucket(5),
+					},
+				},
 			},
 		}
 
@@ -175,7 +177,7 @@ func TestStatsWriter(t *testing.T) {
 		rand.Seed(1)
 		assert := assert.New(t)
 
-		sw, _, _ := testStatsWriter()
+		sw, _ := testStatsWriter()
 		// This gives us a tota of 45 entries. 3 per span, 5 spans per
 		// stat bucket. Each buckets have the same time window (start:
 		// 0, duration 1e9).
@@ -198,10 +200,43 @@ func TestStatsWriter(t *testing.T) {
 		assert.Equal(5, len(s[0].Stats[1].Stats))
 		assert.Equal(5, len(s[0].Stats[2].Stats))
 	})
+
+	t.Run("container-tags", func(t *testing.T) {
+		assert := assert.New(t)
+		sw, _ := testStatsWriter()
+		stats := &pb.StatsPayload{
+			AgentHostname: "agenthost",
+			AgentEnv:      "agentenv",
+			AgentVersion:  "agent-version",
+			Stats: []*pb.ClientStatsPayload{
+				{
+					Hostname:         testHostname,
+					Env:              testEnv,
+					Version:          "version",
+					Lang:             "lang",
+					TracerVersion:    "tracer-version",
+					RuntimeID:        "runtime-id",
+					Sequence:         34,
+					AgentAggregation: "aggregation",
+					Service:          "service",
+					ContainerID:      "container-id",
+					Tags:             []string{"tag1", "tag2"},
+					Stats: []*pb.ClientStatsBucket{
+						testutil.RandomBucket(5),
+					},
+				},
+			},
+		}
+
+		payloads := sw.buildPayloads(stats, 12)
+		assert.Equal(1, len(payloads))
+		assert.Equal("container-id", payloads[0].Stats[0].ContainerID)
+		assert.Equal([]string{"tag1", "tag2"}, payloads[0].Stats[0].Tags)
+	})
 }
 
 func TestStatsResetBuffer(t *testing.T) {
-	w, _, _ := testStatsSyncWriter()
+	w, _ := testStatsSyncWriter()
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -227,7 +262,7 @@ func TestStatsResetBuffer(t *testing.T) {
 func TestStatsSyncWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter()
 		go sw.Run()
 		testSets := []*pb.StatsPayload{
 			{
@@ -239,7 +274,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 			{
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
@@ -249,10 +285,11 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		err := sw.FlushSync()
 		assert.Nil(err)
 		assertPayload(assert, testSets, srv.Payloads())
@@ -260,7 +297,7 @@ func TestStatsSyncWriter(t *testing.T) {
 
 	t.Run("stop", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, statsChannel, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter()
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -273,7 +310,8 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 			{
 				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
@@ -283,39 +321,34 @@ func TestStatsSyncWriter(t *testing.T) {
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
-				}}},
+				}},
+			},
 		}
-		statsChannel <- testSets[0]
-		statsChannel <- testSets[1]
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
 }
 
-func testStatsWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
+func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
-	// We use a blocking channel to make sure that sends get received on the
-	// other end.
-	in := make(chan *pb.StatsPayload)
 	cfg := &config.AgentConfig{
 		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
-		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
+		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }
 
-func testStatsSyncWriter() (*StatsWriter, chan *pb.StatsPayload, *testServer) {
+func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
-	// We use a blocking channel to make sure that sends get received on the
-	// other end.
-	in := make(chan *pb.StatsPayload)
 	cfg := &config.AgentConfig{
 		Endpoints:           []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, in, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), in, srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }
 
 type key struct {

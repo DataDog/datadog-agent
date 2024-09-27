@@ -1,11 +1,9 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build linux
 
 // Package probe holds probe related files
 package probe
@@ -14,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -32,12 +31,13 @@ type KillActionReport struct {
 
 	// internal
 	resolved bool
+	rule     *rules.Rule
 }
 
 // JKillActionReport used to serialize date
 // easyjson:json
 type JKillActionReport struct {
-	Name       string              `json:"type"`
+	Type       string              `json:"type"`
 	Signal     string              `json:"signal"`
 	Scope      string              `json:"scope"`
 	CreatedAt  utils.EasyjsonTime  `json:"created_at"`
@@ -47,16 +47,22 @@ type JKillActionReport struct {
 	TTR        string              `json:"ttr,omitempty"`
 }
 
-// ToJSON marshal the action
-func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
+// IsResolved return if the action is resolved
+func (k *KillActionReport) IsResolved() bool {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	resolved := k.Signal != "SIGKILL" || k.resolved
+	return k.Signal != "SIGKILL" || k.resolved
+}
+
+// ToJSON marshal the action
+func (k *KillActionReport) ToJSON() ([]byte, error) {
+	k.RLock()
+	defer k.RUnlock()
 
 	jk := JKillActionReport{
-		Name:       rules.KillAction,
+		Type:       rules.KillAction,
 		Signal:     k.Signal,
 		Scope:      k.Scope,
 		CreatedAt:  utils.NewEasyjsonTime(k.CreatedAt),
@@ -71,8 +77,16 @@ func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 
 	data, err := utils.MarshalEasyJSON(jk)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return data, resolved, nil
+	return data, nil
+}
+
+// IsMatchingRule returns true if this action report is targeted at the given rule ID
+func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
+	k.RLock()
+	defer k.RUnlock()
+
+	return k.rule.ID == ruleID
 }

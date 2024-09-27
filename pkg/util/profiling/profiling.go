@@ -41,6 +41,12 @@ func Start(settings Settings) error {
 	if settings.WithGoroutineProfile {
 		types = append(types, profiler.GoroutineProfile)
 	}
+	if settings.WithBlockProfile {
+		types = append(types, profiler.BlockProfile)
+	}
+	if settings.WithMutexProfile {
+		types = append(types, profiler.MutexProfile)
+	}
 
 	options := []profiler.Option{
 		profiler.WithURL(settings.ProfilingURL),
@@ -69,7 +75,7 @@ func Start(settings Settings) error {
 	}
 
 	if len(settings.CustomAttributes) > 0 {
-		customContextTags := make([]string, len(settings.CustomAttributes))
+		customContextTags := make([]string, 0, len(settings.CustomAttributes))
 		for _, customAttribute := range settings.CustomAttributes {
 			customContextTags = append(customContextTags, "ddprof.custom_ctx:"+customAttribute)
 		}

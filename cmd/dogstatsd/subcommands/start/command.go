@@ -22,17 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-less"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -50,19 +53,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type CLIParams struct {
-	confPath string
+	confPath   string
+	socketPath string
 }
 
 type DogstatsdComponents struct {
@@ -73,7 +78,7 @@ type DogstatsdComponents struct {
 
 const (
 	// loggerName is the name of the dogstatsd logger
-	loggerName pkgconfig.LoggerName = "DSD"
+	loggerName pkglogsetup.LoggerName = "DSD"
 )
 
 // MakeCommand returns the start subcommand for the 'dogstatsd' command.
@@ -90,10 +95,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	// local flags
 	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-
-	var socketPath string
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	startCmd.PersistentFlags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
 }
@@ -106,28 +108,36 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	params := &Params{
 		DefaultLogFile: defaultLogFile,
 	}
+
+	configOptions := []func(*config.Params){
+		config.WithConfFilePath(cliParams.confPath),
+		config.WithConfigMissingOK(true),
+		config.WithConfigName("dogstatsd"),
+	}
+	if cliParams.socketPath != "" {
+		configOptions = append(configOptions, config.WithCLIOverride("dogstatsd_socket", cliParams.socketPath))
+	}
+
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(params),
 		fx.Supply(config.NewParams(
 			defaultConfPath,
-			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigMissingOK(true),
-			config.WithConfigName("dogstatsd")),
-		),
-		fx.Supply(secrets.NewEnabledParams()),
-		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
-		config.Module(),
-		logComponent.Module(),
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
+			configOptions...,
+		)),
+		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](comp)
 		}),
-		dogstatsd.Bundle(),
-		forwarder.Bundle(),
-		fx.Provide(defaultforwarder.NewParams),
+		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
+		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
+		config.Module(),
+		logfx.Module(),
+		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
-		collectors.GetCatalog(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
+		wmcatalog.GetCatalog(),
+		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 			catalog := workloadmeta.NodeAgent
 			instantiate := config.GetBool("dogstatsd_origin_detection")
 
@@ -137,16 +147,15 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.Module(),
+
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		tagger.OptionalModule(),
+		taggerimpl.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -167,6 +176,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
+		fx.Provide(func(config config.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobefx.Module(),
 	)
 }
 
@@ -185,6 +201,7 @@ func start(
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
+	_ healthprobe.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
@@ -211,7 +228,7 @@ func start(
 }
 
 // RunDogstatsd starts the dogstatsd server
-func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
+func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -229,7 +246,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}()
 
 	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
+	syslogURI := pkglogsetup.GetSyslogURI(pkgconfigsetup.Datadog())
 	logFile := config.GetString("log_file")
 	if logFile == "" {
 		logFile = params.DefaultLogFile
@@ -240,7 +257,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		logFile = ""
 	}
 
-	err = pkgconfig.SetupLogger(
+	err = pkglogsetup.SetupLogger(
 		loggerName,
 		config.GetString("log_level"),
 		logFile,
@@ -248,6 +265,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
+		pkgconfigsetup.Datadog(),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -261,17 +279,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	if !config.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
-	}
-
-	// Setup healthcheck port
-	var healthPort = config.GetInt("health_port")
-	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, config, healthPort)
-		if err != nil {
-			err = log.Errorf("Error starting health port, exiting: %v", err)
-			return
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

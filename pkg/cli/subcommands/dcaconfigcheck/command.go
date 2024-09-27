@@ -7,14 +7,15 @@
 package dcaconfigcheck
 
 import (
+	"fmt"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,6 +26,7 @@ import (
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
+	NoColor      bool
 }
 
 type cliParams struct {
@@ -40,14 +42,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Aliases: []string{"checkconfig"},
 		Short:   "Print all configurations loaded & resolved of a running cluster agent",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					LogParams:    logimpl.ForOneShot("CLUSTER", "off", true),
+					LogParams:    log.ForOneShot("CLUSTER", "off", true),
 				}),
 				core.Bundle(),
 			)
@@ -60,5 +62,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	return flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
+	if err := flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
+	}
+
+	return nil
 }

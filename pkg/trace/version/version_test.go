@@ -35,7 +35,7 @@ func TestGetVersionDataFromContainerTags(t *testing.T) {
 	})
 	t.Run("error", func(t *testing.T) {
 		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
+		cfg.ContainerTags = func(_ string) ([]string, error) {
 			return nil, fmt.Errorf("error")
 		}
 		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)

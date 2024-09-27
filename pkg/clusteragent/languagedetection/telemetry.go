@@ -7,7 +7,10 @@
 
 package languagedetection
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
+)
 
 const subsystem = "language_detection_patcher"
 
@@ -24,4 +27,7 @@ var (
 		"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
 		commonOpts,
 	)
+
+	// QueueMetricsProvider is the metrics provider for the patcher retry queue
+	queueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )

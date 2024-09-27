@@ -21,7 +21,7 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -46,7 +46,7 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -71,7 +71,7 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -96,7 +96,7 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		b := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -106,11 +106,11 @@ func TestLowerCaseEquals(t *testing.T) {
 
 		e, err := CaseInsensitiveCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 
 		e, err = CaseInsensitiveCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 	})
 }
 
@@ -118,7 +118,7 @@ func TestLowerCaseContains(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "BAR"
 			},
 		}
@@ -142,7 +142,7 @@ func TestLowerCaseContains(t *testing.T) {
 	t.Run("scalar", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "FOO"
 			},
 		}
@@ -166,7 +166,7 @@ func TestLowerCaseContains(t *testing.T) {
 	t.Run("glob", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -190,7 +190,7 @@ func TestLowerCaseContains(t *testing.T) {
 	t.Run("regex", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
@@ -208,7 +208,7 @@ func TestLowerCaseContains(t *testing.T) {
 
 		e, err := CaseInsensitiveCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
-		assert.False(t, e.Eval(&ctx).(bool))
+		assert.True(t, e.Eval(&ctx).(bool))
 
 		values.AppendFieldValue(FieldValue{Value: "[Ff][Oo].*", Type: RegexpValueType})
 
@@ -224,7 +224,7 @@ func TestLowerCaseContains(t *testing.T) {
 	t.Run("eval", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "FOO"
 			},
 		}
@@ -234,8 +234,7 @@ func TestLowerCaseContains(t *testing.T) {
 		values.AppendFieldValue(FieldValue{Value: "fo*", Type: PatternValueType})
 
 		opts := StringCmpOpts{
-			ScalarCaseInsensitive:  true,
-			PatternCaseInsensitive: true,
+			CaseInsensitive: true,
 		}
 
 		if err := values.Compile(opts); err != nil {
@@ -243,7 +242,7 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		b := &StringValuesEvaluator{
-			EvalFnc: func(ctx *Context) *StringValues {
+			EvalFnc: func(*Context) *StringValues {
 				return &values
 			},
 		}
@@ -261,7 +260,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	t.Run("no-match", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "BAR"
 			},
 		}
@@ -281,7 +280,7 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	t.Run("scalar", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "FOO"
 			},
 		}
@@ -301,13 +300,13 @@ func TestLowerCaseArrayContains(t *testing.T) {
 	t.Run("eval", func(t *testing.T) {
 		a := &StringEvaluator{
 			Field: "field",
-			EvalFnc: func(ctx *Context) string {
+			EvalFnc: func(*Context) string {
 				return "foo"
 			},
 		}
 		b := &StringArrayEvaluator{
 			Field: "array",
-			EvalFnc: func(ctx *Context) []string {
+			EvalFnc: func(*Context) []string {
 				return []string{"aaa", "foo"}
 			},
 		}

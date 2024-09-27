@@ -26,10 +26,8 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newFlare))
+		fx.Provide(newFlare),
+		fx.Supply(params))
 }
-
-// The flare component doesn't provides a mock since other component don't use it directly. Other component will use the
-// mock for the FlareBuilder instead.

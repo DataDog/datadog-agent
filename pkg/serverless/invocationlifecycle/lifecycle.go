@@ -94,7 +94,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
-
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
 		log.Debugf("[lifecycle] Failed to extract event type")
@@ -230,6 +229,22 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 		ev = event
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
+	case trigger.LegacyStepFunctionEvent:
+		var event events.StepFunctionEvent
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = event.Payload
+		lp.initFromStepFunctionPayload(event.Payload)
+	case trigger.StepFunctionEvent:
+		var eventPayload events.StepFunctionPayload
+		if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = eventPayload
+		lp.initFromStepFunctionPayload(eventPayload)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
@@ -281,32 +296,14 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
-			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
-			if lp.GetInferredSpan().Span.Start != 0 {
-				span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
-				if span1 != nil {
-					log.Debug("[lifecycle] Completing a secondary inferred span")
-					lp.setParentIDForMultipleInferredSpans()
-					span1.AddTagToInferredSpan("http.status_code", statusCode)
-					span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-					span := lp.completeInferredSpan(span1, lp.getInferredSpanStart(), endDetails.IsError)
-					spans = append(spans, span)
-					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
-				}
-				span0.AddTagToInferredSpan("http.status_code", statusCode)
-				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-				span := lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
-				spans = append(spans, span)
-				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
-			} else {
-				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
-			}
+			inferredSpans := lp.endInferredSpan(statusCode, endDetails.EndTime, endDetails.IsError)
+			spans = append(spans, inferredSpans...)
 		}
 		lp.processTrace(spans)
 	}
 
-	if endDetails.IsError {
+	// We don't submit an error metric on timeouts since it should have already been submitted when the Extension receives a SHUTDOWN event
+	if endDetails.IsError && !endDetails.IsTimeout {
 		serverlessMetrics.SendErrorsEnhancedMetric(
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
@@ -384,4 +381,31 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
+}
+
+// endInferredSpan attempts to complete any inferred spans and send them to intake
+func (lp *LifecycleProcessor) endInferredSpan(statusCode string, endTime time.Time, isError bool) []*pb.Span {
+	spans := make([]*pb.Span, 0, 2)
+	log.Debug("[lifecycle] Attempting to complete the inferred span")
+	log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
+	if lp.GetInferredSpan().Span.Start != 0 {
+		span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
+		if span1 != nil {
+			log.Debug("[lifecycle] Completing a secondary inferred span")
+			lp.setParentIDForMultipleInferredSpans()
+			span1.AddTagToInferredSpan("http.status_code", statusCode)
+			span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+			span := lp.completeInferredSpan(span1, lp.getInferredSpanStart(), isError)
+			spans = append(spans, span)
+			log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
+		}
+		span0.AddTagToInferredSpan("http.status_code", statusCode)
+		span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+		span := lp.completeInferredSpan(span0, endTime, isError)
+		spans = append(spans, span)
+		log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
+	} else {
+		log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
+	}
+	return spans
 }

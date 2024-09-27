@@ -11,28 +11,32 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand"
 	"net/http"
-	"path/filepath"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/shirou/gopsutil/v3/process"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -111,9 +115,9 @@ const (
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
 type Agent struct {
-	senderManager sender.SenderManager
-	wmeta         workloadmeta.Component
-	opts          AgentOptions
+	telemetrySender telemetry.SimpleTelemetrySender
+	wmeta           workloadmeta.Component
+	opts            AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
 	statuses   map[string]*CheckStatus
@@ -126,14 +130,14 @@ type Agent struct {
 }
 
 func xccdfEnabled() bool {
-	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
+	return pkgconfigsetup.Datadog().GetBool("compliance_config.xccdf.enabled") || pkgconfigsetup.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
 func DefaultRuleFilter(r *Rule) bool {
-	if config.IsKubernetes() {
+	if env.IsKubernetes() {
 		if r.SkipOnK8s {
 			return false
 		}
@@ -146,7 +150,7 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel("")
+		ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 		if err != nil {
 			log.Errorf("failed to apply rule filters: %v", err)
 			return false
@@ -167,7 +171,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -189,16 +193,16 @@ func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, 
 		opts.RuleFilter = func(r *Rule) bool { return DefaultRuleFilter(r) }
 	}
 	return &Agent{
-		senderManager: senderManager,
-		wmeta:         wmeta,
-		opts:          opts,
-		statuses:      make(map[string]*CheckStatus),
+		telemetrySender: telemetrySender,
+		wmeta:           wmeta,
+		opts:            opts,
+		statuses:        make(map[string]*CheckStatus),
 	}
 }
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager, a.wmeta)
+	telemetry, err := telemetry.NewContainersTelemetry(a.telemetrySender, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
@@ -388,7 +392,7 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 }
 
 func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
-	if !config.IsKubernetes() {
+	if !env.IsKubernetes() {
 		return
 	}
 
@@ -409,7 +413,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel("")
+	ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return
@@ -454,10 +458,16 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		}
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
 		for keyGroup, proc := range groups {
-			rootPath := filepath.Join(a.opts.HostRoot, keyGroup.rootPath)
-			resource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, keyGroup.containerID)
-			if ok {
-				a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+			if keyGroup.containerID != "" {
+				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
+					log.Warnf("error reporting DB configuration from system-probe: %s", err)
+				}
+			} else {
+				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
+				if ok {
+					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
+				}
 			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
@@ -466,10 +476,55 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 	}
 }
 
+func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
+	if a.opts.SysProbeClient == nil {
+		return fmt.Errorf("system-probe socket client was not created")
+	}
+
+	qs := make(url.Values)
+	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
+	sysProbeComplianceModuleURL := &url.URL{
+		Scheme:   "http",
+		Host:     "unix",
+		Path:     "/compliance/dbconfig",
+		RawQuery: qs.Encode(),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sysProbeComplianceModuleURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := a.opts.SysProbeClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error running cross-container benchmark: %s", resp.Status)
+	}
+
+	var resource *dbconfig.DBResource
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, &resource); err != nil {
+		return err
+	}
+	if resource != nil {
+		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
+		dbResourceLog.Container = &CheckContainerMeta{
+			ContainerID: string(containerID),
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
+	}
+	return nil
+}
+
 type procGroup struct {
 	key         string
 	containerID utils.ContainerID
-	rootPath    string
 }
 
 func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
@@ -482,25 +537,16 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (str
 		// if the process does not run in any form of container, containerID
 		// is the empty string "" and it can be run locally
 		containerID, _ := utils.GetProcessContainerID(proc.Pid)
-		var rootPath string
-		if containerID != "" {
-			p, err := utils.GetContainerOverlayPath(proc.Pid)
-			if err != nil {
-				continue
-			}
-			rootPath = p
-		} else {
-			rootPath = "/"
-		}
 		// We dedupe our scans based on the resource type and the container
 		// ID, assuming that we will scan the same configuration for each
 		// containers running the process.
 		groupKey := procGroup{
 			key:         key,
 			containerID: containerID,
-			rootPath:    rootPath,
 		}
-		groups[groupKey] = proc
+		if _, ok := groups[groupKey]; !ok {
+			groups[groupKey] = proc
+		}
 	}
 	return groups
 }

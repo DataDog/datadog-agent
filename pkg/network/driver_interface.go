@@ -9,16 +9,18 @@ package network
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"math"
 	"sync"
 	"time"
 	"unsafe"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -103,10 +105,10 @@ type DriverInterface struct {
 // TestDriverHandle*
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
-type HandleCreateFn func(flags uint32, handleType driver.HandleType) (driver.Handle, error)
+type HandleCreateFn func(flags uint32, handleType driver.HandleType, telemetrycomp telemetryComp.Component) (driver.Handle, error)
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
-func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverInterface, error) {
+func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn, telemetrycomp telemetryComp.Component) (*DriverInterface, error) {
 	dc := &DriverInterface{
 		cfg:                    cfg,
 		enableMonotonicCounts:  cfg.EnableMonotonicCount,
@@ -118,7 +120,7 @@ func NewDriverInterface(cfg *config.Config, handleFunc HandleCreateFn) (*DriverI
 		exitTelemetry:          make(chan struct{}),
 	}
 
-	h, err := handleFunc(0, driver.FlowHandle)
+	h, err := handleFunc(0, driver.FlowHandle, telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
@@ -392,13 +394,6 @@ func (db *driverReadBuffer) resizeDriverBuffer(compareSize int) driverResizeResu
 	return ResizedUnchanged
 }
 
-func minUint64(a, b uint64) uint64 {
-	if a > b {
-		return b
-	}
-	return a
-}
-
 func (di *DriverInterface) setFlowParams() error {
 	// set up the maximum flows
 
@@ -409,8 +404,8 @@ func (di *DriverInterface) setFlowParams() error {
 
 	// this makes it so that the config can clamp down, but can never make it
 	// larger than the coded defaults above.
-	maxOpenFlows := minUint64(defaultMaxOpenFlows, di.maxOpenFlows)
-	maxClosedFlows := minUint64(defaultMaxClosedFlows, di.maxClosedFlows)
+	maxOpenFlows := min(defaultMaxOpenFlows, di.maxOpenFlows)
+	maxClosedFlows := min(defaultMaxClosedFlows, di.maxClosedFlows)
 
 	err := di.driverFlowHandle.DeviceIoControl(
 		driver.SetMaxOpenFlowsIOCTL,

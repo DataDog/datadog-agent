@@ -15,9 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var _ Component = (*apiserver)(nil)
@@ -38,17 +37,15 @@ type dependencies struct {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func newApiServer(deps dependencies) Component {
-	initRuntimeSettings(deps.Log)
-
 	r := mux.NewRouter()
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
-	addr, err := ddconfig.GetProcessAPIAddressPort()
+	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
 
 	apiserver := &apiserver{
 		server: &http.Server{
@@ -61,7 +58,7 @@ func newApiServer(deps dependencies) Component {
 	}
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			go func() {
 				err := apiserver.server.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -82,24 +79,4 @@ func newApiServer(deps dependencies) Component {
 	})
 
 	return apiserver
-}
-
-// initRuntimeSettings registers settings to be added to the runtime config.
-func initRuntimeSettings(logger log.Component) {
-	// NOTE: Any settings you want to register should simply be added here
-	processRuntimeSettings := []settings.RuntimeSetting{
-		settings.NewLogLevelRuntimeSetting(),
-		settings.NewRuntimeMutexProfileFraction(),
-		settings.NewRuntimeBlockProfileRate(),
-		settings.NewProfilingGoroutines(),
-		settings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
-	}
-
-	// Before we begin listening, register runtime settings
-	for _, setting := range processRuntimeSettings {
-		err := settings.RegisterRuntimeSetting(setting)
-		if err != nil {
-			_ = logger.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
-		}
-	}
 }

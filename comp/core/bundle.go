@@ -17,12 +17,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: agent-shared-components
@@ -33,12 +36,14 @@ func Bundle() fxutil.BundleOptions {
 		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
 		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
 		config.Module(),
-		fx.Provide(func(params BundleParams) logimpl.Params { return params.LogParams }),
-		logimpl.Module(),
+		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
+		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		secretsimpl.Module(),
 		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
+		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
 		sysprobeconfigimpl.Module(),
-		telemetry.Module(),
-		hostnameimpl.Module())
+		telemetryimpl.Module(),
+		hostnameimpl.Module(),
+		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
 }

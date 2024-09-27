@@ -83,7 +83,7 @@
               "cold_start": "true",
               "dd_extension_version": "123",
               "env": "integration-tests-env",
-              "function.request.body": "",
+              "function.request": "{}",
               "function.response.body": "ok",
               "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-csharp",
@@ -198,7 +198,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -241,7 +241,9 @@
             "type": "http"
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",
@@ -267,7 +269,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -310,7 +312,9 @@
             "type": "http"
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",

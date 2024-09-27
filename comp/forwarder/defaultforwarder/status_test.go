@@ -18,9 +18,7 @@ import (
 )
 
 func TestJSON(t *testing.T) {
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	))
+	config := config.NewMock(t)
 
 	provider := statusProvider{
 		config: config,
@@ -63,9 +61,7 @@ func TestJSONWith_forwarder_storage_max_size_in_bytes(t *testing.T) {
 }
 
 func TestText(t *testing.T) {
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	))
+	config := config.NewMock(t)
 
 	provider := statusProvider{
 		config: config,
@@ -78,9 +74,7 @@ func TestText(t *testing.T) {
 }
 
 func TestHTML(t *testing.T) {
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	))
+	config := config.NewMock(t)
 
 	provider := statusProvider{
 		config: config,

@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import tempfile
+import textwrap
 
 import yaml
 from invoke.exceptions import Exit
@@ -63,7 +64,7 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
 
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
-def get_licenses_list(ctx):
+def get_licenses_list(ctx, licenses_filename='LICENSE-3rdparty.csv'):
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 
@@ -72,9 +73,37 @@ def get_licenses_list(ctx):
     try:
         licenses = wwhrd_licenses(ctx)
         licenses = find_copyright(ctx, licenses)
-        return licenses_csv(licenses)
+        licenses = licenses_csv(licenses)
+        _verify_unknown_licenses(licenses, licenses_filename)
+
+        return licenses
     finally:
         shutil.rmtree("vendor/")
+
+
+def _verify_unknown_licenses(licenses, licenses_filename):
+    """
+    Check that all deps have a non-"UNKNOWN" copyright and license
+    """
+    unknown_licenses = False
+    for line in licenses:
+        parts = [part.strip().casefold() for part in line.split(',')]
+        if 'unknown' in parts:
+            unknown_licenses = True
+            print(f"! {line}")
+
+    if unknown_licenses:
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                At least one dependency's license or copyright could not be determined.
+
+                Consult the dependency's source, update
+                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
+                `inv generate-licenses` to update {}."""
+            ).format(licenses_filename),
+            code=1,
+        )
 
 
 def is_valid_quote(copyright):
@@ -111,7 +140,10 @@ def licenses_csv(licenses):
             copyright = f'"{copyright}"'
         return copyright
 
-    return [f"{l['component']},{l['package']},{l['license']},{fmt_copyright(l)}" for l in licenses]
+    return [
+        f"{license['component']},{license['package']},{license['license']},{fmt_copyright(license)}"
+        for license in licenses
+    ]
 
 
 def wwhrd_licenses(ctx):
@@ -194,9 +226,9 @@ def wwhrd_licenses(ctx):
                             # we get the first match
                             license = project['matches'][0]['license']
                         licenses.append({"component": "core", "package": pkg, "license": license})
-        except RequestException:
+        except RequestException as e:
             print(f"There was an issue reaching license {pkg} for pkg {lic}")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     return licenses
 
@@ -222,7 +254,10 @@ def find_copyright_for(package, overrides, ctx):
     for filename in COPYRIGHT_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
         if os.path.isfile(filename):
-            for line in open(filename, encoding="utf-8"):
+            with open(filename, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+
+            for line in lines:
                 mo = COPYRIGHT_RE.search(line)
                 if not mo:
                     continue
@@ -238,6 +273,9 @@ def find_copyright_for(package, overrides, ctx):
 
                 cpy = cpy.strip().rstrip('.')
                 if cpy:
+                    # If copyright contains double quote ("), escape it
+                    if '"' in cpy:
+                        cpy = '"' + cpy.replace('"', '""') + '"'
                     copyright.append(cpy)
 
     # skip through the first blank line of a file
@@ -250,7 +288,7 @@ def find_copyright_for(package, overrides, ctx):
 
     for filename in AUTHORS_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             lines = open(filename, encoding="utf-8")
             if package in CONTRIBUTORS_WITH_UNCOMMENTED_HEADER:
                 lines = skipheader(lines)

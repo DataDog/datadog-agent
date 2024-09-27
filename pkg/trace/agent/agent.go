@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package agent implements the trace-agent.
 package agent
 
 import (
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -47,15 +48,40 @@ const (
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling = "-4"
 
+	// probabilitySampling is the value for _dd.p.dm when the agent is configured to use the ProbabilitySampler.
+	probabilitySampling = "-9"
+
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
 )
+
+// TraceWriter provides a way to write trace chunks
+type TraceWriter interface {
+	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+	Stop()
+
+	// WriteChunks to be written
+	WriteChunks(pkg *writer.SampledChunks)
+
+	// FlushSync blocks and sends pending payloads when syncMode is true
+	FlushSync() error
+}
+
+// Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
+type Concentrator interface {
+	// Start starts the Concentrator
+	Start()
+	// Stop stops the Concentrator and attempts to flush whatever is left in the buffers
+	Stop()
+	// Add a stats Input to be concentrated and flushed
+	Add(t stats.Input)
+}
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          *stats.Concentrator
+	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -63,9 +89,10 @@ type Agent struct {
 	ErrorsSampler         *sampler.ErrorsSampler
 	RareSampler           *sampler.RareSampler
 	NoPrioritySampler     *sampler.NoPrioritySampler
+	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
-	TraceWriter           *writer.TraceWriter
-	StatsWriter           *writer.StatsWriter
+	TraceWriter           TraceWriter
+	StatsWriter           *writer.DatadogStatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer
@@ -74,15 +101,15 @@ type Agent struct {
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
-	obfuscator     *obfuscate.Obfuscator
-	cardObfuscator *ccObfuscator
+	obfuscator *obfuscate.Obfuscator
 
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// ModifySpan will be called on all non-nil spans of received trace chunks.
-	// Note that any modification of the trace chunk could be overwritten by subsequent ModifySpan calls.
-	ModifySpan func(*pb.TraceChunk, *pb.Span)
+	// SpanModifier will be called on all non-nil spans of received trace chunks.
+	// Note that any modification of the trace chunk could be overwritten by
+	// subsequent SpanModifier calls.
+	SpanModifier SpanModifier
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -96,31 +123,37 @@ type Agent struct {
 	firstSpanMap sync.Map
 }
 
+// SpanModifier is an interface that allows to modify spans while they are
+// processed by the agent.
+type SpanModifier interface {
+	ModifySpan(*pb.TraceChunk, *pb.Span)
+}
+
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
-	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
-		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
+		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf, statsd),
 		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
 		RareSampler:           sampler.NewRareSampler(conf, statsd),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
+		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
+		StatsWriter:           statsWriter,
 		obfuscator:            obfuscate.NewObfuscator(oconf),
-		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
@@ -131,7 +164,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
 	return agnt
 }
 
@@ -146,6 +179,7 @@ func (a *Agent) Run() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
@@ -154,18 +188,18 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
-	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
-	// Having GOMAXPROCS/2 processor threads is
-	// enough to keep the downstream writer busy.
+	// Having GOMAXPROCS processor threads is
+	// enough to keep the agent busy.
 	// Having more processor threads would not speed
 	// up processing, but just expand memory.
-	workers := runtime.GOMAXPROCS(0) / 2
+	workers := runtime.GOMAXPROCS(0)
 	if workers < 1 {
 		workers = 1
 	}
 
+	log.Infof("Processing Pipeline configured with %d workers", workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
 	}
@@ -173,7 +207,7 @@ func (a *Agent) Run() {
 	a.loop()
 }
 
-// FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
+// FlushSync flushes traces synchronously. This method only works when the agent is configured in synchronous flushing
 // mode via the apm_config.sync_flush option.
 func (a *Agent) FlushSync() {
 	if !a.conf.SynchronousFlushing {
@@ -218,10 +252,10 @@ func (a *Agent) loop() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.RareSampler,
 		a.EventProcessor,
 		a.obfuscator,
-		a.cardObfuscator,
 		a.DebugServer,
 	} {
 		stopper.Stop()
@@ -292,7 +326,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-		setChunkAttributesFromRoot(chunk, root)
+		setChunkAttributes(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			ts.TracesFiltered.Inc()
@@ -318,8 +352,8 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			if a.ModifySpan != nil {
-				a.ModifySpan(chunk, span)
+			if a.SpanModifier != nil {
+				a.SpanModifier.ModifySpan(chunk, span)
 			}
 			a.obfuscateSpan(span)
 			a.Truncate(span)
@@ -332,7 +366,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
+			// which is not thread-safe while samplers and concentrator might modify it too.
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
@@ -368,17 +402,17 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.In <- sampledChunks
+			a.TraceWriter.WriteChunks(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.In <- sampledChunks
+		a.TraceWriter.WriteChunks(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
-		a.Concentrator.In <- statsInput
+		a.Concentrator.Add(statsInput)
 	}
 }
 
@@ -422,14 +456,12 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.
-
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*pb.TraceChunk, len(chunks))
-	copy(new, chunks)
-	return new
+	newChunks := make([]*pb.TraceChunk, len(chunks))
+	copy(newChunks, chunks)
+	return newChunks
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
@@ -514,17 +546,6 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
-	if priority != sampler.PriorityUserDrop {
-		return false
-	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
-	if !hasDm {
-		return false
-	}
-	return dm == manualSampling
-}
-
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
@@ -551,31 +572,29 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	return keep, len(events)
 }
 
+// isManualUserDrop returns true if and only if the ProcessedTrace is marked as Priority User Drop
+// AND has a sampling decision maker of "Manual Sampling" (-4)
+//
+// Note: This does not work for traces with PriorityUserDrop, since most tracers do not set
+// the decision maker field for user drop scenarios.
+func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
+	priority, _ := sampler.GetSamplingPriority(pt.TraceChunk)
+	// Default priority is non-drop, so it's safe to ignore if the priority wasn't found
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	dm, hasDm := pt.TraceChunk.Tags[tagDecisionMaker]
+	if !hasDm {
+		return false
+	}
+	return dm == manualSampling
+}
+
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
-	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
-
-	if hasPriority {
-		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
-	} else {
-		ts.TracesPriorityNone.Inc()
-	}
-	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
-		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
-		// Note that we DON'T skip single span sampling. We only do this for historical
-		// reasons and analytics events are deprecated so hopefully this can all go away someday.
-		if isManualUserDrop(priority, pt) {
-			return false, false
-		}
-	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
-		if priority < 0 {
-			return false, false
-		}
-	}
-	sampled := a.runSamplers(now, *pt, hasPriority)
+	sampled, check := a.runSamplers(now, ts, *pt)
 	pt.TraceChunk.DroppedTrace = !sampled
-
-	return sampled, true
+	return sampled, check
 }
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
@@ -586,37 +605,68 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 	return events
 }
 
-// runSamplers runs all the agent's samplers on pt and returns the sampling decision
-// along with the sampling rate.
-func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
-	if hasPriority {
-		return a.samplePriorityTrace(now, pt)
-	}
-	return a.sampleNoPriorityTrace(now, pt)
-}
-
-// samplePriorityTrace samples traces with priority set on them. PrioritySampler and
-// ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
-// or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate.
+//
+// The rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
+// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// priority set, the sampling priority is used with the Priority Sampler. When there is no priority
+// set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
+// samplers, the error sampler is run.
+func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	// run this early to make sure the signature gets counted by the RareSampler.
 	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-		return true
-	}
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-	}
-	return rare
-}
 
-// sampleNoPriorityTrace samples traces with no priority set on them. The traces
-// get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	if a.conf.ProbabilisticSamplerEnabled {
+		if rare {
+			return true, true
+		}
+		if a.ProbabilisticSampler.Sample(pt.Root) {
+			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
+			return true, true
+		}
+		if traceContainsError(pt.TraceChunk.Spans) {
+			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+		}
+		return false, true
 	}
-	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+
+	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
+	if hasPriority {
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		ts.TracesPriorityNone.Inc()
+	}
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
+		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
+		// Note that we DON'T skip single span sampling. We only do this for historical
+		// reasons and analytics events are deprecated so hopefully this can all go away someday.
+		if isManualUserDrop(&pt) {
+			return false, false
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return false, false
+		}
+	}
+
+	if rare {
+		return true, true
+	}
+
+	if hasPriority {
+		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
+			return true, true
+		}
+	} else if a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv) {
+		return true, true
+	}
+
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+	}
+
+	return false, true
 }
 
 func traceContainsError(trace pb.Trace) bool {

@@ -16,25 +16,19 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type cliParams struct {
@@ -71,7 +65,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				cliParams.caseID = args[0]
 			}
@@ -91,12 +85,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
+					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
-				diagnosesendermanagerimpl.Module(),
-				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+				compressionimpl.Module(),
 			)
 		},
 	}
@@ -118,7 +110,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt("expvar_port"))
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
 
 	for _, prof := range []struct{ name, URL string }{
 		{
@@ -157,20 +149,16 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(cliParams *cliParams,
-	diagnoseSenderManager diagnosesendermanager.Component,
-	collector optional.Option[collector.Component],
-	secretResolver secrets.Component,
-	ac optional.Option[autodiscovery.Component]) error {
+func run(cliParams *cliParams, _ config.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
 		e       error
 	)
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
-	logFile := pkgconfig.Datadog.GetString("log_file")
+	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
@@ -201,7 +189,7 @@ func run(cliParams *cliParams,
 		return nil
 	}
 
-	if e = util.SetAuthToken(pkgconfig.Datadog); e != nil {
+	if e = util.SetAuthToken(pkgconfigsetup.Datadog()); e != nil {
 		return e
 	}
 
@@ -220,8 +208,7 @@ func run(cliParams *cliParams,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver, optional.NewNoneOption[workloadmeta.Component](), ac)
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps, nil)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
@@ -239,7 +226,7 @@ func run(cliParams *cliParams,
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(pkgconfigsetup.Datadog(), filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
@@ -252,7 +239,7 @@ func newSettingsClient() (settings.Client, error) {
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",
-		pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
+		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
 	)
 
 	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

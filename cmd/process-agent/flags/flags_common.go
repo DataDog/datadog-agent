@@ -11,4 +11,6 @@ const (
 	CfgPath = "cfgpath"
 	// SysProbeConfig defines the sysprobe-config flag
 	SysProbeConfig = "sysprobe-config"
+	// FleetCfgPath defines the fleetcfgpath flag
+	FleetCfgPath = "fleetcfgpath"
 )

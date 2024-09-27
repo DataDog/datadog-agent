@@ -5,7 +5,6 @@
 
 //go:build test
 
-//nolint:revive // TODO(APM) Fix revive linter
 package log
 
 import (

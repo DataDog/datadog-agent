@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-// team: agent-shared-components
+// team: agent-metrics-logs
 
 // Component is the component type.
 type Component interface {

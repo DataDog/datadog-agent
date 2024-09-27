@@ -8,8 +8,7 @@ package cpu
 
 import "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (c *Check) collectCtxSwitches(sender sender.Sender) error {
+func collectCtxSwitches(_ sender.Sender) error {
 	// On non-linux systems, do nothing
 	return nil
 }

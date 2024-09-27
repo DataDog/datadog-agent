@@ -8,26 +8,53 @@
 package autodiscoveryimpl
 
 import (
-	"testing"
+	"net/http"
 
+	"go.uber.org/fx"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // MockParams defines the parameters for the mock component.
 type MockParams struct {
-	Scheduler *scheduler.MetaScheduler
+	Scheduler *scheduler.Controller
+}
+
+// mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
+func (ac *AutoConfig) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 type mockdependencies struct {
 	fx.In
-	Params MockParams
+	WMeta      optional.Option[workloadmeta.Component]
+	Params     MockParams
+	TaggerComp tagger.Mock
+	LogsComp   log.Component
+	Telemetry  telemetry.Component
 }
 
-func newMockAutoConfig(deps mockdependencies) autodiscovery.Mock {
-	return createNewAutoConfig(deps.Params.Scheduler, nil)
+type mockprovides struct {
+	fx.Out
+
+	Comp     autodiscovery.Mock
+	Endpoint api.AgentEndpointProvider
+}
+
+func newMockAutoConfig(deps mockdependencies) mockprovides {
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+	return mockprovides{
+		Comp:     ac,
+		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
+	}
 }
 
 // MockModule provides the default autoconfig without other components configured, and not started
@@ -35,11 +62,4 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockAutoConfig),
 	)
-}
-
-// CreateMockAutoConfig creates a mock AutoConfig for testing
-func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.MetaScheduler) autodiscovery.Mock {
-	return fxutil.Test[autodiscovery.Mock](t, fx.Options(
-		fx.Supply(MockParams{Scheduler: scheduler}),
-		MockModule()))
 }

@@ -28,15 +28,13 @@ static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalida
         return 0;
     }
 
-    u32 id = *prev_id;
-
     // need to invalidate the current path id for event which may change the association inode/name like
     // unlink, rename, rmdir.
     if (invalidate) {
         __sync_fetch_and_add(prev_id, 1);
     }
 
-    return id;
+    return *prev_id;
 }
 
 static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
@@ -99,7 +97,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
-void __attribute__((always_inline)) fill_file(struct dentry* dentry, struct file_t* file) {
+void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
@@ -109,12 +107,27 @@ void __attribute__((always_inline)) fill_file(struct dentry* dentry, struct file
     bpf_probe_read(&file->metadata.uid, sizeof(file->metadata.uid), &d_inode->i_uid);
     bpf_probe_read(&file->metadata.gid, sizeof(file->metadata.gid), &d_inode->i_gid);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
     bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->i_ctime);
+#else
+    bpf_probe_read(&file->metadata.ctime, sizeof(file->metadata.ctime), &d_inode->__i_ctime);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
     bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->i_mtime);
+#else
+    bpf_probe_read(&file->metadata.mtime, sizeof(file->metadata.mtime), &d_inode->__i_mtime);
+#endif
 }
 
-#define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
-#define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
+#define get_dentry_key_path(dentry, path)                                  \
+    (struct path_key_t) {                                                  \
+        .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) \
+    }
+#define get_inode_key_path(inode, path)                                  \
+    (struct path_key_t) {                                                \
+        .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
+    }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {
     file->path_key.path_id = get_path_id(file->path_key.mount_id, invalidate);

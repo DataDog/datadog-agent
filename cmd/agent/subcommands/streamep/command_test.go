@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"stream-event-platform", "--type", "foo"},
 		streamEventPlatform,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "foo", cliParams.filters.Type)
 		})

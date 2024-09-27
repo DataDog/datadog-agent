@@ -16,10 +16,13 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -34,8 +37,8 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: systemCollectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
-			return newSystemCollector(cache)
+		Constructor: func(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+			return newSystemCollector(cache, wlm)
 		},
 	})
 }
@@ -49,21 +52,35 @@ type systemCollector struct {
 	hostCgroupNamespace bool
 }
 
-func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
+func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
+	var cf cgroups.ReaderFilter
 
-	procPath := config.Datadog.GetString("container_proc_root")
+	procPath := pkgconfigsetup.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}
 
+	if useTrie := pkgconfigsetup.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
+		var w workloadmeta.Component
+		unwrapped, ok := wlm.Get()
+		if ok {
+			w = unwrapped
+		}
+		filter := newContainerFilter(w)
+		go filter.start()
+		cf = filter.ContainerFilter
+	} else {
+		cf = cgroups.ContainerFilter
+	}
 	reader, err := cgroups.NewReader(
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
-		cgroups.WithReaderFilter(cgroups.ContainerFilter),
+		cgroups.WithReaderFilter(cf),
+		cgroups.WithPIDMapper(pkgconfigsetup.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
@@ -73,7 +90,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 
 	selfReader, err := cgroups.NewSelfReader(
 		procPath,
-		config.IsContainerized(),
+		env.IsContainerized(),
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 	)
 	if err != nil {
@@ -104,20 +121,20 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 
 	// Build available Collectors based on environment
 	var collectors *provider.Collectors
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		collectors = &provider.Collectors{}
 
 		// When the Agent runs as a sidecar (e.g. Fargate) with shared PID namespace, we can use the system collector in some cases.
 		// TODO: Check how we could detect shared PID namespace instead of makeing assumption
-		isAgentSidecar := config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.EKSFargate)
+		isAgentSidecar := env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate)
 
 		// With sysfs we can always get cgroup stats
-		if config.IsHostSysAvailable() {
+		if env.IsHostSysAvailable() {
 			collectors.Stats = provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority)
 		}
 
 		// With host proc we can always get network stats and pids
-		if config.IsHostProcAvailable() {
+		if env.IsHostProcAvailable() {
 			collectors.Network = provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority)
 			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority)
 			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority)
@@ -172,7 +189,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	return metadata, nil
 }
 
-func (c *systemCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *systemCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -181,8 +198,7 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
+func (c *systemCollector) GetContainerOpenFilesCount(_, containerID string, cacheValidity time.Duration) (*uint64, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get PIDs for cgroup id: %s. Unable to get count of open files", containerID)
@@ -196,8 +212,7 @@ func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID st
 	return &ofCount, nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
+func (c *systemCollector) GetContainerNetworkStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -210,8 +225,7 @@ func (c *systemCollector) GetPIDs(_, containerID string, cacheValidity time.Dura
 	return c.getPIDs(containerID, cacheValidity)
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
+func (c *systemCollector) GetContainerIDForPID(pid int, _ time.Duration) (string, error) {
 	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
 }
@@ -287,8 +301,7 @@ func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duratio
 	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, _ time.Duration) (*provider.ContainerStats, error) {
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)
 	if allFailed {

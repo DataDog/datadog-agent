@@ -14,15 +14,23 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+
+always_build true
+
 build do
     license :project_license
 
+    output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
+    flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
         # Conf files
         if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            # delete the directory if it exists, then recreate it, because
+            # move will skip/silently fail if the destination directory exists
+            delete conf_dir
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
@@ -45,6 +53,9 @@ build do
 
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
+
+            # service_discovery isn't supported by windows
+            delete "#{conf_dir}/service_discovery.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
@@ -85,60 +96,38 @@ build do
         end
 
         if linux_target?
-            # Move system service files
-            mkdir "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
-            systemd_directory = "/usr/lib/systemd/system"
-            if debian_target?
-                # debian recommends using a different directory for systemd unit files
-                systemd_directory = "/lib/systemd/system"
-
-                # sysvinit support for debian only for now
-                mkdir "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
-            end
-            mkdir systemd_directory
-            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
-
             # Move configuration files
-            mkdir "/etc/datadog-agent"
+            mkdir "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
-            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+            move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
-              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
-              move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+              move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
 
               # Move SELinux policy
               if debian_target? || redhat_target?
-                move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
+                move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
               end
+            end
+
+            if ot_target?
+              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
-            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "#{output_config_dir}/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
-            delete "/etc/datadog-agent/conf.d/process_agent.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/apm.yaml.default"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/process_agent.yaml.default"
 
             # remove windows specific configs
-            delete "/etc/datadog-agent/conf.d/winproc.d"
+            delete "#{output_config_dir}/etc/datadog-agent/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -190,6 +179,9 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
+
+            # Edit rpath from a true path to relative path for each binary
+            command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
         end
 
         if osx_target?
@@ -201,6 +193,9 @@ build do
 
             # remove docker configuration
             delete "#{install_dir}/etc/conf.d/docker.d"
+
+            # Edit rpath from a true path to relative path for each binary
+            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

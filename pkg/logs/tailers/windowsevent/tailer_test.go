@@ -8,15 +8,16 @@
 package windowsevent
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/cenkalti/backoff"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -24,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 )
 
 type ReadEventsSuite struct {
@@ -90,7 +91,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		if source.Status.IsSuccess() {
 			return nil
 		} else if source.Status.IsError() {
-			return fmt.Errorf(source.Status.GetError())
+			return errors.New(source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))
@@ -199,7 +200,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 		if tailer.source.Status.IsSuccess() {
 			return nil
 		} else if tailer.source.Status.IsError() {
-			return fmt.Errorf(tailer.source.Status.GetError())
+			return errors.New(tailer.source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))
@@ -330,47 +331,5 @@ func BenchmarkReadEvents(b *testing.B) {
 
 			})
 		}
-	}
-}
-
-func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
-	assert := assert.New(t)
-	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
-	tailerV1 := NewTailer(nil, sourceV1, &Config{ChannelPath: "System"}, nil)
-	tailerV1.config.ProcessRawMessage = true
-
-	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
-	tailerV2 := NewTailer(nil, sourceV2, &Config{ChannelPath: "System"}, nil)
-	tailerV2.config.ProcessRawMessage = false
-
-	for _, testCase := range testData {
-		ev1 := &richEvent{
-			xmlEvent: testCase[0],
-			message:  "some content in the message",
-			task:     "rdTaskName",
-			opcode:   "OpCode",
-			level:    "Warning",
-		}
-		ev2 := &richEvent{
-			xmlEvent: testCase[0],
-			message:  "some content in the message",
-			task:     "rdTaskName",
-			opcode:   "OpCode",
-			level:    "Warning",
-		}
-
-		messagev1, err1 := tailerV1.toMessage(ev1)
-		messagev2, err2 := tailerV2.toMessage(ev2)
-
-		assert.NoError(err1)
-		assert.NoError(err2)
-
-		rendered1, err1 := messagev1.Render()
-		rendered2, err2 := messagev2.Render()
-
-		assert.NoError(err1)
-		assert.NoError(err2)
-
-		assert.Equal(rendered1, rendered2)
 	}
 }

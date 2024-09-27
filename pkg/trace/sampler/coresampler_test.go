@@ -16,8 +16,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
-func TestSamplerAccessRace(t *testing.T) {
+func TestSamplerAccessRace(_ *testing.T) {
 	s := newSampler(1, 2, nil, &statsd.NoOpClient{})
 	var wg sync.WaitGroup
 	wg.Add(5)

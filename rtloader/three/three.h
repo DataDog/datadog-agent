@@ -101,9 +101,11 @@ public:
     void setGetConfigCb(cb_get_config_t);
     void setHeadersCb(cb_headers_t);
     void setGetHostnameCb(cb_get_hostname_t);
+    void setGetHostTagsCb(cb_get_host_tags_t);
     void setGetClusternameCb(cb_get_clustername_t);
     void setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t);
     void setLogCb(cb_log_t);
+    void setSendLogCb(cb_send_log_t);
     void setSetCheckMetadataCb(cb_set_check_metadata_t);
     void setSetExternalTagsCb(cb_set_external_tags_t);
     void setWritePersistentCacheCb(cb_write_persistent_cache_t);
@@ -111,6 +113,7 @@ public:
     void setObfuscateSqlCb(cb_obfuscate_sql_t);
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
+    void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

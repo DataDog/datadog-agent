@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -159,9 +160,7 @@ func TestSetTraceTagNoopTraceGetNil(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0": "value0",
 	}
-	d := Daemon{
-		TraceAgent: &trace.ServerlessTraceAgent{},
-	}
+	d := Daemon{}
 	assert.False(t, d.setTraceTags(tagsMap))
 }
 
@@ -169,9 +168,8 @@ func TestSetTraceTagOk(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0": "value0",
 	}
-	var agent = &trace.ServerlessTraceAgent{}
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
+	agent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,
@@ -180,6 +178,9 @@ func TestSetTraceTagOk(t *testing.T) {
 }
 
 func TestOutOfOrderInvocations(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestOutOfOrderInvocations is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
 	defer d.Stop()

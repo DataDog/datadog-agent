@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,7 +39,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	opts := testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -50,6 +51,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 		activityDumpLoadControllerTimeout:   time.Minute,
+		networkIngressEnabled:               true,
 	}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
@@ -103,7 +105,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -114,12 +116,18 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,6 +144,20 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
+	// setup IMDS interface
+	cmd := dockerInstance.Command(goSyscallTester, []string{"-setup-imds-test"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ERROR: %v", err)
+	}
+	defer func() {
+		cleanup := dockerInstance.Command(goSyscallTester, []string{"-cleanup-imds-test"}, []string{})
+		_, err := cleanup.CombinedOutput()
+		if err != nil {
+			fmt.Printf("failed to cleanup IMDS test: %v", err)
+		}
+	}()
+
 	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
 		testName := ""
 		for i, activeEventType := range activeEventTypes {
@@ -149,7 +171,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			// add all event types to the dump
-			test.addAllEventTypesOnDump(dockerInstance, syscallTester)
+			test.addAllEventTypesOnDump(dockerInstance, syscallTester, goSyscallTester)
 			time.Sleep(time.Second * 3)
 			// trigger reducer
 			test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -165,7 +187,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !isEventTypesStringSlicesEqual(activeEventTypes, presentEventTypes) {
-				t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
+				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeEventTypes, presentEventTypes)
 			}
 			dump = nextDump
 		})
@@ -193,7 +215,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -204,6 +226,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)

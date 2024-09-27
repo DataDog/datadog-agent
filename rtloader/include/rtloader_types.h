@@ -117,12 +117,16 @@ typedef void (*cb_get_config_t)(char *, char **);
 typedef void (*cb_headers_t)(char **);
 // (hostname)
 typedef void (*cb_get_hostname_t)(char **);
+// (host_tags)
+typedef void (*cb_get_host_tags_t)(char **);
 // (clustername)
 typedef void (*cb_get_clustername_t)(char **);
 // (tracemalloc_enabled)
 typedef bool (*cb_tracemalloc_enabled_t)(void);
 // (message, level)
 typedef void (*cb_log_t)(char *, int);
+// (log_line, check_id)
+typedef void (*cb_send_log_t)(char *, char *);
 // (check_id, name, value)
 typedef void (*cb_set_check_metadata_t)(char *, char *, char *);
 // (hostname, source_type_name, list of tags)
@@ -137,6 +141,8 @@ typedef char *(*cb_obfuscate_sql_t)(char *, char *, char **);
 typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
 // ()
 typedef double (*cb_get_process_start_time_t)(void);
+// (cmd, error_message)
+typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

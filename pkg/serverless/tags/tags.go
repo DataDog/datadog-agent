@@ -227,10 +227,14 @@ func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 		log.Debug("could not read os-release file")
 		return ""
 	}
-	regExp := regexp.MustCompile(`PRETTY_NAME="Amazon Linux 2"`)
+	regExp := regexp.MustCompile(`NAME="Amazon Linux"`)
 	result := regExp.FindAll(bytesRead, -1)
 	if len(result) == 1 {
-		runtime = "provided.al2"
+		versionRegExp := regexp.MustCompile(`(?:VERSION_ID="(.+)")`)
+		versionResult := versionRegExp.FindStringSubmatch(string(bytesRead))
+		if len(versionResult) > 1 {
+			runtime = fmt.Sprintf("provided.al%s", versionResult[1])
+		}
 	}
 	return runtime
 }

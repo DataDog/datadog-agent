@@ -15,8 +15,12 @@ import (
 
 const (
 	defaultCISecretPrefix = "ci.datadog-agent."
-	defaultCIEnvironments = "aws/agent-qa"
 )
+
+var defaultCIEnvironments = map[string]string{
+	"aws": "agent-qa",
+	"az":  "agent-qa",
+}
 
 type ciProfile struct {
 	baseProfile
@@ -38,22 +42,24 @@ func NewCIProfile() (Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get pulumi state password, err: %w", err)
 	}
+	// TODO move to job script
 	os.Setenv("PULUMI_CONFIG_PASSPHRASE", passVal)
 
 	// Building name prefix
-	pipelineID := os.Getenv("CI_PIPELINE_ID")
+	jobID := os.Getenv("CI_JOB_ID")
 	projectID := os.Getenv("CI_PROJECT_ID")
-	if pipelineID == "" || projectID == "" {
-		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, project id: %s", pipelineID, projectID)
+	if jobID == "" || projectID == "" {
+		return nil, fmt.Errorf("unable to compute name prefix, missing variables job id: %s, project id: %s", jobID, projectID)
 	}
 
 	store := parameters.NewEnvStore(EnvPrefix)
 
 	// get environments from store
-	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvironments)
+	environmentsStr, err := store.GetWithDefault(parameters.Environments, "")
 	if err != nil {
 		return nil, err
 	}
+	environmentsStr = mergeEnvironments(environmentsStr, defaultCIEnvironments)
 
 	// TODO can be removed using E2E_ENV variable
 	ciEnvNames := os.Getenv("CI_ENV_NAMES")
@@ -68,7 +74,7 @@ func NewCIProfile() (Profile, error) {
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
-		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
+		ciUniqueID:  "ci-" + jobID + "-" + projectID,
 	}, nil
 }
 

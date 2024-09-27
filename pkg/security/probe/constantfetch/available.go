@@ -9,8 +9,12 @@
 package constantfetch
 
 import (
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"errors"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cilium/ebpf/btf"
+
+	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -43,4 +47,28 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 	fetchers = append(fetchers, fallbackConstantFetcher)
 
 	return fetchers
+}
+
+// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
+func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	spec, err := pkgebpf.GetKernelSpec()
+	if err != nil {
+		return false, err
+	}
+
+	var function *btf.Func
+	if err := spec.TypeByName("security_inode_setattr", &function); err != nil {
+		return false, err
+	}
+
+	proto, ok := function.Type.(*btf.FuncProto)
+	if !ok {
+		return false, errors.New("security_inode_setattr has no prototype")
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("security_inode_setattr has no parameters")
+	}
+
+	return proto.Params[0].Name != "dentry", nil
 }

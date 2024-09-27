@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package file
 
 import (
@@ -20,7 +18,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -45,7 +43,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.T().TempDir()
 
-	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
+	suite.testPath = filepath.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
@@ -107,7 +105,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	coreConfig.Datadog.SetWithoutSource("logs_config.close_timeout", 42)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -249,7 +247,9 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
-	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tailer.Identifier())
+	suite.Equal(
+		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		suite.tailer.Identifier())
 }
 
 func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
@@ -260,9 +260,10 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 
@@ -290,7 +291,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
@@ -320,6 +321,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	tags := suite.tailer.buildTailerTags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 
@@ -347,6 +349,38 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
+}
+
+func (suite *TailerTestSuite) TestTruncatedTag() {
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, source, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer.StartFromBeginning()
+
+	_, err := suite.testFile.WriteString("1234\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+	suite.Contains(tags, message.TruncatedTag)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

@@ -32,7 +32,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		EnableRootNetNs:              true,
 		EnableConntrackAllNamespaces: false,
 	}
-	c, err := NewConsumer(cfg)
+	c, err := NewConsumer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	exited := make(chan struct{})
@@ -47,7 +47,6 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 
 	go func() {
 		defer close(exited)
-		//nolint:revive // TODO(NET) Fix revive linter
 		for range ev {
 		}
 	}()

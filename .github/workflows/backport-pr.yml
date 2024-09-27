@@ -5,6 +5,8 @@ on:
       - closed
       - labeled
 
+permissions: {}
+
 jobs:
   backport:
     name: Backport PR
@@ -18,14 +20,23 @@ jobs:
           && contains(github.event.label.name, 'backport')
         )
       )
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1.11.0
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
           private-key: ${{ secrets.DD_GITHUB_TOKEN_GENERATOR_PRIVATE_KEY }}
-      - uses: tibdex/backport@v2
+      - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
         with:
           label_pattern: "^backport/(?<base>([^ ]+))$"
           labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
           github_token: ${{ steps.app-token.outputs.token }}
+          body_template: |
+            Backport <%= mergeCommitSha %> from #<%= number %>.
+
+            ___
+
+            <%= body %>

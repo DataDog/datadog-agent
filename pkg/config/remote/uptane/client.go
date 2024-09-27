@@ -9,14 +9,17 @@ package uptane
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"github.com/pkg/errors"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/go-tuf/client"
 	"github.com/DataDog/go-tuf/data"
-	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -27,27 +30,42 @@ import (
 type Client struct {
 	sync.Mutex
 
+	site            string
 	orgID           int64
 	orgUUIDProvider OrgUUIDProvider
 
-	configLocalStore   *localStore
-	configRemoteStore  *remoteStoreConfig
-	configTUFClient    *client.Client
+	configLocalStore *localStore
+	configTUFClient  *client.Client
+
 	configRootOverride string
+	directorLocalStore *localStore
+	directorTUFClient  *client.Client
 
-	directorLocalStore   *localStore
-	directorRemoteStore  *remoteStoreDirector
-	directorTUFClient    *client.Client
 	directorRootOverride string
-
-	targetStore *targetStore
-	orgStore    *orgStore
+	targetStore          *targetStore
+	orgStore             *orgStore
 
 	cachedVerify     bool
 	cachedVerifyTime time.Time
 
 	// TUF transaction tracker
 	transactionalStore *transactionalStore
+
+	orgVerificationEnabled bool
+}
+
+// CoreAgentClient is an uptane client that fetches the latest configs from the Core Agent
+type CoreAgentClient struct {
+	*Client
+	configRemoteStore   *remoteStoreConfig
+	directorRemoteStore *remoteStoreDirector
+}
+
+// CDNClient is an uptane client that fetches the latest configs from the server over HTTP(s)
+type CDNClient struct {
+	*Client
+	directorRemoteStore *cdnRemoteDirectorStore
+	configRemoteStore   *cdnRemoteConfigStore
 }
 
 // ClientOption describes a function in charge of changing the uptane client
@@ -61,15 +79,17 @@ func WithOrgIDCheck(orgID int64) ClientOption {
 }
 
 // WithDirectorRootOverride overrides director root
-func WithDirectorRootOverride(directorRootOverride string) ClientOption {
+func WithDirectorRootOverride(site string, directorRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.directorRootOverride = directorRootOverride
 	}
 }
 
 // WithConfigRootOverride overrides config root
-func WithConfigRootOverride(configRootOverride string) ClientOption {
+func WithConfigRootOverride(site string, configRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.configRootOverride = configRootOverride
 	}
 }
@@ -77,30 +97,33 @@ func WithConfigRootOverride(configRootOverride string) ClientOption {
 // OrgUUIDProvider is a provider of the agent org UUID
 type OrgUUIDProvider func() (string, error)
 
-// NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *Client, err error) {
+// NewCoreAgentClient creates a new uptane client
+func NewCoreAgentClient(cacheDB *bbolt.DB, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (c *CoreAgentClient, err error) {
 	transactionalStore := newTransactionalStore(cacheDB)
-	targetStore := newTargetStore(transactionalStore, cacheKey)
-	orgStore := newOrgStore(transactionalStore, cacheKey)
+	targetStore := newTargetStore(transactionalStore)
+	orgStore := newOrgStore(transactionalStore)
 
-	c = &Client{
+	c = &CoreAgentClient{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
-		targetStore:         targetStore,
-		orgStore:            orgStore,
-		transactionalStore:  transactionalStore,
-		orgUUIDProvider:     orgUUIDProvider,
+		Client: &Client{
+			orgStore:               orgStore,
+			orgUUIDProvider:        orgUUIDProvider,
+			targetStore:            targetStore,
+			transactionalStore:     transactionalStore,
+			orgVerificationEnabled: true,
+		},
 	}
 
 	for _, o := range options {
-		o(c)
+		o(c.Client)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, c.site, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, c.site, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
@@ -110,7 +133,7 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvid
 }
 
 // Update updates the uptane client and rollbacks in case of error
-func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
+func (c *CoreAgentClient) Update(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
 	defer c.Unlock()
 	c.cachedVerify = false
@@ -131,7 +154,7 @@ func (c *Client) Update(response *pbgo.LatestConfigsResponse) error {
 }
 
 // update updates the uptane client
-func (c *Client) update(response *pbgo.LatestConfigsResponse) error {
+func (c *CoreAgentClient) update(response *pbgo.LatestConfigsResponse) error {
 	err := c.updateRepos(response)
 	if err != nil {
 		return err
@@ -141,6 +164,121 @@ func (c *Client) update(response *pbgo.LatestConfigsResponse) error {
 		return err
 	}
 	return c.verify()
+}
+
+func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) error {
+	err := c.targetStore.storeTargetFiles(response.TargetFiles)
+	if err != nil {
+		return err
+	}
+	c.directorRemoteStore.update(response)
+	c.configRemoteStore.update(response)
+	_, err = c.directorTUFClient.Update()
+	if err != nil {
+		return errors.Wrap(err, "failed updating director repository")
+	}
+	_, err = c.configTUFClient.Update()
+	if err != nil {
+		e := fmt.Sprintf("could not update config repository [%s]", configMetasUpdateSummary(response.ConfigMetas))
+		return errors.Wrap(err, e)
+	}
+	return nil
+}
+
+// NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
+func NewCDNClient(cacheDB *bbolt.DB, site, apiKey string, options ...ClientOption) (c *CDNClient, err error) {
+	transactionalStore := newTransactionalStore(cacheDB)
+	targetStore := newTargetStore(transactionalStore)
+	orgStore := newOrgStore(transactionalStore)
+
+	httpClient := &http.Client{}
+
+	c = &CDNClient{
+		configRemoteStore:   newCDNRemoteConfigStore(httpClient, site, apiKey),
+		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, site, apiKey),
+		Client: &Client{
+			site:                   site,
+			targetStore:            targetStore,
+			transactionalStore:     transactionalStore,
+			orgStore:               orgStore,
+			orgVerificationEnabled: false,
+			orgUUIDProvider: func() (string, error) {
+				return "", nil
+			},
+		},
+	}
+	for _, o := range options {
+		o(c.Client)
+	}
+
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, site, c.configRootOverride); err != nil {
+		return nil, err
+	}
+
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, site, c.directorRootOverride); err != nil {
+		return nil, err
+	}
+
+	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
+	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+	return c, nil
+}
+
+// Update updates the uptane client and rollbacks in case of error
+func (c *CDNClient) Update(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.Update")
+	defer span.Finish(tracer.WithError(err))
+	c.Lock()
+	defer c.Unlock()
+	c.cachedVerify = false
+
+	// in case the commit is successful it is a no-op.
+	// the defer is present to be sure a transaction is never left behind.
+	defer c.transactionalStore.rollback()
+
+	err = c.update(ctx)
+	if err != nil {
+		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
+		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
+		return err
+	}
+	return c.transactionalStore.commit()
+}
+
+// update updates the uptane client
+func (c *CDNClient) update(ctx context.Context) error {
+	var err error
+	span, ctx := tracer.StartSpanFromContext(ctx, "CDNClient.update")
+	defer span.Finish(tracer.WithError(err))
+
+	err = c.updateRepos(ctx)
+	if err != nil {
+		return err
+	}
+	err = c.pruneTargetFiles()
+	if err != nil {
+		return err
+	}
+	return c.verify()
+}
+
+func (c *CDNClient) updateRepos(ctx context.Context) error {
+	var err error
+	span, _ := tracer.StartSpanFromContext(ctx, "CDNClient.updateRepos")
+	defer span.Finish(tracer.WithError(err))
+
+	_, err = c.directorTUFClient.Update()
+	if err != nil {
+		err = errors.Wrap(err, "failed updating director repository")
+		return err
+	}
+	_, err = c.configTUFClient.Update()
+	if err != nil {
+		err = errors.Wrap(err, "could not update config repository")
+		return err
+	}
+	return nil
 }
 
 // TargetsCustom returns the current targets custom of this uptane client
@@ -189,7 +327,7 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := &bufferDestination{}
-	err = c.configTUFClient.Download(path, buffer)
+	err = c.directorTUFClient.Download(path, buffer)
 	if err != nil {
 		return nil, err
 	}
@@ -220,25 +358,6 @@ func (c *Client) TargetsMeta() ([]byte, error) {
 		return nil, fmt.Errorf("empty targets meta in director local store")
 	}
 	return targets, nil
-}
-
-func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
-	err := c.targetStore.storeTargetFiles(response.TargetFiles)
-	if err != nil {
-		return err
-	}
-	c.directorRemoteStore.update(response)
-	c.configRemoteStore.update(response)
-	_, err = c.directorTUFClient.Update()
-	if err != nil {
-		return errors.Wrap(err, "failed updating director repository")
-	}
-	_, err = c.configTUFClient.Update()
-	if err != nil {
-		e := fmt.Sprintf("could not update config repository [%s]", configMetasUpdateSummary(response.ConfigMetas))
-		return errors.Wrap(err, e)
-	}
-	return nil
 }
 
 func (c *Client) pruneTargetFiles() error {
@@ -299,6 +418,9 @@ func (c *Client) StoredOrgUUID() (string, error) {
 }
 
 func (c *Client) verifyOrg() error {
+	if !c.orgVerificationEnabled {
+		return nil
+	}
 	rawCustom, err := c.configLocalStore.GetMetaCustom(metaSnapshot)
 	if err != nil {
 		return fmt.Errorf("could not obtain snapshot custom: %v", err)
@@ -345,15 +467,27 @@ func (c *Client) verifyUptane() error {
 	if err != nil {
 		return err
 	}
-	for targetPath, targetMeta := range directorTargets {
-		configTargetMeta, err := c.configTUFClient.Target(targetPath)
-		if err != nil {
-			if client.IsNotFound(err) {
-				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
-			}
-			// Other errors such as expired metadata
-			return err
+	if len(directorTargets) == 0 {
+		return nil
+	}
+
+	targetPathsDestinations := make(map[string]client.Destination)
+	targetPaths := make([]string, 0, len(directorTargets))
+	for targetPath := range directorTargets {
+		targetPaths = append(targetPaths, targetPath)
+		targetPathsDestinations[targetPath] = &bufferDestination{}
+	}
+	configTargetMetas, err := c.configTUFClient.TargetBatch(targetPaths)
+	if err != nil {
+		if client.IsNotFound(err) {
+			return fmt.Errorf("failed to find target in config repository: %w", err)
 		}
+		// Other errors such as expired metadata
+		return err
+	}
+
+	for targetPath, targetMeta := range directorTargets {
+		configTargetMeta := configTargetMetas[targetPath]
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
 		}
@@ -372,15 +506,15 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
-		// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
-		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
-		err = c.directorTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
+	}
+	// Check that the files are valid in the context of the TUF repository (path in targets, hash matching)
+	err = c.configTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
+	}
+	err = c.directorTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
 	}
 	return nil
 }

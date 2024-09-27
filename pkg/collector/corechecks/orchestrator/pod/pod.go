@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,6 +23,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -42,11 +44,12 @@ func nextGroupID() int32 {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostName  string
-	clusterID string
-	sender    sender.Sender
-	processor *processors.Processor
-	config    *oconfig.OrchestratorConfig
+	hostName   string
+	clusterID  string
+	sender     sender.Sender
+	processor  *processors.Processor
+	config     *oconfig.OrchestratorConfig
+	systemInfo *model.SystemInfo
 }
 
 // Factory creates a new check factory
@@ -72,7 +75,7 @@ func (c *Check) Configure(
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -106,6 +109,11 @@ func (c *Check) Configure(
 		c.hostName = hname
 	}
 
+	c.systemInfo, err = checks.CollectSystemInfo()
+	if err != nil {
+		log.Warnf("Failed to collect system info: %s", err)
+	}
+
 	return nil
 }
 
@@ -130,13 +138,17 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
-	ctx := &processors.ProcessorContext{
-		ClusterID:          c.clusterID,
-		Cfg:                c.config,
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              c.config,
+			MsgGroupID:       groupID,
+			NodeType:         orchestrator.K8sPod,
+			ClusterID:        c.clusterID,
+			ManifestProducer: true,
+		},
 		HostName:           c.hostName,
-		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: "kube_api_version:v1",
+		SystemInfo:         c.systemInfo,
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)

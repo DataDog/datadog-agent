@@ -13,9 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 )
@@ -25,15 +28,16 @@ type EBPFLessResolvers struct {
 	ContainerResolver *container.Resolver
 	TagsResolver      tags.Resolver
 	ProcessResolver   *process.EBPFLessResolver
+	HashResolver      *hash.Resolver
 }
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
-func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*EBPFLessResolvers, error) {
+func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts, telemetry telemetry.Component) (*EBPFLessResolvers, error) {
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe)
+		tagsResolver = tags.NewResolver(config.Probe, telemetry)
 	}
 
 	processOpts := process.NewResolverOpts()
@@ -44,9 +48,19 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		return nil, err
 	}
 
+	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	if err != nil {
+		return nil, err
+	}
+	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &EBPFLessResolvers{
 		TagsResolver:    tagsResolver,
 		ProcessResolver: processResolver,
+		HashResolver:    hashResolver,
 	}
 
 	return resolvers, nil

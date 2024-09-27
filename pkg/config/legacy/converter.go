@@ -13,13 +13,30 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
+// ConfigConverter is used in the legacy package
+// to convert A5 config to A6
+type ConfigConverter struct {
+	model.Config
+}
+
+// Set is used for setting configuration from A5 config
+func (c *ConfigConverter) Set(key string, value interface{}) {
+	c.Config.Set(key, value, model.SourceAgentRuntime)
+}
+
+// NewConfigConverter is creating and returning a config converter
+func NewConfigConverter() *ConfigConverter {
+	return &ConfigConverter{pkgconfigsetup.Datadog()}
+}
+
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
 // the values into the current configuration object
-func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter) error {
+func FromAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 	if err := extractURLAPIKeys(agentConfig, converter); err != nil {
 		return err
 	}
@@ -84,8 +101,8 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
-		dockerListener := config.Listeners{Name: "docker"}
-		converter.Set("listeners", []config.Listeners{dockerListener})
+		dockerListener := pkgconfigsetup.Listeners{Name: "docker"}
+		converter.Set("listeners", []pkgconfigsetup.Listeners{dockerListener})
 	}
 
 	if providers, err := buildConfigProviders(agentConfig); err == nil {
@@ -160,21 +177,20 @@ func FromAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter
 	return extractTraceAgentConfig(agentConfig, converter)
 }
 
-func extractTraceAgentConfig(agentConfig Config, converter *config.LegacyConfigConverter) error {
+func extractTraceAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 	for iniKey, yamlKey := range map[string]string{
 		"trace.api.api_key":                      "apm_config.api_key",
 		"trace.api.endpoint":                     "apm_config.apm_dd_url",
 		"trace.config.env":                       "apm_config.env",
 		"trace.config.log_level":                 "apm_config.log_level",
 		"trace.config.log_file":                  "apm_config.log_file",
-		"trace.config.log_throttling":            "apm_config.log_throttling",
 		"trace.concentrator.bucket_size_seconds": "apm_config.bucket_size_seconds",
 		"trace.concentrator.extra_aggregators":   "apm_config.extra_aggregators",
 		"trace.receiver.receiver_port":           "apm_config.receiver_port",
 		"trace.receiver.connection_limit":        "apm_config.connection_limit",
 		"trace.receiver.timeout":                 "apm_config.receiver_timeout",
 		"trace.sampler.extra_sample_rate":        "apm_config.extra_sample_rate",
-		"trace.sampler.max_traces_per_second":    "apm_config.max_traces_per_second",
+		"trace.sampler.max_traces_per_second":    "apm_config.target_traces_per_second",
 		"trace.sampler.max_events_per_second":    "apm_config.max_events_per_second",
 		"trace.watchdog.max_memory":              "apm_config.max_memory",
 		"trace.watchdog.max_cpu_percent":         "apm_config.max_cpu_percent",
@@ -234,7 +250,7 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func extractURLAPIKeys(agentConfig Config, converter *config.LegacyConfigConverter) error {
+func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	urls := strings.Split(agentConfig["dd_url"], ",")
 	keys := strings.Split(agentConfig["api_key"], ",")
 
@@ -324,7 +340,7 @@ func buildSyslogURI(agentConfig Config) string {
 	return host
 }
 
-func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, error) {
+func buildConfigProviders(agentConfig Config) ([]pkgconfigsetup.ConfigurationProviders, error) {
 	// the list of SD_CONFIG_BACKENDS supported in v5
 	SdConfigBackends := map[string]struct{}{
 		"etcd":   {},
@@ -341,7 +357,7 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 		url = url + ":" + agentConfig["sd_backend_port"]
 	}
 
-	cp := config.ConfigurationProviders{
+	cp := pkgconfigsetup.ConfigurationProviders{
 		Username:    agentConfig["sd_backend_username"],
 		Password:    agentConfig["sd_backend_password"],
 		TemplateURL: url,
@@ -359,7 +375,7 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 		cp.Name = "zookeeper" // name is different in v6
 	}
 
-	return []config.ConfigurationProviders{cp}, nil
+	return []pkgconfigsetup.ConfigurationProviders{cp}, nil
 }
 
 func buildHistogramAggregates(agentConfig Config) []string {

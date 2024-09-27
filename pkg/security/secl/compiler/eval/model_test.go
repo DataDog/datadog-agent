@@ -111,8 +111,9 @@ type testNetwork struct {
 }
 
 type testEvent struct {
-	id   string
-	kind string
+	id     string
+	kind   string
+	retval int
 
 	process testProcess
 	network testNetwork
@@ -164,6 +165,10 @@ func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	}
 
 	return nil, &ErrIteratorNotSupported{Field: field}
+}
+
+func (m *testModel) GetFieldRestrictions(_ Field) []EventType {
+	return nil
 }
 
 func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
@@ -392,7 +397,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -401,7 +406,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringValuesContains(a, &evaluator, state)
 				},
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
+				StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -427,7 +432,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()
@@ -436,7 +441,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringArrayMatches(b, &evaluator, state)
 				},
-				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()
@@ -476,6 +481,13 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 				return int(ctx.Event.(*testEvent).open.openedAt)
 			},
 			Field: field,
+		}, nil
+
+	case "retval":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int { return ctx.Event.(*testEvent).retval },
+			Field:   field,
 		}, nil
 
 	case "mkdir.filename":
@@ -545,6 +557,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.open.filename, nil
 
+	case "retval":
+
+		return e.retval, nil
+
 	case "open.flags":
 
 		return e.open.flags, nil
@@ -591,67 +607,71 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 	case "process.name":
 
-		return "*", nil
+		return "", nil
 
 	case "process.argv0":
 
-		return "*", nil
+		return "", nil
 
 	case "process.uid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.gid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.pid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.is_root":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.key":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.value":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.flag":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.key":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.value":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.flag":
 
-		return "*", nil
+		return "", nil
 
 	case "process.created_at":
 
-		return "*", nil
+		return "", nil
 
 	case "process.or_name":
 
-		return "*", nil
+		return "", nil
 
 	case "process.or_array.value":
 
-		return "*", nil
+		return "", nil
 
 	case "open.filename":
 
 		return "open", nil
+
+	case "retval":
+
+		return "", nil
 
 	case "open.flags":
 
@@ -738,6 +758,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "open.filename":
 
 		e.open.filename = value.(string)
+		return nil
+
+	case "retval":
+
+		e.retval = value.(int)
 		return nil
 
 	case "open.flags":
@@ -835,6 +860,10 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "retval":
+
+		return reflect.Int, nil
+
 	case "open.flags":
 
 		return reflect.Int, nil
@@ -870,4 +899,14 @@ var testConstants = map[string]interface{}{
 	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
 	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
+
+	// retval
+	"EPERM":        &IntEvaluator{Value: int(syscall.EPERM)},
+	"EACCES":       &IntEvaluator{Value: int(syscall.EACCES)},
+	"EPFNOSUPPORT": &IntEvaluator{Value: int(syscall.EPFNOSUPPORT)},
+	"EPIPE":        &IntEvaluator{Value: int(syscall.EPIPE)},
+
+	// string constants
+	"my_constant_1": &StringEvaluator{Value: "my_constant_1"},
+	"my_constant_2": &StringEvaluator{Value: "my_constant_2"},
 }

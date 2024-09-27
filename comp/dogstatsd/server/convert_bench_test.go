@@ -9,9 +9,16 @@ import (
 	"fmt"
 	"testing"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func buildRawSample(tagCount int, multipleValues bool) []byte {
@@ -32,8 +39,9 @@ var (
 )
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
-	cfg := fxutil.Test[config.Component](b, config.MockModule())
-	parser := newParser(cfg, newFloat64ListPool(), 1)
+	deps := newServerDeps(b)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",
@@ -65,4 +73,15 @@ func BenchmarkParseMetric(b *testing.B) {
 
 func BenchmarkParseMultipleMetric(b *testing.B) {
 	runParseMetricBenchmark(b, true)
+}
+
+type ServerDeps struct {
+	fx.In
+	Config    config.Component
+	WMeta     optional.Option[workloadmeta.Component]
+	Telemetry telemetry.Component
+}
+
+func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
+	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Options(options...))
 }

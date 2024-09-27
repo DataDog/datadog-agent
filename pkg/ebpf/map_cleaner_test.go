@@ -40,7 +40,7 @@ func TestMapCleaner(t *testing.T) {
 		{
 			name: "sanity",
 			cleanerFactory: func(*ebpf.Map) cleanerSignature {
-				return func(now int64, k int64, v int64) bool {
+				return func(_ int64, k int64, _ int64) bool {
 					return k%2 == 0
 				}
 			},
@@ -48,7 +48,7 @@ func TestMapCleaner(t *testing.T) {
 		{
 			name: "key is missing",
 			cleanerFactory: func(e *ebpf.Map) cleanerSignature {
-				return func(now int64, k int64, v int64) bool {
+				return func(_ int64, k int64, _ int64) bool {
 					// Delete a random key.
 					if k == 4 {
 						e.Delete(&k)
@@ -87,7 +87,7 @@ func TestMapCleaner(t *testing.T) {
 			}
 
 			// Clean all the even entries
-			cleaner.Clean(cleanerInterval, nil, nil, func(now int64, k int64, v int64) bool {
+			cleaner.Clean(cleanerInterval, nil, nil, func(_ int64, k int64, _ int64) bool {
 				return k%2 == 0
 			})
 
@@ -117,8 +117,7 @@ func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {
 		val = new(int64)
 	)
 
-	err := rlimit.RemoveMemlock()
-	require.NoError(b, err)
+	require.NoError(b, rlimit.RemoveMemlock())
 
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -143,11 +142,11 @@ func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {
 
 		// Clean all the even entries
 		if batchSize == 0 {
-			cleaner.cleanWithoutBatches(0, func(now int64, k int64, v int64) bool {
+			cleaner.cleanWithoutBatches(0, func(_ int64, k int64, _ int64) bool {
 				return k%2 == 0
 			})
 		} else {
-			cleaner.cleanWithBatches(0, func(now int64, k int64, v int64) bool {
+			cleaner.cleanWithBatches(0, func(_ int64, k int64, _ int64) bool {
 				return k%2 == 0
 			})
 		}

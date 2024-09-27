@@ -12,13 +12,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestHandleProvider(t *testing.T) {
@@ -34,7 +38,7 @@ func TestHandleProvider(t *testing.T) {
 	r := createRunner(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Supply(NewProvider(provider)),
 		))
@@ -43,6 +47,66 @@ func TestHandleProvider(t *testing.T) {
 	// either the provider call wg.Done() or the test will fail as a timeout
 	wg.Wait()
 	assert.NoError(t, r.stop())
+}
+
+func TestHandleProviderShortTimeout(t *testing.T) {
+	provider := func(context.Context) time.Duration {
+		time.Sleep(1 * time.Minute) // Long timeout to block
+		return 1 * time.Minute
+	}
+
+	r := createRunner(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			config.MockModule(),
+			fx.Supply(NewProvider(provider)),
+		))
+
+	r.config.Set("metadata_provider_stop_timeout", time.Duration(0), model.SourceFile)
+	require.NoError(t, r.start())
+
+	cerr := make(chan error)
+	go func() {
+		cerr <- r.stop()
+	}()
+
+	select {
+	case err := <-cerr:
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "timeout waiting for stop")
+	}
+}
+
+func TestHandleProviderLongTimeout(t *testing.T) {
+	provider := func(ctx context.Context) time.Duration {
+		<-ctx.Done()
+		return 1 * time.Minute
+	}
+
+	r := createRunner(
+		fxutil.Test[dependencies](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			config.MockModule(),
+			fx.Supply(NewProvider(provider)),
+		))
+
+	r.config.Set("metadata_provider1_stop_timeout", 1*time.Minute, model.SourceFile)
+	require.NoError(t, r.start())
+
+	cerr := make(chan error)
+	go func() {
+		cerr <- r.stop()
+	}()
+
+	select {
+	case err := <-cerr:
+		require.NoError(t, err)
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "timeout waiting for stop")
+	}
 }
 
 func TestRunnerCreation(t *testing.T) {
@@ -59,7 +123,7 @@ func TestRunnerCreation(t *testing.T) {
 	fxutil.Test[runner.Component](
 		t,
 		fx.Supply(lc),
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		Module(),
 		// Supplying our provider by using the helper function
@@ -72,53 +136,5 @@ func TestRunnerCreation(t *testing.T) {
 	// either the provider call wg.Done() or the test will fail as a timeout
 	wg.Wait()
 
-	assert.NoError(t, lc.Stop(ctx))
-}
-
-func TestPriorityProviderOrder(t *testing.T) {
-	wg := sync.WaitGroup{}
-	m := sync.Mutex{}
-	eventSequence := []string{}
-
-	provider := func(context.Context) time.Duration {
-		m.Lock()
-		eventSequence = append(eventSequence, "provider")
-		m.Unlock()
-		wg.Done()
-		return 1 * time.Minute // Long timeout to block
-	}
-
-	priorityProvider := func(context.Context) time.Duration {
-		m.Lock()
-		eventSequence = append(eventSequence, "priorityProvider")
-		m.Unlock()
-		wg.Done()
-		return 1 * time.Minute // Long timeout to block
-	}
-
-	// We add 3 work unit because the priority provider are called twice at startup. One synchronousily and one asynchronosuly
-	wg.Add(3)
-
-	lc := fxtest.NewLifecycle(t)
-	fxutil.Test[runner.Component](
-		t,
-		fx.Supply(lc),
-		logimpl.MockModule(),
-		config.MockModule(),
-		Module(),
-		// Supplying our provider by using the helper function
-		fx.Supply(NewProvider(provider)),
-		fx.Supply(NewPriorityProvider(priorityProvider)),
-	)
-
-	ctx := context.Background()
-	lc.Start(ctx)
-
-	// either the provider call wg.Done() or the test will fail as a timeout
-	wg.Wait()
-	// it is expected to see three events. Priority providers are called twice at start up
-	assert.Equal(t, 3, len(eventSequence))
-	// ensure priority provider is the first provider to be executed
-	assert.Equal(t, "priorityProvider", eventSequence[0])
 	assert.NoError(t, lc.Stop(ctx))
 }

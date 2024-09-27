@@ -8,12 +8,14 @@ package selftests
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -35,16 +37,19 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	fileToCreate := "file.txt"
 
 	keyPath := "Software\\Datadog\\Datadog Agent"
+
+	dirLongPath, err := utils.GetLongPathName(dir)
 	if err != nil {
 		return nil, err
 	}
+
 	selfTests = []SelfTest{
-		&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
+		&WindowsCreateFileSelfTest{filename: filepath.Join(dirLongPath, fileToCreate)},
 		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 
 	s := &SelfTester{
-		waitingForEvent: atomic.NewBool(cfg.EBPFLessEnabled),
+		waitingForEvent: atomic.NewBool(false),
 		eventChan:       make(chan selfTestEvent, 10),
 		selfTestRunning: make(chan time.Duration, 10),
 		probe:           probe,

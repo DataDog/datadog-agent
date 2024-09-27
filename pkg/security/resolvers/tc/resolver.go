@@ -18,7 +18,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/vishvananda/netlink"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -87,7 +87,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	defer tcr.Unlock()
 
 	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes() {
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled) {
 		// make sure we're not overriding an existing network probe
 		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
 		_, ok := tcr.programs[deviceKey]
@@ -116,7 +116,8 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
 		} else {
 			tcr.programs[deviceKey] = newProbe
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), fmt.Sprintf("%s_%s", newProbe.EBPFFuncName, device.GetKey()), "cws")
+			// do not use dynamic program name here, it explodes cardinality
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "cws")
 		}
 	}
 	return combinedErr.ErrorOrNil()

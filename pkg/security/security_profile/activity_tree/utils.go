@@ -7,6 +7,8 @@
 
 package activitytree
 
+import "slices"
+
 // ExtractFirstParent extracts first parent
 func ExtractFirstParent(path string) (string, int) {
 	if len(path) == 0 {
@@ -29,4 +31,24 @@ func ExtractFirstParent(path string) (string, int) {
 	}
 
 	return path, len(path) + add
+}
+
+// AppendIfNotPresent append a token to a slice only if the token is not already present
+func AppendIfNotPresent(slice []string, toAdd string) ([]string, bool) {
+	if toAdd != "" && !slices.Contains(slice, toAdd) {
+		return append(slice, toAdd), true
+	}
+	return slice, false
+}
+
+func extractExecAndParent(processNode *ProcessNode) (string, string) {
+	processPath := processNode.Process.FileEvent.PathnameStr
+
+	var parentPath string
+	if parent := processNode.GetParent(); parent != nil {
+		if parentNode, ok := parent.(*ProcessNode); ok {
+			parentPath = parentNode.Process.FileEvent.PathnameStr
+		}
+	}
+	return processPath, parentPath
 }

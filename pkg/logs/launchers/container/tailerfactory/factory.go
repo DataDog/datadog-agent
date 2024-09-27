@@ -10,13 +10,15 @@
 package tailerfactory
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Factory supports making new tailers.
@@ -41,7 +43,7 @@ type factory struct {
 
 	// workloadmetaStore is the global WLM store containing information about
 	// containers and pods.
-	workloadmetaStore workloadmeta.Component
+	workloadmetaStore optional.Option[workloadmeta.Component]
 
 	// cop allows the factory to determine whether the agent is logging
 	// containers or pods.
@@ -49,18 +51,21 @@ type factory struct {
 
 	// dockerutil memoizes a DockerUtil instance; fetch this with getDockerUtil().
 	dockerutil *dockerutilPkg.DockerUtil
+
+	tagger tagger.Component
 }
 
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Component) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore optional.Option[workloadmeta.Component], tagger tagger.Component) Factory {
 	return &factory{
 		sources:           sources,
 		pipelineProvider:  pipelineProvider,
 		registry:          registry,
 		workloadmetaStore: workloadmetaStore,
 		cop:               containersorpods.NewChooser(),
+		tagger:            tagger,
 	}
 }
 

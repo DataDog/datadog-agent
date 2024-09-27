@@ -12,6 +12,19 @@
 #define EVENT_FILTER_TYPE_EVENT_ID          (0x80000200)
 #define EVENT_FILTER_TYPE_PID               (0x80000004)
 
+/* taken from windows evntprov.h because the msys version doesn't include it*/
+#define ANYSIZE_ARRAY 1
+/*
+EVENT_FILTER_EVENT_ID is used to pass EventId filter for
+stack walk filters.
+*/
+typedef struct _EVENT_FILTER_EVENT_ID {
+    BOOLEAN FilterIn;
+    UCHAR Reserved;
+    USHORT Count;
+    USHORT Events[];
+} EVENT_FILTER_EVENT_ID, *PEVENT_FILTER_EVENT_ID;
+
 ULONG DDEnableTrace(
     TRACEHANDLE TraceHandle,
     LPCGUID     ProviderId,
@@ -21,7 +34,11 @@ ULONG DDEnableTrace(
     ULONGLONG   MatchAllKeyword,
     ULONG       Timeout,
     ULONG*      PIDs,
-    ULONG       PIDCount
+    ULONG       PIDCount,
+    USHORT*     enableFilterIDs,
+    ULONG       enableFilterIDCount,
+    USHORT*     disableFilterIDs,
+    ULONG       disableFilterIDCount
 );
 TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context);
 

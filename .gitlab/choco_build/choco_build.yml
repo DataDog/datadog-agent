@@ -5,7 +5,7 @@
 # Not currently used in the pipeline.
 windows_choco_offline_7_x64:
   rules:
-    !reference [.on_a7_manual]
+    !reference [.manual]
   stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
@@ -27,7 +27,7 @@ windows_choco_offline_7_x64:
 # it is run only once the msi package is pushed
 windows_choco_online_7_x64:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
+    !reference [.on_deploy_stable_or_beta_repo_branch_manual]
   stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["deploy_staging_windows_tags-7"]

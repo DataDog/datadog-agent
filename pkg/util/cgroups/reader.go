@@ -19,15 +19,16 @@ import (
 const (
 	// ContainerRegexpStr defines the regexp used to match container IDs
 	// ([0-9a-f]{64}) is standard container id used pretty much everywhere
-	// ([0-9a-f]{32}-[0-9]{10}) is container id used by AWS ECS
+	// ([0-9a-f]{32}-\d+) is container id used by AWS ECS
 	// ([0-9a-f]{8}(-[0-9a-f]{4}){4}$) is container id used by Garden
-	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{32}-[0-9]{10})|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
+	ContainerRegexpStr = "([0-9a-f]{64})|([0-9a-f]{32}-\\d+)|([0-9a-f]{8}(-[0-9a-f]{4}){4}$)"
 )
 
 // Reader is the main interface to scrape data from cgroups
 // Calling RefreshCgroups() with your cache toleration is mandatory to retrieve accurate data
 // All Reader methods support concurrent calls
 type Reader struct {
+	pidMapperID            string
 	hostPrefix             string
 	procPath               string
 	cgroupVersion          int
@@ -49,9 +50,7 @@ type readerImpl interface {
 type ReaderFilter func(path, name string) (string, error)
 
 // DefaultFilter matches all cgroup folders and use folder name as identifier
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func DefaultFilter(path, name string) (string, error) {
+func DefaultFilter(path, _ string) (string, error) {
 	return path, nil
 }
 
@@ -61,9 +60,7 @@ func DefaultFilter(path, name string) (string, error) {
 var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func ContainerFilter(path, name string) (string, error) {
+func ContainerFilter(_, name string) (string, error) {
 	match := ContainerRegexp.FindString(name)
 
 	// With systemd cgroup driver, there may be a `.mount` cgroup on top of the normal one
@@ -115,6 +112,13 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 	}
 }
 
+// WithPIDMapper allows to force the selection of a specific PID mapper
+func WithPIDMapper(pidMapperID string) ReaderOption {
+	return func(r *Reader) {
+		r.pidMapperID = pidMapperID
+	}
+}
+
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
 	r := &Reader{}
@@ -145,14 +149,14 @@ func (r *Reader) init() error {
 	if isCgroup1(cgroupMounts) {
 		r.cgroupVersion = 1
 
-		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter)
+		r.impl, err = newReaderV1(r.procPath, cgroupMounts, r.cgroupV1BaseController, r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}
 	} else if isCgroup2(cgroupMounts) {
 		r.cgroupVersion = 2
 
-		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter)
+		r.impl, err = newReaderV2(r.procPath, cgroupMounts[cgroupV2Key], r.readerFilter, r.pidMapperID)
 		if err != nil {
 			return err
 		}

@@ -21,9 +21,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -40,16 +42,15 @@ func TestConfDisabled(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
 	)
 
-	// When interval is 0 the resource Provider should be an empty Optional[T]
-	_, isSet := ret.Provider.Callback.Get()
-	assert.False(t, isSet)
+	// When interval is 0 the resource Provider should be nil
+	assert.Nil(t, ret.Provider.Callback)
 }
 
 func TestConfInterval(t *testing.T) {
@@ -65,12 +66,14 @@ func TestConfInterval(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
 	)
+
+	assert.NotNil(t, ret.Provider.Callback)
 
 	assert.Equal(t, 21*time.Second, ret.Comp.(*resourcesImpl).collectInterval)
 }
@@ -83,7 +86,7 @@ func TestCollect(t *testing.T) {
 
 	expectedPayload := "{\"resources\":{\"meta\":{\"host\":\"resources-test-hostname\"},\"processes\":{\"snaps\":[[\"proc1\",\"proc2\",\"proc3\"]]}}}"
 
-	s := &serializer.MockSerializer{}
+	s := serializermock.NewMetricSerializer(t)
 	s.On("SendProcessesMetadata",
 		testifyMock.MatchedBy(func(payload map[string]interface{}) bool {
 			jsonPayload, err := json.Marshal(payload)
@@ -96,7 +99,7 @@ func TestCollect(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),
@@ -116,11 +119,11 @@ func TestCollectError(t *testing.T) {
 		return nil, fmt.Errorf("some error from gohai")
 	}
 
-	s := &serializer.MockSerializer{}
+	s := serializermock.NewMetricSerializer(t)
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),

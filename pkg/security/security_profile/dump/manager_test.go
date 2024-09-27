@@ -9,7 +9,6 @@
 package dump
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -65,11 +64,11 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 			"one_dump/one_expired_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
 			},
 			[]*ActivityDump{},
 		},
@@ -77,51 +76,51 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 			"one_dump/no_expired_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
 			},
 		},
 		{
 			"5_dumps/no_expired_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 			},
 		},
 		{
 			"5_dumps/5_expired_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}}},
 			},
 			[]*ActivityDump{},
 		},
@@ -129,75 +128,84 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 			"5_dumps/2_expired_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 			},
 		},
 		{
 			"5_dumps/2_expired_dumps_at_the_start",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(-time.Minute)}}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}},
 			},
 		},
 		{
 			"5_dumps/2_expired_dumps_at_the_end",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
-					{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(-time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(-time.Minute)}}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}},
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2", End: time.Now().Add(time.Minute)}}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}},
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for _, ad := range tt.fields.activeDumps {
+				ad.state = Running
+			}
+
 			adm := &ActivityDumpManager{
 				activeDumps:        tt.fields.activeDumps,
 				ignoreFromSnapshot: make(map[string]bool),
 			}
 
-			compareListOfDumps(t, adm.getExpiredDumps(), tt.expiredDumps)
+			expiredDumps := adm.getExpiredDumps()
+			for _, ad := range expiredDumps {
+				ad.state = Stopped
+			}
+
+			compareListOfDumps(t, expiredDumps, tt.expiredDumps)
 			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)
 		})
 	}
@@ -223,13 +231,13 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"one_dump/one_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
 			},
@@ -239,52 +247,52 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"one_dump/no_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
 				},
 			},
 			[]*ActivityDump{},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}},
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}},
 			},
 		},
 		{
 			"5_dumps/no_overweight_dump",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
 				},
 			},
 			[]*ActivityDump{},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
 			},
@@ -293,37 +301,37 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/5_overweight_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
-				{Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 3},
 				}},
-				{Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
-				{Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 3},
 				}},
-				{Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
 			},
@@ -333,39 +341,39 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/2_expired_dumps",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 3},
 				}},
-				{Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
 			},
@@ -374,39 +382,39 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/2_expired_dumps_at_the_start",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 3},
 				}},
-				{Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3", End: time.Now().Add(time.Minute)}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4", End: time.Now().Add(time.Minute)}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5", End: time.Now().Add(time.Minute)}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
 			},
@@ -415,39 +423,39 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			"5_dumps/2_expired_dumps_at_the_end",
 			fields{
 				activeDumps: []*ActivityDump{
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 3},
 					}},
-					{Mutex: &sync.Mutex{}, Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+					{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 						Stats: &activity_tree.Stats{ProcessNodes: 2},
 					}},
 				},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "4"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "4"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 3},
 				}},
-				{Metadata: mtdt.Metadata{Name: "5"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "5"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{ProcessNodes: 2},
 				}},
 			},
 			[]*ActivityDump{
-				{Metadata: mtdt.Metadata{Name: "1"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "1"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "2"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "2"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
-				{Metadata: mtdt.Metadata{Name: "3"}, ActivityTree: &activity_tree.ActivityTree{
+				{ActivityDumpHeader: ActivityDumpHeader{Metadata: mtdt.Metadata{Name: "3"}}, ActivityTree: &activity_tree.ActivityTree{
 					Stats: &activity_tree.Stats{},
 				}},
 			},

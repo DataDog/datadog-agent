@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
 	"golang.org/x/sys/windows"
 )
 
@@ -45,6 +46,8 @@ type WinHttpTransaction struct {
 	SiteName string
 	// HeaderLength  uint32
 	// ContentLength uint32
+	TagsFromJson   iisconfig.APMTags
+	TagsFromConfig iisconfig.APMTags
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter

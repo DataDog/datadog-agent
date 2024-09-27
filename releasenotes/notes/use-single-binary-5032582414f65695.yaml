@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Reduce Agent binary size by using a single binary on Linux.

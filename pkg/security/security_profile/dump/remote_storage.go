@@ -11,18 +11,20 @@ package dump
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"strings"
 
-	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -49,7 +51,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
 		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog),
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		},
 	}
 
@@ -69,7 +71,9 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
 		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
-		storage.apiKeys = append(storage.apiKeys, endpoint.APIKey)
+		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
+		// security agent support API key refresh at runtime.
+		storage.apiKeys = append(storage.apiKeys, endpoint.GetAPIKey())
 	}
 
 	return storage, nil
@@ -94,11 +98,7 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	ad.DDTags = strings.Join(ad.Tags, ",")
 
 	// marshal event metadata
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	ad.MarshalEasyJSON(w)
-	metadata, err := w.BuildBytes()
+	metadata, err := json.Marshal(ad.ActivityDumpHeader)
 	if err != nil {
 		return fmt.Errorf("couldn't marshall event metadata")
 	}
@@ -178,7 +178,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		}
 		storage.tooLargeEntities[entry].Inc()
 	}
-	return fmt.Errorf(resp.Status)
+	return errors.New(resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage
@@ -200,12 +200,12 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender sender.Sender) {
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
 		if entityCount := count.Swap(0); entityCount > 0 {
 			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
-			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
+			_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(entityCount), tags, 1.0)
 		}
 	}
 }

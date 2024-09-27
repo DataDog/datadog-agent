@@ -10,7 +10,7 @@ import textwrap
 
 
 def main():
-    lines = iter(open(sys.argv[1], "r"))
+    lines = iter(open(sys.argv[1], "r"))  # noqa: UP015
 
     # part_lists are the lists of part numbers, keyed by name
     part_lists = {}

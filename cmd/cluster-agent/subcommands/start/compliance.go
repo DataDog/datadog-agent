@@ -14,12 +14,11 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -45,12 +44,12 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err = config.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
-			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
+			endpoints, err = config.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
 
@@ -69,7 +68,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", pkgconfigsetup.Datadog())
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
@@ -80,20 +79,21 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 	}
 	stopper.Add(ctx)
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	configDir := pkgconfigsetup.Datadog().GetString("compliance_config.dir")
+	checkInterval := pkgconfigsetup.Datadog().GetDuration("compliance_config.check_interval")
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
+	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
+	if err != nil {
+		return err
+	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
-	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
+	agent := compliance.NewAgent(statsdClient, wmeta, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,
@@ -119,7 +119,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 }
 
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
-	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+	return func(_ context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
 			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}

@@ -11,32 +11,27 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/fatih/color"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/fatih/color"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 )
-
-// Overall running statistics
-type counters struct {
-	total         int
-	success       int
-	fail          int
-	warnings      int
-	unexpectedErr int
-}
 
 // diagnose suite filter
 type diagSuiteFilter struct {
@@ -45,50 +40,21 @@ type diagSuiteFilter struct {
 }
 
 // Output summary
-func (c *counters) summary(w io.Writer) {
-	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
-	if c.success > 0 {
-		fmt.Fprintf(w, ", Success:%d", c.success)
+func summary(w io.Writer, c diagnosis.Counters) {
+	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.Total)
+	if c.Success > 0 {
+		fmt.Fprintf(w, ", Success:%d", c.Success)
 	}
-	if c.fail > 0 {
-		fmt.Fprintf(w, ", Fail:%d", c.fail)
+	if c.Fail > 0 {
+		fmt.Fprintf(w, ", Fail:%d", c.Fail)
 	}
-	if c.warnings > 0 {
-		fmt.Fprintf(w, ", Warning:%d", c.warnings)
+	if c.Warnings > 0 {
+		fmt.Fprintf(w, ", Warning:%d", c.Warnings)
 	}
-	if c.unexpectedErr > 0 {
-		fmt.Fprintf(w, ", Error:%d", c.unexpectedErr)
+	if c.UnexpectedErr > 0 {
+		fmt.Fprintf(w, ", Error:%d", c.UnexpectedErr)
 	}
 	fmt.Fprint(w, "\n")
-}
-
-func (c *counters) increment(r diagnosis.Result) {
-	c.total++
-
-	if r == diagnosis.DiagnosisSuccess {
-		c.success++
-	} else if r == diagnosis.DiagnosisFail {
-		c.fail++
-	} else if r == diagnosis.DiagnosisWarning {
-		c.warnings++
-	} else if r == diagnosis.DiagnosisUnexpectedError {
-		c.unexpectedErr++
-	}
-}
-
-func getDiagnosisResultForOutput(r diagnosis.Result) string {
-	var result string
-	if r == diagnosis.DiagnosisSuccess {
-		result = color.GreenString("PASS")
-	} else if r == diagnosis.DiagnosisFail {
-		result = color.RedString("FAIL")
-	} else if r == diagnosis.DiagnosisWarning {
-		result = color.YellowString("WARNING")
-	} else { //if d.Result == diagnosis.DiagnosisUnexpectedError
-		result = color.HiRedString("UNEXPECTED ERROR")
-	}
-
-	return result
 }
 
 func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosisIdx int, d diagnosis.Diagnosis) {
@@ -184,8 +150,7 @@ func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 	return true
 }
 
-func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Suite, error) {
-
+func getSortedAndFilteredDiagnoseSuites[T any](diagCfg diagnosis.Config, values []T, getName func(T) string) ([]T, error) {
 	var filter diagSuiteFilter
 	var err error
 
@@ -205,20 +170,20 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config, suites []diagn
 		}
 	}
 
-	sortedSuites := make([]diagnosis.Suite, len(suites))
-	copy(sortedSuites, suites)
-	sort.Slice(sortedSuites, func(i, j int) bool {
-		return sortedSuites[i].SuitName < sortedSuites[j].SuitName
+	sortedValues := make([]T, len(values))
+	copy(sortedValues, values)
+	sort.Slice(sortedValues, func(i, j int) bool {
+		return getName(sortedValues[i]) < getName(sortedValues[j])
 	})
 
-	var sortedFilteredSuites []diagnosis.Suite
-	for _, ds := range sortedSuites {
-		if matchConfigFilters(filter, ds.SuitName) {
-			sortedFilteredSuites = append(sortedFilteredSuites, ds)
+	var sortedFilteredValues []T
+	for _, ds := range sortedValues {
+		if matchConfigFilters(filter, getName(ds)) {
+			sortedFilteredValues = append(sortedFilteredValues, ds)
 		}
 	}
 
-	return sortedFilteredSuites, nil
+	return sortedFilteredValues, nil
 }
 
 func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
@@ -249,69 +214,77 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// ListStdOut enumerates registered Diagnose suites and get their diagnoses
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, deps))
+	sortedSuitesName, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getCheckNames(diagCfg), func(name string) string { return name })
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
 	}
 
 	count := 0
-	for _, ds := range sortedSuites {
+	for _, suiteName := range sortedSuitesName {
 		count++
-		fmt.Fprintf(w, "  %d. %s\n", count, ds.SuitName)
+		fmt.Fprintf(w, "  %d. %s\n", count, suiteName)
 	}
 }
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
-	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites)
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
+	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites, func(suite diagnosis.Suite) string { return suite.SuitName })
 	if err != nil {
 		return nil, err
 	}
 
 	var suitesDiagnoses []diagnosis.Diagnoses
+	var count diagnosis.Counters
 	for _, ds := range suites {
 		// Run particular diagnose
 		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
+			for _, d := range diagnoses {
+				count.Increment(d.Result)
+			}
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
 			})
 		}
 	}
+	diagnoseResult := &diagnosis.DiagnoseResult{
+		Diagnoses: suitesDiagnoses,
+		Summary:   count,
+	}
 
-	return suitesDiagnoses, nil
+	return diagnoseResult, nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
 	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -321,7 +294,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 	// Run diagnose code inside Agent process
 	var response []byte
-	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if response != nil && string(response) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))
@@ -330,64 +303,87 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Deserialize results
-	var diagnoses []diagnosis.Diagnoses
-	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
+	var diagnoses diagnosis.DiagnoseResult
+	err = json.Unmarshal(response, &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
 
-	return diagnoses, nil
+	return &diagnoses, nil
 }
 
-// Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
+// RunInCLIProcess run diagnoses in the CLI process.
+func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
+	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
+		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC)
+		})
+	})
+}
+
+// RunDiagnose runs diagnoses.
+func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, deps))
+	diagnoseResult, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
 	if err != nil {
 		return nil, err
 	}
 
-	return diagnoses, nil
+	return diagnoseResult, nil
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
-// for human consumption
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
+// RunInAgentProcess runs diagnoses in the Agent process.
+func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) (*diagnosis.DiagnoseResult, error) {
+	// Collect local diagnoses
+	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return diagnoseChecksInAgentProcess(deps.collector)
+	})
+
+	return getDiagnosesFromCurrentProcess(diagCfg, suites)
+}
+
+// RunLocalCheck runs locally the checks created by the registries.
+func RunLocalCheck(diagCfg diagnosis.Config, registries ...func(*diagnosis.Catalog)) (*diagnosis.DiagnoseResult, error) {
+	suites := buildCustomSuites(registries...)
+	return getDiagnosesFromCurrentProcess(diagCfg, suites)
+}
+
+// RunDiagnoseStdOut runs the diagnose and outputs the results to the writer.
+func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses *diagnosis.DiagnoseResult) error {
+	if diagCfg.JSONOutput {
+		return runStdOutJSON(w, diagnoses)
+	}
+	return runStdOut(w, diagCfg, diagnoses)
+}
+
+func runStdOutJSON(w io.Writer, diagnoseResult *diagnosis.DiagnoseResult) error {
+	diagJSON, err := json.MarshalIndent(diagnoseResult, "", "  ")
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
+		fmt.Fprintln(w, string(body))
+		return err
+	}
+	fmt.Fprintln(w, string(diagJSON))
+
+	return nil
+}
+
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.DiagnoseResult) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg, deps)
-	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-		// attempt to do so locally
-		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg, deps)
-	}
-
-	if err != nil {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-		return err
-	}
-
-	var c counters
-
 	lastDot := false
-	for _, ds := range diagnoses {
+	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
@@ -397,23 +393,64 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
 		}
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	c.summary(w)
+	summary(w, diagnoseResult.Summary)
 
 	return nil
 }
 
 // SuitesDeps stores the dependencies for the diagnose suites.
 type SuitesDeps struct {
+	SenderManager  sender.DiagnoseSenderManager
+	Collector      optional.Option[collector.Component]
+	SecretResolver secrets.Component
+	WMeta          optional.Option[workloadmeta.Component]
+	AC             optional.Option[autodiscovery.Component]
+}
+
+// SuitesDepsInCLIProcess stores the dependencies for the diagnose suites when running the CLI Process.
+type SuitesDepsInCLIProcess struct {
 	senderManager  sender.DiagnoseSenderManager
-	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
 	wmeta          optional.Option[workloadmeta.Component]
-	AC             optional.Option[autodiscovery.Component]
+	AC             autodiscovery.Component
+	logReceiver    integrations.Component
+}
+
+// NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.
+func NewSuitesDepsInCLIProcess(
+	senderManager sender.DiagnoseSenderManager,
+	secretResolver secrets.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	ac autodiscovery.Component,
+) SuitesDepsInCLIProcess {
+	return SuitesDepsInCLIProcess{
+		senderManager:  senderManager,
+		secretResolver: secretResolver,
+		wmeta:          wmeta,
+		AC:             ac,
+	}
+}
+
+// SuitesDepsInAgentProcess stores the dependencies for the diagnose suites when running the Agent Process.
+type SuitesDepsInAgentProcess struct {
+	collector collector.Component
+}
+
+// NewSuitesDepsInAgentProcess returns a new instance of SuitesDepsInAgentProcess.
+func NewSuitesDepsInAgentProcess(collector collector.Component) SuitesDepsInAgentProcess {
+	return SuitesDepsInAgentProcess{
+		collector: collector,
+	}
+}
+
+// GetWMeta returns the workload metadata instance
+func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
+	return s.WMeta
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
@@ -421,25 +458,72 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component],
+) SuitesDeps {
 	return SuitesDeps{
-		senderManager:  senderManager,
-		collector:      collector,
-		secretResolver: secretResolver,
-		wmeta:          wmeta,
+		SenderManager:  senderManager,
+		Collector:      collector,
+		SecretResolver: secretResolver,
+		WMeta:          wmeta,
 		AC:             ac,
 	}
 }
 
-func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
+func getCheckNames(diagCfg diagnosis.Config) []string {
+	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis { return nil })
+	names := make([]string, len(suites))
+	for i, s := range suites {
+		names[i] = s.SuitName
+	}
+	return names
+}
+
+func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagnosis) []diagnosis.Suite {
+	return buildCustomSuites(
+		RegisterCheckDatadog(checkDatadog),
+		RegisterConnectivityDatadogCoreEndpoints(diagCfg),
+		RegisterConnectivityAutodiscovery,
+		RegisterConnectivityDatadogEventPlatform,
+		RegisterPortConflict,
+	)
+}
+
+func buildCustomSuites(registries ...func(*diagnosis.Catalog)) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
-
-	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta, deps.AC)
-	})
-	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
-	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
-	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
-
+	for _, registry := range registries {
+		registry(catalog)
+	}
 	return catalog.GetSuites()
+}
+
+// RegisterCheckDatadog registers the check-datadog diagnose suite.
+func RegisterCheckDatadog(checkDatadog func() []diagnosis.Diagnosis) func(catalog *diagnosis.Catalog) {
+	return func(catalog *diagnosis.Catalog) {
+		catalog.Register("check-datadog", checkDatadog)
+	}
+}
+
+// RegisterConnectivityDatadogCoreEndpoints registers the connectivity-datadog-core-endpoints diagnose suite.
+func RegisterConnectivityDatadogCoreEndpoints(diagCfg diagnosis.Config) func(catalog *diagnosis.Catalog) {
+	return func(catalog *diagnosis.Catalog) {
+		catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
+	}
+}
+
+// RegisterConnectivityAutodiscovery registers the connectivity-datadog-autodiscovery diagnose suite.
+func RegisterConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
+	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
+}
+
+// RegisterConnectivityDatadogEventPlatform registers the connectivity-datadog-event-platform diagnose suite.
+func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
+	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
+}
+
+// RegisterPortConflict registers the port-conflict diagnose suite.
+func RegisterPortConflict(catalog *diagnosis.Catalog) {
+	// port-conflict suite available in darwin and linux only for now
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
+	}
 }

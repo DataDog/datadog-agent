@@ -41,6 +41,17 @@
                     "type": "string"
                 }
             ]
+        },
+        "mount_path": {
+            "type": "string"
+        },
+        "mount_source": {
+            "type": "string",
+            "enum": ["device", "mount_id", "snapshot"]
+        },
+        "mount_origin": {
+            "type": "string",
+            "enum": ["procfs", "event", "unshare"]
         }
     },
     "required": [

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Introduces an ``bundle_unspecified_events`` config to the ``kubernetes_apiserver``
+    integration. When ``bundle_unspecified_events`` and ``unbundle_events`` are true,
+    Kubernetes events are unbundled according to ``collected_event_types`` and
+    the remaining events are bundled.

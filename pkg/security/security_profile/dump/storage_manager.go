@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -27,28 +26,20 @@ type ActivityDumpStorage interface {
 	// Persist saves the provided buffer to the persistent storage
 	Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
 	// SendTelemetry sends metrics using the provided metrics sender
-	SendTelemetry(sender sender.Sender)
+	SendTelemetry(sender statsd.ClientInterface)
 }
 
 // ActivityDumpStorageManager is used to manage activity dump storages
 type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
-
-	metricsSender sender.Sender
 }
 
-// NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager(senderManager sender.SenderManager) (*ActivityDumpStorageManager, error) {
+// NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
+func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
-
-	sender, err := senderManager.GetDefaultSender()
-	if err != nil {
-		return nil, err
-	}
-	manager.metricsSender = sender
 
 	// create remote storage
 	remote, err := NewActivityDumpRemoteStorage()
@@ -60,8 +51,8 @@ func NewSecurityAgentStorageManager(senderManager sender.SenderManager) (*Activi
 	return manager, nil
 }
 
-// NewSecurityAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
+// NewAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
+func NewAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
@@ -161,6 +152,6 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 // SendTelemetry send telemetry of all storages
 func (manager *ActivityDumpStorageManager) SendTelemetry() {
 	for _, storage := range manager.storages {
-		storage.SendTelemetry(manager.metricsSender)
+		storage.SendTelemetry(manager.statsdClient)
 	}
 }

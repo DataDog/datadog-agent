@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	profilecomp "github.com/DataDog/datadog-agent/comp/process/profiler"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -71,7 +71,7 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 	if site == "" {
 		s := cfg.GetString("site")
 		if s == "" {
-			s = ddconfig.DefaultSite
+			s = pkgconfigsetup.DefaultSite
 		}
 		site = fmt.Sprintf(profiling.ProfilingURLTemplate, s)
 	}
@@ -90,6 +90,8 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 		MutexProfileFraction: cfg.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     cfg.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: cfg.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		WithBlockProfile:     cfg.GetBool("internal_profiling.enable_block_profiling"),
+		WithMutexProfile:     cfg.GetBool("internal_profiling.enable_mutex_profiling"),
 		WithDeltaProfiles:    cfg.GetBool("internal_profiling.delta_profiles"),
 		Socket:               cfg.GetString("internal_profiling.unix_socket"),
 		Tags:                 tags,

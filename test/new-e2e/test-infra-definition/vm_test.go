@@ -82,7 +82,7 @@ func TestVMSuite(t *testing.T) {
 
 func (v *vmSuiteWithAMI) TestWithImageName() {
 	vm := v.Env().RemoteHost
-	metadata := client.NewEC2Metadata(vm)
+	metadata := client.NewEC2Metadata(v.T(), vm.Host, vm.OSFamily)
 	require.Equal(v.T(), requestedAmi, metadata.Get("ami-id"))
 	require.Equal(v.T(), "aarch64\n", vm.MustExecute("uname -m"))
 	require.Contains(v.T(), vm.MustExecute("grep PRETTY_NAME /etc/os-release"), "Amazon Linux")
@@ -90,7 +90,7 @@ func (v *vmSuiteWithAMI) TestWithImageName() {
 
 func (v *vmSuiteWithInstanceType) TestWithInstanceType() {
 	vm := v.Env().RemoteHost
-	metadata := client.NewEC2Metadata(vm)
+	metadata := client.NewEC2Metadata(v.T(), vm.Host, vm.OSFamily)
 	require.Equal(v.T(), metadata.Get("instance-type"), instanceType)
 }
 

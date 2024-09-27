@@ -19,6 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -152,6 +154,7 @@ func TestGetStatus(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -367,14 +370,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -421,14 +424,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -483,6 +486,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -547,6 +551,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -610,10 +615,6 @@ Collector
 =========
  text from b
 
-=============
-Error Section
-=============
-
 ====================
 Status render errors
 ====================
@@ -644,6 +645,7 @@ Status render errors
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -773,11 +775,30 @@ X Section
 				assert.Equal(t, expectedResult, output)
 			},
 		},
+		{
+			name:    "Text case insensitive",
+			format:  "text",
+			section: "X SeCtIoN",
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := `=========
+X Section
+=========
+ text from a
+ text from x
+`
+
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(result, "\r\n", "\n", -1)
+				output := strings.Replace(string(bytes), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection(testCase.section, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
 
 			assert.NoError(t, err)
 
@@ -800,6 +821,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -885,7 +907,6 @@ Status render errors
 			format:  "text",
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
-
 				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
   Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
@@ -920,10 +941,138 @@ Status render errors
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection(testCase.section, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
 
 			assert.NoError(t, err)
 
+			testCase.assertFunc(t, bytesResult)
+		})
+	}
+}
+
+func TestGetStatusByMultipleSections(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_1": "bar_1",
+				},
+				name:    "zoo_1",
+				text:    "text from zoo_1\n",
+				section: "moo_1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_2": "bar_2",
+				},
+				name:    "zoo_2",
+				text:    "text from zoo_2\n",
+				section: "moo_2",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_3": "bar_3",
+				},
+				name:    "zoo_3",
+				text:    "text from zoo_3\n",
+				section: "moo_3",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_4": "bar_4",
+				},
+				name:    "zoo_4",
+				text:    "text from zoo_4\n",
+				section: "moo_4",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	testCases := []struct {
+		name          string
+		format        string
+		sections      []string
+		shouldSuccess bool
+		assertFunc    func(*testing.T, []byte)
+	}{
+		{
+			name:          "single section",
+			format:        "json",
+			sections:      []string{"moo_1"},
+			shouldSuccess: true,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err := json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+			},
+		},
+		{
+			name:          "triple section",
+			format:        "json",
+			sections:      []string{"moo_1", "moo_2", "moo_4"},
+			shouldSuccess: true,
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err := json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 3, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+				assert.Equal(t, "bar_2", result["foo_2"])
+				assert.Equal(t, "bar_4", result["foo_4"])
+			},
+		},
+		{
+			name:          "only one section exists",
+			format:        "json",
+			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
+			shouldSuccess: false,
+			assertFunc: func(t *testing.T, _ []byte) {
+				result := map[string]interface{}{}
+				assert.Equal(t, 0, len(result))
+			},
+		},
+		{
+			name:          "no section exists",
+			format:        "json",
+			sections:      []string{"fake_moo_1"},
+			shouldSuccess: false,
+			assertFunc: func(t *testing.T, _ []byte) {
+				result := map[string]interface{}{}
+				assert.Equal(t, 0, len(result))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			bytesResult, err := statusComponent.GetStatusBySections(testCase.sections, testCase.format, false)
+
+			if testCase.shouldSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 			testCase.assertFunc(t, bytesResult)
 		})
 	}
@@ -943,11 +1092,55 @@ func TestFlareProvider(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
 
 	provides := newStatus(deps)
-	flareProvider := provides.FlareProvider.Provider
+	flareProvider := provides.FlareProvider.Callback
 
 	assert.NotNil(t, flareProvider)
+}
+
+func TestGetStatusBySectionIncorrect(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Lorem",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "ipsum",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "doloR",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "Sit",
+				name:        "1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				returnError: false,
+				section:     "AmEt",
+				name:        "1",
+			}),
+		),
+	))
+
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
+
+	bytesResult, err := statusComponent.GetStatusBySections([]string{"consectetur"}, "json", false)
+
+	assert.Nil(t, bytesResult)
+	assert.EqualError(t, err, `unknown status section 'consectetur', available sections are: ["header","amet","dolor","ipsum","lorem","sit"]`)
 }

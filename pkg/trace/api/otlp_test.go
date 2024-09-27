@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -292,6 +293,18 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				{
 					LibName:    "libname",
 					LibVersion: "1.2",
+					Attributes: map[string]interface{}{"deployment.environment.name": "staging"},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("staging", out.Env)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
 					Attributes: map[string]interface{}{},
 					Spans: []*testutil.OTLPSpan{
 						{Attributes: map[string]interface{}{string(semconv.AttributeDeploymentEnvironment): "spanenv"}},
@@ -300,6 +313,21 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			},
 			fn: func(out *pb.TracerPayload) {
 				require.Equal("spanenv", out.Env)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{Attributes: map[string]interface{}{"deployment.environment.name": "spanenv2"}},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("spanenv2", out.Env)
 			},
 		},
 		{
@@ -493,23 +521,23 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		})
 	}
 
-	t.Run("ClientComputedStats", func(t *testing.T) {
-		// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
-		// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
-		testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
-			return func(t *testing.T) {
-				rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-				rcv.ReceiveResourceSpans(context.Background(), rspans, header)
-				timeout := time.After(500 * time.Millisecond)
-				select {
-				case <-timeout:
-					t.Fatal("timed out")
-				case p := <-out:
-					fn(p)
-				}
+	// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
+	// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
+	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
+		return func(t *testing.T) {
+			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+			timeout := time.After(500 * time.Millisecond)
+			select {
+			case <-timeout:
+				t.Fatal("timed out")
+			case p := <-out:
+				fn(p)
 			}
 		}
+	}
 
+	t.Run("ClientComputedStats", func(t *testing.T) {
 		testSpans := [...][]testutil.OTLPResourceSpan{
 			{
 				{
@@ -544,6 +572,37 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 
 		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *Payload) {
 			require.True(p.ClientComputedStats)
+		}))
+	})
+
+	t.Run("ClientComputedTopLevel", func(t *testing.T) {
+		testSpans := []testutil.OTLPResourceSpan{{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			Attributes: map[string]interface{}{},
+			Spans:      []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}}},
+		}}
+
+		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.False(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("header", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+
+		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("headerWithFeatureFlag", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
 		}))
 	})
 }
@@ -751,8 +810,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -763,9 +822,9 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindClient:      "client",
 			ptrace.SpanKindProducer:    "producer",
 			ptrace.SpanKindConsumer:    "consumer",
-			99:                         "unknown",
+			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, spanKindName(in))
+			assert.Equal(t, out, traceutil.OTelSpanKindName(in))
 		}
 	})
 
@@ -979,12 +1038,13 @@ func TestOTLPConvertSpan(t *testing.T) {
 	cfg := NewTestConfig(t)
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr   map[string]string
-		libname string
-		libver  string
-		in      ptrace.Span
-		out     *pb.Span
-		outTags map[string]string
+		rattr              map[string]string
+		libname            string
+		libver             string
+		in                 ptrace.Span
+		out                *pb.Span
+		outTags            map[string]string
+		topLevelOutMetrics map[string]float64
 	}{
 		{
 			rattr: map[string]string{
@@ -1028,6 +1088,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"count":  2,
 				},
 				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
 			},
 		}, {
 			rattr: map[string]string{
@@ -1153,6 +1218,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "web",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
+			},
 		}, {
 			rattr: map[string]string{
 				"service.name":    "myservice",
@@ -1275,6 +1345,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "web",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
+			},
 		}, {
 			rattr: map[string]string{
 				"env": "staging",
@@ -1329,6 +1405,185 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "db",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":            "ddtracer.server",
+					"http.request.method":       "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"error.type":                "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                       "staging",
+					"otel.library.name":         "ddtracer",
+					"otel.library.version":      "v2",
+					"otel.status_code":          "Error",
+					"error.msg":                 "201",
+					"http.request.method":       "POST",
+					"http.method":               "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "201",
+					"error.type":                "WebSocketDisconnect",
+					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                 "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			// Using both old and new semantic conventions.
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":            "ddtracer.server",
+					"http.request.method":       "POST",
+					"http.method":               "SHOULD NOT BE USED FOR RESOURCE NAME",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "SHOULD NOT BE USED FOR ERROR.MSG",
+					"error.type":                "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                       "staging",
+					"otel.library.name":         "ddtracer",
+					"otel.library.version":      "v2",
+					"otel.status_code":          "Error",
+					"error.msg":                 "201",
+					"http.request.method":       "POST",
+					"http.method":               "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "201",
+					"error.type":                "WebSocketDisconnect",
+					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                 "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			// Using old semantic conventions.
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":   "ddtracer.server",
+					"http.method":      "POST",
+					"url.path":         "/uploads/4",
+					"url.scheme":       "https",
+					"http.route":       "/uploads/:document_id",
+					"http.status_code": "201",
+					"error.type":       "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -1380,6 +1635,18 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
+
+			// test new top-level identification feature flag
+			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			got = o.convertSpan(tt.rattr, lib, tt.in)
+			wantMetrics := tt.topLevelOutMetrics
+			if len(wantMetrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
+			}
+			for k, v := range wantMetrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			delete(o.conf.Features, "enable_otlp_compute_top_level_by_span_kind")
 		})
 	}
 }
@@ -2058,6 +2325,65 @@ func TestMarshalSpanLinks(t *testing.T) {
 	}
 }
 
+func TestComputeTopLevelAndMeasured(t *testing.T) {
+	testCases := []struct {
+		span        *pb.Span
+		spanKind    ptrace.SpanKind
+		hasTopLevel bool
+		hasMeasured bool
+	}{
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web"},
+			ptrace.SpanKindServer,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "sql"},
+			ptrace.SpanKindClient,
+			false,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 3, ParentID: 2, Service: "master-db", Type: "sql"},
+			ptrace.SpanKindConsumer,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "redis", Type: "redis"},
+			ptrace.SpanKindProducer,
+			false,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindClient,
+			true,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindInternal,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindInternal,
+			false,
+			false,
+		},
+	}
+
+	assert := assert.New(t)
+	for _, tc := range testCases {
+		computeTopLevelAndMeasured(tc.span, tc.spanKind)
+		assert.Equal(tc.hasTopLevel, traceutil.HasTopLevel(tc.span))
+		assert.Equal(tc.hasMeasured, traceutil.IsMeasured(tc.span))
+	}
+}
+
 func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLength int) ptraceotlp.ExportRequest {
 	traces := make([]testutil.OTLPResourceSpan, traceCount)
 	for k := 0; k < traceCount; k++ {
@@ -2115,6 +2441,40 @@ func BenchmarkProcessRequest(b *testing.B) {
 
 	cfg := NewBenchmarkTestConfig(b)
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.processRequest(context.Background(), metadata, largeTraces)
+	}
+	b.StopTimer()
+	end <- struct{}{}
+	<-end
+}
+
+func BenchmarkProcessRequestTopLevel(b *testing.B) {
+	largeTraces := generateTraceRequest(10, 100, 100, 100)
+	metadata := http.Header(map[string][]string{
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
+	})
+	out := make(chan *Payload, 100)
+	end := make(chan struct{})
+	go func() {
+		defer close(end)
+		for {
+			select {
+			case <-out:
+				// drain
+			case <-end:
+				return
+			}
+		}
+	}()
+
+	cfg := NewBenchmarkTestConfig(b)
+	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

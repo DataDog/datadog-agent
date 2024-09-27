@@ -26,8 +26,9 @@ import (
 
 func TestExtractDeployment(t *testing.T) {
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
+	testIntOrStrPercent := intstr.FromString("1%")
+	testIntOrStrNumber := intstr.FromInt(1)
 	testInt32 := int32(2)
-	testIntorStr := intstr.FromString("1%")
 	tests := map[string]struct {
 		input    appsv1.Deployment
 		expected model.Deployment
@@ -60,8 +61,8 @@ func TestExtractDeployment(t *testing.T) {
 					Strategy: appsv1.DeploymentStrategy{
 						Type: appsv1.DeploymentStrategyType("RollingUpdate"),
 						RollingUpdate: &appsv1.RollingUpdateDeployment{
-							MaxSurge:       &testIntorStr,
-							MaxUnavailable: &testIntorStr,
+							MaxSurge:       &testIntOrStrPercent,
+							MaxUnavailable: &testIntOrStrPercent,
 						},
 					},
 				},
@@ -163,6 +164,26 @@ func TestExtractDeployment(t *testing.T) {
 					Namespace: "namespace",
 				},
 				DeploymentStrategy: "RollingUpdate",
+			},
+		},
+		"partial deploy with numeric rolling update options": {
+			input: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					MinReadySeconds: 600,
+					Strategy: appsv1.DeploymentStrategy{
+						Type: appsv1.DeploymentStrategyType("RollingUpdate"),
+						RollingUpdate: &appsv1.RollingUpdateDeployment{
+							MaxSurge:       &testIntOrStrNumber,
+							MaxUnavailable: &testIntOrStrNumber,
+						},
+					},
+				},
+			}, expected: model.Deployment{
+				ReplicasDesired:    1,
+				Metadata:           &model.Metadata{},
+				DeploymentStrategy: "RollingUpdate",
+				MaxUnavailable:     "1",
+				MaxSurge:           "1",
 			},
 		},
 		"partial deploy with ust": {

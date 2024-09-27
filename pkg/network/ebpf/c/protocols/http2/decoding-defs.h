@@ -13,10 +13,10 @@
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
-#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 16
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 14 (14*18 = 252) tail calls is enough.
-#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 14
+// Currently we have up to 240 frames in a packet, thus 15 (15*16 = 240) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 15
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
 #define HTTP2_MAX_FRAMES_ITERATIONS 240
@@ -30,13 +30,6 @@
 
 // Represents the maximum number octets we will process in the dynamic table update size.
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
-
-// Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
-// Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 120 frames in a packet, thus 8 (8*15 = 120) tail calls is enough.
-#define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 8
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 
 // A limit of max non pseudo headers which we process in the request/response.
 // In HTTP/2 we know that we start with pseudo headers and then we have non pseudo headers.
@@ -78,11 +71,11 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 15
+#define HTTP2_BATCH_SIZE (MAX_BATCH_SIZE(http2_event_t))
 
 // The max number of events we can have in a single page in the batch_events array.
 // See more details in the comments of the USM_EVENTS_INIT.
-#define HTTP2_TERMINATED_BATCH_SIZE 80
+#define HTTP2_TERMINATED_BATCH_SIZE (MAX_BATCH_SIZE(conn_tuple_t))
 
 // MAX_4_BITS represents the maximum number that can be represented with 4 bits or less.
 // 1 << 4 - 1
@@ -244,10 +237,6 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
-    __u64 fragmented_frame_count_headers;
-    __u64 fragmented_frame_count_rst;
-    __u64 fragmented_frame_count_data_eos;
-    __u64 fragmented_frame_count_headers_eos;
 } http2_telemetry_t;
 
 typedef struct {

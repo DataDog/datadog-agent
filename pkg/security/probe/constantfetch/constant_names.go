@@ -20,6 +20,7 @@ const (
 	OffsetNameSignalStructStructTTY     = "tty_offset"
 	OffsetNameTTYStructStructName       = "tty_name_offset"
 	OffsetNameCredStructUID             = "creds_uid_offset"
+	OffsetNameCredStructCapInheritable  = "creds_cap_inheritable_offset"
 	OffsetNameLinuxBinprmP              = "linux_binprm_p_offset"
 	OffsetNameLinuxBinprmArgc           = "linux_binprm_argc_offset"
 	OffsetNameLinuxBinprmEnvc           = "linux_binprm_envc_offset"
@@ -27,6 +28,11 @@ const (
 	OffsetNameKernelCloneArgsExitSignal = "kernel_clone_args_exit_signal_offset"
 	OffsetNameFileFinode                = "file_f_inode_offset"
 	OffsetNameFileFpath                 = "file_f_path_offset"
+	OffsetNameMountMntID                = "mount_id_offset"
+
+	// tracepoints
+	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
+	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"
@@ -57,8 +63,10 @@ const (
 
 	// network related constants
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"
+	OffsetNameNetDeviceStructName       = "net_device_name_offset"
 	OffsetNameNetStructNS               = "net_ns_offset"
 	OffsetNameNetStructProcInum         = "net_proc_inum_offset"
+	OffsetNameDeviceStructNdNet         = "device_nd_net_net_offset"
 	OffsetNameSockCommonStructSKCNet    = "sock_common_skc_net_offset"
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"

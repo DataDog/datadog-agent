@@ -20,6 +20,7 @@ func TestExcludeFeatures(t *testing.T) {
 		Cri:                      struct{}{},
 		Docker:                   struct{}{},
 		KubeOrchestratorExplorer: struct{}{},
+		ECSOrchestratorExplorer:  struct{}{},
 		Kubernetes:               struct{}{},
 		ECSFargate:               struct{}{},
 		EKSFargate:               struct{}{},
@@ -37,6 +38,7 @@ func TestExcludeFeatures(t *testing.T) {
 		CloudFoundry:             struct{}{},
 		Containerd:               struct{}{},
 		KubeOrchestratorExplorer: struct{}{},
+		ECSOrchestratorExplorer:  struct{}{},
 		Kubernetes:               struct{}{},
 	})
 }

@@ -2,6 +2,7 @@
 Diffing tasks
 """
 
+import datetime
 import os
 import tempfile
 
@@ -12,12 +13,72 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import check_uncommitted_changes
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
+
+BINARIES: dict[str, dict] = {
+    "agent": {
+        "entrypoint": "cmd/agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "iot-agent": {
+        "build": "agent",
+        "entrypoint": "cmd/agent",
+        "flavor": AgentFlavor.iot,
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "heroku-agent": {
+        "build": "agent",
+        "entrypoint": "cmd/agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+    "cluster-agent": {"entrypoint": "cmd/cluster-agent", "platforms": ["linux/x64", "linux/arm64"]},
+    "cluster-agent-cloudfoundry": {
+        "entrypoint": "cmd/cluster-agent-cloudfoundry",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "dogstatsd": {"entrypoint": "cmd/dogstatsd", "platforms": ["linux/x64", "linux/arm64"]},
+    "process-agent": {
+        "entrypoint": "cmd/process-agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "heroku-process-agent": {
+        "build": "process-agent",
+        "entrypoint": "cmd/process-agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+    "security-agent": {
+        "entrypoint": "cmd/security-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
+    "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "trace-agent": {
+        "entrypoint": "cmd/trace-agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "heroku-trace-agent": {
+        "build": "trace-agent",
+        "entrypoint": "cmd/trace-agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+}
+
+METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.diff"
 
 
 @task
-def go_deps(ctx, baseline_ref=None, report_file=None):
+def go_deps(
+    ctx,
+    baseline_ref=None,
+    report_file=None,
+    report_metrics: bool = False,
+    git_ref: str | None = None,
+):
     if check_uncommitted_changes(ctx):
         raise Exit(
             color_message(
@@ -26,66 +87,26 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
             ),
             code=1,
         )
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    if report_metrics and not os.environ.get("DD_API_KEY"):
+        raise Exit(
+            code=1,
+            message=color_message(
+                "DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend", "red"
+            ),
+        )
+
+    timestamp = int(datetime.datetime.now(datetime.UTC).timestamp())
+
+    current_branch = get_current_branch(ctx)
     commit_sha = os.getenv("CI_COMMIT_SHA")
     if commit_sha is None:
-        commit_sha = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        commit_sha = get_commit_sha(ctx)
 
     if not baseline_ref:
         base_branch = _get_release_json_value("base_branch")
         baseline_ref = ctx.run(f"git merge-base {commit_sha} origin/{base_branch}", hide=True).stdout.strip()
 
-    # platforms are the agent task recognized os/platform and arch values, not Go-specific values
-    binaries = {
-        "agent": {
-            "entrypoint": "cmd/agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
-        },
-        "iot-agent": {
-            "build": "agent",
-            "entrypoint": "cmd/agent",
-            "flavor": AgentFlavor.iot,
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "heroku-agent": {
-            "build": "agent",
-            "entrypoint": "cmd/agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-        "cluster-agent": {"entrypoint": "cmd/cluster-agent", "platforms": ["linux/x64", "linux/arm64"]},
-        "cluster-agent-cloudfoundry": {
-            "entrypoint": "cmd/cluster-agent-cloudfoundry",
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "dogstatsd": {"entrypoint": "cmd/dogstatsd", "platforms": ["linux/x64", "linux/arm64"]},
-        "process-agent": {
-            "entrypoint": "cmd/process-agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
-        },
-        "heroku-process-agent": {
-            "build": "process-agent",
-            "entrypoint": "cmd/process-agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-        "security-agent": {
-            "entrypoint": "cmd/security-agent",
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
-        "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
-        "trace-agent": {
-            "entrypoint": "cmd/trace-agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
-        },
-        "heroku-trace-agent": {
-            "build": "trace-agent",
-            "entrypoint": "cmd/trace-agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-    }
     diffs = {}
     dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
 
@@ -97,9 +118,9 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
-                for binary, details in binaries.items():
+                for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
-                        for combo in details.get("platforms"):
+                        for combo in details["platforms"]:
                             platform, arch = combo.split("/")
                             goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                             target = f"{binary}-{goos}-{goarch}"
@@ -107,17 +128,16 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(
-                                build=build, arch=arch, platform=platform, flavor=flavor
-                            )
-                            env = {"GOOS": goos, "GOARCH": goarch}
+                            build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
+                            # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
+                            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 
         # compute diffs for each target
-        for binary, details in binaries.items():
-            for combo in details.get("platforms"):
+        for binary, details in BINARIES.items():
+            for combo in details["platforms"]:
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                 target = f"{binary}-{goos}-{goarch}"
@@ -137,8 +157,10 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 f"Comparison: {commit_sha}\n",
                 "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
-            for binary, details in binaries.items():
-                for combo in details.get("platforms"):
+            for binary, details in BINARIES.items():
+                for combo in details["platforms"]:
+                    flavor = details.get("flavor", AgentFlavor.base)
+                    build = details.get("build", binary)
                     platform, arch = combo.split("/")
                     goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                     target = f"{binary}-{goos}-{goarch}"
@@ -147,6 +169,23 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                     if target in diffs:
                         targetdiffs = diffs[target]
                         add, remove = patch_summary(targetdiffs)
+
+                        if report_metrics:
+                            tags = [
+                                f"build:{build}",
+                                f"flavor:{flavor.name}",
+                                f"os:{goos}",
+                                f"arch:{goarch}",
+                                f"git_sha:{commit_sha}",
+                                f"git_ref:{git_ref}",
+                            ]
+
+                            if git_ref:
+                                tags.append(f"git_ref:{git_ref}")
+
+                            dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
+                            send_metrics([dependency_diff])
+
                         color_add = color_message(f"+{add}", "green")
                         color_remove = color_message(f"-{remove}", "red")
                         print(f"== {prettytarget} {color_add}, {color_remove} ==")

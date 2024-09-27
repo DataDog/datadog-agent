@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// team: container-integrations
+// team: container-platform
 
 // Package client implements a component to send process metadata to the Cluster-Agent
 package client
 
-// team: container-integrations
+// team: container-platform
 
 // Component is the component interface.
 type Component interface{}

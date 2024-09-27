@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -17,7 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -25,6 +28,9 @@ import (
 type Provider interface {
 	Start()
 	Stop()
+	ReconfigureSDSStandardRules(standardRules []byte) (bool, error)
+	ReconfigureSDSAgentConfig(config []byte) (bool, error)
+	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -56,8 +62,8 @@ func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -104,6 +110,64 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.outputChan = nil
+}
+
+// return true if all processor SDS scanners are active.
+func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
+	var responses []chan sds.ReconfigureResponse
+
+	// send a reconfiguration order to every running pipeline
+
+	for _, pipeline := range p.pipelines {
+		order := sds.ReconfigureOrder{
+			Type:         orderType,
+			Config:       config,
+			ResponseChan: make(chan sds.ReconfigureResponse),
+		}
+		responses = append(responses, order.ResponseChan)
+
+		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
+		pipeline.processor.ReconfigChan <- order
+	}
+
+	// reports if at least one error occurred
+
+	var rerr error
+	allScannersActive := true
+	for _, response := range responses {
+		resp := <-response
+
+		if !resp.IsActive {
+			allScannersActive = false
+		}
+
+		if resp.Err != nil {
+			rerr = multierror.Append(rerr, resp.Err)
+		}
+
+		close(response)
+	}
+
+	return allScannersActive, rerr
+}
+
+// ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
+func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
+	return p.reconfigureSDS(standardRules, sds.StandardRules)
+}
+
+// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
+// configuration received through Remote Configuration.
+// Return true if all SDS scanners are active after applying this configuration.
+func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
+	return p.reconfigureSDS(config, sds.AgentConfig)
+}
+
+// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
+// from the processing steps.
+func (p *provider) StopSDSProcessing() error {
+	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
+	return err
 }
 
 // NextPipelineChan returns the next pipeline input channel

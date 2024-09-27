@@ -375,4 +375,15 @@ const (
 	SysProcessMrelease       Syscall = 448
 	SysFutexWaitv            Syscall = 449
 	SysSetMempolicyHomeNode  Syscall = 450
+	SysCachestat             Syscall = 451
+	SysFchmodat2             Syscall = 452
+	SysMapShadowStack        Syscall = 453
+	SysFutexWake             Syscall = 454
+	SysFutexWait             Syscall = 455
+	SysFutexRequeue          Syscall = 456
+	SysStatmount             Syscall = 457
+	SysListmount             Syscall = 458
+	SysLsmGetSelfAttr        Syscall = 459
+	SysLsmSetSelfAttr        Syscall = 460
+	SysLsmListModules        Syscall = 461
 )

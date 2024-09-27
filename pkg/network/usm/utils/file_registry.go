@@ -13,7 +13,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"go.uber.org/atomic"
@@ -50,7 +49,7 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
+	blocklistByID *simplelru.LRU[PathIdentifier, string]
 
 	telemetry registryTelemetry
 }
@@ -64,12 +63,13 @@ type FilePath struct {
 
 // NewFilePath creates a new `FilePath` instance from a given `namespacedPath`
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
+	base := "root"
 	// Use cwd of the process as root if the namespacedPath is relative
 	if namespacedPath[0] != '/' {
-		namespacedPath = "/cwd" + namespacedPath
+		base = "cwd/"
 	}
 
-	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
+	path := fmt.Sprintf("%s/%d/%s%s", procRoot, pid, base, namespacedPath)
 	pathID, err := NewPathIdentifier(path)
 	if err != nil {
 		return FilePath{}, err
@@ -78,11 +78,16 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	return FilePath{HostPath: path, ID: pathID, PID: pid}, nil
 }
 
-type callback func(FilePath) error
+// Callback is a function that is executed when a file becomes active or inactive
+type Callback func(FilePath) error
+
+// IgnoreCB is just a dummy callback that doesn't do anything
+// Meant for testing purposes
+var IgnoreCB = func(FilePath) error { return nil }
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -97,43 +102,48 @@ func NewFileRegistry(programName string) *FileRegistry {
 
 	// Add self to the debugger so we can inspect internal state of this
 	// FileRegistry using our debugging endpoint
-	debugger.Add(r)
+	debugger.AddRegistry(r)
 
 	return r
 }
+
+var (
+	errPidIsNotRegistered = errors.New("pid is not registered")
+	errCallbackIsMissing  = errors.New("activationCB and deactivationCB must be both non-nil")
+	errAlreadyStopped     = errors.New("registry already stopped")
+	errPathIsBlocked      = errors.New("path is blocked")
+
+	// ErrPathIsAlreadyRegistered is the error resulting if the
+	// path is already in the file registry.
+	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
+)
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered Callback) error {
 	if activationCB == nil || deactivationCB == nil {
-		log.Errorf("activationCB and deactivationCB must be both non-nil")
-		return
+		return errCallbackIsMissing
 	}
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
-		// short living process can hit here
-		// as we receive the openat() syscall info after receiving the EXIT netlink process
-		if log.ShouldLog(seelog.TraceLvl) {
-			log.Tracef("can't create path identifier %s", err)
-		}
-		return
+		return err
 	}
 
 	pathID := path.ID
 	r.m.Lock()
 	defer r.m.Unlock()
 	if r.stopped {
-		return
+		return errAlreadyStopped
 	}
 
 	if r.blocklistByID != nil {
 		if _, found := r.blocklistByID.Get(pathID); found {
 			r.telemetry.fileBlocked.Add(1)
-			return
+			return errPathIsBlocked
 		}
 	}
 
@@ -147,25 +157,28 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.byPID[pid][pathID] = struct{}{}
 		}
 		r.telemetry.fileAlreadyRegistered.Add(1)
-		return
+		if alreadyRegistered != nil {
+			_ = alreadyRegistered(path)
+		}
+		return ErrPathIsAlreadyRegistered
 	}
 
 	if err := activationCB(path); err != nil {
 		// short living process would be hard to catch and will failed when we try to open the library
 		// so let's failed silently
 		if errors.Is(err, os.ErrNotExist) {
-			return
+			return err
 		}
 
 		// we are calling `deactivationCB` here as some uprobes could be already attached
-		_ = deactivationCB(FilePath{ID: pathID})
+		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, struct{}{})
+			r.blocklistByID.Add(pathID, path.HostPath)
 		}
 		r.telemetry.fileHookFailed.Add(1)
-		return
+		return err
 	}
 
 	reg := r.newRegistration(namespacedPath, deactivationCB)
@@ -178,6 +191,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
+	return nil
 }
 
 // Unregister a PID if it exists
@@ -186,16 +200,16 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 // reference counters decremented by one. For any file for the number of
 // references drops to zero, we'll execute the *deactivationCB* previously
 // supplied during the `Register` call.
-func (r *FileRegistry) Unregister(pid uint32) {
+func (r *FileRegistry) Unregister(pid uint32) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 	if r.stopped {
-		return
+		return errAlreadyStopped
 	}
 
 	paths, found := r.byPID[pid]
 	if !found {
-		return
+		return errPidIsNotRegistered
 	}
 
 	for pathID := range paths {
@@ -204,7 +218,7 @@ func (r *FileRegistry) Unregister(pid uint32) {
 			r.telemetry.fileUnregisterPathIDNotFound.Add(1)
 			continue
 		}
-		if reg.unregisterPath(pathID) {
+		if reg.unregisterPath(FilePath{ID: pathID, PID: pid}) {
 			// we need to clean up our entries as there are no more processes using this ELF
 			delete(r.byID, pathID)
 		}
@@ -212,6 +226,7 @@ func (r *FileRegistry) Unregister(pid uint32) {
 	delete(r.byPID, pid)
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
+	return nil
 }
 
 // GetRegisteredProcesses returns a set with all PIDs currently being tracked by
@@ -241,13 +256,33 @@ func (r *FileRegistry) Clear() {
 		return
 	}
 
-	for pathID, reg := range r.byID {
-		reg.unregisterPath(pathID)
+	for pid, pathIDs := range r.byPID {
+		for pathID := range pathIDs {
+			reg, found := r.byID[pathID]
+			if !found {
+				continue
+			}
+			if reg.unregisterPath(FilePath{ID: pathID, PID: pid}) {
+				delete(r.byID, pathID)
+			}
+		}
 	}
+	// reset the registry
+	r.byPID = make(map[uint32]pathIdentifierSet)
+
+	if len(r.byID) > 0 {
+		log.Warnf("file_registry: %d files are still registered", len(r.byID))
+		for pathID, reg := range r.byID {
+			// We don't have associated PID here, so we can't provide it
+			reg.unregisterPath(FilePath{ID: pathID})
+		}
+		r.byID = make(map[PathIdentifier]*registration)
+	}
+
 	r.stopped = true
 }
 
-func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB callback) *registration {
+func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB Callback) *registration {
 	return &registration{
 		deactivationCB:       deactivationCB,
 		uniqueProcessesCount: atomic.NewInt32(1),
@@ -258,7 +293,7 @@ func (r *FileRegistry) newRegistration(sampleFilePath string, deactivationCB cal
 
 type registration struct {
 	uniqueProcessesCount *atomic.Int32
-	deactivationCB       callback
+	deactivationCB       Callback
 
 	// we are sharing the telemetry from FileRegistry
 	telemetry *registryTelemetry
@@ -272,23 +307,23 @@ type registration struct {
 	sampleFilePath string
 }
 
-// unregister return true if there are no more reference to this registration
-func (r *registration) unregisterPath(pathID PathIdentifier) bool {
+// unregisterPath return true if there are no more reference to this registration
+func (r *registration) unregisterPath(filePath FilePath) bool {
 	currentUniqueProcessesCount := r.uniqueProcessesCount.Dec()
 	if currentUniqueProcessesCount > 0 {
 		return false
 	}
 	if currentUniqueProcessesCount < 0 {
-		log.Errorf("unregistered %+v too much (current counter %v)", pathID, currentUniqueProcessesCount)
+		log.Errorf("unregistered %+v too much (current counter %v)", filePath.ID, currentUniqueProcessesCount)
 		r.telemetry.fileUnregisterErrors.Add(1)
 		return true
 	}
 
 	// currentUniqueProcessesCount is 0, thus we should unregister.
-	if err := r.deactivationCB(FilePath{ID: pathID}); err != nil {
+	if err := r.deactivationCB(filePath); err != nil {
 		// Even if we fail here, we have to return true, as best effort methodology.
 		// We cannot handle the failure, and thus we should continue.
-		log.Errorf("error while unregistering %s : %s", pathID.String(), err)
+		log.Errorf("error while unregistering %s : %s", filePath.ID.String(), err)
 		r.telemetry.fileUnregisterFailedCB.Add(1)
 	}
 	r.telemetry.fileUnregistered.Add(1)

@@ -49,13 +49,16 @@
             "type": "object",
             "properties": {
                 "datadog_agent_cws_self_test_rule_open": {
-                    "$ref": "/schemas/open.json"
+                    "$ref": "/schemas/open.schema.json"
                 },
                 "datadog_agent_cws_self_test_rule_chmod": {
-                    "$ref": "/schemas/chmod.json"
+                    "$ref": "/schemas/chmod.schema.json"
                 },
                 "datadog_agent_cws_self_test_rule_chown": {
-                    "$ref": "/schemas/chown.json"
+                    "$ref": "/schemas/chown.schema.json"
+                },
+                "datadog_agent_cws_self_test_rule_exec": {
+                    "$ref": "/schemas/exec.schema.json"
                 }
             }
         }

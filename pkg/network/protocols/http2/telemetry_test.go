@@ -67,14 +67,14 @@ func testKernelTelemetryUpdate(t *testing.T, isTLS bool) {
 }
 
 func assertTelemetryEquality(t *testing.T, http2Telemetry *HTTP2Telemetry, kernelTelemetryGroup *kernelTelemetry, isTLS bool) {
-	assert.Equal(t, http2Telemetry.Request_seen, uint64(kernelTelemetryGroup.http2requests.get(isTLS)))
-	assert.Equal(t, http2Telemetry.Response_seen, uint64(kernelTelemetryGroup.http2responses.get(isTLS)))
-	assert.Equal(t, http2Telemetry.End_of_stream, uint64(kernelTelemetryGroup.endOfStream.get(isTLS)))
-	assert.Equal(t, http2Telemetry.End_of_stream_rst, uint64(kernelTelemetryGroup.endOfStreamRST.get(isTLS)))
-	assert.Equal(t, http2Telemetry.Literal_value_exceeds_frame, uint64(kernelTelemetryGroup.literalValueExceedsFrame.get(isTLS)))
-	assert.Equal(t, http2Telemetry.Exceeding_max_interesting_frames, uint64(kernelTelemetryGroup.exceedingMaxInterestingFrames.get(isTLS)))
-	assert.Equal(t, http2Telemetry.Exceeding_max_frames_to_filter, uint64(kernelTelemetryGroup.exceedingMaxFramesToFilter.get(isTLS)))
+	assert.Equal(t, http2Telemetry.Request_seen, uint64(kernelTelemetryGroup.http2requests.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.Response_seen, uint64(kernelTelemetryGroup.http2responses.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.End_of_stream, uint64(kernelTelemetryGroup.endOfStream.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.End_of_stream_rst, uint64(kernelTelemetryGroup.endOfStreamRST.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.Literal_value_exceeds_frame, uint64(kernelTelemetryGroup.literalValueExceedsFrame.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.Exceeding_max_interesting_frames, uint64(kernelTelemetryGroup.exceedingMaxInterestingFrames.Get(isTLS)))
+	assert.Equal(t, http2Telemetry.Exceeding_max_frames_to_filter, uint64(kernelTelemetryGroup.exceedingMaxFramesToFilter.Get(isTLS)))
 	for i, bucket := range kernelTelemetryGroup.pathSizeBucket {
-		assert.Equal(t, http2Telemetry.Path_size_bucket[i], uint64(bucket.get(isTLS)))
+		assert.Equal(t, http2Telemetry.Path_size_bucket[i], uint64(bucket.Get(isTLS)))
 	}
 }

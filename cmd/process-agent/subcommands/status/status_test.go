@@ -19,7 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,17 +56,17 @@ func TestStatus(t *testing.T) {
 	var statusBuilder strings.Builder
 	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
 
-	expectedOutput := `{"date":0,"core":{"version":"","go_version":"","build_arch":"","config":{"log_level":""},"metadata":{"os":"","agent-flavor":"","python":"","systemStats":null,"meta":{"socket-hostname":"","timezones":null,"socket-fqdn":"","ec2-hostname":"","hostname":"","host_aliases":null,"instance-id":""},"host-tags":null,"network":null,"logs":null,"install-method":null,"proxy-info":null,"otlp":null}},"expvars":{"pid":0,"uptime":0,"uptime_nano":0,"memstats":{"alloc":0},"version":{"Version":"","GitCommit":"","GitBranch":"","BuildDate":"","GoVersion":""},"docker_socket":"","last_collect_time":"","process_count":0,"container_count":0,"process_queue_size":0,"rtprocess_queue_size":0,"connections_queue_size":0,"event_queue_size":0,"pod_queue_size":0,"process_queue_bytes":0,"rtprocess_queue_bytes":0,"connections_queue_bytes":0,"event_queue_bytes":0,"pod_queue_bytes":0,"container_id":"","proxy_url":"","log_file":"","enabled_checks":null,"endpoints":null,"drop_check_payloads":null,"system_probe_process_module_enabled":false,"language_detection_enabled":false,"workloadmeta_extractor_cache_size":0,"workloadmeta_extractor_stale_diffs":0,"workloadmeta_extractor_diffs_dropped":0}}`
+	expectedOutput := `{"date":0,"core":{"version":"","go_version":"","build_arch":"","config":{"log_level":""},"metadata":{"os":"","agent-flavor":"","python":"","systemStats":null,"meta":{"socket-hostname":"","timezones":null,"socket-fqdn":"","ec2-hostname":"","hostname":"","host_aliases":null,"instance-id":""},"host-tags":null,"network":null,"logs":null,"install-method":null,"proxy-info":null,"otlp":null}},"expvars":{"process_agent":{"pid":0,"uptime":0,"uptime_nano":0,"memstats":{"alloc":0},"version":{"Version":"","GitCommit":"","GitBranch":"","BuildDate":"","GoVersion":""},"docker_socket":"","last_collect_time":"","process_count":0,"container_count":0,"process_queue_size":0,"rtprocess_queue_size":0,"connections_queue_size":0,"event_queue_size":0,"pod_queue_size":0,"process_queue_bytes":0,"rtprocess_queue_bytes":0,"connections_queue_bytes":0,"event_queue_bytes":0,"pod_queue_bytes":0,"container_id":"","proxy_url":"","log_file":"","enabled_checks":null,"endpoints":null,"drop_check_payloads":null,"system_probe_process_module_enabled":false,"language_detection_enabled":false,"workloadmeta_extractor_cache_size":0,"workloadmeta_extractor_stale_diffs":0,"workloadmeta_extractor_diffs_dropped":0}}}`
 
 	assert.Equal(t, expectedOutput, statusBuilder.String())
 }
 
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
-	addressPort, err := config.GetProcessAPIAddressPort()
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
 
@@ -78,9 +79,9 @@ func TestNotRunning(t *testing.T) {
 // TestError tests an example error to make sure that the error template prints properly if we get something other than
 // a connection error
 func TestError(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := config.GetIPCAddress()
+	_, ipcError := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

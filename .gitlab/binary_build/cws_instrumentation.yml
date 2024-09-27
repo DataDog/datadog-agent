@@ -5,7 +5,7 @@
   script:
     - inv check-go-version
     - inv -e cws-instrumentation.build
-    - $S3_CP_CMD $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation $S3_ARTIFACTS_URI/cws-instrumentation.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation $S3_ARTIFACTS_URI/datadog-cws-instrumentation/cws-instrumentation.$ARCH
 
 cws_instrumentation-build_amd64:
   extends: .cws_instrumentation-build_common
@@ -17,7 +17,6 @@ cws_instrumentation-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
 
 cws_instrumentation-build_arm64:
@@ -30,5 +29,4 @@ cws_instrumentation-build_arm64:
   variables:
     ARCH: arm64
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]

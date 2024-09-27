@@ -13,6 +13,18 @@ package kafka
 */
 import "C"
 
+const (
+	TopicNameBuckets = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
+	TopicNameMaxSize = C.TOPIC_NAME_MAX_STRING_SIZE
+)
+
 type ConnTuple C.conn_tuple_t
 
-type EbpfTx C.kafka_transaction_t
+type EbpfTx C.kafka_event_t
+
+type KafkaTransactionKey C.kafka_transaction_key_t
+type KafkaTransaction C.kafka_transaction_t
+
+type KafkaResponseContext C.kafka_response_context_t
+
+type RawKernelTelemetry C.kafka_telemetry_t

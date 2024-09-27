@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test || functionaltests || stresstests
+
 package fxutil
 
 import (
@@ -21,10 +23,6 @@ type NoDependencies struct {
 	fx.In
 }
 
-// fxAppTestOverride allows TestRunCommand and TestOneShotSubcommand to
-// override the Run and OneShot functions.  It is always nil in production.
-var fxAppTestOverride func(interface{}, []fx.Option) error
-
 // Test starts an app and returns fulfilled dependencies
 //
 // The generic return type T must conform to fx.In such
@@ -37,6 +35,7 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 
 	app := fxtest.New(
 		t,
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		fx.Options(opts...),
@@ -65,6 +64,7 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 	})
 
 	app := fx.New(
+		FxAgentBase(false),
 		delayed.option(),
 		fx.Options(opts...),
 	)
@@ -97,6 +97,7 @@ type appAssertFn func(testing.TB, *fx.App)
 func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface{}) {
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		opts,
@@ -113,8 +114,9 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 // fxutil.Run call will satisfy fx's dependences by using fx.ValidateApp.
 func TestRun(t *testing.T, f func() error) {
 	var fxFakeAppRan bool
-	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
+	fxAppTestOverride = func(_ interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
+		opts = append(opts, FxAgentBase(false))
 		require.NoError(t, fx.ValidateApp(opts...))
 		return nil
 	}
@@ -144,8 +146,8 @@ func TestOneShotSubcommand(
 	subcommands []*cobra.Command,
 	commandline []string,
 	expectedOneShotFunc interface{},
-	verifyFn interface{}) {
-
+	verifyFn interface{},
+) {
 	var oneShotRan bool
 	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
@@ -161,11 +163,13 @@ func TestOneShotSubcommand(
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					FxAgentBase(false),
 					fx.Invoke(oneShotFunc))...))
 
 		// build an app without the oneShotFunc, and with verifyFn
 		app := fxtest.New(t,
 			append(opts,
+				FxAgentBase(false),
 				fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 				fx.Invoke(verifyFn))...)
 		defer app.RequireStart().RequireStop()
@@ -197,6 +201,7 @@ func TestOneShot(t *testing.T, fct func()) {
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					FxAgentBase(false),
 					fx.Invoke(oneShotFunc))...))
 		return nil
 	}
@@ -229,6 +234,7 @@ func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
 		invoke,
 		bundle,
 		fx.Options(extraOptions...),
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 	))
 }
@@ -282,8 +288,6 @@ func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
 	return nil
 }
 
-var fxOutType = reflect.TypeOf((*fx.Out)(nil)).Elem()
-
 func isFxOutType(t reflect.Type) bool {
 	if t.Kind() == reflect.Struct {
 		for i := 0; i < t.NumField(); i++ {
@@ -301,7 +305,7 @@ func createFxInvokeOption(componentTypes []reflect.Type) fx.Option {
 	fctSig := reflect.FuncOf(componentTypes, nil, false)
 	captureArgs := reflect.MakeFunc(
 		fctSig,
-		func(args []reflect.Value) []reflect.Value {
+		func(_ []reflect.Value) []reflect.Value {
 			return []reflect.Value{}
 		})
 

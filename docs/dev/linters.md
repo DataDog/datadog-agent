@@ -13,7 +13,7 @@ For Go, we're using [golangci-lint](https://golangci-lint.run/), a Go linters ag
 The `linters` key defines the list of linters we're using:
 https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/.golangci.yml#L65-L79
 
-To run the linters locally, run `inv lint-go`.
+To run the linters locally, run `deva linter.go`.
 
 > [!TIP]
 > In your code, you can ignore linter issues on a line by prepending it with [the nolint directive](https://golangci-lint.run/usage/false-positives/#nolint-directive), for example,  `//nolint:linter_name`.
@@ -23,14 +23,12 @@ To run the linters locally, run `inv lint-go`.
 ## Python
 
 For Python, we're using ([see invoke task](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/tasks/linter_tasks.py/#L17-L33)):
-- [flake8](https://flake8.pycqa.org/en/latest), a style linter.
-- [black](https://black.readthedocs.io/en/stable/), a code formatter.
-- [isort](https://pycqa.github.io/isort/), to sort the imports.
+- [ruff](https://github.com/astral-sh/ruff), a style linter and a code formatter.
 - [vulture](https://github.com/jendrikseipp/vulture), to find unused code.
 
 Their configuration is defined in both the [setup.cfg](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/setup.cfg) and the [pyproject.toml](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/pyproject.toml) files.
 
-To run the linters locally, run `inv lint-python`.
+To run the linters locally, run `deva linter.python`.
 
 > [!TIP]
 > In your code, you can ignore linter issues on a line by prepending it with `# noqa: error_code`.
@@ -47,7 +45,7 @@ A: This could have several causes:
     - `go version` should output the same as [the repository .go-version](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/.go-version).
     - `golangci-lint --version` should output the same as [the repository internal/tools/go.mod](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/internal/tools/go.mod/#L8).
 - You're testing OS specific code; running locally, the linters only get the results for your local OS.
-- You didn't run `inv tidy-all` in the repository, making some dependencies in the remote env outdated compared to your local env.
+- You didn't run `deva tidy` in the repository, making some dependencies in the remote env outdated compared to your local env.
 
 ### About the new-from-rev golangci-lint parameter
 

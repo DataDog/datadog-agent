@@ -33,15 +33,12 @@ func TestBatchAPISupported(t *testing.T) {
 		t.Skip("Unknown support for batch API on RHEL kernels")
 	}
 
-	err = rlimit.RemoveMemlock()
-	require.NoError(t, err)
-
+	require.NoError(t, rlimit.RemoveMemlock())
 	require.Equal(t, kernelVersion.Code >= ebpfkernel.Kernel5_6, BatchAPISupported())
 }
 
 func TestSingleItemIter(t *testing.T) {
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -78,8 +75,7 @@ func TestBatchIter(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -113,8 +109,7 @@ func TestBatchIterArray(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Array,
@@ -153,8 +148,7 @@ func TestBatchIterLessItemsThanBatchSize(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -188,8 +182,7 @@ func TestBatchIterWhileUpdated(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	maxEntries := 50
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
@@ -248,8 +241,7 @@ func TestIteratePerCPUMaps(t *testing.T) {
 		t.Skip("Per CPU maps not supported on this kernel version")
 	}
 
-	err = rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, []uint32](&ebpf.MapSpec{
 		Type:       ebpf.PerCPUHash,
@@ -366,8 +358,7 @@ func TestBatchIterAllocsPerRun(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -458,8 +449,7 @@ func TestBatchDelete(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -504,8 +494,7 @@ func TestBatchUpdate(t *testing.T) {
 	if !BatchAPISupported() {
 		t.Skip("Batch API not supported")
 	}
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	m, err := NewGenericMap[uint32, uint32](&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -541,4 +530,45 @@ func TestBatchUpdate(t *testing.T) {
 	for i := uint32(0); i < numsToCreate; i++ {
 		require.True(t, foundElements[i])
 	}
+}
+
+type keyWithPointer struct {
+	Pointer *uint32
+	Value   uint32
+}
+
+func TestIterateWithPointerKey(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	m, err := NewGenericMap[keyWithPointer, uint32](&ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		MaxEntries: 100,
+	})
+	require.NoError(t, err)
+
+	numsToPut := uint32(50)
+	theNumber := uint32(42)
+	expectedNumbers := make([]uint32, numsToPut)
+	for i := uint32(0); i < numsToPut; i++ {
+		require.NoError(t, m.Put(&keyWithPointer{Pointer: &theNumber, Value: i}, &i))
+		expectedNumbers[i] = i
+	}
+
+	var k keyWithPointer
+	var v uint32
+	actualNumbers := make([]uint32, numsToPut)
+
+	// Should automatically revert to the single item iterator, as we cannot use pointers
+	// in batch iterators
+	it := m.IterateWithBatchSize(10)
+	require.NotNil(t, it)
+	for it.Next(&k, &v) {
+		actualNumbers[k.Value] = v
+		require.Equal(t, theNumber, *k.Pointer)
+		require.Equal(t, &theNumber, k.Pointer)
+		require.Equal(t, k.Value, v)
+	}
+
+	require.NoError(t, it.Err())
+	require.Equal(t, expectedNumbers, actualNumbers)
 }

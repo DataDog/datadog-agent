@@ -8,12 +8,25 @@
 package winutil
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+)
+
+type onStopServiceInvokeType int
+
+const (
+	onBeforeStopService onStopServiceInvokeType = iota
+	onAfterEnumDependentServices
 )
 
 // copied from go\pkg\mod\golang.org\x\sys@v0.4.0\windows\svc\mgr\mgr_test.go
@@ -89,97 +102,493 @@ func TestOpenService(t *testing.T) {
 	s.Close()
 }
 
-func TestListDependentServices(t *testing.T) {
+type StartStopServiceRaceConditionTestSuite struct {
+	suite.Suite
+	manager     *mgr.Mgr
+	mainSvc     *mgr.Service
+	dep1Svc     *mgr.Service
+	dep2Svc     *mgr.Service
+	mainSvcName string
+	dep1SvcName string
+	dep2SvcName string
 
-	// test that ListDependentServices returns an error if the service name is not valid
-	notAServiceName := "notaservice"
-	_, err := ListDependentServices(notAServiceName, windows.SERVICE_ACTIVE)
-	assert.NotNil(t, err, "Expected ListDependentServices to return an error with invalid service name")
+	onInvokeStartService                bool
+	onInvokeType                        onStopServiceInvokeType
+	onInvokeWaitStartToComplete         bool
+	onInvokeCount                       int
+	onInvokeSkipCountBeforeStartService int
+	onInvokeStartServiceTimes           int
+	onInvokeNameOfStoppingService       string
+	onInvokeNameOfStartingService       string
+}
 
-	// open the SC manager so we can create some test services
+func (s *StartStopServiceRaceConditionTestSuite) SetupSuite() {
+	// ------------------------------
+	//
+	// Setup test's real main and two dependent services using existing "snmptrap.exe" as service entry point
+	// Logistic to unit tests to make real functional services working is big pain because of the needs to
+	// provide a real service executable just for testing purposes during CI. So using existing builtin
+	// "snmptrap.exe" as a binary seems to be working just fine.
+	svcExePath := "C:\\Windows\\System32\\snmptrap.exe"
+
+	svcNameTemp := "datadog-test-service-%s"
+	displayNameTemp := "Datadog Test Service %s"
+	descriptionNameTemp := "This is a Datdog test service %s"
+	assertErrNilTempl := "Unexpected error creating %s service: %v"
+	assertSvcNilTempl := "Expected OpenService to return a valid service handle for %s service"
+
+	s.mainSvcName = fmt.Sprintf(svcNameTemp, "main")
+	s.dep1SvcName = fmt.Sprintf(svcNameTemp, "dep1")
+	s.dep2SvcName = fmt.Sprintf(svcNameTemp, "dep2")
+
+	svcFlags := uint32(windows.SERVICE_START | windows.SERVICE_STOP |
+		windows.DELETE | windows.SERVICE_QUERY_STATUS | windows.SERVICE_ENUMERATE_DEPENDENTS)
+
+	// SCM
 	m, err := OpenSCManager(windows.SC_MANAGER_CONNECT | windows.SC_MANAGER_CREATE_SERVICE)
-	assert.Nilf(t, err, "Unexpected error: %v", err)
-	assert.NotNil(t, m, "Expected OpenSCManager to return a valid manager handle")
+	assert.Nilf(s.T(), err, "Unexpected error: %v", err)
+	if !assert.NotNil(s.T(), m, "Expected OpenSCManager to return a valid manager handle") {
+		s.T().Fatalf("Failed to open Service Manager")
+	}
 	defer m.Disconnect()
 
-	// install the base service, it will have no dependents, but several dependents
-	baseServiceName := "baseservice"
+	// keep read-only service manager for later use
+	s.manager, err = OpenSCManager(windows.SC_MANAGER_CONNECT)
+	assert.Nilf(s.T(), err, "Unexpected error: %v", err)
+	assert.NotNil(s.T(), s.manager, "Expected OpenSCManager to return a valid manager handle")
+
+	// Main service
 	c := mgr.Config{
-		StartType:   mgr.StartDisabled,
-		DisplayName: "Base Test Service",
-		Description: "This is the base test service",
+		StartType:   mgr.StartManual,
+		DisplayName: fmt.Sprintf(displayNameTemp, "Main"),
+		Description: fmt.Sprintf(descriptionNameTemp, "main"),
 	}
-	install(t, m, baseServiceName, "", c)
+	install(s.T(), m, s.mainSvcName, svcExePath, c)
+	s.mainSvc, err = OpenService(m, s.mainSvcName, svcFlags)
+	assert.Nil(s.T(), err, assertErrNilTempl, "main", err)
+	if !assert.NotNil(s.T(), s.mainSvc, assertSvcNilTempl, "main") {
+		s.T().Fatalf("Failed to open service %s", s.mainSvcName)
+	}
 
-	// install a first level dependent service, it will depend on the base service
-	firstLevelServiceName := "dependentservice-firstlevel"
+	// Dependent service 1
 	c = mgr.Config{
-		StartType:    mgr.StartDisabled,
-		DisplayName:  "Dependent Test Service: First Level",
-		Description:  "This service depends on the base service",
-		Dependencies: []string{baseServiceName},
+		StartType:    mgr.StartManual,
+		DisplayName:  fmt.Sprintf(displayNameTemp, "Dep1"),
+		Description:  fmt.Sprintf(descriptionNameTemp, "dep1"),
+		Dependencies: []string{s.mainSvcName},
 	}
-	install(t, m, firstLevelServiceName, "", c)
+	install(s.T(), m, s.dep1SvcName, svcExePath, c)
+	s.dep1Svc, err = OpenService(m, s.dep1SvcName, svcFlags)
+	assert.Nil(s.T(), err, assertErrNilTempl, "dep1", err)
+	if !assert.NotNil(s.T(), s.mainSvc, assertSvcNilTempl, "dep1") {
+		s.T().Fatalf("Failed to open service %s", s.dep1SvcName)
+	}
 
-	// install a second level service, it will depend on the first level
-	secondLevelServiceName := "dependentservice-secondlevel"
+	// Dependent service 2
 	c = mgr.Config{
-		StartType:    mgr.StartDisabled,
-		DisplayName:  "Dependent Test Service: Second Level",
-		Description:  "This service depends on the dependent service",
-		Dependencies: []string{firstLevelServiceName},
+		StartType:    mgr.StartManual,
+		DisplayName:  fmt.Sprintf(displayNameTemp, "Dep2"),
+		Description:  fmt.Sprintf(descriptionNameTemp, "dep2"),
+		Dependencies: []string{s.mainSvcName},
 	}
-	install(t, m, secondLevelServiceName, "", c)
-
-	// test that ListDependentServices returns an empty list for service with no dependents
-	deps, err := ListDependentServices(secondLevelServiceName, windows.SERVICE_STATE_ALL)
-	assert.Nilf(t, err, "Unexpected error: %v", err)
-	assert.Zero(t, len(deps), "")
-
-	// test that ListDependentServices returns a list of dependent services for service with dependents
-	deps, err = ListDependentServices(firstLevelServiceName, windows.SERVICE_STATE_ALL)
-	assert.Nilf(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, 1, len(deps), "Expected ListDependentServices to return a list of dependent services")
-
-	// the deps
-	t.Logf("%s has the following dependents", firstLevelServiceName)
-	for _, dep := range deps {
-		t.Log(dep.serviceName)
+	install(s.T(), m, s.dep2SvcName, svcExePath, c)
+	s.dep2Svc, err = OpenService(m, s.dep2SvcName, svcFlags)
+	assert.Nil(s.T(), err, assertErrNilTempl, "dep2", err)
+	if !assert.NotNil(s.T(), s.mainSvc, assertSvcNilTempl, "dep2") {
+		s.T().Fatalf("Failed to open service %s", s.dep1SvcName)
 	}
+}
 
-	// test that ListDependentServices returns a list of dependent services for service with nested dependents
-	deps, err = ListDependentServices(baseServiceName, windows.SERVICE_STATE_ALL)
-	assert.Nilf(t, err, "Unexpected error: %v", err)
-	assert.Equal(t, 2, len(deps), "Expected ListDependentServices to return a list of dependent services")
-
-	// ensure that we get the deps back in reverse startup order
-	// so that when this is used to stop services, we stop the outermost ones
-	// first
-	// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumdependentservicesa#parameters
-	assert.EqualValues(t, secondLevelServiceName, deps[0].serviceName)
-	assert.EqualValues(t, firstLevelServiceName, deps[1].serviceName)
-
-	// the deps
-	t.Logf("%s has the following dependents", baseServiceName)
-	for _, dep := range deps {
-		t.Log(dep.serviceName)
+func (s *StartStopServiceRaceConditionTestSuite) TearDownSuite() {
+	if s.dep2Svc != nil {
+		remove(s.T(), s.dep2Svc)
+		s.dep2Svc.Close()
 	}
+	if s.dep1Svc != nil {
+		remove(s.T(), s.dep1Svc)
+		s.dep1Svc.Close()
+	}
+	if s.mainSvc != nil {
+		remove(s.T(), s.mainSvc)
+		s.mainSvc.Close()
+	}
+	if s.manager != nil {
+		s.manager.Disconnect()
+	}
+}
 
-	s, err := OpenService(m, baseServiceName, windows.SERVICE_START|windows.DELETE)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
-	remove(t, s)
-	s.Close()
+// nothing special to do
+func (s *StartStopServiceRaceConditionTestSuite) SetupTest() {
+	s.onInvokeStartService = false
+	s.onInvokeType = onBeforeStopService
+	s.onInvokeWaitStartToComplete = false
+	s.onInvokeCount = 0
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 0
+	s.onInvokeNameOfStoppingService = ""
+	s.onInvokeNameOfStartingService = ""
+}
 
-	s, err = OpenService(m, firstLevelServiceName, windows.SERVICE_START|windows.DELETE)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
-	remove(t, s)
-	s.Close()
+// stop all services which may be running after each test
+func (s *StartStopServiceRaceConditionTestSuite) TearDownTest() {
+	StopService(s.dep2SvcName)
+	StopService(s.dep1SvcName)
+	StopService(s.mainSvcName)
+}
 
-	s, err = OpenService(m, secondLevelServiceName, windows.SERVICE_START|windows.DELETE)
-	assert.Nil(t, err, "Unexpected error: %v", err)
-	assert.NotNil(t, s, "Expected OpenService to return a valid service handle")
-	remove(t, s)
-	s.Close()
+func (s *StartStopServiceRaceConditionTestSuite) onStopServiceInvoke() {
+	s.onInvokeCount++
+
+	// if we should start service before is notificatthe check
+	if (s.onInvokeCount >= s.onInvokeSkipCountBeforeStartService+1) &&
+		s.onInvokeCount <= (s.onInvokeSkipCountBeforeStartService+s.onInvokeStartServiceTimes) {
+
+		err := StartService(s.onInvokeNameOfStartingService)
+		assert.Nil(s.T(), err, "Unexpected error of starting `%s` service: %v", s.onInvokeNameOfStartingService, err)
+		if s.onInvokeWaitStartToComplete {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err = WaitForState(ctx, s.onInvokeNameOfStartingService, svc.Running)
+			assert.Nil(s.T(), err, "`%s` service should be running: %v", s.onInvokeNameOfStartingService, err)
+		}
+	}
+}
+
+// general callback to stop service to be used in setting up edge cases for race conditions
+func (s *StartStopServiceRaceConditionTestSuite) beforeStopService(serviceName string) {
+	// if we should start service before is notificatthe check
+	if s.onInvokeStartService && s.onInvokeType == onBeforeStopService {
+		if strings.Compare(serviceName, s.onInvokeNameOfStoppingService) == 0 {
+			s.onStopServiceInvoke()
+		}
+	}
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) afterDependentsEnumeration() {
+	// if we should start service before is notificatthe check
+	if s.onInvokeStartService && s.onInvokeType == onAfterEnumDependentServices {
+		s.onStopServiceInvoke()
+	}
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) validateAllServicesStopped() {
+	// VALIDATION: All  services should be stopped
+	status, err := s.mainSvc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `main` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Main` service should be stopped")
+
+	status, err = s.dep1Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep1` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep1` service should be stopped")
+
+	status, err = s.dep2Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep2` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep2` service should be stopped")
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) startAllServices() {
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	err = s.dep1Svc.Start()
+	assert.Nil(s.T(), err, "Failed to start `dep1` service: %v", err)
+	err = s.dep2Svc.Start()
+	assert.Nil(s.T(), err, "Failed to start `dep2` service: %v", err)
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel1()
+	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	err = WaitForState(ctx1, s.dep1SvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Dep1` service should be running: %v", err)
+	err = WaitForState(ctx1, s.dep2SvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Dep2` service should be running: %v", err)
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenNoSvcRunning() {
+	err := RestartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "Main service should restar successfully: %v", err)
+
+	var status svc.Status
+	status, err = s.mainSvc.Query()
+	assert.Nil(s.T(), err, "Main service should restar successfully: %v", err)
+	assert.True(s.T(), status.State == svc.StartPending || status.State == svc.Running,
+		"Main service should be starting or running: %v", status)
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenOnlyMainIsRunning() {
+	// SETUP: Start main service
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel1()
+	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running successfully: %v", err)
+
+	// TEST: Restart main service
+	err = RestartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should restart successfully: %v", err)
+	// VALIDATION
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel2()
+	err = WaitForState(ctx2, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestBasicRestartWhenAllServicesAreRunning() {
+	// SETUP: Start all services
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	err = s.dep1Svc.Start()
+	assert.Nil(s.T(), err, "Failed to start `dep1` service: %v", err)
+	err = s.dep2Svc.Start()
+	assert.Nil(s.T(), err, "Failed to start `dep2` service: %v", err)
+	ctx1, cancel1 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel1()
+	err = WaitForState(ctx1, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	err = WaitForState(ctx1, s.dep1SvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Dep1` service should be running: %v", err)
+	err = WaitForState(ctx1, s.dep2SvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Dep2` service should be running: %v", err)
+
+	// TEST: Restart only main service
+	err = RestartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "Main service should restart successfully: %v", err)
+
+	// VALIDATION: Two dependent services should be stopped because nobody
+	// starts them like "datadogagent" service does). But they both should not
+	// be running and it will be indication that main service was able to be
+	// restarted.
+	var status svc.Status
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel2()
+	err = WaitForState(ctx2, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "Unexpected error of making `main` service running: %v", err)
+
+	status, err = s.dep1Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep1` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep1` service should be stopped")
+
+	status, err = s.dep2Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep2` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep2` service should be stopped")
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServiceStartingAfterEnumeration() {
+	// SETUP: Start only main service
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+
+	// Instruct to start `dep1` service after dependency enumeration
+	// and just before it will be attempted to be started.
+	// Note: Do not wait to `dep1` service to be started before proceeding
+	// with the callback, menaing doStopServiceWithDependencies will continue
+	// with stopping `dep1` service when it is starting
+	s.onInvokeStartService = true
+	s.onInvokeWaitStartToComplete = false
+	s.onInvokeType = onBeforeStopService
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 1
+	s.onInvokeNameOfStoppingService = s.dep1Svc.Name
+	s.onInvokeNameOfStartingService = s.dep1Svc.Name
+
+	// Call stop service with dependencies
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s)
+	assert.Nil(s.T(), err, "Main service should restart successfully: %v", err)
+
+	s.validateAllServicesStopped()
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServiceStartedAfterEnumeration() {
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+
+	// Instruct to start `dep1` service after dependency enumeration
+	// and just before it will be attempted to be started.
+	// Note: Wiat for `dep1` service to be started before proceeding (in contrast with test above)
+	// with the callback, menaing doStopServiceWithDependencies will continue
+	// with `dep1` service is already  running
+	s.onInvokeStartService = true
+	s.onInvokeWaitStartToComplete = true
+	s.onInvokeType = onBeforeStopService
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 1
+	s.onInvokeNameOfStoppingService = s.dep1Svc.Name
+	s.onInvokeNameOfStartingService = s.dep1Svc.Name
+
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.AnyActivity, s)
+	assert.Nil(s.T(), err, "Main service should restart successfully: %v", err)
+
+	s.validateAllServicesStopped()
+}
+
+func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServiceStillRunningAfterAttemptsToStopThem() {
+	s.startAllServices()
+
+	// Instruct to start `dep1` service after stopping all dependent service
+	// and just before stopping main service on first iteration to fail stopping
+	// main service and start second iteration which should succeed
+	s.onInvokeStartService = true
+	s.onInvokeWaitStartToComplete = true
+	s.onInvokeType = onBeforeStopService
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 1
+	s.onInvokeNameOfStoppingService = s.mainSvcName
+	s.onInvokeNameOfStartingService = s.dep1SvcName
+
+	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	assert.Nil(s.T(), err, "Main service stop should succeed")
+	assert.Equal(s.T(), 2, s.onInvokeCount, "Should have 2 iteration, first failed second succeeded")
+
+	s.validateAllServicesStopped()
+}
+
+// The same as above except have 3 iterations to stop main services
+// First two iterations should file and third should succeed
+func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServiceStillRunningAfterAttemptsToStopThemTwice() {
+	s.startAllServices()
+
+	// Instruct to start `dep1` service after stopping all dependent service
+	// and just before stopping main service on first iteration to fail stopping
+	// main service and start second iteration which should succeed
+	s.onInvokeStartService = true
+	s.onInvokeWaitStartToComplete = true
+	s.onInvokeType = onBeforeStopService
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 2
+	s.onInvokeNameOfStoppingService = s.mainSvcName
+	s.onInvokeNameOfStartingService = s.dep1SvcName
+
+	err := doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	assert.Nil(s.T(), err, "Main service stop should succeed")
+	assert.Equal(s.T(), 3, s.onInvokeCount, "Should have 2 iteration, first failed second succeeded")
+
+	s.validateAllServicesStopped()
+}
+
+// This test is similar to the previous one, but it tests the old code path
+// which should fail as a proof that we have fixed the problem not acidently
+func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServiceStartedAfterEnumerationShouldFailInOldCode() {
+	// Disable skip to run this test if needed to observe old code behavior (it is a waste of time otherwise)
+	s.T().Skip("skipping test which useful only to prove that old code logic would fail even after small code modification")
+
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+
+	// Instruct to start `dep1` service IMMEDIATELY after dependency enumeration
+	// This test is not needed all the time, it simulate common race condition
+	// which had been allowed in the old code path
+	s.onInvokeStartService = true
+	s.onInvokeWaitStartToComplete = true
+	s.onInvokeType = onAfterEnumDependentServices
+	s.onInvokeSkipCountBeforeStartService = 0
+	s.onInvokeStartServiceTimes = 1
+	s.onInvokeNameOfStoppingService = s.dep1Svc.Name
+	s.onInvokeNameOfStartingService = s.dep1Svc.Name
+
+	err = doStopServiceWithDependencies(s.manager, s.mainSvc, svc.Active, s)
+	assert.NotNil(s.T(), err, "Main service stop should fail")
+	assert.ErrorIs(s.T(), errors.Unwrap(err), error(windows.ERROR_DEPENDENT_SERVICES_RUNNING),
+		"Main service stop should fail because of dependent services running")
+
+	// VALIDATION: Main and Dep1 service should running and Dep2 should be stopped
+	var status svc.Status
+	status, err = s.mainSvc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `main` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Running, "`Main` service should be running")
+
+	status, err = s.dep1Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep1` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Running, "`Dep1` service should be running")
+
+	status, err = s.dep2Svc.Query()
+	assert.Nil(s.T(), err, "Unexpected error getting `dep2` service status: %v", err)
+	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep2` service should be stopped")
+}
+
+// Test start a service after it has been just started. This is to test
+// that starting a service when it is in START_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStartServiceAfterStartService() {
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the start pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should start successfully: %v", err)
+}
+
+// Test start a service after it has been just stopped. This is to test
+// that starting a service when it is in STOP_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStartServiceAfterStopService() {
+	// SETUP: Start, wait for starting and stop externally main service
+	// to make sure it is in the stop pending state
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	_, err = s.mainSvc.Control(svc.Stop)
+	assert.Nil(s.T(), err, "`Main` service should be stopping: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the stop pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should start successfully: %v", err)
+}
+
+// Test stop a service after it has been just started. This is to test
+// that stopping a service when it is in START_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStopServiceAfterStartService() {
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+
+	// Immediately stop it, since main service most likely will be in
+	// the start pending state at the moment of the start. It should stop
+	// successfully without any error
+	err = StopService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should stop successfully: %v", err)
+}
+
+// Test stop a service after it has been just stopped. This is to test
+// that stopping a service when it is in STOP_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStopServiceAfterStopService() {
+	// SETUP: Start, wait for starting and stop externally main service
+	// to make sure it is in the stop pending state
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	_, err = s.mainSvc.Control(svc.Stop)
+	assert.Nil(s.T(), err, "`Main` service should be stopping: %v", err)
+
+	// Immediately stop it, since main service most likely will be in
+	// the stop pending state at the moment of the second stop. It should stop
+	// successfully without any error
+	err = StopService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should stop successfully: %v", err)
+}
+
+func TestStartStopServiceRaceConditionTestSuite(t *testing.T) {
+	suite.Run(t, new(StartStopServiceRaceConditionTestSuite))
 }

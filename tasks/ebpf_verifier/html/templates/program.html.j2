@@ -1,0 +1,104 @@
+<html>
+	<head>
+		<title>{{ title }}</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+		<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="../styles.css" />
+	</head>
+	<script type="text/javascript">
+	function toggleAssembly(insnIdx) {
+		const query = `tr[data-insn-idx="${insnIdx}"]`;
+		const asmRows = document.querySelectorAll(query);
+		console.log(asmRows);
+		console.log(query);
+		for (let row of asmRows) {
+			row.style.display = row.style.display !== 'table-row' ? 'table-row' : 'none';
+		}
+	}
+
+	function toggleRegisterState(asmIdx) {
+		const query = `ul[data-asm-idx="${asmIdx}"]`;
+		const stateItems = document.querySelectorAll(query);
+		for (let row of stateItems) {
+			row.style.display = row.style.display !== 'block' ? 'block' : 'none';
+		}
+
+	}
+	</script>
+	<body>
+		<h1>{{ title }}</h1>
+
+		{% for filename, contents in file_contents.items() %}
+		{% set file_index = loop.index %}
+		<h2>{{ filename }}</h2>
+		<table class="code-table">
+			<thead>
+				<tr>
+					<th>Line</th>
+					<th>ASM instructions generated</th>
+					<th>Verifier passes over this instruction</th>
+					<th>Complexity added by this instruction</th>
+					<th>Code</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+			{% for line in contents %}
+			{% set line_index = loop.index %}
+			<tr class="code-c complexity-level-{{ line.complexity_level }}">
+				<td class="line-number">{{ loop.index }}</td>
+				<td class="compl-info">
+				{%- if line.complexity -%}
+					{{ line.complexity.num_instructions }} insn
+				{%- endif -%}
+				</td>
+				<td class="compl-info">
+				{%- if line.complexity -%}
+					{{ line.complexity.max_passes }} pass
+				{%- endif -%}
+				</td>
+				<td class="compl-info">
+				{%- if line.complexity -%}
+					{{ line.complexity.total_instructions_processed }} compl
+				{%- endif -%}
+				</td>
+				<td class="code-cell">
+					<pre>{{ line.line }}</pre>
+				</td>
+				<td>
+					{% if line.complexity %}
+						<button onclick="toggleAssembly('{{ file_index }}-{{ line_index }}')">ASM</button>
+					{% endif %}
+				</td>
+			</tr>
+			{% if line.complexity %}
+				{% for asm_idx in line.complexity.assembly_insns | sort %}
+					{% set asm = complexity_data.insn_map[asm_idx | string] %}
+					<tr data-insn-idx="{{ file_index }}-{{ line_index }}" class="complexity-level-{{ asm.complexity_level }} code-asm" style="display: none">
+						<td class="line-number">ASM: {{ asm.index }}</td>
+						<td class="compl-info"></td>
+						<td class="compl-info"></td>
+						<td class="compl-info">{{ asm.times_processed }} compl</td>
+						<td class="code-cell">
+							<pre>{{ asm.code }}</pre>
+						</td>
+						<td>
+							{% if asm.register_state %}
+							<button onclick="toggleRegisterState('{{ file_index }}-{{ line_index }}-{{ asm.index }}')">Regs</button>
+							<ul data-asm-idx="{{ file_index }}-{{ line_index }}-{{ asm.index }}" style="display: none">
+								{% for reg, value in asm.register_state.items() | sort %}
+									<li>{{ reg }} ({{ value.type }}): {{ value.value }} </li>
+								{% endfor %}
+							</ul>
+							{% endif %}
+						</td>
+					</tr>
+				{% endfor %}
+			{% endif %}
+			{% endfor %}
+			</tbody>
+		</table>
+		{% endfor %}
+</html>

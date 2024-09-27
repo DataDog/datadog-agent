@@ -14,7 +14,7 @@ func loadInitConfigProfiles(rawInitConfigProfiles ProfileConfigMap) (ProfileConf
 		if profConfig.DefinitionFile != "" {
 			profDefinition, err := readProfileDefinition(profConfig.DefinitionFile)
 			if err != nil {
-				log.Warnf("failed to read profile definition `%s`: %s", name, err)
+				log.Warnf("unable to load profile %q: %s", name, err)
 				continue
 			}
 			profConfig.Definition = *profDefinition

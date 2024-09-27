@@ -32,11 +32,13 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
-func toLibPath(data []byte) libPath {
-	return *(*libPath)(unsafe.Pointer(&data[0]))
+// ToLibPath casts the perf event data to the LibPath structure
+func ToLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func toBytes(l *libPath) []byte {
+// ToBytes converts the libpath to a byte array containing the path
+func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
@@ -56,16 +58,19 @@ type Watcher struct {
 	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *utils.FileRegistry
-	ebpfProgram    *ebpfProgram
+	ebpfProgram    *EbpfProgram
 
 	// telemetry
 	libHits    *telemetry.Counter
 	libMatches *telemetry.Counter
 }
 
+// Validate that Watcher implements the Attacher interface.
+var _ utils.Attacher = &Watcher{}
+
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg)
+	ebpfProgram := NewEBPFProgram(&cfg.Config)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -131,6 +136,52 @@ func parseMapsFile(scanner *bufio.Scanner, callback parseMapsFileCB) {
 	}
 }
 
+// DetachPID detaches a given pid from the eBPF program
+func (w *Watcher) DetachPID(pid uint32) error {
+	return w.registry.Unregister(pid)
+}
+
+// AttachPID attaches a given pid to the eBPF program
+func (w *Watcher) AttachPID(pid uint32) error {
+	mapsPath := fmt.Sprintf("%s/%d/maps", w.procRoot, pid)
+	maps, err := os.Open(mapsPath)
+	if err != nil {
+		return err
+	}
+	defer maps.Close()
+
+	registerErrors := make([]error, 0)
+	successfulMatches := make([]string, 0)
+	// Creating a callback to be applied on the paths extracted from the `maps` file.
+	// We're creating the callback here, as we need the pid (which varies between iterations).
+	parseMapsFileCallback := func(path string) {
+		// Iterate over the rule, and look for a match.
+		for _, r := range w.rules {
+			if r.Re.MatchString(path) {
+				if err := w.registry.Register(path, pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB); err != nil {
+					registerErrors = append(registerErrors, err)
+				} else {
+					successfulMatches = append(successfulMatches, path)
+				}
+				break
+			}
+		}
+	}
+	scanner := bufio.NewScanner(bufio.NewReader(maps))
+	parseMapsFile(scanner, parseMapsFileCallback)
+
+	if len(successfulMatches) == 0 {
+		if len(registerErrors) == 0 {
+			return fmt.Errorf("no rules matched for pid %d", pid)
+		}
+		return fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors)
+	}
+	if len(registerErrors) > 0 {
+		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %v", successfulMatches, pid, registerErrors)
+	}
+	return nil
+}
+
 // Start consuming shared-library events
 func (w *Watcher) Start() {
 	if w == nil {
@@ -161,7 +212,7 @@ func (w *Watcher) Start() {
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.Re.MatchString(path) {
-					w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
+					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 					break
 				}
 			}
@@ -171,7 +222,7 @@ func (w *Watcher) Start() {
 		return nil
 	})
 
-	cleanupExit := w.processMonitor.SubscribeExit(w.registry.Unregister)
+	cleanupExit := w.processMonitor.SubscribeExit(func(pid uint32) { _ = w.registry.Unregister(pid) })
 
 	w.wg.Add(1)
 	go func() {
@@ -199,14 +250,14 @@ func (w *Watcher) Start() {
 				processSet := w.registry.GetRegisteredProcesses()
 				deletedPids := monitor.FindDeletedProcesses(processSet)
 				for deletedPid := range deletedPids {
-					w.registry.Unregister(deletedPid)
+					_ = w.registry.Unregister(deletedPid)
 				}
 			case event, ok := <-dataChannel:
 				if !ok {
 					return
 				}
 
-				lib := toLibPath(event.Data)
+				lib := ToLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself
 					event.Done()
@@ -214,11 +265,11 @@ func (w *Watcher) Start() {
 				}
 
 				w.libHits.Add(1)
-				path := toBytes(&lib)
+				path := ToBytes(&lib)
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
-						w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
+						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 						break
 					}
 				}
@@ -234,4 +285,6 @@ func (w *Watcher) Start() {
 	if err != nil {
 		log.Errorf("error starting shared library detection eBPF program: %s", err)
 	}
+
+	utils.AddAttacher("native", w)
 }

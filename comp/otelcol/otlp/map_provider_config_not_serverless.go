@@ -64,6 +64,7 @@ receivers:
 processors:
   batch:
     timeout: 10s
+  infraattributes:
 
 exporters:
   logsagent:
@@ -75,6 +76,6 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [infraattributes, batch]
       exporters: [logsagent]
 `

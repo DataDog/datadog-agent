@@ -136,6 +136,10 @@ func (c *Scrubber) scrubReader(file io.Reader, sizeHint int) ([]byte, error) {
 	}
 
 	scanner := bufio.NewScanner(file)
+	if sizeHint+1 > bufio.MaxScanTokenSize {
+		buffer := make([]byte, 0, sizeHint+1)
+		scanner.Buffer(buffer, sizeHint+1)
+	}
 
 	// First, we go through the file line by line, applying any
 	// single-line replacer that matches the line.

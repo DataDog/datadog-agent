@@ -15,14 +15,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -42,14 +41,14 @@ func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Comman
 		Short: "security profile commands",
 	}
 
-	securityProfileCmd.AddCommand(securityProfileShowCommands(globalParams)...)
+	securityProfileCmd.AddCommand(showSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(listSecurityProfileCommands(globalParams)...)
 	securityProfileCmd.AddCommand(saveSecurityProfileCommands(globalParams)...)
 
 	return []*cobra.Command{securityProfileCmd}
 }
 
-func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func showSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &securityProfileCliParams{
 		GlobalParams: globalParams,
 	}
@@ -57,13 +56,13 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileShowCmd := &cobra.Command{
 		Use:   "show",
 		Short: "dump the content of a security-profile file",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(showSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -71,21 +70,21 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileShowCmd.Flags().StringVar(
 		&cliParams.file,
-		flags.SecurityProfileInput,
+		"input",
 		"",
-		"path to the activity dump file",
+		"path to the security-profile file",
 	)
 
 	return []*cobra.Command{securityProfileShowCmd}
 }
 
 func showSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	prof, err := profile.LoadProfileFromFile(args.file)
+	pp, err := profile.LoadProtoFromFile(args.file)
 	if err != nil {
 		return err
 	}
 
-	b, err := json.MarshalIndent(prof, "", "  ")
+	b, err := json.MarshalIndent(pp, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -103,13 +102,13 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of active security profiles",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listSecurityProfiles,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -117,7 +116,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileListCmd.Flags().BoolVar(
 		&cliParams.includeCache,
-		flags.IncludeCache,
+		"include-cache",
 		false,
 		"defines if the profiles in the Security Profile manager LRU cache should be returned",
 	)
@@ -162,13 +161,17 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
+	timeResolver, err := timeResolver.NewResolver()
+	if err != nil {
+		fmt.Printf("can't get new time resolver: %v\n", err)
+		return
+	}
+
 	prefix := "  "
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s## NAME: %s ##\n", prefix, msg.GetMetadata().GetName())
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
 	fmt.Printf("%s    image_tag: %v\n", prefix, msg.GetSelector().GetTag())
-	fmt.Printf("%s  version: %v\n", prefix, msg.GetVersion())
-	fmt.Printf("%s  status: %v\n", prefix, msg.GetStatus())
 	fmt.Printf("%s  kernel_space:\n", prefix)
 	fmt.Printf("%s    loaded: %v\n", prefix, msg.GetLoadedInKernel())
 	if msg.GetLoadedInKernel() {
@@ -176,22 +179,25 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 		fmt.Printf("%s    cookie: %v - 0x%x\n", prefix, msg.GetProfileCookie(), msg.GetProfileCookie())
 	}
 	fmt.Printf("%s  event_types: %v\n", prefix, msg.GetEventTypes())
-	if len(msg.GetLastAnomalies()) > 0 {
-		fmt.Printf("%s  last_anomalies:\n", prefix)
-		for _, ano := range msg.GetLastAnomalies() {
-			fmt.Printf("%s    - event_type: %s\n", prefix, ano.GetEventType())
-			fmt.Printf("%s      timestamp: %s\n", prefix, ano.GetTimestamp())
-			fmt.Printf("%s      is_stable: %v\n", prefix, ano.GetIsStableEventType())
+	fmt.Printf("%s  global_state: %v\n", prefix, msg.GetProfileGlobalState())
+	fmt.Printf("%s  Versions:\n", prefix)
+	for imageTag, ctx := range msg.GetProfileContexts() {
+		fmt.Printf("%s  - %s:\n", prefix, imageTag)
+		fmt.Printf("%s    tags: %v\n", prefix, ctx.GetTags())
+		fmt.Printf("%s    first seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetFirstSeen()))
+		fmt.Printf("%s    last seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetLastSeen()))
+		for et, state := range ctx.GetEventTypeState() {
+			fmt.Printf("%s    . %s: %s\n", prefix, et, state.GetEventProfileState())
+			fmt.Printf("%s      last anomaly: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(state.GetLastAnomalyNano()))
 		}
 	}
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    - container_id: %s\n", prefix, inst.GetContainerID())
+			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}
-	fmt.Printf("%s  tags: %v\n", prefix, msg.GetTags())
 	printActivityTreeStats(prefix, msg.GetStats())
 }
 
@@ -203,13 +209,13 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 	securityProfileSaveCmd := &cobra.Command{
 		Use:   "save",
 		Short: "saves the requested security profile to disk",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(saveSecurityProfile,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -217,18 +223,18 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileSaveCmd.Flags().StringVar(
 		&cliParams.imageName,
-		flags.ImageName,
+		"name",
 		"",
 		"image name of the workload selector used to lookup the profile",
 	)
-	_ = securityProfileSaveCmd.MarkFlagRequired(flags.ImageName)
+	_ = securityProfileSaveCmd.MarkFlagRequired("name")
 	securityProfileSaveCmd.Flags().StringVar(
 		&cliParams.imageTag,
-		flags.ImageTag,
+		"tag",
 		"",
 		"image tag of the workload selector used to lookup the profile",
 	)
-	_ = securityProfileSaveCmd.MarkFlagRequired(flags.ImageTag)
+	_ = securityProfileSaveCmd.MarkFlagRequired("tag")
 
 	return []*cobra.Command{securityProfileSaveCmd}
 }

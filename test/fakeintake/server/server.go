@@ -15,6 +15,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,15 +25,19 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 )
 
 // defaultResponse is the default response returned by the fakeintake server
@@ -53,18 +58,26 @@ func init() {
 	}
 }
 
+// Option is a function that modifies a Server
+type Option func(*Server)
+
 // Server is a struct implementing a fakeintake server
 type Server struct {
-	server    http.Server
-	ready     chan bool
-	clock     clock.Clock
-	retention time.Duration
-	shutdown  chan struct{}
+	uuid            uuid.UUID
+	server          http.Server
+	ready           chan bool
+	clock           clock.Clock
+	retention       time.Duration
+	shutdown        chan struct{}
+	dddevForward    bool
+	forwardEndpoint string
+	apiKey          string
 
 	urlMutex sync.RWMutex
 	url      string
 
-	store *serverstore.Store
+	storeDriver string
+	store       serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -74,26 +87,40 @@ type Server struct {
 // options accept WithPort and WithReadyChan.
 // Call Server.Start() to start the server in a separate go-routine
 // If the port is 0, a port number is automatically chosen
-func NewServer(options ...func(*Server)) *Server {
+func NewServer(options ...Option) *Server {
 	fi := &Server{
 		urlMutex:                  sync.RWMutex{},
 		clock:                     clock.New(),
 		retention:                 15 * time.Minute,
-		store:                     serverstore.NewStore(),
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
+		server: http.Server{
+			Addr: "0.0.0.0:0",
+		},
+		storeDriver:     "memory",
+		forwardEndpoint: "https://app.datadoghq.com",
 	}
 
+	for _, opt := range options {
+		opt(fi)
+	}
+
+	fi.store = serverstore.NewStore(fi.storeDriver)
 	registry := prometheus.NewRegistry()
 
+	storeMetrics := fi.store.GetInternalMetrics()
 	registry.MustRegister(
-		collectors.NewBuildInfoCollector(),
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		fi.store.NbPayloads,
+		append(
+			[]prometheus.Collector{
+				collectors.NewBuildInfoCollector(),
+				collectors.NewGoCollector(),
+				collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+			},
+			storeMetrics...)...,
 	)
 
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
@@ -113,32 +140,48 @@ func NewServer(options ...func(*Server)) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
-
-	for _, opt := range options {
-		opt(fi)
-	}
+	fi.server.Handler = func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Fakeintake-ID", fi.uuid.String())
+			next.ServeHTTP(w, r)
+		})
+	}(mux)
 
 	return fi
 }
 
-// WithPort changes the server port.
-// If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
+// WithAddress changes the server host:port.
+// If host is empty, it will bind to 0.0.0.0
+// If the port is empty or 0, a port number is automatically chosen
+func WithAddress(addr string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf(":%d", port)
+		fi.server.Addr = addr
+	}
+}
+
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) Option {
+	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// WithStoreDriver changes the store driver used by the server
+func WithStoreDriver(driver string) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
+			return
+		}
+		fi.storeDriver = driver
 	}
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
-func WithReadyChannel(ready chan bool) func(*Server) {
+func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
@@ -149,7 +192,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 }
 
 // WithClock changes the clock used by the server
-func WithClock(clock clock.Clock) func(*Server) {
+func WithClock(clock clock.Clock) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the clock.")
@@ -160,13 +203,46 @@ func WithClock(clock clock.Clock) func(*Server) {
 }
 
 // WithRetention changes the retention time of payloads in the store
-func WithRetention(retention time.Duration) func(*Server) {
+func WithRetention(retention time.Duration) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the ready channel.")
 			return
 		}
 		fi.retention = retention
+	}
+}
+
+// WithDDDevForward enable forwarding payload to dddev
+func WithDDDevForward() Option {
+	return func(fi *Server) {
+		apiKey, ok := os.LookupEnv("DD_API_KEY")
+		if fi.apiKey == "" && !ok {
+			log.Println("DD_API_KEY is not set, cannot forward to DDDev")
+			return
+		}
+		if fi.apiKey == "" {
+			fi.apiKey = apiKey
+		}
+		fi.dddevForward = true
+	}
+}
+
+// WihDDDevAPIKey sets the API key to use when forwarding to DDDev, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withDDDevAPIKey(apiKey string) Option {
+	return func(fi *Server) {
+		fi.apiKey = apiKey
+	}
+}
+
+// withForwardEndpoint sets the endpoint to forward the payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
+func withForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.forwardEndpoint = endpoint
 	}
 }
 
@@ -181,6 +257,7 @@ func (fi *Server) Start() {
 		return
 	}
 	fi.shutdown = make(chan struct{})
+
 	go fi.listenRoutine()
 	go fi.cleanUpPayloadsRoutine()
 }
@@ -209,12 +286,11 @@ func (fi *Server) Stop() error {
 		return fmt.Errorf("server not running")
 	}
 	defer close(fi.shutdown)
+	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
 	}
-
-	fi.setURL("")
 	return nil
 }
 
@@ -267,7 +343,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
+	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
 	case http.MethodPost:
@@ -275,6 +351,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		if err == nil {
 			return
 		}
+
 	case http.MethodGet:
 		fallthrough
 	case http.MethodHead:
@@ -290,6 +367,36 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	writeHTTPResponse(w, response)
 }
 
+func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
+	url := fi.forwardEndpoint + req.URL.Path
+
+	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+
+	proxyReq.Header = make(http.Header)
+	for h, val := range req.Header {
+		if strings.ToLower(h) == "dd-api-key" {
+			continue
+		}
+		proxyReq.Header[h] = val
+	}
+
+	proxyReq.Header["DD-API-KEY"] = []string{fi.apiKey}
+
+	client := &http.Client{}
+	res, err := client.Do(proxyReq)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("unexpected status code %d", res.StatusCode)
+	}
+
+	return nil
+}
 func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Request) error {
 	if req.Body == nil {
 		response := buildErrorResponse(errors.New("invalid request, nil body"))
@@ -303,15 +410,21 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
-
+	if fi.dddevForward {
+		err := fi.forwardRequestToDDDev(req, payload)
+		if err != nil {
+			log.Printf("Error forwarding request to DDDev: %v", err)
+		}
+	}
 	encoding := req.Header.Get("Content-Encoding")
 	if req.URL.Path == "/support/flare" || encoding == "" {
 		encoding = req.Header.Get("Content-Type")
 	}
+	contentType := req.Header.Get("Content-Type")
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, contentType, fi.clock.Now().UTC())
 	if err != nil {
-		log.Printf("Error caching payload: %v", err.Error())
+		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return nil
@@ -359,18 +472,18 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads := fi.store.GetJSONPayloads(route)
-		// build response
+		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
+		if payloadErr != nil {
+			writeHTTPResponse(w, buildErrorResponse(payloadErr))
+			return
+		}
+
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusBadRequest,
-			body:        []byte("invalid route parameter"),
-		})
+		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
 		return
 	}
 

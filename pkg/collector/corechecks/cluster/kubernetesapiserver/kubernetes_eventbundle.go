@@ -17,26 +17,29 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 type kubernetesEventBundle struct {
-	involvedObject v1.ObjectReference   // Parent object for this event bundle
-	component      string               // Used to identify the Kubernetes component which generated the event
-	timeStamp      float64              // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp  float64              // Used for the modified events in the bundle to specify when they last occurred
-	countByAction  map[string]int       // Map of count per action to aggregate several events from the same ObjUid in one event
-	alertType      event.EventAlertType // The Datadog event type
-	hostInfo       eventHostInfo        // Host information extracted from the event, where applicable
+	involvedObject      v1.ObjectReference // Parent object for this event bundle
+	component           string             // Used to identify the Kubernetes component which generated the event
+	reportingController string             // Used to identify the Kubernetes controller which generated the event
+	timeStamp           float64            // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp       float64            // Used for the modified events in the bundle to specify when they last occurred
+	countByAction       map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
+	alertType           event.AlertType    // The Datadog event type
+	hostInfo            eventHostInfo      // Host information extracted from the event, where applicable
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		involvedObject: event.InvolvedObject,
-		component:      event.Source.Component,
-		countByAction:  make(map[string]int),
-		alertType:      getDDAlertType(event.Type),
-		hostInfo:       getEventHostInfo(clusterName, event),
+		involvedObject:      event.InvolvedObject,
+		component:           event.Source.Component,
+		reportingController: event.ReportingController,
+		countByAction:       make(map[string]int),
+		alertType:           getDDAlertType(event.Type),
+		hostInfo:            getEventHostInfo(clusterName, event),
 	}
 }
 
@@ -47,22 +50,34 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	// We do not process the events in chronological order necessarily.
 	// We only care about the first time they occurred, the last time and the count.
-	b.timeStamp = float64(event.FirstTimestamp.Unix())
-	b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+	if event.FirstTimestamp.IsZero() {
+		b.timeStamp = float64(event.EventTime.Unix())
+	} else {
+		b.timeStamp = float64(event.FirstTimestamp.Unix())
+	}
+
+	if event.LastTimestamp.IsZero() {
+		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.EventTime.Unix()))
+	} else {
+		b.lastTimestamp = math.Max(b.lastTimestamp, float64(event.LastTimestamp.Unix()))
+	}
 
 	b.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (event.Event, error) {
 	if len(b.countByAction) == 0 {
 		return event.Event{}, errors.New("no event to export")
 	}
 
 	readableKey := buildReadableKey(b.involvedObject)
-	tags := getInvolvedObjectTags(b.involvedObject)
+	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
+	tags = append(tags, "orchestrator:kubernetes")
+
+	tags = append(tags, fmt.Sprintf("reporting_controller:%s", b.reportingController))
 
 	if b.hostInfo.providerID != "" {
 		tags = append(tags, fmt.Sprintf("host_provider_id:%s", b.hostInfo.providerID))
@@ -71,9 +86,9 @@ func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{
 		Title:          fmt.Sprintf("Events from the %s", readableKey),
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           b.hostInfo.hostname,
-		SourceTypeName: "kubernetes",
+		SourceTypeName: getEventSource(b.reportingController, b.component),
 		EventType:      CheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,

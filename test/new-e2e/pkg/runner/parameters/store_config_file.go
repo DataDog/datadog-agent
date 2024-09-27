@@ -6,7 +6,9 @@
 package parameters
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"encoding/json"
 
@@ -35,6 +37,7 @@ type Config struct {
 // ConfigParams instance contains config relayed parameters
 type ConfigParams struct {
 	AWS       AWS    `yaml:"aws"`
+	Azure     Azure  `yaml:"azure"`
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
@@ -49,6 +52,14 @@ type AWS struct {
 	PrivateKeyPath     string `yaml:"privateKeyPath"`
 	PrivateKeyPassword string `yaml:"privateKeyPassword"`
 	TeamTag            string `yaml:"teamTag"`
+}
+
+// Azure instance contains Azure related parameters
+type Azure struct {
+	Account            string `yaml:"account"`
+	PublicKeyPath      string `yaml:"publicKeyPath"`
+	PrivateKeyPath     string `yaml:"privateKeyPath"`
+	PrivateKeyPassword string `yaml:"privateKeyPassword"`
 }
 
 // Agent instance contains agent related parameters
@@ -68,6 +79,9 @@ type Pulumi struct {
 	// Set this option to true to log to stderr instead.
 	// https://www.pulumi.com/docs/support/troubleshooting/#verbose-logging
 	LogToStdErr string `yaml:"logToStdErr"`
+	// To reduce logs noise in the CI, by default we display only the Pulumi error progress steam.
+	// Set this option to true to display all the progress streams.
+	VerboseProgressStreams string `yaml:"verboseProgressStreams"`
 }
 
 var _ valueStore = &configFileValueStore{}
@@ -129,14 +143,19 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.AWS.PrivateKeyPassword
 	case StackParameters:
 		value = s.stackParamsJSON
-	case Environments:
-		if s.config.ConfigParams.AWS.Account != "" {
-			value = "aws/" + s.config.ConfigParams.AWS.Account
-		}
 	case ExtraResourcesTags:
 		if s.config.ConfigParams.AWS.TeamTag != "" {
 			value = "team:" + s.config.ConfigParams.AWS.TeamTag
 		}
+	case Environments:
+		if s.config.ConfigParams.AWS.Account != "" {
+			value = value + fmt.Sprintf("aws/%s ", s.config.ConfigParams.AWS.Account)
+		}
+		if s.config.ConfigParams.Azure.Account != "" {
+			value = value + fmt.Sprintf("az/%s ", s.config.ConfigParams.Azure.Account)
+		}
+		value = strings.TrimSpace(value)
+
 	case VerifyCodeSignature:
 		value = s.config.ConfigParams.Agent.VerifyCodeSignature
 	case OutputDir:
@@ -145,6 +164,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.Pulumi.LogLevel
 	case PulumiLogToStdErr:
 		value = s.config.ConfigParams.Pulumi.LogToStdErr
+	case PulumiVerboseProgressStreams:
+		value = s.config.ConfigParams.Pulumi.VerboseProgressStreams
 	case DevMode:
 		value = s.config.ConfigParams.DevMode
 	}

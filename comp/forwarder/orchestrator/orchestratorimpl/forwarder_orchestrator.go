@@ -9,10 +9,12 @@
 package orchestratorimpl
 
 import (
+	"context"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -23,14 +25,15 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newOrchestratorForwarder))
+		fx.Provide(newOrchestratorForwarder),
+		fx.Supply(params))
 }
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(log log.Component, config config.Component, params Params) orchestrator.Component {
+func newOrchestratorForwarder(log log.Component, config config.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
 	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
@@ -47,7 +50,17 @@ func newOrchestratorForwarder(log log.Component, config config.Component, params
 		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-		return createComponent(defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts))
+		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
+		lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				_ = forwarder.Start()
+				return nil
+			}, OnStop: func(context.Context) error {
+				forwarder.Stop()
+				return nil
+			}})
+
+		return createComponent(forwarder)
 	}
 
 	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()

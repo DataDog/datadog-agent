@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 func TestBuildEntityName(t *testing.T) {
@@ -40,12 +42,12 @@ func TestBuildTaggerEntityName(t *testing.T) {
 		expected string
 	}{
 		// Empty
-		{"", ""},
+		{"", "container_id://"},
 		// Empty runtime
 		{"5bef08742407ef", "container_id://5bef08742407ef"},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.expected), func(t *testing.T) {
-			out := BuildTaggerEntityName(tc.cID)
+			out := types.NewEntityID(types.ContainerID, tc.cID).String()
 			assert.Equal(t, tc.expected, out)
 		})
 	}

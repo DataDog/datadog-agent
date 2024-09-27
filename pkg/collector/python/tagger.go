@@ -11,7 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,7 +36,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	goID := C.GoString(id)
 	var tags []string
 
-	tags, _ = tagsFunc(goID, collectors.TagCardinality(cardinality))
+	tags, _ = tagsFunc(goID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

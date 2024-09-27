@@ -7,6 +7,7 @@
 package debugging
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -14,10 +15,11 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client       Address
-	Server       Address
-	ByRequestAPI map[string]int
-	TopicName    string
+	Client    Address
+	Server    Address
+	Operation string
+	TopicName string
+	ByStatus  map[int8]Stats
 }
 
 // Address represents represents a IP:Port
@@ -28,23 +30,24 @@ type Address struct {
 
 // Stats consolidates request count and latency information for a certain status code
 type Stats struct {
-	Count int
+	Count              int
+	FirstLatencySample float64
+	LatencyP50         float64
 }
 
 // Kafka returns a debug-friendly representation of map[kafka.Key]kafka.RequestStats
-func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
+func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 	all := make([]RequestSummary, 0, len(stats))
 
 	for key, requestStat := range stats {
 		clientAddr := formatIP(key.SrcIPLow, key.SrcIPHigh)
 		serverAddr := formatIP(key.DstIPLow, key.DstIPHigh)
 
-		byRequestAPI := make(map[string]int)
-		switch key.RequestAPIKey {
-		case kafka.ProduceAPIKey:
-			byRequestAPI["produce"] = requestStat.Count
-		case kafka.FetchAPIKey:
-			byRequestAPI["fetch"] = requestStat.Count
+		operationName := "unknown"
+		if key.RequestAPIKey == kafka.ProduceAPIKey {
+			operationName = "produce"
+		} else if key.RequestAPIKey == kafka.FetchAPIKey {
+			operationName = "fetch"
 		}
 
 		debug := RequestSummary{
@@ -57,8 +60,18 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
 				Port: key.DstPort,
 			},
 
-			ByRequestAPI: byRequestAPI,
-			TopicName:    key.TopicName,
+			Operation: operationName,
+			TopicName: key.TopicName,
+			ByStatus:  make(map[int8]Stats, len(requestStat.ErrorCodeToStat)),
+		}
+
+		for status, stat := range requestStat.ErrorCodeToStat {
+
+			debug.ByStatus[int8(status)] = Stats{
+				Count:              stat.Count,
+				FirstLatencySample: stat.FirstLatencySample,
+				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
+			}
 		}
 
 		all = append(all, debug)

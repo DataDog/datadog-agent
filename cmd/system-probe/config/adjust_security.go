@@ -9,12 +9,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func adjustSecurity(cfg config.Config) {
-	deprecateCustom(cfg, secNS("activity_dump.cgroup_dump_timeout"), secNS("activity_dump.dump_duration"), func(cfg config.Config) interface{} {
+func adjustSecurity(cfg model.Config) {
+	deprecateCustom(cfg, secNS("activity_dump.cgroup_dump_timeout"), secNS("activity_dump.dump_duration"), func(cfg model.Config) interface{} {
 		// convert old minutes int value to time.Duration
 		return time.Duration(cfg.GetInt(secNS("activity_dump.cgroup_dump_timeout"))) * time.Minute
 	})
@@ -23,17 +22,15 @@ func adjustSecurity(cfg config.Config) {
 		cfg,
 		secNS("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"),
 		secNS("runtime_security_config.security_profile.auto_suppression.enabled"),
-		func(cfg config.Config) interface{} {
+		func(cfg model.Config) interface{} {
 			// convert old auto suppression parameter to the new one
 			return cfg.GetBool(secNS("runtime_security_config.security_profile.anomaly_detection.auto_suppression.enabled"))
 		},
 	)
 
 	if cfg.GetBool(secNS("enabled")) {
-		// if runtime is enabled then we force fim
-
-		// except, temporarily, for Windows
-		if runtime.GOOS != "windows" {
+		// if runtime is enabled then we enable fim as well (except if force disabled)
+		if runtime.GOOS != "windows" || !cfg.IsSet(secNS("fim_enabled")) {
 			cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
 		}
 	} else {

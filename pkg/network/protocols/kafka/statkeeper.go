@@ -16,7 +16,7 @@ import (
 
 // StatKeeper is a struct to hold the stats for the kafka protocol
 type StatKeeper struct {
-	stats      map[Key]*RequestStat
+	stats      map[Key]*RequestStats
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *Telemetry
@@ -29,7 +29,7 @@ type StatKeeper struct {
 // NewStatkeeper creates a new StatKeeper
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	return &StatKeeper{
-		stats:      make(map[Key]*RequestStat),
+		stats:      make(map[Key]*RequestStats),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
 		topicNames: make(map[string]string),
@@ -44,7 +44,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
-		TopicName:      statKeeper.extractTopicName(tx),
+		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
 	requestStats, ok := statKeeper.stats[key]
@@ -53,27 +53,35 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 			statKeeper.telemetry.dropped.Add(1)
 			return
 		}
-		requestStats = new(RequestStat)
+		requestStats = NewRequestStats()
 		statKeeper.stats[key] = requestStats
 	}
-	requestStats.Count++
+
+	latency := tx.RequestLatency()
+	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
+	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(1)
+		return
+	}
+
+	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
 }
 
 // GetAndResetAllStats returns all the stats and resets the stats
-func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
+func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
-	statKeeper.stats = make(map[Key]*RequestStat)
+	statKeeper.stats = make(map[Key]*RequestStats)
 	statKeeper.topicNames = make(map[string]string)
 	return ret
 }
 
-func (statKeeper *StatKeeper) extractTopicName(tx *EbpfTx) string {
+func (statKeeper *StatKeeper) extractTopicName(tx *KafkaTransaction) string {
 	// Limit tx.Topic_name_size to not exceed the actual length of tx.Topic_name
-	if tx.Topic_name_size > uint16(len(tx.Topic_name)) {
+	if uint16(tx.Topic_name_size) > uint16(len(tx.Topic_name)) {
 		log.Debugf("Topic name size was changed from %d, to size: %d", tx.Topic_name_size, len(tx.Topic_name))
-		tx.Topic_name_size = uint16(len(tx.Topic_name))
+		tx.Topic_name_size = uint8(len(tx.Topic_name))
 	}
 	b := tx.Topic_name[:tx.Topic_name_size]
 

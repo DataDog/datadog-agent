@@ -7,12 +7,18 @@
 package rctelemetryreporterimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"go.uber.org/fx"
 )
+
+type dependencies struct {
+	fx.In
+
+	Telemetry telemetry.Component
+}
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -29,26 +35,30 @@ type DdRcTelemetryReporter struct {
 
 // IncRateLimit increments the DdRcTelemetryReporter BypassRateLimitCounter counter.
 func (r *DdRcTelemetryReporter) IncRateLimit() {
-	r.BypassRateLimitCounter.Inc()
+	if r.BypassRateLimitCounter != nil {
+		r.BypassRateLimitCounter.Inc()
+	}
 }
 
 // IncTimeout increments the DdRcTelemetryReporter BypassTimeoutCounter counter.
 func (r *DdRcTelemetryReporter) IncTimeout() {
-	r.BypassTimeoutCounter.Inc()
+	if r.BypassTimeoutCounter != nil {
+		r.BypassTimeoutCounter.Inc()
+	}
 }
 
 // newDdRcTelemetryReporter creates a new Remote Config telemetry reporter for sending RC metrics to Datadog
-func newDdRcTelemetryReporter() rctelemetryreporter.Component {
+func newDdRcTelemetryReporter(deps dependencies) rctelemetryreporter.Component {
 	commonOpts := telemetry.Options{NoDoubleUnderscoreSep: true}
 	return &DdRcTelemetryReporter{
-		BypassRateLimitCounter: telemetry.NewCounterWithOpts(
+		BypassRateLimitCounter: deps.Telemetry.NewCounterWithOpts(
 			"remoteconfig",
 			"cache_bypass_ratelimiter_skip",
 			[]string{},
 			"Number of Remote Configuration cache bypass requests skipped by rate limiting.",
 			commonOpts,
 		),
-		BypassTimeoutCounter: telemetry.NewCounterWithOpts(
+		BypassTimeoutCounter: deps.Telemetry.NewCounterWithOpts(
 			"remoteconfig",
 			"cache_bypass_timeout",
 			[]string{},

@@ -9,18 +9,20 @@ package diagnosesendermanagerimpl
 import (
 	"context"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -31,9 +33,10 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Log      log.Component
-	Config   config.Component
-	Hostname hostname.Component
+	Log        log.Component
+	Config     config.Component
+	Hostname   hostname.Component
+	Compressor compression.Component
 }
 
 type diagnoseSenderManager struct {
@@ -73,6 +76,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
+		sender.deps.Compressor,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)

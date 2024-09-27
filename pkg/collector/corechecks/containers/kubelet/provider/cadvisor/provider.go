@@ -18,9 +18,10 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -143,7 +144,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		return
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
+	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		var tags []string
 
@@ -151,7 +152,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		//      for static pods, see https://github.com/kubernetes/kubernetes/pull/59948
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
-			podTags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", pod.EntityID.ID), collectors.HighCardinality)
+			podTags, _ := tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()).String(), types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -162,7 +163,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			tags = podTags
 		} else {
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-			tags, _ = tagger.Tag(cID, collectors.HighCardinality)
+			tags, _ = tagger.Tag(cID, types.HighCardinality)
 		}
 
 		if len(tags) == 0 {
@@ -206,7 +207,8 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
 			continue
 		}
-		tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", pod.EntityID.ID), collectors.HighCardinality)
+		entityID := taggercommon.BuildTaggerEntityID(pod.GetID())
+		tags, _ := tagger.Tag(entityID.String(), types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -237,7 +239,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		}
 
 		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
+		tags, _ := tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -247,7 +249,8 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		//      for static pods, see https://github.com/kubernetes/kubernetes/pull/59948
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
-			podTags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", pod.EntityID.ID), collectors.HighCardinality)
+			entityID := taggercommon.BuildTaggerEntityID(pod.EntityID)
+			podTags, _ := tagger.Tag(entityID.String(), types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}
@@ -284,7 +287,7 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
-		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
+		tags, _ := tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -348,7 +351,8 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		return common.GetContainerID(p.store, labels, p.filter)
+		cID, _ := common.GetContainerID(p.store, labels, p.filter)
+		return cID
 	}
 	return ""
 }

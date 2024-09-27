@@ -426,17 +426,22 @@ func (o *Obfuscator) ObfuscateSQLExecPlan(jsonPlan string, normalize bool) (stri
 // ObfuscateWithSQLLexer obfuscates the given SQL query using the go-sqllexer package.
 // If ObfuscationMode is set to ObfuscateOnly, the query will be obfuscated without normalizing it.
 func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	if opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize {
+	if opts.ObfuscationMode != NormalizeOnly && opts.ObfuscationMode != ObfuscateOnly && opts.ObfuscationMode != ObfuscateAndNormalize {
 		return nil, fmt.Errorf("invalid obfuscation mode: %s", opts.ObfuscationMode)
 	}
 
-	obfuscator := sqllexer.NewObfuscator(
-		sqllexer.WithReplaceDigits(opts.ReplaceDigits),
-		sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
-		sqllexer.WithReplacePositionalParameter(!opts.KeepPositionalParameter),
-		sqllexer.WithReplaceBoolean(!opts.KeepBoolean),
-		sqllexer.WithReplaceNull(!opts.KeepNull),
-	)
+	var obfuscator *sqllexer.Obfuscator
+
+	if opts.ObfuscationMode == ObfuscateOnly || opts.ObfuscationMode == ObfuscateAndNormalize {
+		obfuscator = sqllexer.NewObfuscator(
+			sqllexer.WithReplaceDigits(opts.ReplaceDigits),
+			sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
+			sqllexer.WithReplacePositionalParameter(!opts.KeepPositionalParameter),
+			sqllexer.WithReplaceBoolean(!opts.KeepBoolean),
+			sqllexer.WithReplaceNull(!opts.KeepNull),
+		)
+	}
+
 	if opts.ObfuscationMode == ObfuscateOnly {
 		// Obfuscate the query without normalizing it.
 		out := obfuscator.Obfuscate(in, sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)))
@@ -461,12 +466,22 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithKeepTrailingSemicolon(opts.KeepTrailingSemicolon),
 		sqllexer.WithKeepIdentifierQuotation(opts.KeepIdentifierQuotation),
 	)
-	out, statementMetadata, err := sqllexer.ObfuscateAndNormalize(
-		in,
-		obfuscator,
-		normalizer,
-		sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)),
-	)
+
+	var out string
+	var statementMetadata *sqllexer.StatementMetadata
+	var err error
+
+	if opts.ObfuscationMode == NormalizeOnly {
+		// Normalize the query without obfuscating it.
+		out, statementMetadata, err = normalizer.Normalize(in, sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)))
+	} else {
+		out, statementMetadata, err = sqllexer.ObfuscateAndNormalize(
+			in,
+			obfuscator,
+			normalizer,
+			sqllexer.WithDBMS(sqllexer.DBMSType(opts.DBMS)),
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

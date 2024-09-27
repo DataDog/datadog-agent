@@ -8,12 +8,12 @@ package agent
 import (
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(_ sender.SenderManager, hostname string, _ RSAOptions, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(_ statsd.ClientInterface, hostname string, _ RSAOptions, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
@@ -24,7 +24,6 @@ func NewRuntimeSecurityAgent(_ sender.SenderManager, hostname string, _ RSAOptio
 	return &RuntimeSecurityAgent{
 		client:               client,
 		hostname:             hostname,
-		telemetry:            nil,
 		storage:              nil,
 		running:              atomic.NewBool(false),
 		connected:            atomic.NewBool(false),

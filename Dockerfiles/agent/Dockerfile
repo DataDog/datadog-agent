@@ -1,10 +1,12 @@
-ARG BASE_IMAGE_UBUNTU_VERSION=23.10
-ARG BASE_IMAGE_UBUNTU_NAME=mantic
+ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
-LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
-LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-# Can be used by Dependabot
-LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
+ARG BASE_IMAGE_UBUNTU_VERSION
+ARG BASE_IMAGE_UBUNTU_NAME
+LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title="Datadog Agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -42,11 +44,11 @@ ARG DD_AGENT_ARTIFACT=datadog-agent*_$TARGETARCH.deb
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
-COPY datadog-agent*_$TARGETARCH.deb /
+COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
-ENV S6_VERSION v2.2.0.3
+ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
 RUN apt install --no-install-recommends -y curl ca-certificates
@@ -63,8 +65,9 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN set -x; find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find / -maxdepth 1 -name "datadog-agent*_$TARGETARCH.deb" -exec dpkg -x {} . \; \
+RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
+
+RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -106,9 +109,11 @@ COPY install_info etc/datadog-agent/
 ######################################
 
 FROM baseimage AS release
-LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL maintainer="Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -122,7 +127,10 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1 \
     # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    # Source code integration
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt full-upgrade -y \
@@ -169,12 +177,25 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   # - Remove the /var/run -> /run symlink and create a legit /var/run folder
   # as some docker versions re-create /run from zero at container start
   && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+  && addgroup --system secret-manager \
+  && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
   && chmod 755 /probe.sh /initlog.sh \
-  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+
+# Check that the UID of dd-agent is still 100.
+#
+# The exact numeric value of the UID of the dd-agent user shouldn’t matter.
+# But people that don’t want to let the agent run as root might want to explicitly set a non-root user in their k8s security context.
+# And, in a k8s security context, we can only specify a numeric UID and not a username.
+# So, if the UID of the dd-agent user happen to change again and cannot be forced to 100 (because of a conflict), we need to update
+# * the documentation https://docs.datadoghq.com/data_security/kubernetes/#running-container-as-root-user
+#   (see PR https://github.com/DataDog/documentation/pull/21889)
+# * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
+RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
 # Update links to python binaries
 RUN if [ -n "$PYTHON_VERSION" ]; then \
@@ -187,6 +208,12 @@ RUN if [ -n "$PYTHON_VERSION" ]; then \
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Update if optional OTel Agent process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
+  rm -rf /etc/services.d/otel ; \
+  else \
+  mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 

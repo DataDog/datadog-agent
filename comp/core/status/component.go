@@ -21,8 +21,10 @@ const CollectorSection string = "collector"
 type Component interface {
 	// Returns all the agent status information for the format type
 	GetStatus(format string, verbose bool, excludeSection ...string) ([]byte, error)
-	// Returns only the agent status for the especify section and format type
-	GetStatusBySection(section string, format string, verbose bool) ([]byte, error)
+	//
+	GetSections() []string
+	// Returns only the agent status for the specified sections and format type
+	GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error)
 }
 
 // Params store configurable options for the status component

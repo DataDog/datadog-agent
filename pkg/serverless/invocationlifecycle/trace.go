@@ -16,8 +16,9 @@ import (
 
 	json "github.com/json-iterator/go"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -33,12 +34,13 @@ var /* const */ runtimeRegex = regexp.MustCompile(`^(dotnet|go|java|ruby)(\d+(\.
 
 // ExecutionStartInfo is saved information from when an execution span was started
 type ExecutionStartInfo struct {
-	startTime        time.Time
-	TraceID          uint64
-	SpanID           uint64
-	parentID         uint64
-	requestPayload   []byte
-	SamplingPriority sampler.SamplingPriority
+	startTime         time.Time
+	TraceID           uint64
+	TraceIDUpper64Hex string
+	SpanID            uint64
+	parentID          uint64
+	requestPayload    []byte
+	SamplingPriority  sampler.SamplingPriority
 }
 
 // startExecutionSpan records information from the start of the invocation.
@@ -62,6 +64,12 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
 		}
+		if traceContext.TraceIDUpper64Hex != "" {
+			executionContext.TraceIDUpper64Hex = traceContext.TraceIDUpper64Hex
+			lp.requestHandler.SetMetaTag(Upper64BitsTag, traceContext.TraceIDUpper64Hex)
+		} else {
+			delete(lp.requestHandler.triggerTags, Upper64BitsTag)
+		}
 	} else {
 		executionContext.TraceID = 0
 		executionContext.parentID = 0
@@ -76,18 +84,29 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 // It should be called at the end of the invocation.
 func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
 	executionContext := lp.GetExecutionInfo()
-	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
+	start := executionContext.startTime.UnixNano()
+
+	traceID := executionContext.TraceID
+	spanID := executionContext.SpanID
+	// If we fail to receive the trace and span IDs from the tracer during a timeout we create it ourselves
+	if endDetails.IsTimeout && traceID == 0 {
+		traceID = random.Random.Uint64()
+		lp.requestHandler.executionInfo.TraceID = traceID
+	}
+	if endDetails.IsTimeout && spanID == 0 {
+		spanID = random.Random.Uint64()
+	}
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  executionContext.TraceID,
-		SpanID:   executionContext.SpanID,
+		TraceID:  traceID,
+		SpanID:   spanID,
 		ParentID: executionContext.parentID,
-		Start:    executionContext.startTime.UnixNano(),
-		Duration: duration,
+		Start:    start,
+		Duration: endDetails.EndTime.UnixNano() - start,
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
@@ -100,9 +119,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
-	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	captureLambdaPayloadEnabled := pkgconfigsetup.Datadog().GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
+		capturePayloadMaxDepth := pkgconfigsetup.Datadog().GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
@@ -110,17 +129,19 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		} else {
 			capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
 		}
-		responsePayloadJSON := make(map[string]interface{})
-		if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
-			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
-			executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
-		} else {
-			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+		if endDetails.ResponseRawPayload != nil {
+			responsePayloadJSON := make(map[string]interface{})
+			if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
+				log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+				executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+			} else {
+				capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+			}
 		}
 	}
-
 	if endDetails.IsError {
 		executionSpan.Error = 1
+
 		if len(endDetails.ErrorMsg) > 0 {
 			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
 		}
@@ -129,6 +150,11 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		}
 		if len(endDetails.ErrorStack) > 0 {
 			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
+		}
+
+		if endDetails.IsTimeout {
+			executionSpan.Meta["error.type"] = "Impending Timeout"
+			executionSpan.Meta["error.msg"] = "Datadog detected an Impending Timeout"
 		}
 	}
 

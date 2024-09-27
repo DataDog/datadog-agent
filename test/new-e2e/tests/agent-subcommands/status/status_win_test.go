@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 type windowsStatusSuite struct {
@@ -21,11 +22,12 @@ type windowsStatusSuite struct {
 }
 
 func TestWindowsStatusSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *windowsStatusSuite) TestStatusHostname() {
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	resourceID := metadata.Get("instance-id")
 
 	status := v.Env().Agent.Client.Status()

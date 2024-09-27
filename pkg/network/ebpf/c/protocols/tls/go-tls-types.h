@@ -33,6 +33,7 @@ typedef struct {
 typedef struct {
     __u64 tls_conn_inner_conn_offset;
     __u64 tcp_conn_inner_conn_offset;
+    __u64 limited_conn_inner_conn_offset;
     __u64 conn_fd_offset;
     __u64 net_fd_pfd_offset;
     __u64 fd_sysfd_offset;

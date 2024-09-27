@@ -19,13 +19,13 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'trace-agent' command.
-func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Command { //nolint:revive // TODO fix revive unused-parameter
+func Commands(_ func() *subcommands.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{
 		Use:     "start-service",
 		Aliases: []string{"startservice"},
 		Short:   "starts the agent within the service control manager",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(controlsvc.StartService)
 		},
 	}
@@ -36,7 +36,7 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		Aliases: []string{"stopservice"},
 		Short:   "stops the agent within the service control manager",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(controlsvc.StopService)
 		},
 	}
@@ -47,7 +47,7 @@ func Commands(globalParamsGetter func() *subcommands.GlobalParams) []*cobra.Comm
 		Aliases: []string{"restartservice"},
 		Short:   "restarts the agent within the service control manager",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(controlsvc.RestartService)
 		},
 	}

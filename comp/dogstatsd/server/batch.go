@@ -12,8 +12,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/twmb/murmur3"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -48,8 +52,8 @@ type batcher struct {
 	demux aggregator.Demultiplexer
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
-	tagsBuffer    *tagset.HashingTagsAccumulator
-	keyGenerator  *ckey.KeyGenerator
+	shardGenerator shardKeyGenerator
+
 	pipelineCount int
 	// the batcher has to know if the no-aggregation pipeline is enabled or not:
 	// in the case of the no agg pipeline disabled, it would send them as usual to
@@ -58,6 +62,49 @@ type batcher struct {
 	// the batcher can decide to properly distribute these samples on the available
 	// pipelines.
 	noAggPipelineEnabled bool
+
+	// telemetry
+	tlmChannel telemetry.Histogram
+}
+
+type shardKeyGenerator interface {
+	Generate(sample metrics.MetricSample, shards int) uint32
+}
+
+type shardKeyGeneratorBase struct {
+	keyGenerator *ckey.KeyGenerator
+	tagsBuffer   *tagset.HashingTagsAccumulator
+}
+
+func (s *shardKeyGeneratorBase) Generate(sample metrics.MetricSample, shards int) uint32 {
+	// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
+	// it in the sample?) would reduce CPU usage, avoiding to recompute
+	// the tags hashes while generating the context key.
+	s.tagsBuffer.Append(sample.Tags...)
+	h := s.keyGenerator.Generate(sample.Name, sample.Host, s.tagsBuffer)
+	s.tagsBuffer.Reset()
+	return fastrange(h, shards)
+}
+
+type shardKeyGeneratorPerOrigin struct {
+	shardKeyGeneratorBase
+}
+
+func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shards int) uint32 {
+	// We fall back on the generic sharding if:
+	// - the sample has a custom cardinality
+	// - we don't have the origin
+	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.ContainerIDFromSocket == "" && sample.OriginInfo.PodUID == "" && sample.OriginInfo.ContainerID == "") {
+		return s.shardKeyGeneratorBase.Generate(sample, shards)
+	}
+
+	// Otherwise, we isolate the samples based on the origin.
+	i, j := uint64(0), uint64(0)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.PodUID)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerID)
+	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.ContainerIDFromSocket)
+
+	return fastrange(ckey.ContextKey(i), shards)
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -73,7 +120,7 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
 }
 
-func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
+func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemetry.Histogram) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	var e chan []*event.Event
@@ -105,16 +152,35 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		choutEvents:        e,
 		choutServiceChecks: sc,
 
-		demux:         demux,
-		pipelineCount: pipelineCount,
-		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
-		keyGenerator:  ckey.NewKeyGenerator(),
+		demux:          demux,
+		pipelineCount:  pipelineCount,
+		shardGenerator: getShardGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
+		tlmChannel:           tlmChannel,
 	}
 }
 
-func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
+func getShardGenerator() shardKeyGenerator {
+	isolated := pkgconfigsetup.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
+
+	base := shardKeyGeneratorBase{
+		keyGenerator: ckey.NewKeyGenerator(),
+		tagsBuffer:   tagset.NewHashingTagsAccumulator(),
+	}
+
+	var g shardKeyGenerator
+	if isolated {
+		g = &shardKeyGeneratorPerOrigin{
+			shardKeyGeneratorBase: base,
+		}
+	} else {
+		g = &base
+	}
+	return g
+}
+
+func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.Histogram) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 	samples := make([]metrics.MetricSampleBatch, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
@@ -134,10 +200,10 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 		samplesWithTsCount: samplesWithTsCount,
 		metricSamplePool:   demux.GetMetricSamplePool(),
 
-		demux:         demux,
-		pipelineCount: pipelineCount,
-		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
-		keyGenerator:  ckey.NewKeyGenerator(),
+		demux:          demux,
+		pipelineCount:  pipelineCount,
+		shardGenerator: getShardGenerator(),
+		tlmChannel:     tlmChannel,
 	}
 }
 
@@ -147,15 +213,7 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 func (b *batcher) appendSample(sample metrics.MetricSample) {
 	var shardKey uint32
 	if b.pipelineCount > 1 {
-		// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
-		// it in the sample?) would reduce CPU usage, avoiding to recompute
-		// the tags hashes while generating the context key.
-		b.tagsBuffer.Append(sample.Tags...)
-		// TODO: for better isolation we might want an option to user listenerID or origin here.
-		// TODO: shuffle-sharding might be interesting too
-		h := b.keyGenerator.Generate(sample.Name, sample.Host, b.tagsBuffer)
-		b.tagsBuffer.Reset()
-		shardKey = fastrange(h, b.pipelineCount)
+		shardKey = b.shardGenerator.Generate(sample, b.pipelineCount)
 	}
 
 	if b.samplesCount[shardKey] >= len(b.samples[shardKey]) {
@@ -198,7 +256,7 @@ func (b *batcher) flushSamples(shard uint32) {
 		t1 := time.Now()
 		b.demux.AggregateSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "metrics")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "metrics")
 
 		b.samplesCount[shard] = 0
 		b.samples[shard] = b.metricSamplePool.GetBatch()
@@ -210,7 +268,7 @@ func (b *batcher) flushSamplesWithTs() {
 		t1 := time.Now()
 		b.demux.SendSamplesWithoutAggregation(b.samplesWithTs[:b.samplesWithTsCount])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "late_metrics")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "late_metrics")
 
 		b.samplesWithTsCount = 0
 		b.samplesWithTs = b.metricSamplePool.GetBatch()
@@ -232,7 +290,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
 
 		b.events = []*event.Event{}
 	}
@@ -242,7 +300,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
 
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}

@@ -29,7 +29,7 @@ func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: `exec.file.path != "" && process.parent.pid == 0`,
+		Expression: `exec.file.path != "" && process.parent.pid == 0 && process.ppid == 0`,
 		Every:      time.Duration(math.MaxInt64),
 	}
 }

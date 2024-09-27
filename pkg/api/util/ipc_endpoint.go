@@ -59,8 +59,11 @@ func (end *IPCEndpoint) DoGet(options ...GetOption) ([]byte, error) {
 		if errStr, found := errMap["error"]; found {
 			return nil, errors.New(errStr)
 		}
-
-		return nil, fmt.Errorf("could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+		netErr := new(net.OpError)
+		if errors.As(err, &netErr) {
+			return nil, fmt.Errorf("could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
+		}
+		return nil, err
 	}
 	return res, err
 }

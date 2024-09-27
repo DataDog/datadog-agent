@@ -741,37 +741,69 @@ properties:
             - list
             - watch
           - apiGroups:
-              - datadoghq.com
+            - datadoghq.com
             resources:
-              - datadogslos
+            - datadogslos
             verbs:
-              - create
-              - delete
-              - get
-              - list
-              - patch
-              - update
-              - watch
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+            - watch
           - apiGroups:
-              - datadoghq.com
+            - datadoghq.com
             resources:
-              - datadogslos/finalizers
+            - datadogslos/finalizers
             verbs:
-              - create
-              - delete
-              - get
-              - list
-              - patch
-              - update
-              - watch
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+            - watch
           - apiGroups:
-              - datadoghq.com
+            - datadoghq.com
             resources:
-              - datadogslos/status
+            - datadogslos/status
             verbs:
-              - get
-              - patch
-              - update
+            - get
+            - patch
+            - update
+          - apiGroups:
+            - datadoghq.com
+            resources:
+            - datadogagentprofiles
+            verbs:
+            - create
+            - delete
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - datadoghq.com
+            resources:
+            - datadogagentprofiles/status
+            verbs:
+            - get
+            - patch
+            - update
+          - apiGroups:
+            - datadoghq.com
+            resources:
+            - datadogagentprofiles/finalizers
+            verbs:
+            - update
+          - apiGroups:
+            - ""
+            resources:
+            - pods/exec
+            verbs:
+            - create
 required:
 - name
 - namespace

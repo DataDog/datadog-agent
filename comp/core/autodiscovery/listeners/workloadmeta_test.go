@@ -14,8 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,7 +37,7 @@ type testWorkloadmetaListener struct {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *testWorkloadmetaListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
 	panic("not implemented")
 }
 
@@ -84,11 +88,13 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
-	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle(),
+	w := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	return &testWorkloadmetaListener{

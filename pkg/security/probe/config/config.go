@@ -14,7 +14,8 @@ import (
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +27,7 @@ const (
 )
 
 func setEnv() {
-	if coreconfig.IsContainerized() && filesystem.FileExists("/host") {
+	if env.IsContainerized() && filesystem.FileExists("/host") {
 		if v := os.Getenv("HOST_PROC"); v == "" {
 			os.Setenv("HOST_PROC", "/host/proc")
 		}
@@ -128,6 +129,8 @@ type Config struct {
 
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
+	// NetworkIngressEnabled defines if the network ingress probes should be activated
+	NetworkIngressEnabled bool
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
@@ -138,7 +141,7 @@ type Config struct {
 
 // NewConfig returns a new Config object
 func NewConfig() (*Config, error) {
-	sysconfig.Adjust(coreconfig.SystemProbe)
+	sysconfig.Adjust(pkgconfigsetup.SystemProbe())
 
 	setEnv()
 
@@ -165,12 +168,13 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:         getEventStreamFentryValue(),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
+		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 
 		// event server
-		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
-		EventServerBurst: coreconfig.SystemProbe.GetInt(join(evNS, "event_server.burst")),
+		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
+		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
@@ -263,41 +267,41 @@ func getAllKeys(key string) (string, string) {
 
 func isSet(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return coreconfig.SystemProbe.IsSet(deprecatedKey) || coreconfig.SystemProbe.IsSet(newKey)
+	return pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) || pkgconfigsetup.SystemProbe().IsSet(newKey)
 }
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetBool(deprecatedKey)
+		return pkgconfigsetup.SystemProbe().GetBool(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetBool(newKey)
+	return pkgconfigsetup.SystemProbe().GetBool(newKey)
 }
 
 func getInt(key string) int {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetInt(deprecatedKey)
+		return pkgconfigsetup.SystemProbe().GetInt(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetInt(newKey)
+	return pkgconfigsetup.SystemProbe().GetInt(newKey)
 }
 
 func getString(key string) string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetString(deprecatedKey)
+		return pkgconfigsetup.SystemProbe().GetString(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetString(newKey)
+	return pkgconfigsetup.SystemProbe().GetString(newKey)
 }
 
 func getStringSlice(key string) []string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if pkgconfigsetup.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetStringSlice(deprecatedKey)
+		return pkgconfigsetup.SystemProbe().GetStringSlice(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetStringSlice(newKey)
+	return pkgconfigsetup.SystemProbe().GetStringSlice(newKey)
 }

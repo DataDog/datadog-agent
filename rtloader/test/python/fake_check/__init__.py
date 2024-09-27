@@ -2,6 +2,7 @@ from datadog_checks.base.checks import AgentCheck
 
 was_canceled = False
 
+
 # Fake check for testing purposes
 class FakeCheck(AgentCheck):
     def cancel(self):

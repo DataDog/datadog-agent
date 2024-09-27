@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -28,34 +29,13 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// stats holds the value of a verifier statistics and a regular expression
-// to parse it from the verifier log.
-type stat struct {
-	// `Value` must be exported to be settable
-	Value int
-	parse *regexp.Regexp
-}
-
-// Statistics represent that statistics exposed via
-// the eBPF verifier when  LogLevelStats is enabled
-type Statistics struct {
-	StackDepth                 stat `json:"stack_usage" kernel:"4.15"`
-	InstructionsProcessed      stat `json:"instruction_processed" kernel:"4.15"`
-	InstructionsProcessedLimit stat `json:"limit" kernel:"4.15"`
-	VerificationTime           stat `json:"verification_time" kernel:"5.2"`
-	MaxStatesPerInstruction    stat `json:"max_states_per_insn" kernel:"5.2"`
-	TotalStates                stat `json:"total_states" kernel:"5.2"`
-	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
-}
-
 var (
-	stackUsage       = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
-	verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
-	insnProcessed    = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
-	insnLimit        = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
-	maxStates        = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
-	totalStates      = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
-	peakStates       = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+	stackUsage    = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
+	insnProcessed = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
+	insnLimit     = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
+	maxStates     = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
+	totalStates   = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
+	peakStates    = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
 )
 
 func isCOREAsset(path string) bool {
@@ -63,8 +43,8 @@ func isCOREAsset(path string) bool {
 }
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
-// map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string, filterPrograms []*regexp.Regexp) (map[string]*Statistics, map[string]struct{}, error) {
+// map of all programs and their Statistics, and a map of their detailed complexity info (only filled if DetailedComplexity is true)
+func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
@@ -74,37 +54,43 @@ func BuildVerifierStats(objectFiles []string, filterPrograms []*regexp.Regexp) (
 	}
 
 	failedToLoad := make(map[string]struct{})
-	stats := make(map[string]*Statistics)
-	for _, file := range objectFiles {
+	results := &StatsResult{
+		Stats:           make(map[string]*Statistics),
+		Complexity:      make(map[string]*ComplexityInfo),
+		FuncsPerSection: make(map[string]map[string][]string),
+	}
+
+	for _, file := range opts.ObjectFiles {
 		if !isCOREAsset(file) {
 			bc, err := os.Open(file)
 			if err != nil {
-				return nil, nil, fmt.Errorf("couldn't open asset: %v", err)
+				return nil, nil, fmt.Errorf("couldn't open asset %s: %v", file, err)
 			}
 			defer bc.Close()
 
-			if err := generateLoadFunction(file, filterPrograms, stats, failedToLoad)(bc, manager.Options{}); err != nil {
-				return nil, nil, fmt.Errorf("failed to load non-core asset: %w", err)
+			if err := generateLoadFunction(file, opts, results, failedToLoad)(bc, manager.Options{}); err != nil {
+				return nil, nil, fmt.Errorf("failed to load non-core asset %s: %w", file, err)
 			}
 
 			continue
 		}
 
-		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, filterPrograms, stats, failedToLoad)); err != nil {
-			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
+		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, opts, results, failedToLoad)); err != nil {
+			return nil, nil, fmt.Errorf("failed to load core asset %s: %w", file, err)
 		}
 	}
 
-	return stats, failedToLoad, nil
+	return results, failedToLoad, nil
 }
 
-func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
+func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
 		if err != nil {
 			return fmt.Errorf("failed to get host kernel version: %w", err)
 		}
 
+		log.Printf("Loading asset %s\n", file)
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %v", err)
@@ -135,22 +121,38 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 			}
 		}
 
-		opts := ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogLevel:    ebpf.LogLevelStats,
-				LogSize:     10 * 1024 * 1024,
-				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
-			},
+		progOpts := ebpf.ProgramOptions{
+			LogLevel:    ebpf.LogLevelStats,
+			KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 		}
 
+		if opts.DetailedComplexity {
+			// We need the full instruction-level verifier log if we want to calculate complexity
+			// for each line
+			progOpts.LogLevel |= ebpf.LogLevelInstruction
+		}
+
+		collOpts := ebpf.CollectionOptions{
+			Programs: progOpts,
+		}
+
+		var sourceMap map[string]map[int]*SourceLine
+		var funcsPerSect map[string][]string
 		objectFileName := strings.ReplaceAll(
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
-		for _, progSpec := range collectionSpec.Programs {
 
-			if len(filterPrograms) > 0 {
+		if opts.DetailedComplexity {
+			sourceMap, funcsPerSect, err = getSourceMap(file, collectionSpec)
+			if err != nil {
+				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
+			}
+			results.FuncsPerSection[objectFileName] = funcsPerSect
+		}
+		for _, progSpec := range collectionSpec.Programs {
+			if len(opts.FilterPrograms) > 0 {
 				found := false
-				for _, filter := range filterPrograms {
+				for _, filter := range opts.FilterPrograms {
 					if filter.FindString(progSpec.Name) != "" {
 						found = true
 						break
@@ -160,6 +162,7 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 					continue
 				}
 			}
+			log.Printf("Loading program %s\n", progSpec.Name)
 
 			prog := reflect.New(
 				reflect.StructOf([]reflect.StructField{
@@ -170,7 +173,7 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 					},
 				}),
 			)
-			err = collectionSpec.LoadAndAssign(prog.Elem().Addr().Interface(), &opts)
+			err = collectionSpec.LoadAndAssign(prog.Elem().Addr().Interface(), &collOpts)
 			if err != nil {
 				log.Printf("failed to load and assign ebpf.Program in file %s: %v", objectFileName, err)
 				failedToLoad[fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)] = struct{}{}
@@ -194,18 +197,57 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 				switch field.Type() {
 				case reflect.TypeOf((*ebpf.Program)(nil)):
 					p := field.Interface().(*ebpf.Program)
-					stat, err := unmarshalStatistics(p.VerifierLog, kversion)
+					vlog := p.VerifierLog
 					// All unassigned programs and maps are cleaned up by the ebpf loader: https://github.com/cilium/ebpf/blob/main/collection.go#L439
 					// We only need to take care to cleanup assigned programs.
 					p.Close()
+
+					if opts.VerifierLogsDir != "" {
+						logFileName := fmt.Sprintf("%s_%s.ebpfvlog", objectFileName, progSpec.Name)
+						logPath := filepath.Join(opts.VerifierLogsDir, logFileName)
+						if err = os.WriteFile(logPath, []byte(vlog), 0644); err != nil {
+							return fmt.Errorf("failed to write verifier log to %s for program %s: %w", logPath, progSpec.Name, err)
+						}
+					}
+
+					stat, err := unmarshalStatistics(vlog, kversion)
 					if err != nil {
 						return fmt.Errorf("failed to unmarshal verifier log for program %s: %w", progSpec.Name, err)
 					}
-					stats[fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)] = stat
+					progName := fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)
+					results.Stats[progName] = stat
+
+					if opts.DetailedComplexity {
+						progSourceMap := sourceMap[progSpec.Name]
+						if progSourceMap == nil {
+							log.Printf("No source map found for program %s\n", progSpec.Name)
+						}
+						vlp := newVerifierLogParser(progSourceMap)
+						if vlp == nil {
+							return fmt.Errorf("failed to create verifier log parser for program %s", progSpec.Name)
+						}
+
+						compl, err := vlp.parseVerifierLog(vlog)
+						if err != nil {
+							return fmt.Errorf("failed to unmarshal complexity info for program %s: %w", progSpec.Name, err)
+						}
+						results.Complexity[progName] = compl
+					}
+
+					// Set to empty string to avoid the GC from keeping the verifier log in memory
+					p.VerifierLog = ""
 				default:
 					return fmt.Errorf("Unexpected type %T", field)
 				}
 			}
+
+			// After each program, force Go to release as much memory as possible
+			// With line-complexity enabled, each program allocates a 1GB buffer for the
+			// verifier log, which means that the memory footprint of the program can get
+			// quite large before the garbage collector kicks in and releases memory to the OS.
+			// This causes out-of-memory errors in CI specially, which an environment with higher memory
+			// restrictions and multiple programs running in different VMs.
+			debug.FreeOSMemory()
 		}
 
 		return nil
@@ -219,7 +261,6 @@ type structField struct {
 
 func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics, error) {
 	v := Statistics{
-		VerificationTime:           stat{parse: verificationTime},
 		StackDepth:                 stat{parse: stackUsage},
 		InstructionsProcessed:      stat{parse: insnProcessed},
 		InstructionsProcessedLimit: stat{parse: insnLimit},
@@ -234,6 +275,9 @@ func unmarshalStatistics(output string, hostVersion kernel.Version) (*Statistics
 	statsType := statsValue.Type()
 	for i := 0; i < statsType.NumField(); i++ {
 		field := structField{statsType.Field(i), statsValue.Field(i)}
+		if field.Name == "Complexity" {
+			continue
+		}
 		version := field.Tag.Get("kernel")
 		if version == "" {
 			return nil, fmt.Errorf("field %s not tagged with kernel version", field.Name)

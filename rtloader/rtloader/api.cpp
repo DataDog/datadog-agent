@@ -512,6 +512,11 @@ void set_get_hostname_cb(rtloader_t *rtloader, cb_get_hostname_t cb)
     AS_TYPE(RtLoader, rtloader)->setGetHostnameCb(cb);
 }
 
+void set_get_host_tags_cb(rtloader_t *rtloader, cb_get_host_tags_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setGetHostTagsCb(cb);
+}
+
 void set_get_clustername_cb(rtloader_t *rtloader, cb_get_clustername_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetClusternameCb(cb);
@@ -525,6 +530,11 @@ void set_tracemalloc_enabled_cb(rtloader_t *rtloader, cb_tracemalloc_enabled_t c
 void set_log_cb(rtloader_t *rtloader, cb_log_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setLogCb(cb);
+}
+
+void set_send_log_cb(rtloader_t *rtloader, cb_send_log_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSendLogCb(cb);
 }
 
 void set_set_check_metadata_cb(rtloader_t *rtloader, cb_set_check_metadata_t cb)
@@ -570,6 +580,11 @@ void set_obfuscate_sql_exec_plan_cb(rtloader_t *rtloader, cb_obfuscate_sql_exec_
 void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_time_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
+}
+
+void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_string_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateMongoDBStringCb(cb);
 }
 
 /*

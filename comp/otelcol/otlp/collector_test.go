@@ -13,23 +13,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/otelcol"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
 func TestGetComponents(t *testing.T) {
-	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	// No duplicate component
 	require.NoError(t, err)
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -54,24 +60,27 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert.ErrorContains(t, p.Run(ctx), expected)
+	pipelineError := p.Run(ctx)
+	assert.ErrorContains(t, pipelineError, expected)
 }
 
 func TestStartPipeline(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
 	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {
@@ -95,7 +104,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "error decoding 'receivers': error reading configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+			err:  "'protocols' has invalid keys: htttp",
 		},
 	}
 

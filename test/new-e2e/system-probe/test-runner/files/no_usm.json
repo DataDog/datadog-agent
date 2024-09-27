@@ -1,0 +1,8 @@
+{
+    "pkg/network/usm": {
+        "exclude": true
+    },
+    "*": {
+        "exclude": false
+    }
+}

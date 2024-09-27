@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -118,8 +118,19 @@ func NewListenerConfig() (ListenerConfig, error) {
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
 	snmpConfig.CollectTopology = true
-	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
-		return snmpConfig, err
+
+	if pkgconfigsetup.Datadog().IsSet("network_devices.autodiscovery") {
+		err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery", &snmpConfig, opt)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else if pkgconfigsetup.Datadog().IsSet("snmp_listener") {
+		err := pkgconfigsetup.Datadog().UnmarshalKey("snmp_listener", &snmpConfig, opt)
+		if err != nil {
+			return snmpConfig, err
+		}
+	} else {
+		return snmpConfig, errors.New("no config given for snmp_listener")
 	}
 
 	if snmpConfig.AllowedFailures == 0 && snmpConfig.AllowedFailuresLegacy != 0 {
@@ -171,7 +182,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.PingConfig.Timeout = firstNonNil(config.PingConfig.Timeout, snmpConfig.PingConfig.Timeout)
 		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
 
-		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog.GetString("network_devices.namespace"))
+		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, pkgconfigsetup.Datadog().GetString("network_devices.namespace"))
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
 		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)

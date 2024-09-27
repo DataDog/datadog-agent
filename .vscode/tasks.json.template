@@ -28,7 +28,7 @@
         },
         {
             "label": "go linters",
-            "command": "invoke -e lint-go",
+            "command": "invoke -e linter.go",
             "args": [],
             "type": "shell",
             "problemMatcher": []

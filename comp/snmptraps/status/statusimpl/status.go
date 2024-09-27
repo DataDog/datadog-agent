@@ -113,7 +113,7 @@ func (p Provider) populateStatus() map[string]interface{} {
 	return stats
 }
 
-func getDroppedPackets() int64 {
+func getDroppedPackets() float64 {
 	aggregatorMetrics, ok := expvar.Get("aggregator").(*expvar.Map)
 	if !ok {
 		return 0
@@ -128,7 +128,7 @@ func getDroppedPackets() int64 {
 	if !ok {
 		return 0
 	}
-	return droppedPackets.Value()
+	return float64(droppedPackets.Value())
 }
 
 // GetStatus returns key-value data for use in status reporting of the traps server.

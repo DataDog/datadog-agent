@@ -13,13 +13,14 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -58,12 +59,13 @@ var (
 // ContainerProvider defines the interface for a container metrics provider
 type ContainerProvider interface {
 	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
+	GetPidToCid(cacheValidity time.Duration) map[int]string
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
-func GetSharedContainerProvider() ContainerProvider {
+func GetSharedContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	initContainerProvider.Do(func() {
-		sharedContainerProvider = NewDefaultContainerProvider()
+		sharedContainerProvider = NewDefaultContainerProvider(wmeta)
 	})
 	return sharedContainerProvider
 }
@@ -85,14 +87,14 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider() ContainerProvider {
+func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
+	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter)
 }
 
 // GetContainers returns containers found on the machine
@@ -117,8 +119,8 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		entityID := containers.BuildTaggerEntityName(container.ID)
-		tags, err := tagger.Tag(entityID, collectors.HighCardinality)
+		entityID := types.NewEntityID(types.ContainerID, container.ID).String()
+		tags, err := tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 		}
@@ -127,15 +129,17 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled
 		processContainer := &model.Container{
-			Type:      convertContainerRuntime(container.Runtime),
-			Id:        container.ID,
-			Started:   container.State.StartedAt.Unix(),
-			Created:   container.State.CreatedAt.Unix(),
-			Tags:      tags,
-			State:     convertContainerStatus(container.State.Status),
-			Health:    convertHealthStatus(container.State.Health),
-			Addresses: computeContainerAddrs(container),
+			Type:       convertContainerRuntime(container.Runtime),
+			Id:         container.ID,
+			Started:    container.State.StartedAt.Unix(),
+			Created:    container.State.CreatedAt.Unix(),
+			Tags:       tags,
+			State:      convertContainerStatus(container.State.Status),
+			Health:     convertHealthStatus(container.State.Health),
+			Addresses:  computeContainerAddrs(container),
+			RepoDigest: container.Image.RepoDigest,
 		}
+
 		// Always adding container if we have metadata as we do want to report containers without stats
 		processContainers = append(processContainers, processContainer)
 
@@ -183,6 +187,43 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	}
 
 	return processContainers, rateStats, pidToCid, nil
+}
+
+// GetPidToCid returns containers found on the machine
+func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]string {
+	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	pidToCid := make(map[int]string)
+	for _, container := range containersMetadata {
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
+
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+			continue
+		}
+
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
+		if collector == nil {
+			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
+			continue
+		}
+
+		// Building PID to CID mapping for NPM and Language Detection
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
+		if err == nil && pids != nil {
+			for _, pid := range pids {
+				pidToCid[pid] = container.ID
+			}
+		} else {
+			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
+		}
+	}
+
+	return pidToCid
 }
 
 func computeContainerStats(container *workloadmeta.Container, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {

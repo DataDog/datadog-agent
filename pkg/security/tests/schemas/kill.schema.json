@@ -1,0 +1,62 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kill.json",
+    "type": "object",
+    "properties": {
+        "type": {
+            "type": "string"
+        },
+        "signal": {
+            "type": "string"
+        },
+        "scope": {
+            "type": "string"
+        },
+        "created_at": {
+            "$ref": "/schemas/datetime.json"
+        },
+        "detected_at": {
+            "$ref": "/schemas/datetime.json"
+        },
+        "killed_at": {
+            "$ref": "/schemas/datetime.json"
+        },
+        "exited_at": {
+            "$ref": "/schemas/datetime.json"
+        },
+        "ttr": {
+            "type": "string"
+        }
+    },
+    "anyOf": [
+        {
+            "properties": {
+                "signal": {
+                    "const": "SIGKILL"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "created_at",
+                "detected_at",
+                "killed_at",
+                "exited_at"
+            ]
+        },
+        {
+            "properties": {
+                "signal": {
+                    "const": "SIGUSR2"
+                }
+            },
+            "required": [
+                "type",
+                "signal",
+                "created_at",
+                "detected_at",
+                "killed_at"
+            ]
+        }
+    ]
+}

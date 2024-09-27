@@ -20,7 +20,7 @@ if ohai['platform'] == "windows"
   install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent'
+  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
@@ -61,9 +61,6 @@ package :zip do
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
   ]
-  if ENV['SIGN_PFX']
-    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-  end
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true
   end

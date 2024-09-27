@@ -2,7 +2,6 @@ param (
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$false)][string]$md5sum,
     [Parameter(Mandatory=$false)][string]$OutDir,
-    [Parameter(Mandatory=$false)][switch]$x86
 )
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.amd64.msi
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.msi
@@ -30,20 +29,10 @@ function Get-Installer-Url {
         exit 1
     }
 
-    if ($x86 -eq $true) {
-        if ($maj -eq "2") {
-            $url = "https://www.python.org/ftp/python/$Version/python-$Version.msi"
-        } elseif ($maj -eq "3"){
-            $url = "https://www.python.org/ftp/python/$Version/python-$Version.exe"
-        }
-    }
     return $url
 }
 
 $outzip = "python-windows-$Version-amd64.zip"
-if ($x86 -eq $true) {
-    $outzip = "python-windows-$Version-x86.zip"
-}
 $url = Get-Installer-Url -version $version
 $dlfilename = ($url -split '/')[-1]
 $dlfullpath = "$Env:TEMP\$dlfilename"

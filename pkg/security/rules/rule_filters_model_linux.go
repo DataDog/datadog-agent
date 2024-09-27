@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -20,16 +21,18 @@ import (
 type RuleFilterEvent struct {
 	*kernel.Version
 	origin string
+	cfg    *config.Config
 }
 
 // RuleFilterModel defines a filter model
 type RuleFilterModel struct {
 	*kernel.Version
 	origin string
+	cfg    *config.Config
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
+func NewRuleFilterModel(cfg *config.Config, origin string) (*RuleFilterModel, error) {
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
 		return nil, err
@@ -37,6 +40,7 @@ func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
 		Version: kv,
 		origin:  origin,
+		cfg:     cfg,
 	}, nil
 }
 
@@ -45,6 +49,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 	return &RuleFilterEvent{
 		Version: m.Version,
 		origin:  m.origin,
+		cfg:     m.cfg,
 	}
 }
 
@@ -108,7 +113,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 		}, nil
 	case "os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
 			Field:   field,
 		}, nil
 	case "os.id":
@@ -189,6 +194,19 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 			Value: m.origin,
 			Field: field,
 		}, nil
+	case "hostname":
+		return &eval.StringEvaluator{
+			Value: getHostname(),
+			Field: field,
+		}, nil
+	case "kernel.core.enabled":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				revt := ctx.Event.(*RuleFilterEvent)
+				return revt.cfg != nil && revt.cfg.Probe.EnableCORE && revt.SupportCORE()
+			},
+			Field: field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -256,6 +274,10 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return os.Environ(), nil
 	case "origin":
 		return e.origin, nil
+	case "hostname":
+		return getHostname(), nil
+	case "kernel.core.enabled":
+		return e.cfg != nil && e.cfg.Probe.EnableCORE && e.SupportCORE(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

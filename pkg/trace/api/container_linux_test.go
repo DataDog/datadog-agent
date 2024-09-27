@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -81,19 +82,28 @@ func TestConnContext(t *testing.T) {
 func TestGetContainerID(t *testing.T) {
 	const containerID = "abcdef"
 	const containerPID = 1234
-	const containerInode = "in-4242"
+	const containerInode = "4242"
+
+	// LocalData header prefixes
+	const (
+		legacyContainerIDPrefix = "cid-"
+		containerIDPrefix       = "ci-"
+		inodePrefix             = "in-"
+	)
+
 	// fudge factor to ease testing, if our tests take over 24 hours we got bigger problems
 	timeFudgeFactor := 24 * time.Hour
 	c := NewCache(timeFudgeFactor)
 	c.Store(time.Now().Add(timeFudgeFactor), strconv.Itoa(containerPID), containerID, nil)
 	c.Store(time.Now().Add(timeFudgeFactor), containerInode, containerID, nil)
+
 	provider := &cgroupIDProvider{
 		procRoot:   "",
 		controller: "",
 		cache:      c,
 	}
 
-	t.Run("cid header", func(t *testing.T) {
+	t.Run("ContainerID header", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
@@ -102,35 +112,7 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("cid header and wrong eid header", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://example.com", nil)
-		if !assert.NoError(t, err) {
-			t.Fail()
-		}
-		req.Header.Add(header.ContainerID, containerID)
-		req.Header.Add(header.EntityID, "in-2321")
-		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	})
-
-	t.Run("entity header wrapping cid", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://example.com", nil)
-		if !assert.NoError(t, err) {
-			t.Fail()
-		}
-		req.Header.Add(header.EntityID, "cid-"+containerID)
-		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	})
-
-	t.Run("entity header wrapping correct inode", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "http://example.com", nil)
-		if !assert.NoError(t, err) {
-			t.Fail()
-		}
-		req.Header.Add(header.EntityID, containerInode)
-		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	})
-
-	t.Run("cid header-cred", func(t *testing.T) {
+	t.Run("ContainerID header with PID", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
@@ -140,17 +122,117 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("eid header wrapping cid + cred", func(t *testing.T) {
+	t.Run("ContainerID header with LocalData header", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.ContainerID, containerID)
+		req.Header.Add(header.LocalData, containerIDPrefix+containerID+","+inodePrefix+containerInode)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("ContainerID header with invalid LocalData header", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.ContainerID, containerID)
+		req.Header.Add(header.LocalData, containerIDPrefix+containerID+","+inodePrefix+containerInode)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("Invalid ContainerID header with LocalData header", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.ContainerID, "wrong_container_id")
+		req.Header.Add(header.LocalData, containerIDPrefix+containerID)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("LocalData header with old container ID format", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.LocalData, legacyContainerIDPrefix+containerID)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("LocalData header with new container ID format", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.LocalData, containerIDPrefix+containerID)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	t.Run("LocalData header with inode", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://example.com", nil)
+		if !assert.NoError(t, err) {
+			t.Fail()
+		}
+		req.Header.Add(header.LocalData, inodePrefix+containerInode)
+		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+	})
+
+	validLocalDataLists := []string{
+		containerIDPrefix + containerID + "," + containerInode + containerInode,
+		inodePrefix + containerInode + "," + containerIDPrefix + containerID,
+		containerIDPrefix + containerID + "," + inodePrefix,
+		inodePrefix + containerInode + "," + containerIDPrefix,
+		inodePrefix + "," + containerIDPrefix + containerID,
+		containerIDPrefix + "," + inodePrefix + containerInode,
+		containerIDPrefix + containerID + ",",
+		inodePrefix + containerInode + ",",
+		"," + containerIDPrefix + containerID,
+		"," + inodePrefix + containerInode,
+		"," + containerIDPrefix + containerID + ",",
+		"," + inodePrefix + containerInode + ",",
+	}
+	for index, validLocalDataList := range validLocalDataLists {
+		t.Run(fmt.Sprintf("LocalData header as a list (%d/%d)", index, len(validLocalDataLists)), func(t *testing.T) {
+			req, err := http.NewRequest("GET", "http://example.com", nil)
+			if !assert.NoError(t, err) {
+				t.Fail()
+			}
+			req.Header.Add(header.LocalData, validLocalDataList)
+			assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
+		})
+	}
+
+	invalidLocalDataLists := []string{
+		"",
+		",",
+		containerIDPrefix + ",",
+		inodePrefix + ",",
+		containerIDPrefix + "," + inodePrefix,
+		"," + containerIDPrefix + "," + inodePrefix + ",",
+	}
+	for index, invalidLocalDataList := range invalidLocalDataLists {
+		t.Run(fmt.Sprintf("LocalData header as an invalid list (%d/%d)", index, len(invalidLocalDataLists)), func(t *testing.T) {
+			req, err := http.NewRequest("GET", "http://example.com", nil)
+			if !assert.NoError(t, err) {
+				t.Fail()
+			}
+			req.Header.Add(header.LocalData, invalidLocalDataList)
+			assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
+		})
+	}
+	t.Run("LocalData header with PID", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		req.Header.Add(header.EntityID, "cid-"+containerID)
+		req.Header.Add(header.LocalData, legacyContainerIDPrefix+containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("cred", func(t *testing.T) {
+	t.Run("No header with a PID", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
@@ -159,7 +241,7 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("badcred", func(t *testing.T) {
+	t.Run("No header with an invalid PID", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 2345})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
@@ -168,11 +250,72 @@ func TestGetContainerID(t *testing.T) {
 		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
 
-	t.Run("empty", func(t *testing.T) {
+	t.Run("No header with no PID", func(t *testing.T) {
 		req, err := http.NewRequest("GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
 		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
+}
+
+func BenchmarkUDSCred(b *testing.B) {
+	sockPath := "/tmp/test-trace.sock"
+	client := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", sockPath)
+			},
+		},
+	}
+
+	fi, err := os.Stat(sockPath)
+	if err == nil {
+		// already exists
+		if fi.Mode()&os.ModeSocket == 0 {
+			b.Fatalf("cannot reuse %q; not a unix socket", sockPath)
+		}
+		if err := os.Remove(sockPath); err != nil {
+			b.Fatalf("unable to remove stale socket: %v", err)
+		}
+	}
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		b.Fatalf("error listening on unix socket %s: %v", sockPath, err)
+	}
+	if err := os.Chmod(sockPath, 0o722); err != nil {
+		b.Fatalf("error setting socket permissions: %v", err)
+	}
+	ln = NewMeasuredListener(ln, "uds_connections", 10, &statsd.NoOpClient{})
+	defer ln.Close()
+
+	recvbuf := make([]byte, 1024*1024*10) // 10MiB
+	s := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ucred, ok := r.Context().Value(ucredKey{}).(*syscall.Ucred)
+			if !ok || ucred == nil {
+				b.Fatalf("Expected a unix credential but found nothing.")
+			}
+			// actually read the body, and respond afterwards, to force benchmarking of
+			// io over the socket.
+			io.ReadFull(r.Body, recvbuf)
+			io.WriteString(w, "OK")
+		}),
+		ConnContext: connContext,
+	}
+	go s.Serve(ln)
+
+	buf := make([]byte, 1024*1024*10) // 10MiB
+	for i := 0; i < b.N; i++ {
+		resp, err := client.Post("http://localhost:8126/v0.4/traces", "application/msgpack", bytes.NewReader(buf))
+		if err != nil {
+			b.Fatal(err)
+		}
+		// We don't read the response here to force a new connection for each request.
+		//io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			b.Fatalf("expected http.StatusOK, got response: %#v", resp)
+		}
+	}
 }

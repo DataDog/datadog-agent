@@ -9,6 +9,7 @@
 package injectcmd
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"os"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -43,7 +43,7 @@ func Command() []*cobra.Command {
 	injectCmd := &cobra.Command{
 		Use:   "inject",
 		Short: "Forwards the input user context to the CWS agent with eRPC",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return InjectUserSessionCmd(args, &params)
 		},
 	}
@@ -96,27 +96,27 @@ func injectUserSession(params *InjectCliParams) error {
 	if err != nil {
 		return fmt.Errorf("couldn't create eRPC client: %w", err)
 	}
+	defer client.Close()
 
 	// generate random ID for this session
 	id := (uint64(rand.Uint32()) << 32) + uint64(time.Now().Unix())
 
 	// send the user session to the CWS agent
 	cursor := 0
-	var segmentSize int
 	segmentCursor := uint8(1)
 	for cursor < len(params.Data) || (len(params.Data) == 0 && cursor == 0) {
 		req := erpc.NewERPCRequest(erpc.UserSessionContextOp)
 
-		native.Endian.PutUint64(req.Data[0:8], id)
+		binary.NativeEndian.PutUint64(req.Data[0:8], id)
 		req.Data[8] = segmentCursor
 		// padding
 		req.Data[16] = uint8(sessionType)
 
-		if erpc.ERPCDefaultDataSize-17 < len(params.Data)-cursor {
+		segmentSize := len(params.Data) - cursor
+		if erpc.ERPCDefaultDataSize-17 < segmentSize {
 			segmentSize = erpc.ERPCDefaultDataSize - 17
-		} else {
-			segmentSize = len(params.Data) - cursor
 		}
+
 		copy(req.Data[17:], params.Data[cursor:cursor+segmentSize])
 
 		// issue eRPC calls

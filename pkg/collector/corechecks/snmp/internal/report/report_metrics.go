@@ -13,10 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -49,7 +49,7 @@ func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []s
 }
 
 // ReportMetrics reports metrics using Sender
-func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string) {
+func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) {
 	scalarSamples := make(map[string]MetricSample)
 	columnSamples := make(map[string]map[string]MetricSample)
 
@@ -64,7 +64,7 @@ func (ms *MetricSender) ReportMetrics(metrics []profiledefinition.MetricsConfig,
 			}
 			scalarSamples[sample.symbol.Name] = sample
 		} else if metric.IsColumn() {
-			samples := ms.reportColumnMetrics(metric, values, tags)
+			samples := ms.reportColumnMetrics(metric, values, tags, deviceID)
 
 			for name, sampleRows := range samples {
 				if _, ok := EvaluatedSampleDependencies[name]; !ok {
@@ -112,7 +112,7 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 		return MetricSample{}, err
 	}
 
-	scalarTags := common.CopyStrings(tags)
+	scalarTags := utils.CopyStrings(tags)
 	scalarTags = append(scalarTags, metric.GetSymbolTags()...)
 	sample := MetricSample{
 		value:      value,
@@ -125,9 +125,10 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 	return sample, nil
 }
 
-func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
+func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string, deviceID string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
+
 	for _, symbol := range metricConfig.Symbols {
 		var metricValues map[string]valuestore.ResultValue
 
@@ -144,7 +145,7 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 		for fullIndex, value := range metricValues {
 			// cache row tags by fullIndex to avoid rebuilding it for every column rows
 			if _, ok := rowTagsCache[fullIndex]; !ok {
-				tmpTags := common.CopyStrings(tags)
+				tmpTags := utils.CopyStrings(tags)
 				tmpTags = append(tmpTags, metricConfig.StaticTags...)
 				tmpTags = append(tmpTags, getTagsFromMetricTagConfigList(metricConfig.MetricTags, fullIndex, values)...)
 				if isInterfaceTableMetric(symbol.OID) {
@@ -153,6 +154,8 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
 					}
 					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+
+					tmpTags = addInternalResourceTag(tmpTags, fmt.Sprintf("ndm_interface_user_tags:%s:%s", deviceID, fullIndex))
 				}
 				rowTagsCache[fullIndex] = tmpTags
 			}

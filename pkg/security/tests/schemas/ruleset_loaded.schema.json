@@ -18,7 +18,7 @@
         "date"
     ],
     "$defs": {
-        "policy": {
+        "policyinfo": {
             "type": "object",
             "properties": {
                 "source": {
@@ -35,7 +35,18 @@
                 },
                 "version": {
                     "type": "string"
-                },
+                }
+            },
+            "required": [
+                "source",
+                "name",
+                "version"
+            ]
+        },
+        "policy": {
+            "type": "object",
+            "allOf": [{ "$ref": "#/$defs/policyinfo" }],
+            "properties": {
                 "rules": {
                     "type": "array",
                     "items": {
@@ -44,9 +55,6 @@
                 }
             },
             "required": [
-                "source",
-                "name",
-                "version",
                 "rules"
             ]
         },
@@ -74,6 +82,24 @@
                 },
                 "message": {
                     "type": "string"
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/action"
+                    }
+                },
+                "modified_by": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/policyinfo"
+                    }
                 }
             },
             "required": [
@@ -81,6 +107,72 @@
                 "status",
                 "expression"
             ]
+        },
+        "action": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "type": "string"
+                },
+                "set": {
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "value": {
+                            "type":["string", "number", "object", "array", "boolean", "null"]
+                        },
+                        "field": {
+                            "type": "string"
+                        },
+                        "append": {
+                            "type": "boolean"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": ["process", "container"]
+                        }
+                    }
+                },
+                "kill": {
+                    "type": "object",
+                    "properties": {
+                        "signal": {
+                            "type": "string"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": ["process", "container"]
+                        }
+                    }
+                },
+                "hash": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "coredump": {
+                    "type": "object",
+                    "properties": {
+                        "process": {
+                            "type": "boolean"
+                        },
+                        "mount": {
+                            "type": "boolean"
+                        },
+                        "dentry": {
+                            "type": "boolean"
+                        },
+                        "no_compression": {
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
         }
     }
 }

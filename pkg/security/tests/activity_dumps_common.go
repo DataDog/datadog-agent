@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	testActivityDumpDuration             = time.Second * 30
+	testActivityDumpDuration             = time.Minute * 10
 	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
 

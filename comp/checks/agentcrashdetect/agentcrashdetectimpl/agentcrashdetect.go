@@ -104,8 +104,8 @@ func (c *WinCrashConfig) Parse(data []byte) error {
 }
 
 // Configure accepts the configuration
-func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := wcd.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := wcd.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (wcd *AgentCrashDetect) Run() error {
 	}
 
 	log.Infof("Sending crash: %v", formatText(crash))
-	lts := internaltelemetry.NewLogTelemetrySender(wcd.tconfig, "ddnpm", "go")
+	lts := internaltelemetry.NewClient(wcd.tconfig.NewHTTPClient(), wcd.tconfig.TelemetryConfig.Endpoints, "ddnpm", true)
 	lts.SendLog("WARN", formatText(crash))
 	return nil
 }
@@ -177,7 +177,7 @@ func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance := &agentCrashComponent{}
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(CheckName, optional.NewOption(func() check.Check {
 				checkInstance := &AgentCrashDetect{
 					CheckBase:   core.NewCheckBase(CheckName),

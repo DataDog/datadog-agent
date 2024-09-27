@@ -6,7 +6,7 @@ class Serverless(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
+            """
 # Setup
 
 Check if the latest Datadog Lambda Extension released has shipped some change from the release currently QAed. If so, validate that it is still capable of emitting logs, that they are visible in Datadog and correctly tagged.
@@ -23,7 +23,7 @@ class StreamLogs(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
+            """
 # Setup
 
 - start the agent

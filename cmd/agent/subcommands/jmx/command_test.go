@@ -77,7 +77,7 @@ func TestListEverythingCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "everything"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_everything", cliParams.command)
 		})
 }
@@ -87,7 +87,7 @@ func TestListMatchingCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "matching"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_matching_attributes", cliParams.command)
 		})
 }
@@ -97,7 +97,7 @@ func TestListWithRateMetricsCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "with-rate-metrics"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_with_rate_metrics", cliParams.command)
 		})
 }
@@ -107,7 +107,7 @@ func TestListLimitedCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "limited"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_limited_attributes", cliParams.command)
 		})
 }
@@ -117,7 +117,7 @@ func TestListCollectedCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "collected"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_collected_attributes", cliParams.command)
 		})
 }
@@ -127,7 +127,7 @@ func TestListNotMatchingCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"jmx", "list", "not-matching"},
 		runJmxCommandConsole,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.Equal(t, "list_not_matching_attributes", cliParams.command)
 		})
 }

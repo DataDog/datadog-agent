@@ -10,11 +10,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,6 +32,7 @@ type dependencies struct {
 
 	Config config.Component
 	Logger log.Component
+	Lc     fx.Lifecycle
 }
 
 type forwardersComp struct {
@@ -45,8 +46,8 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	config := deps.Config
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
-		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
-		queueBytes = ddconfig.DefaultProcessQueueBytes
+		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
+		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
 	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
@@ -64,19 +65,22 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts).Comp,
-		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
-		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
-		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
+		eventForwarder:       createForwarder(deps, eventForwarderOpts),
+		processForwarder:     createForwarder(deps, processForwarderOpts),
+		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
+		connectionsForwarder: createForwarder(deps, processForwarderOpts),
 	}, nil
-
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
+func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
+}
+
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) *defaultforwarder.Options {
 	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	return defaultforwarder.Params{Options: forwarderOpts}
+	return forwarderOpts
 }
 
 func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {

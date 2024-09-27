@@ -54,35 +54,6 @@ build do
     move 'bin/agent/dist/conf.d', '/etc/datadog-agent/'
     copy 'bin/agent', "#{install_dir}/bin/"
 
-    # Upstart
-    if debian_target?
-      erb source: "upstart_debian.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    elsif redhat_target? || suse_target?
-      # Ship a different upstart job definition on RHEL to accommodate the old
-      # version of upstart (0.6.5) that RHEL 6 provides.
-      erb source: "upstart_redhat.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-
-    # Systemd
-    if debian_target?
-      erb source: "systemd.service.erb",
-          dest: "/lib/systemd/system/datadog-agent.service",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    else
-      mkdir "/usr/lib/systemd/system/"
-      erb source: "systemd.service.erb",
-          dest: "/usr/lib/systemd/system/datadog-agent.service",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-
   end
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -91,7 +62,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --flavor iot --rebuild --no-development --arch #{platform} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
+    command "inv agent.build --flavor iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
@@ -100,7 +71,7 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+    command "invoke -e process-agent.build --major-version #{major_version_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
 
@@ -111,7 +82,7 @@ build do
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
       platform = windows_arch_i386? ? "x86" : "x64"
-      command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
+      command "invoke trace-agent.build --major-version #{major_version_arg}", :env => env
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end

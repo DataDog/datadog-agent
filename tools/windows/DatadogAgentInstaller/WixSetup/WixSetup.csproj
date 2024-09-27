@@ -25,7 +25,9 @@
     <PackageReference Include="WixSharp.bin" Version="1.20.3" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\AgentCustomActions\AgentCustomActions.csproj" />
     <ProjectReference Include="..\CustomActions\CustomActions.csproj" />
+    <ProjectReference Include="..\InstallerCustomActions\InstallerCustomActions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />

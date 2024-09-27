@@ -68,7 +68,11 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 		outputErr, _ = io.ReadAll(stderr)
 	}()
 
-	cmd.Start() //nolint:errcheck
+	err = cmd.Start()
+	if err != nil {
+		*exception = TrackedCString(fmt.Sprintf("internal error starting subprocess: %v", err))
+		return
+	}
 
 	// Wait for the pipes to be closed *before* waiting for the cmd to exit, as per os.exec docs
 	wg.Wait()

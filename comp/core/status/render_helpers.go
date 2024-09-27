@@ -21,6 +21,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
+	"github.com/spf13/cast"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -72,6 +73,7 @@ func TextFmap() ttemplate.FuncMap {
 			"lastErrorMessage":   lastErrorMessage,
 			"printDashes":        PrintDashes,
 			"formatUnixTime":     formatUnixTime,
+			"formatJSON":         formatJSON,
 			"humanize":           mkHuman,
 			"humanizeDuration":   mkHumanDuration,
 			"toUnsortedList":     toUnsortedList,
@@ -180,6 +182,15 @@ func formatUnixTime(unixTime any) string {
 	}
 }
 
+// formatJSON formats the given value as JSON. The indent parameter is used to indent the entire JSON output.
+func formatJSON(value interface{}, indent int) string {
+	b, err := json.MarshalIndent(value, strings.Repeat(" ", indent), "  ")
+	if err != nil {
+		return fmt.Sprintf("Error formatting JSON: %s", err)
+	}
+	return string(b)
+}
+
 // PrintDashes repeats the pattern (dash) for the length of s
 func PrintDashes(s string, dash string) string {
 	return strings.Repeat(dash, stringLength(s))
@@ -194,12 +205,13 @@ func toUnsortedList(s map[string]interface{}) string {
 }
 
 // mkHuman adds commas to large numbers to assist readability in status outputs
-func mkHuman(f float64) string {
-	return humanize.Commaf(f)
+func mkHuman(f interface{}) string {
+	return humanize.Commaf(cast.ToFloat64(f))
 }
 
 // mkHumanDuration makes time values more readable
-func mkHumanDuration(f float64, unit string) string {
+func mkHumanDuration(i interface{}, unit string) string {
+	f := cast.ToFloat64(i)
 	var duration time.Duration
 	if unit != "" {
 		duration, _ = time.ParseDuration(fmt.Sprintf("%f%s", f, unit))

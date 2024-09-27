@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import abc
 import json
 import os
 from collections import defaultdict
-from typing import Dict, List
+from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import running_in_ci
 from tasks.modules import DEFAULT_MODULES, GoModule
 
 
@@ -112,6 +116,9 @@ class ModuleTestResult(ModuleResult):
                     else:
                         for name in sorted(tests):
                             failure_string += f"- {package} {name}\n"
+
+                            if running_in_ci():
+                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
             else:
                 failure_string += "The test command failed, but no test failures detected in the result json."
 
@@ -119,7 +126,7 @@ class ModuleTestResult(ModuleResult):
 
 
 def test_core(
-    modules: List[GoModule],
+    modules: Iterable[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
@@ -144,15 +151,32 @@ def test_core(
             continue
 
         command(modules_results, module, module_result)
+
     return modules_results
 
 
-def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
+def process_input_args(
+    ctx,
+    input_module,
+    input_targets,
+    input_flavor,
+    headless_mode=False,
+    only_modified_packages=False,
+    build_tags=None,
+    lint=False,
+):
     """
-    Takes the input module, targets and flavors arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
-    if isinstance(input_module, str):
+    if only_modified_packages:
+        from tasks import get_modified_packages
+
+        if not build_tags:
+            build_tags = []
+
+        modules = get_modified_packages(ctx, build_tags, lint=lint)
+    elif isinstance(input_module, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
         if isinstance(input_targets, str):
@@ -166,35 +190,24 @@ def process_input_args(input_module, input_targets, input_flavors, headless_mode
             print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    if not input_flavors:
-        flavors = [AgentFlavor.base]
-    else:
-        flavors = [AgentFlavor[f] for f in input_flavors]
+    flavor = AgentFlavor.base
+    if input_flavor:
+        flavor = AgentFlavor[input_flavor]
 
-    return modules, flavors
+    return modules, flavor
 
 
-def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results):
     """
-    Expects results in the format:
-    {
-        "phase1": {
-            "flavor1": [module_result1, module_result2],
-            "flavor2": [module_result3, module_result4],
-        }
-    }
-
-    Prints failures, and returns False if at least one module failed in one phase.
+    Prints failures in module results, and returns False if at least one module failed.
     """
 
     success = True
-    for phase in module_results:
-        for flavor in module_results[phase]:
-            for module_result in module_results[phase][flavor]:
-                if module_result is not None:
-                    module_failed, failure_string = module_result.get_failure(flavor)
-                    success = success and (not module_failed)
-                    if module_failed:
-                        print(failure_string)
+    for module_result in module_results:
+        if module_result is not None:
+            module_failed, failure_string = module_result.get_failure(flavor)
+            success = success and (not module_failed)
+            if module_failed:
+                print(failure_string)
 
     return success

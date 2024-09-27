@@ -7,14 +7,21 @@ package installtest
 
 import (
 	"fmt"
+	"io/fs"
+	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -28,12 +35,7 @@ type Tester struct {
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
 
-	agentPackage      *windowsAgent.Package
-	installUser       string
-	isPreviousVersion bool
-
-	// Path to the MSI on the remote host, only available after install is run
-	remoteMSIPath string
+	agentPackage *windowsAgent.Package
 
 	expectedUserName   string
 	expectedUserDomain string
@@ -41,44 +43,29 @@ type Tester struct {
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
 
-	beforeInstallSystemDirListPath  string
-	afterUninstallSystemDirListPath string
+	expectedInstallPath string
+	expectedConfigRoot  string
 }
 
 // TesterOption is a function that can be used to configure a Tester
 type TesterOption func(*Tester)
 
 // NewTester creates a new Tester
-func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
+func NewTester(context e2e.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
 	t := &Tester{}
+	tt := context.T()
 
 	var err error
 
 	t.host = host
-	t.InstallTestClient = common.NewWindowsTestClient(tt, t.host)
 	t.hostInfo, err = windows.GetHostInfo(t.host)
 	if err != nil {
 		return nil, err
 	}
-	t.expectedUserName = "ddagentuser"
+	t.expectedUserName = windowsAgent.DefaultAgentUserName
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
-
-	t.beforeInstallSystemDirListPath = `C:\system-files-before-install.log`
-	t.afterUninstallSystemDirListPath = `C:\system-files-after-uninstall.log`
-
-	// If the system file snapshot doesn't exist, create it
-	snapshotExists, err := t.host.FileExists(t.beforeInstallSystemDirListPath)
-	if err != nil {
-		return nil, err
-	}
-	if !snapshotExists {
-		if !tt.Run("snapshot system files", func(tt *testing.T) {
-			err = t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
-			require.NoError(tt, err)
-		}) {
-			tt.FailNow()
-		}
-	}
+	t.expectedInstallPath = windowsAgent.DefaultInstallPath
+	t.expectedConfigRoot = windowsAgent.DefaultConfigRoot
 
 	for _, opt := range opts {
 		opt(t)
@@ -97,6 +84,18 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		tt.FailNow()
 	}
 
+	t.InstallTestClient = common.NewWindowsTestClient(context, t.host)
+	t.InstallTestClient.Helper = commonHelper.NewWindowsHelperWithCustomPaths(t.expectedInstallPath, t.expectedConfigRoot)
+	t.InstallTestClient.AgentClient, err = agentClient.NewHostAgentClientWithParams(
+		context,
+		t.host.HostOutput,
+		agentClientParams.WithSkipWaitForAgentReady(),
+		agentClientParams.WithAgentInstallPath(t.expectedInstallPath),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return t, nil
 }
 
@@ -109,18 +108,11 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 	}
 }
 
-// WithPreviousVersion sets the Tester to expect a previous version of the agent to be installed
-// and will not run all tests since expectations may have changed.
-func WithPreviousVersion() TesterOption {
+// WithExpectedAgentUserName sets the expected user name the agent should run as
+// the domain remains the default for the host.
+func WithExpectedAgentUserName(user string) TesterOption {
 	return func(t *Tester) {
-		t.isPreviousVersion = true
-	}
-}
-
-// WithInstallUser sets the user to install the agent as
-func WithInstallUser(user string) TesterOption {
-	return func(t *Tester) {
-		t.installUser = user
+		t.expectedUserName = user
 	}
 }
 
@@ -129,6 +121,20 @@ func WithExpectedAgentUser(domain string, user string) TesterOption {
 	return func(t *Tester) {
 		t.expectedUserDomain = domain
 		t.expectedUserName = user
+	}
+}
+
+// WithExpectedInstallPath sets the expected install path for the agent
+func WithExpectedInstallPath(path string) TesterOption {
+	return func(t *Tester) {
+		t.expectedInstallPath = path
+	}
+}
+
+// WithExpectedConfigRoot sets the expected config root for the agent
+func WithExpectedConfigRoot(path string) TesterOption {
+	return func(t *Tester) {
+		t.expectedConfigRoot = path
 	}
 }
 
@@ -148,31 +154,29 @@ func (t *Tester) ExpectCWS() bool {
 	return false
 }
 
-func (t *Tester) testDefaultPythonVersion(tt *testing.T) {
-	tt.Run("default python version", func(tt *testing.T) {
-		pythonVersion, err := t.InstallTestClient.GetPythonVersion()
-		if !assert.NoError(tt, err, "should get python version") {
-			return
-		}
-		majorPythonVersion := strings.Split(pythonVersion, ".")[0]
-
-		if t.ExpectPython2Installed() {
-			assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
-		} else {
-			assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
-		}
-	})
-}
-
-// TestRuntimeExpectations tests the runtime behavior of the agent
-func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
+// runTestsForKitchenCompat runs several tests that were copied over from the kitchen tests.
+// Many if not all of these should be independent E2E tests and not part of the installer
+// tests, but they have not been converted yet.
+func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 	tt.Run("agent runtime behavior", func(tt *testing.T) {
-		common.CheckAgentBehaviour(tt, t.InstallTestClient)
 		common.CheckAgentStops(tt, t.InstallTestClient)
 		common.CheckAgentRestarts(tt, t.InstallTestClient)
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
-		t.testDefaultPythonVersion(tt)
+		tt.Run("default python version", func(tt *testing.T) {
+			pythonVersion, err := t.InstallTestClient.GetPythonVersion()
+			if !assert.NoError(tt, err, "should get python version") {
+				return
+			}
+			majorPythonVersion := strings.Split(pythonVersion, ".")[0]
+
+			if t.ExpectPython2Installed() {
+				assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
+			} else {
+				assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
+			}
+		})
+
 		if t.ExpectPython2Installed() {
 			tt.Run("switch to Python3", func(tt *testing.T) {
 				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
@@ -199,174 +203,168 @@ func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
 	})
 }
 
-func (t *Tester) testAgentCodeSignature(tt *testing.T) bool {
-	root := `C:\Program Files\Datadog\Datadog Agent\`
-	paths := []string{
-		// user binaries
-		root + `bin\agent.exe`,
-		root + `bin\libdatadog-agent-three.dll`,
-		root + `bin\agent\trace-agent.exe`,
-		root + `bin\agent\process-agent.exe`,
-		root + `bin\agent\system-probe.exe`,
-		// drivers
-		root + `bin\agent\driver\ddnpm.sys`,
-	}
-	// Python3 should be signed by Python, since we don't build our own anymore
-	// We still build our own Python2, so we need to check that
-	if t.ExpectPython2Installed() {
-		paths = append(paths, []string{
-			root + `bin\libdatadog-agent-three.dll`,
-			root + `embedded2\python.exe`,
-			root + `embedded2\pythonw.exe`,
-			root + `embedded2\python27.dll`,
-		}...)
-	}
-
-	return windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, paths)
-}
-
-func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
-	// Ignore these paths when collecting the list of files, they are known to frequently change
-	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
-	ignorePaths := []string{
-		`C:\Windows\assembly\`,
-		`C:\Windows\Microsoft.NET\assembly\`,
-		`C:\windows\AppReadiness\`,
-		`C:\Windows\Temp\`,
-		`C:\Windows\Prefetch\`,
-		`C:\Windows\Installer\`,
-		`C:\Windows\WinSxS\`,
-		`C:\Windows\Logs\`,
-		`C:\Windows\servicing\`,
-		`c:\Windows\System32\catroot2\`,
-		`c:\windows\System32\config\`,
-		`c:\windows\System32\sru\`,
-		`C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Logs\`,
-		`C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Microsoft\Windows\DeliveryOptimization\Cache\`,
-		`C:\Windows\SoftwareDistribution\DataStore\Logs\`,
-		`C:\Windows\System32\wbem\Performance\`,
-		`c:\windows\System32\LogFiles\`,
-		`c:\windows\SoftwareDistribution\`,
-		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
-		`C:\Windows\System32\Tasks\`,
-	}
-	// quote each path and join with commas
-	pattern := ""
-	for _, ignorePath := range ignorePaths {
-		pattern += fmt.Sprintf(`'%s',`, ignorePath)
-	}
-	// PowerShell list syntax
-	pattern = fmt.Sprintf(`@(%s)`, strings.Trim(pattern, ","))
-	// Recursively list Windows directory and ignore the paths above
-	// Compare-Object is case insensitive by default
-	cmd := fmt.Sprintf(`cmd /c dir C:\Windows /b /s | Out-String -Stream | Select-String -NotMatch -SimpleMatch -Pattern %s | Select -ExpandProperty Line > "%s"`, pattern, remotePath)
-	require.Less(tt, len(cmd), 8192, "should not exceed max command length")
-	_, err := t.host.Execute(cmd)
-	require.NoError(tt, err, "should snapshot system files")
-	// sanity check to ensure file contains a reasonable amount of output
-	stat, err := t.host.Lstat(remotePath)
-	require.Greater(tt, stat.Size(), int64(1024*1024), "system file snapshot should be at least 1MB")
-	return err
-}
-
-func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
-	return tt.Run("does not remove system files", func(tt *testing.T) {
-		tt.Cleanup(func() {
-			// Remove the snapshot files after the test
-			err := t.host.Remove(t.beforeInstallSystemDirListPath)
-			if err != nil {
-				tt.Logf("failed to remove %s: %s", t.beforeInstallSystemDirListPath, err)
-			}
-			err = t.host.Remove(t.afterUninstallSystemDirListPath)
-			if err != nil {
-				tt.Logf("failed to remove %s: %s", t.afterUninstallSystemDirListPath, err)
-			}
-		})
-		// Diff the two files on the remote host, selecting missing items
-		cmd := fmt.Sprintf(`Compare-Object -ReferenceObject (Get-Content "%s") -DifferenceObject (Get-Content "%s") | Where-Object -Property SideIndicator -EQ '<=' | Select -ExpandProperty InputObject`, t.beforeInstallSystemDirListPath, t.afterUninstallSystemDirListPath)
-		output, err := t.host.Execute(cmd)
-		require.NoError(tt, err, "should compare system files")
-		output = strings.TrimSpace(output)
-		if output != "" {
-			// Log result since flake.Mark may skip the test before the assertion is run
-			tt.Logf("should not remove system files: %s", output)
-			// Since the result of this test can depend on Windows behavior unrelated to the agent,
-			// we mark it as flaky so it doesn't block PRs.
-			// See WINA-624 for investigation into better ways to perform this test.
-			// If new Windows paths must be ignored, add them to the ignorePaths list in snapshotSystemfiles.
-			flake.Mark(tt)
-			// Skipping does not remove the failed test status, so we must run the assertion after flake.Mark.
-			require.Empty(tt, output, "should not remove system files")
-		}
-	})
-}
-
-// TestUninstall uninstalls the agent and runs tests
-func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
-	return tt.Run("uninstall the agent", func(tt *testing.T) {
-		if !tt.Run("uninstall", func(tt *testing.T) {
-			err := windowsAgent.UninstallAgent(t.host, logfile)
-			require.NoError(tt, err, "should uninstall the agent")
-		}) {
-			tt.Fatal("uninstall failed")
-		}
-
+// TestUninstallExpectations verifies the agent uninstalled correctly.
+func (t *Tester) TestUninstallExpectations(tt *testing.T) {
+	tt.Run("", func(tt *testing.T) {
+		// this helper uses require so wrap it in a subtest so we can continue even if it fails
 		common.CheckUninstallation(tt, t.InstallTestClient)
-
-		if !tt.Run("snapshot system files", func(tt *testing.T) {
-			err := t.snapshotSystemfiles(tt, t.afterUninstallSystemDirListPath)
-			require.NoError(tt, err)
-		}) {
-			tt.Fatal("snapshot system files failed")
-		}
-
-		t.testDoesNotChangeSystemFiles(tt)
 	})
-}
 
-func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
-	return tt.Run("running expected version", func(tt *testing.T) {
-		installedVersion, err := t.InstallTestClient.GetAgentVersion()
-		require.NoError(tt, err, "should get agent version")
-		windowsAgent.TestAgentVersion(tt, t.agentPackage.AgentVersion(), installedVersion)
+	_, err := t.host.Lstat(t.expectedInstallPath)
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove install path")
+	_, err = t.host.Lstat(t.expectedConfigRoot)
+	assert.NoError(tt, err, "uninstall should not remove config root")
+
+	for _, configPath := range getExpectedConfigFiles() {
+		configPath := filepath.Join(t.expectedConfigRoot, configPath)
+		_, err = t.host.Lstat(configPath)
+		assert.NoError(tt, err, "uninstall should not remove %s config file", configPath)
+		examplePath := configPath + ".example"
+		_, err = t.host.Lstat(examplePath)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove %s example config files", examplePath)
+	}
+
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "auth_token"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove auth_token")
+
+	_, err = t.host.Lstat(filepath.Join(t.expectedConfigRoot, "checks.d"))
+	assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove checks.d")
+
+	_, err = windows.GetSIDForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
+	assert.NoError(tt, err, "uninstall should not remove agent user")
+
+	for _, serviceName := range servicetest.ExpectedInstalledServices() {
+		_, err := windows.GetServiceConfig(t.host, serviceName)
+		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
+	}
+
+	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
+	assert.NoError(tt, err, "should check registry key exists")
+	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
+	// don't need to check registry key permissions because the key is removed
+
+	tt.Run("file permissions", func(tt *testing.T) {
+		t.testUninstalledFilePermissions(tt)
 	})
-}
-
-// InstallAgent installs the agent
-func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error {
-	var err error
-	opts := []windowsAgent.InstallAgentOption{
-		windowsAgent.WithPackage(t.agentPackage),
-		windowsAgent.WithValidAPIKey(),
-	}
-	if t.installUser != "" {
-		opts = append(opts, windowsAgent.WithAgentUser(t.installUser))
-	}
-	opts = append(opts, options...)
-	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, opts...)
-	return err
-}
-
-// Only do some basic checks on the agent since it's a previous version
-func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
-	common.CheckAgentBehaviour(tt, t.InstallTestClient)
 }
 
 // More in depth checks on current version
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
-	if t.remoteMSIPath != "" {
-		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{t.remoteMSIPath})
-	}
 	common.CheckInstallation(tt, t.InstallTestClient)
-	tt.Run("user in registry", func(tt *testing.T) {
+
+	ddAgentUserIdentity, err := windows.GetIdentityForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
+	require.NoError(tt, err)
+
+	// If install paths differ from default ensure the defaults don't exist
+	if t.expectedInstallPath != windowsAgent.DefaultInstallPath {
+		_, err := t.host.Lstat(windowsAgent.DefaultInstallPath)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "default install path should not exist")
+	}
+	if t.expectedConfigRoot != windowsAgent.DefaultConfigRoot {
+		_, err := t.host.Lstat(windowsAgent.DefaultConfigRoot)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "default config root should not exist")
+	}
+
+	tt.Run("agent paths in registry", func(tt *testing.T) {
+		installPathFromRegistry, err := windowsAgent.GetInstallPathFromRegistry(t.host)
+		assert.NoError(tt, err, "InstallPath should be in registry")
+		assert.Equalf(tt,
+			windows.TrimTrailingSlashesAndLower(t.expectedInstallPath),
+			windows.TrimTrailingSlashesAndLower(installPathFromRegistry),
+			"install path matches registry")
+		configRootFromRegistry, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+		assert.NoError(tt, err, "ConfigRoot should be in registry")
+		assert.Equalf(tt,
+			windows.TrimTrailingSlashesAndLower(t.expectedConfigRoot),
+			windows.TrimTrailingSlashesAndLower(configRootFromRegistry),
+			"config root matches registry")
+	})
+
+	tt.Run("agent user in registry", func(tt *testing.T) {
 		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
+	})
+
+	tt.Run("creates config files", func(tt *testing.T) {
+		for _, configPath := range getExpectedConfigFiles() {
+			configPath := filepath.Join(t.expectedConfigRoot, configPath)
+			_, err := t.host.Lstat(configPath)
+			assert.NoError(tt, err, "install should create %s config file", configPath)
+			examplePath := configPath + ".example"
+			_, err = t.host.Lstat(examplePath)
+			assert.NoError(tt, err, "install should create %s example config files", examplePath)
+		}
+	})
+
+	tt.Run("creates bin files", func(tt *testing.T) {
+		expected := getExpectedBinFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
+		for _, binPath := range expected {
+			binPath = filepath.Join(t.expectedInstallPath, binPath)
+			_, err := t.host.Lstat(binPath)
+			assert.NoError(tt, err, "install should create %s bin file", binPath)
+		}
 	})
 
 	serviceTester, err := servicetest.NewTester(t.host,
 		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
+		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
 	)
 	require.NoError(tt, err)
-	serviceTester.TestInstall(tt)
+	tt.Run("service config", func(tt *testing.T) {
+		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
+		require.NoError(tt, err)
+		expected, err := serviceTester.ExpectedServiceConfig()
+		require.NoError(tt, err)
+		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+		// permissions
+		for _, serviceName := range servicetest.ExpectedInstalledServices() {
+			conf := actual[serviceName]
+			if windows.IsKernelModeServiceType(conf.ServiceType) {
+				// we don't modify kernel mode services
+				continue
+			}
+			security, err := windows.GetServiceSecurityInfo(t.host, serviceName)
+			require.NoError(tt, err)
+			// ddagentuser should have start/stop/read permissions
+			if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+				expected := windows.NewExplicitAccessRule(
+					ddAgentUserIdentity,
+					windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_GENERIC_READ,
+					windows.AccessControlTypeAllow,
+				)
+				windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddAgentUserIdentity)
+			}
+			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
+			expected := windows.NewExplicitAccessRule(
+				windows.GetIdentityForSID(windows.EveryoneSID),
+				windows.SERVICE_ALL_ACCESS,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertNotContainsEqualable(tt, security.Access, expected, "%s should not have access rule for Everyone", serviceName)
+		}
+	})
+	tt.Run("service status", func(tt *testing.T) {
+		expectedRunningServices := servicetest.ExpectedRunningServices()
+		for _, serviceName := range servicetest.ExpectedInstalledServices() {
+			expectedRunning := false
+			if slices.Contains(expectedRunningServices, serviceName) {
+				expectedRunning = true
+			}
+			assert.EventuallyWithT(tt, func(c *assert.CollectT) {
+				status, err := windows.GetServiceStatus(t.host, serviceName)
+				require.NoError(c, err)
+				if expectedRunning {
+					assert.Equal(c, "Running", status, "%s should be running", serviceName)
+				} else {
+					assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
+				}
+			}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+		}
+	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
 		AssertAgentUserGroupMembership(tt, t.host,
@@ -380,20 +378,202 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		)
 	})
 
-	t.testAgentCodeSignature(tt)
-	t.TestRuntimeExpectations(tt)
+	tt.Run("file permissions", func(tt *testing.T) {
+		t.testInstalledFilePermissions(tt, ddAgentUserIdentity)
+	})
+
+	tt.Run("registry permissions", func(tt *testing.T) {
+		// ensure registry key has normal inherited permissions and an explicit
+		// full access rule for ddagentuser
+		path := windowsAgent.RegistryKeyPath
+		out, err := windows.GetSecurityInfoForPath(t.host, path)
+		require.NoError(tt, err)
+		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+			agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
+				ddAgentUserIdentity,
+				windows.RegistryFullControl,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
+		}
+		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+	})
+
+	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
+
+	if !testing.Short() {
+		t.runTestsForKitchenCompat(tt)
+	}
 }
 
-// TestExpectations tests the current agent installation meets the expectations provided to the Tester
-func (t *Tester) TestExpectations(tt *testing.T) bool {
+func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
+	// uninstall should remove the agent user from the ACLs
+	tc := []struct {
+		name             string
+		path             string
+		expectedSecurity func(t *testing.T) windows.ObjectSecurity
+	}{
+		{
+			name: "ConfigRoot",
+			path: t.expectedConfigRoot,
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseConfigRootSecurity()
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "datadog.yaml",
+			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseInheritedConfigFileSecurity()
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "conf.d",
+			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseInheritedConfigDirSecurity()
+				require.NoError(tt, err)
+				return s
+			},
+		},
+	}
+	for _, tc := range tc {
+		tt.Run(tc.name, func(tt *testing.T) {
+			out, err := windows.GetSecurityInfoForPath(t.host, tc.path)
+			require.NoError(tt, err)
+			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
+		})
+	}
+
+	// C:\Program Files\Datadog\Datadog Agent (InstallPath)
+	// doesn't exist after uninstall so don't need to test
+}
+
+func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity windows.Identity) {
+	tc := []struct {
+		name             string
+		path             string
+		expectedSecurity func(t *testing.T) windows.ObjectSecurity
+	}{
+		{
+			name: "ConfigRoot",
+			path: t.expectedConfigRoot,
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				expected, err := getBaseConfigRootSecurity()
+				require.NoError(tt, err)
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+				)
+				return expected
+			},
+		},
+		{
+			name: "datadog.yaml",
+			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				expected, err := getBaseInheritedConfigFileSecurity()
+				require.NoError(tt, err)
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewInheritedAccessRule(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+					),
+				)
+				return expected
+			},
+		},
+		{
+			name: "conf.d",
+			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				expected, err := getBaseInheritedConfigDirSecurity()
+				require.NoError(tt, err)
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+				)
+				return expected
+			},
+		},
+	}
+	for _, tc := range tc {
+		tt.Run(tc.name, func(tt *testing.T) {
+			out, err := windows.GetSecurityInfoForPath(t.host, tc.path)
+			require.NoError(tt, err)
+			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
+		})
+	}
+
+	// expect to have standard inherited permissions, plus an explciit ACE for ddagentuser
+	embeddedPaths := []string{
+		filepath.Join(t.expectedInstallPath, "embedded3"),
+	}
+	if t.ExpectPython2Installed() {
+		embeddedPaths = append(embeddedPaths,
+			filepath.Join(t.expectedInstallPath, "embedded2"),
+		)
+	}
+	agentUserFullAccessDirRule := windows.NewExplicitAccessRuleWithFlags(
+		ddAgentUserIdentity,
+		windows.FileFullControl,
+		windows.AccessControlTypeAllow,
+		windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+		windows.PropagationFlagsNone,
+	)
+	for _, path := range embeddedPaths {
+		out, err := windows.GetSecurityInfoForPath(t.host, path)
+		require.NoError(tt, err)
+		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
+		}
+		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+	}
+
+	// ensure the agent user does not have an ACE on the install dir
+	out, err := windows.GetSecurityInfoForPath(t.host, t.expectedInstallPath)
+	require.NoError(tt, err)
+	if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+		assert.Empty(tt, windows.FilterRulesForIdentity(out.Access, ddAgentUserIdentity),
+			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
+	}
+	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
+}
+
+// TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester
+func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
 	return tt.Run(fmt.Sprintf("test %s", t.agentPackage.AgentVersion()), func(tt *testing.T) {
-		if !t.testRunningExpectedVersion(tt) {
+		if !tt.Run("running expected agent version", func(tt *testing.T) {
+			installedVersion, err := t.InstallTestClient.GetAgentVersion()
+			require.NoError(tt, err, "should get agent version")
+			windowsAgent.TestAgentVersion(tt, t.agentPackage.AgentVersion(), installedVersion)
+		}) {
 			tt.FailNow()
 		}
-		if t.isPreviousVersion {
-			t.testPreviousVersionExpectations(tt)
-		} else {
-			t.testCurrentVersionExpectations(tt)
-		}
+		t.testCurrentVersionExpectations(tt)
 	})
 }

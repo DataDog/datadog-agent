@@ -6,10 +6,13 @@
 package testutil
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +23,19 @@ const (
 	// DefaultTimeout is the default timeout for running a server.
 	DefaultTimeout = time.Minute
 )
+
+// GetDockerPID returns the PID of a docker container.
+func GetDockerPID(dockerName string) (int64, error) {
+	// Ensuring no previous instances exists.
+	c := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", dockerName)
+	var stdout, stderr bytes.Buffer
+	c.Stdout = &stdout
+	c.Stderr = &stderr
+	if err := c.Run(); err != nil {
+		return 0, fmt.Errorf("failed to get %s pid: %s", dockerName, stderr.String())
+	}
+	return strconv.ParseInt(strings.TrimSpace(stdout.String()), 10, 64)
+}
 
 // RunDockerServer is a template for running a protocols server in a docker.
 // - serverName is a friendly name of the server we are setting (AMQP, mongo, etc.).
@@ -41,10 +57,14 @@ func RunDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 
 func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, serverStartRegex *regexp.Regexp, timeout time.Duration) error {
 	t.Helper()
+	// Ensuring the following command won't block for ever
+	timedContext, cancel := context.WithTimeout(context.Background(), timeout)
+	t.Cleanup(cancel)
 	// Ensuring no previous instances exists.
-	c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
+	c := exec.CommandContext(timedContext, "docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 	c.Env = append(c.Env, env...)
 	_ = c.Run()
+	cancel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -61,11 +81,12 @@ func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 	t.Cleanup(func() {
 		cancel()
 		_ = cmd.Wait()
+		timedContext, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
-		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
+		c := exec.CommandContext(timedContext, "docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 		c.Env = append(c.Env, env...)
-		// Not waiting for its finish.
-		_ = c.Start()
+		_ = c.Run() // We need to wait for the command to finish so that the docker containers get cleaned up properly before another docker-compose up call
 	})
 
 	for {

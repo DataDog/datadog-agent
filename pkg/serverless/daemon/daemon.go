@@ -42,7 +42,7 @@ type Daemon struct {
 
 	LogsAgent logsAgent.ServerlessLogsAgent
 
-	TraceAgent *trace.ServerlessTraceAgent
+	TraceAgent trace.ServerlessTraceAgent
 
 	ColdStartCreator *trace.ColdStartSpanCreator
 
@@ -65,6 +65,15 @@ type Daemon struct {
 
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
+
+	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
+	LambdaLibraryStateLock sync.Mutex
+
+	// executionSpanIncomplete indicates whether the Lambda span has been completed by the Extension
+	executionSpanIncomplete bool
+
+	// ExecutionSpanStateLock keeps track of whether the serverless Invocation routes have been hit to complete the execution span
+	ExecutionSpanStateLock sync.Mutex
 
 	// runtimeStateMutex is used to ensure that modifying the state of the runtime is thread-safe
 	runtimeStateMutex sync.Mutex
@@ -205,7 +214,7 @@ func (d *Daemon) SetLogsAgent(logsAgent logsAgent.ServerlessLogsAgent) {
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
-func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
+func (d *Daemon) SetTraceAgent(traceAgent trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
@@ -283,8 +292,8 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 	d.tracesFlushMutex.Lock()
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning traces flush at time %d", flushStartTime)
-	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
-		d.TraceAgent.Get().FlushSync()
+	if d.TraceAgent != nil {
+		d.TraceAgent.Flush()
 	}
 	log.Debugf("Finished traces flush that was started at time %d", flushStartTime)
 	wg.Done()
@@ -429,9 +438,30 @@ func (d *Daemon) StartLogCollection() {
 // setTraceTags tries to set extra tags to the Trace agent.
 // setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
-	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
+	if d.TraceAgent != nil {
 		d.TraceAgent.SetTags(tags.BuildTracerTags(tagMap))
 		return true
 	}
 	return false
+}
+
+// IsLambdaLibraryDetected returns if the Lambda Library is in use
+func (d *Daemon) IsLambdaLibraryDetected() bool {
+	d.LambdaLibraryStateLock.Lock()
+	defer d.LambdaLibraryStateLock.Unlock()
+	return d.LambdaLibraryDetected
+}
+
+// IsExecutionSpanIncomplete checks if the Lambda execution span was finished
+func (d *Daemon) IsExecutionSpanIncomplete() bool {
+	d.ExecutionSpanStateLock.Lock()
+	defer d.ExecutionSpanStateLock.Unlock()
+	return d.executionSpanIncomplete
+}
+
+// SetExecutionSpanIncomplete keeps track of whether the Extension completed the Lambda execution span
+func (d *Daemon) SetExecutionSpanIncomplete(spanIncomplete bool) {
+	d.ExecutionSpanStateLock.Lock()
+	defer d.ExecutionSpanStateLock.Unlock()
+	d.executionSpanIncomplete = spanIncomplete
 }

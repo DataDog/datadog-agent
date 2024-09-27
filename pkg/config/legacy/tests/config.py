@@ -191,7 +191,7 @@ def get_histogram_aggregates(configstr=None):
         for val in vals:
             val = val.strip()
             if val not in valid_values:
-                log.warning(f"Ignored histogram aggregate {val}, invalid")
+                log.warning("Ignored histogram aggregate %s, invalid", val)
                 continue
             else:
                 result.append(val)
@@ -216,10 +216,10 @@ def get_histogram_percentiles(configstr=None):
                 if floatval <= 0 or floatval >= 1:
                     raise ValueError
                 if len(val) > 4:
-                    log.warning(f"Histogram percentiles are rounded to 2 digits: {floatval} rounded")
+                    log.warning("Histogram percentiles are rounded to 2 digits: %s rounded", floatval)
                 result.append(float(val[0:4]))
             except ValueError:
-                log.warning(f"Bad histogram percentile value {val}, must be float in ]0;1[, skipping")
+                log.warning("Bad histogram percentile value %s, must be float in ]0;1[, skipping", val)
     except Exception:
         log.exception("Error when parsing histogram percentiles, skipping")
         return None
@@ -287,11 +287,11 @@ def get_config(options=None):
         # Core config
         # ap
         if not config.has_option('Main', 'api_key'):
-            log.warning(u"No API key was found. Aborting.")
+            log.warning("No API key was found. Aborting.")
             sys.exit(2)
 
         if not config.has_option('Main', 'dd_url'):
-            log.warning(u"No dd_url was found. Aborting.")
+            log.warning("No dd_url was found. Aborting.")
             sys.exit(2)
 
         # Endpoints
@@ -531,13 +531,13 @@ def extract_agent_config(config):
         conf_backend = config.get('Main', 'sd_config_backend')
 
     if backend not in SD_BACKENDS:
-        log.error(f"The backend {backend} is not supported. Service discovery won't be enabled.")
+        log.error("The backend %s is not supported. Service discovery won't be enabled.", backend)
         agentConfig['service_discovery'] = False
 
     if conf_backend is None:
         log.warning('No configuration backend provided for service discovery. Only auto config templates will be used.')
     elif conf_backend not in SD_CONFIG_BACKENDS:
-        log.error(f"The config backend {conf_backend} is not supported. Only auto config templates will be used.")
+        log.error("The config backend %s is not supported. Only auto config templates will be used.", conf_backend)
         conf_backend = None
     agentConfig['sd_config_backend'] = conf_backend
 

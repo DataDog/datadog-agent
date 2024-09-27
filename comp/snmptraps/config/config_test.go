@@ -13,14 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
 )
 
 const mockedHostname = "VeryLongHostnameThatDoesNotFitIntoTheByteArray"
@@ -30,20 +30,6 @@ var expectedEngineID = "\x80\xff\xff\xff\xff\x67\xb2\x0f\xe4\xdf\x73\x7a\xce\x28
 var expectedEngineIDs = map[string]string{
 	"VeryLongHostnameThatDoesNotFitIntoTheByteArray": "\x80\xff\xff\xff\xff\x67\xb2\x0f\xe4\xdf\x73\x7a\xce\x28\x47\x03\x8f\x57\xe6\x5c\x98",
 	"VeryLongHostnameThatIsDifferent":                "\x80\xff\xff\xff\xff\xe7\x21\xcc\xd7\x0b\xe1\x60\xc5\x18\xd7\xde\x17\x86\xb0\x7d\x36",
-}
-
-// structify converts any yamlizable object to a plain map[string]any
-func structify[T any](obj T) (map[string]any, error) {
-	out, err := yaml.Marshal(obj)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]any)
-	err = yaml.Unmarshal(out, result)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 var usersV3 = []UserV3{
@@ -67,6 +53,13 @@ var usersV3 = []UserV3{
 		AuthProtocol: "MD5",
 		PrivKey:      "password",
 		PrivProtocol: "AES",
+	},
+	{
+		UsernameLegacy: "userlegacy",
+		AuthKey:        "password",
+		AuthProtocol:   "MD5",
+		PrivKey:        "password",
+		PrivProtocol:   "AES",
 	},
 }
 
@@ -92,6 +85,13 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 		PrivacyProtocol:          gosnmp.AES,
 		PrivacyPassphrase:        "password",
 	},
+	{
+		UserName:                 "userlegacy",
+		AuthenticationProtocol:   gosnmp.MD5,
+		AuthenticationPassphrase: "password",
+		PrivacyProtocol:          gosnmp.AES,
+		PrivacyPassphrase:        "password",
+	},
 }
 
 // withConfig returns an fx Module providing the default datadog config
@@ -105,7 +105,8 @@ func withConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) f
 		overrides["network_devices.namespace"] = globalNamespace
 	}
 	if trapConfig != nil {
-		rawTrapConfig, err := structify(trapConfig)
+		rawTrapConfig := make(map[string]any)
+		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
 		require.NoError(t, err)
 		overrides["network_devices.snmp_traps"] = rawTrapConfig
 	}
@@ -128,12 +129,14 @@ func buildConfig(conf config.Component, hnService hostname.Component) (*TrapsCon
 }
 
 // testOptions provides several fx options that multiple tests need
-var testOptions = fx.Options(
-	fx.Provide(buildConfig),
-	hostnameimpl.MockModule(),
-	fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
-	logimpl.MockModule(),
-)
+func testOptions(t *testing.T) fx.Option {
+	return fx.Options(
+		fx.Provide(buildConfig),
+		hostnameimpl.MockModule(),
+		fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+	)
+}
 
 func TestFullConfig(t *testing.T) {
 	deps := fxutil.Test[struct {
@@ -141,7 +144,7 @@ func TestFullConfig(t *testing.T) {
 		Config *TrapsConfig
 		Logger log.Component
 	}](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			Port:             1234,
 			Users:            usersV3,
@@ -186,6 +189,10 @@ func TestFullConfig(t *testing.T) {
 			"identifier: user2 has 1 entry",
 			"user2",
 		},
+		{
+			"identifier: userlegacy has 1 entry",
+			"userlegacy",
+		},
 	}
 	for _, usmConfigTest := range usmConfigTests {
 		// Compare the security params after initializing the security keys (happens in the add to table)
@@ -202,7 +209,7 @@ func TestMinimalConfig(t *testing.T) {
 		Logger log.Component
 	}](t,
 		config.MockModule(),
-		testOptions,
+		testOptions(t),
 	)
 	config := deps.Config
 	logger := deps.Logger
@@ -224,7 +231,7 @@ func TestMinimalConfig(t *testing.T) {
 
 func TestDefaultUsers(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			CommunityStrings: []string{"public"},
 			StopTimeout:      11,
@@ -247,7 +254,7 @@ func TestBuildAuthoritativeEngineID(t *testing.T) {
 
 func TestNamespaceIsNormalized(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, &TrapsConfig{
 			Namespace: "><\n\r\tfoo",
 		}, ""),
@@ -267,7 +274,7 @@ func TestInvalidNamespace(t *testing.T) {
 
 func TestNamespaceSetGlobally(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t, nil, "foo"),
 	)
 	assert.Equal(t, "foo", config.Namespace)
@@ -275,7 +282,7 @@ func TestNamespaceSetGlobally(t *testing.T) {
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
 	config := fxutil.Test[*TrapsConfig](t,
-		testOptions,
+		testOptions(t),
 		withConfig(t,
 			&TrapsConfig{Namespace: "bar"},
 			"foo"),

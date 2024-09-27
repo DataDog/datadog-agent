@@ -17,6 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumerInterface interface {
+	ID() string
+	ChanSize() int
+	HandleEvent(_ any)
+	Copy(_ *model.Event) any
+	EventTypes() []model.EventType
+}
+
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface{}
 
@@ -30,6 +39,7 @@ type PlatformProbe struct {
 // Probe represents the runtime security probe
 type Probe struct {
 	Config *config.Config
+	Opts   Opts
 }
 
 // Origin returns origin
@@ -38,12 +48,7 @@ func (p *Probe) Origin() string {
 }
 
 // AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(_ model.EventType, _ EventHandler) error {
-	return nil
-}
-
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(_ EventHandler) error {
+func (p *Probe) AddEventHandler(_ EventHandler) error {
 	return nil
 }
 
@@ -52,9 +57,9 @@ func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) e
 	return nil
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(_ map[eval.EventType]bool, _ []string) (*rules.EvaluationSet, error) {
-	return nil, nil
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
+	return nil
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
@@ -103,3 +108,6 @@ func (p *Probe) RefreshUserCache(_ string) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(_ bool) {}

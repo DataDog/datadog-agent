@@ -21,6 +21,8 @@ type powerShellCommandBuilder struct {
 //nolint:revive
 func PsHost() *powerShellCommandBuilder {
 	return &powerShellCommandBuilder{
+		// Although host.Execute() will also add `$ErrorActionPreference = "Stop"` to the command,
+		// we set it here, too, as PsHost is used in pulumi commands.
 		cmds: []string{
 			"$ErrorActionPreference = \"Stop\"",
 		},
@@ -147,6 +149,34 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
 (Get-Service %s).WaitForStatus('%s', '00:01:00')
 `, serviceName, status))
+	return ps
+}
+
+// DisableWindowsDefender creates a command to try and disable Windows Defender without uninstalling it
+func (ps *powerShellCommandBuilder) DisableWindowsDefender() *powerShellCommandBuilder {
+	// ScheduleDay = 8 means never
+	ps.cmds = append(ps.cmds, `
+if ((Get-MpComputerStatus).IsTamperProtected) {
+	Write-Error "Windows Defender is tamper protected, unable to modify settings"
+}
+(@{DisableArchiveScanning = $true },
+ @{DisableRealtimeMonitoring = $true },
+ @{DisableBehaviorMonitoring = $true },
+ @{MAPSReporting = 0 },
+ @{ScanScheduleDay = 8 },
+ @{RemediationScheduleDay = 8 }
+) | ForEach-Object { Set-MpPreference @_ }`)
+	// Even though Microsoft claims to have deprecated this option as of Platform Version 4.18.2108.4,
+	// it still works for me on Platform Version 4.18.23110.3 after a reboot, so set it anywawy.
+	ps.cmds = append(ps.cmds, `mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"`)
+	ps.cmds = append(ps.cmds, `Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name DisableAntiSpyware -Value 1`)
+
+	return ps
+}
+
+// UninstallWindowsDefender creates a command to uninstall Windows Defender
+func (ps *powerShellCommandBuilder) UninstallWindowsDefender() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, "Uninstall-WindowsFeature -Name Windows-Defender")
 	return ps
 }
 

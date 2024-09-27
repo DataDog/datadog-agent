@@ -35,12 +35,18 @@
             {{ end }}
           {{ end }}
 
+          {{ if .config.ProbabilisticSamplerEnabled }}
+          </br>
+          Probabilistic sampling percentage: {{.config.ProbabilisticSamplerSamplingPercentage}}%</br>
+          Probabilistic sampler hash seed: {{.config.ProbabilisticSamplerHashSeed}}</br>
+          {{- else }}
           {{range $key, $value := .ratebyservice_filtered -}}
             {{- if eq $key "service:,env:" -}}
               Default priority sampling rate: {{percent $value}}%
             {{- else}}
               Priority sampling rate for '{{ $key }}': {{percent $value}}%
             {{- end}}
+          {{- end }}
           {{- end }}
         </span>
         <span class="stat_subtitle">Writer (previous minute)</span>

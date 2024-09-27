@@ -9,7 +9,7 @@
 package cri
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -20,6 +20,6 @@ const (
 )
 
 // Factory creates a new check instance
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(_ workloadmeta.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }

@@ -28,11 +28,12 @@ type TlsBinaryId struct {
 	Ino      uint64
 }
 type TlsConnLayout struct {
-	Tls_conn_inner_conn_offset uint64
-	Tcp_conn_inner_conn_offset uint64
-	Conn_fd_offset             uint64
-	Net_fd_pfd_offset          uint64
-	Fd_sysfd_offset            uint64
+	Tls_conn_inner_conn_offset     uint64
+	Tcp_conn_inner_conn_offset     uint64
+	Limited_conn_inner_conn_offset uint64
+	Conn_fd_offset                 uint64
+	Net_fd_pfd_offset              uint64
+	Fd_sysfd_offset                uint64
 }
 type TlsOffsetsData struct {
 	Goroutine_id       GoroutineIDMetadata

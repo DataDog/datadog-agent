@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 )
 
 // LookupFunction configures a single lookup table

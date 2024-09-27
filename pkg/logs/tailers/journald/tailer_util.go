@@ -13,12 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 const (
 	tagSeparator            = ":"
-	imageTagKey             = "short_image" + tagSeparator
+	imageTagKey             = tags.ShortImage + tagSeparator
 	baseCacheExpiration     = 20 * time.Minute
 	expirationSpreadSeconds = 120
 )

@@ -7,14 +7,16 @@
 package awskubernetes
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -31,86 +33,16 @@ const (
 	defaultVMName     = "kind"
 )
 
-// ProvisionerParams contains all the parameters needed to create the environment
-type ProvisionerParams struct {
-	name              string
-	vmOptions         []ec2.VMOption
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-}
-
-func newProvisionerParams() *ProvisionerParams {
-	return &ProvisionerParams{
-		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
-		agentOptions:      []kubernetesagentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
+func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpKindClusterState(ctx, stackName)
+	if err != nil {
+		return "", err
 	}
+	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
 }
 
-// ProvisionerOption is a function that modifies the ProvisionerParams
-type ProvisionerOption func(*ProvisionerParams) error
-
-// WithName sets the name of the provisioner
-func WithName(name string) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.name = name
-		return nil
-	}
-}
-
-// WithEC2VMOptions adds options to the EC2 VM
-func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.vmOptions = opts
-		return nil
-	}
-}
-
-// WithAgentOptions adds options to the agent
-func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = opts
-		return nil
-	}
-}
-
-// WithFakeIntakeOptions adds options to the fake intake
-func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = opts
-		return nil
-	}
-}
-
-// WithoutFakeIntake removes the fake intake
-func WithoutFakeIntake() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = nil
-		return nil
-	}
-}
-
-// WithoutAgent removes the agent
-func WithoutAgent() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = nil
-		return nil
-	}
-}
-
-// WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.extraConfigParams = configMap
-		return nil
-	}
-}
-
-// Provisioner creates a new provisioner
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
+// KindProvisioner creates a new provisioner
+func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
@@ -124,6 +56,8 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
+
+	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
 
 	return provisioner
 }
@@ -140,10 +74,16 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion())
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
 	}
+
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	if err != nil {
+		return err
+	}
+
 	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
 	if err != nil {
 		return err
@@ -190,7 +130,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(*awsEnv.CommonEnvironment, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -201,6 +141,13 @@ agents:
 
 	} else {
 		env.Agent = nil
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&awsEnv, kubeProvider)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

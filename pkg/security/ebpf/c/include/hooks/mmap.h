@@ -7,25 +7,41 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SEC("tracepoint/syscalls/sys_enter_mmap")
-int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
-    struct policy_t policy = fetch_policy(EVENT_MMAP);
-    if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
+HOOK_ENTRY("vm_mmap_pgoff")
+int hook_vm_mmap_pgoff(ctx_t *ctx) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    u64 len = CTX_PARM3(ctx);
+    u64 prot = CTX_PARM4(ctx);
+    u64 flags = CTX_PARM5(ctx);
+
+    struct policy_t policy = fetch_policy(EVENT_MMAP);
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
-        .mmap = {
-            .offset = args->offset,
-            .len = (u32)args->len,
-            .protection = (int)args->protection,
-            .flags = (int)args->flags,
-        }
+        .mmap.len = len,
+        .mmap.protection = prot,
+        .mmap.flags = flags,
     };
 
     cache_syscall(&syscall);
+    return 0;
+}
+
+// we need this hook because it passes the `pgoff` argument in one of the first parameters
+// and not in position 5 or 6 where we cannot read it
+HOOK_ENTRY("get_unmapped_area")
+int hook_get_unmapped_area(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 offset = CTX_PARM4(ctx);
+    syscall->mmap.offset = offset;
+
     return 0;
 }
 
@@ -35,13 +51,13 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MMAP);
+    if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
         return 0;
     }
 
-    if (filter_syscall(syscall, mmap_approvers)) {
-        return mark_as_discarded(syscall);
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_MMAP);
+        return 0;
     }
 
     if (retval != -1) {
@@ -69,27 +85,29 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     return 0;
 }
 
-HOOK_SYSCALL_EXIT(mmap) {
-    return sys_mmap_ret(ctx, (int)SYSCALL_PARMRET(ctx), (u64)SYSCALL_PARMRET(ctx));
+HOOK_EXIT("vm_mmap_pgoff")
+int rethook_vm_mmap_pgoff(ctx_t *ctx) {
+    u64 ret = CTX_PARMRET(ctx, 6);
+    return sys_mmap_ret(ctx, (int)ret, ret);
 }
 
-HOOK_EXIT("fget")
-int rethook_fget(ctx_t *ctx) {
+HOOK_ENTRY("security_mmap_file")
+int hook_security_mmap_file(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
-    struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
+    struct file *f = (struct file *)CTX_PARM1(ctx);
     syscall->mmap.dentry = get_file_dentry(f);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);
 
     syscall->resolver.key = syscall->mmap.file.path_key;
     syscall->resolver.dentry = syscall->mmap.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MMAP : 0;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
 
     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 

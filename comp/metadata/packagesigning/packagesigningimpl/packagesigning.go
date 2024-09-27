@@ -15,9 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
@@ -29,7 +32,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -87,6 +89,7 @@ type provides struct {
 	Comp          packagesigning.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 // Testing purpose
@@ -126,6 +129,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 		Comp:          is,
 		Provider:      provider,
 		FlareProvider: is.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/package-signing", "GET"),
 	}
 }
 
@@ -181,4 +185,14 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 		Metadata:  &signingMetadata{is.getData()},
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (is *pkgSigning) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := is.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

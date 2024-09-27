@@ -1,10 +1,10 @@
+using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
@@ -68,7 +68,8 @@ namespace Datadog.CustomActions
                 { "version", agentVersion },
                 { "log", log },
                 { "email", email },
-                { "apikey", apikey }
+                { "apikey", apikey },
+                { "variant", "windows_installer" }
             };
 
             _client.Post(uri, payload, new Dictionary<string, string>());
@@ -88,7 +89,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        [CustomAction]
         public static ActionResult SendFlare(Session session)
         {
             if (int.Parse(session["UILevel"]) > 3)

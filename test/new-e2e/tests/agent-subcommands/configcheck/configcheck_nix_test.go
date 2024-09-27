@@ -8,10 +8,12 @@ package configcheck
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 type linuxConfigCheckSuite struct {
@@ -19,10 +21,11 @@ type linuxConfigCheckSuite struct {
 }
 
 func TestLinuxConfigCheckSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
-// cpu, disk, file_handle, io, load, memory, network, ntp, uptime
+// cpu, disk, file_handle, io, load, memory, network, ntp, uptime, service_discovery
 func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 	testChecks := []CheckConfigOutput{
 		{
@@ -79,6 +82,12 @@ func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 			InstanceID: "uptime:",
 			Settings:   "{}",
 		},
+		{
+			CheckName:  "service_discovery",
+			Filepath:   "file:/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml.default",
+			InstanceID: "service_discovery:",
+			Settings:   "{}",
+		},
 	}
 
 	output := v.Env().Agent.Client.ConfigCheck()
@@ -109,7 +118,7 @@ func (v *linuxConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	output := v.Env().Agent.Client.ConfigCheck()
 
 	result, err := MatchCheckToTemplate("http_check", output)
-	assert.NoError(v.T(), err)
+	require.NoError(v.T(), err)
 	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/http_check.d/conf.yaml")
 	assert.Contains(v.T(), result.InstanceID, "http_check:")
 	assert.Contains(v.T(), result.Settings, "name: My First Service")

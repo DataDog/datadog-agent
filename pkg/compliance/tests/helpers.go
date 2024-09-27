@@ -19,10 +19,11 @@ import (
 
 	docker "github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 )
 
 type suite struct {
@@ -106,13 +107,13 @@ func (s *suite) Run() {
 				Hostname: s.hostname,
 			}
 			if s.auditClient != nil {
-				options.LinuxAuditProvider = func(ctx context.Context) (compliance.LinuxAuditClient, error) { return s.auditClient, nil }
+				options.LinuxAuditProvider = func(context.Context) (compliance.LinuxAuditClient, error) { return s.auditClient, nil }
 			}
 			if s.dockerClient != nil {
-				options.DockerProvider = func(ctx context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
+				options.DockerProvider = func(context.Context) (docker.CommonAPIClient, error) { return s.dockerClient, nil }
 			}
 			if s.kubeClient != nil {
-				options.KubernetesProvider = func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+				options.KubernetesProvider = func(context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 					return s.kubeClient, nil, nil
 				}
 			}

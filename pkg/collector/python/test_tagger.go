@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 /*
@@ -35,15 +35,15 @@ int arraylen(char **array, int max_len) {
 */
 import "C"
 
-func tagsMock(string, collectors.TagCardinality) ([]string, error) {
+func tagsMock(string, types.TagCardinality) ([]string, error) {
 	return []string{"tag1", "tag2", "tag3"}, nil
 }
 
-func tagsMockNull(string, collectors.TagCardinality) ([]string, error) {
+func tagsMockNull(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func tagsMockEmpty(string, collectors.TagCardinality) ([]string, error) {
+func tagsMockEmpty(string, types.TagCardinality) ([]string, error) {
 	return []string{}, nil
 }
 

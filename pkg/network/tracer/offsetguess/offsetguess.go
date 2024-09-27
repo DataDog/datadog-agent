@@ -17,7 +17,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -58,6 +58,7 @@ var whatString = map[GuessWhat]string{
 	GuessDPort:     "destination port",
 	GuessNetNS:     "network namespace",
 	GuessRTT:       "Round Trip Time",
+	GuessRTTVar:    "Round Trip Time Variance",
 	GuessDAddrIPv6: "destination address IPv6",
 
 	// Guess offsets in struct flowi4
@@ -82,7 +83,6 @@ var whatString = map[GuessWhat]string{
 	GuessCtNet:         "conntrack network namespace",
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 type OffsetGuesser interface {
 	Manager() *manager.Manager
 	Probes(c *config.Config) (map[string]struct{}, error)
@@ -184,7 +184,7 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	if err := offsetMgr.InitWithOptions(buf, offsetOptions); err != nil {
 		return fmt.Errorf("could not load bpf module for offset guessing: %s", err)
 	}
-	ebpfcheck.AddNameMappings(offsetMgr, "npm_offsetguess")
+	ddebpf.AddNameMappings(offsetMgr, "npm_offsetguess")
 	if err := offsetMgr.Start(); err != nil {
 		return fmt.Errorf("could not start offset ebpf manager: %s", err)
 	}
@@ -192,7 +192,6 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	return nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func RunOffsetGuessing(cfg *config.Config, buf bytecode.AssetReader, newGuesser func() (OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
 	start := time.Now()

@@ -9,16 +9,18 @@ package rcserviceimpl
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -48,7 +50,7 @@ type dependencies struct {
 // newRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
 func newRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservice.Component] {
 	none := optional.NewNoneOption[rcservice.Component]()
-	if !config.IsRemoteConfigEnabled(deps.Cfg) {
+	if !pkgconfigsetup.IsRemoteConfigEnabled(deps.Cfg) {
 		return none
 	}
 
@@ -70,21 +72,36 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseRawURL := configUtils.GetMainEndpoint(deps.Cfg, "https://config.", "remote_configuration.rc_dd_url")
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
-	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 
 	options := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
 	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)
 	}
+	if deps.Cfg.IsSet("remote_configuration.refresh_interval") {
+		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.max_backoff_interval") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.ttl_seconds") {
+		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.cache_bypass_limit") {
+		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
+	}
 
 	configService, err := remoteconfig.NewService(
 		deps.Cfg,
-		apiKey,
+		"Remote Config",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
-		configuredTags,
+		getHostTags(deps.Cfg),
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
 		options...,
@@ -109,4 +126,16 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	}})
 
 	return configService, nil
+}
+
+func getHostTags(config cfgcomp.Component) func() []string {
+	return func() []string {
+		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
+		// if the host tags are not available yet and need to be fetched. They will be fetched
+		// by the first agent metadata V5 payload.
+		ctx, cc := context.WithTimeout(context.Background(), time.Second)
+		defer cc()
+		hostTags := hosttags.Get(ctx, true, config)
+		return append(hostTags.System, hostTags.GoogleCloudPlatform...)
+	}
 }

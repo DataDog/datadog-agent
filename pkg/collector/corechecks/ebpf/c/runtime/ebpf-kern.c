@@ -4,6 +4,7 @@
 #include "bpf_core_read.h"
 #include "map-defs.h"
 #include "ebpf-kern-user.h"
+#include "bpf_metadata.h"
 
 #define F_DUPFD_CLOEXEC 1030
 
@@ -285,7 +286,7 @@ int tp_mmap_enter(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
     }
     margs.map_id = *map_idp;
     margs.offset = args->offset;
-    log_debug("tracepoint_sys_enter_mmap: fd=%d len=%d", key.fd, args->len);
+    log_debug("tracepoint_sys_enter_mmap: fd=%d len=%lu", key.fd, args->len);
     bpf_map_update_elem(&mmap_args, &pid_tgid, &margs, BPF_ANY);
     return 0;
 }
@@ -327,7 +328,7 @@ int tp_mmap_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     }
     // store address of mmap region
     val->addr = args->ret;
-    log_debug("tracepoint_sys_exit_mmap: len=%d addr=%x", val->len, val->addr);
+    log_debug("tracepoint_sys_exit_mmap: len=%lu addr=%lx", val->len, val->addr);
 
 cleanup:
     bpf_map_delete_elem(&mmap_args, &pid_tgid);
@@ -369,14 +370,14 @@ int BPF_KPROBE(k_map_update, int cmd, union bpf_attr *attr) {
     // pivot from perf_event_fd+pid -> mmap region
     mmap_region_t *infop = bpf_map_lookup_elem(&perf_event_mmap, &key);
     if (infop == NULL) {
-        log_debug("kprobe/map_update_elem: no mmap data cpu=%d fd=%d fdptr=%llx", pb_key.cpu, key.fd, fdp);
+        log_debug("kprobe/map_update_elem: no mmap data cpu=%d fd=%d fdptr=%p", pb_key.cpu, key.fd, fdp);
         return 0;
     }
 
     // make a stack copy of mmap data and store by map_id+cpu, which userspace can know
     mmap_region_t stackinfo = {};
     bpf_probe_read_kernel(&stackinfo, sizeof(mmap_region_t), infop);
-    log_debug("map_update_elem: map_id=%d cpu=%d len=%d", pb_key.map_id, pb_key.cpu, stackinfo.len);
+    log_debug("map_update_elem: map_id=%d cpu=%d len=%lu", pb_key.map_id, pb_key.cpu, stackinfo.len);
     bpf_map_update_elem(&perf_buffers, &pb_key, &stackinfo, BPF_ANY);
     bpf_map_delete_elem(&perf_event_mmap, &key);
     return 0;

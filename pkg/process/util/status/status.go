@@ -16,7 +16,7 @@ import (
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -63,8 +63,7 @@ type MemInfo struct {
 	Alloc uint64 `json:"alloc"`
 }
 
-// ProcessExpvars holds values fetched from the exp var server
-type ProcessExpvars struct {
+type ExpvarsMap struct {
 	Pid                             int                 `json:"pid"`
 	Uptime                          int                 `json:"uptime"`
 	UptimeNano                      float64             `json:"uptime_nano"`
@@ -97,6 +96,11 @@ type ProcessExpvars struct {
 	WlmExtractorDiffsDropped        int                 `json:"workloadmeta_extractor_diffs_dropped"`
 }
 
+// ProcessExpvars holds values fetched from the exp var server
+type ProcessExpvars struct {
+	ExpvarsMap ExpvarsMap `json:"process_agent"`
+}
+
 // Status holds runtime information from process-agent
 type Status struct {
 	Date    float64        `json:"date"`
@@ -124,7 +128,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig ddconfig.Reader) (s CoreStatus) {
+func getCoreStatus(coreConfig pkgconfigmodel.Reader) (s CoreStatus) {
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -148,7 +152,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig ddconfig.Reader, expVarURL string) (*Status, error) {
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {

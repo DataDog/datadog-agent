@@ -61,9 +61,9 @@ func TestEmbeddedBTFMatch(t *testing.T) {
 
 func TestBTFTelemetry(t *testing.T) {
 	loader := initBTFLoader(NewConfig())
-	spec, result, err := loader.Get()
+	ret, result, err := loader.Get()
 	require.NoError(t, err)
-	require.NotNil(t, spec)
+	require.NotNil(t, ret)
 	require.NotEqual(t, ebpftelemetry.COREResult(ebpftelemetry.BtfNotFound), result)
 }
 

@@ -91,7 +91,7 @@ func applyAdditionalFields(flow *common.Flow, additionalFields common.Additional
 }
 
 func applyAdditionalField(flow *common.Flow, destination string, fieldValue any) bool {
-	// Make sure FlowFieldsTypes includes the type of the following fields
+	// Make sure DefaultFieldTypes includes the type of the following fields
 	switch destination {
 	case "direction":
 		setInt(&flow.Direction, fieldValue)

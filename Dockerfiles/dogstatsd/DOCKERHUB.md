@@ -2,7 +2,6 @@
 
 - `latest`
 - `7` , `7.X.X` : versions published since agent 7 has been released
-- `6.X.X` : versions published previously
 
 _Note_ : there's no breaking change between major versions 6 and 7. This is
 merely a consequence of the versionning scheme being based on the latest

@@ -8,18 +8,17 @@
 #include "helpers/syscalls.h"
 
 long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
-    struct policy_t policy = fetch_policy(EVENT_MKDIR);
-    if (is_discarded_by_process(policy.mode, EVENT_MKDIR)) {
+    if (is_discarded_by_pid()) {
         return 0;
     }
 
+    struct policy_t policy = fetch_policy(EVENT_MKDIR);
     struct syscall_cache_t syscall = {
         .type = EVENT_MKDIR,
         .policy = policy,
         .async = async,
         .mkdir = {
-            .mode = mode
-        }
+            .mode = mode }
     };
 
     cache_syscall(&syscall);
@@ -27,13 +26,11 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
-{
+HOOK_SYSCALL_ENTRY2(mkdir, const char *, filename, umode_t, mode) {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
-{
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
@@ -48,18 +45,18 @@ int hook_vfs_mkdir(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *) CTX_PARM2(ctx);
+    syscall->mkdir.dentry = (struct dentry *)CTX_PARM2(ctx);
     // change the register based on the value of vfs_mkdir_dentry_position
     if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
-        syscall->mkdir.dentry = (struct dentry *) CTX_PARM3(ctx);
+        syscall->mkdir.dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
 
-    if (filter_syscall(syscall, mkdir_approvers)) {
-        return discard_syscall(syscall);
+    if (approve_syscall(syscall, mkdir_approvers) == DISCARDED) {
+        pop_syscall(EVENT_MKDIR);
     }
 
     return 0;
@@ -71,7 +68,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
         return 0;
     }
     if (IS_UNHANDLED_ERROR(retval)) {
-        discard_syscall(syscall);
+        pop_syscall(EVENT_MKDIR);
         return 0;
     }
 
@@ -80,7 +77,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, int dr_t
 
     syscall->resolver.key = syscall->mkdir.file.path_key;
     syscall->resolver.dentry = syscall->mkdir.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MKDIR : 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = select_dr_key(dr_type, DR_MKDIR_CALLBACK_KPROBE_KEY, DR_MKDIR_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;

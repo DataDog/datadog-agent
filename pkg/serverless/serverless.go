@@ -14,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -139,6 +141,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+
+			if daemon.IsExecutionSpanIncomplete() {
+				finishTimeoutExecutionSpan(daemon, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
@@ -152,6 +158,14 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
+	cpuOffsetData, cpuOffsetErr := proc.GetCPUData()
+	uptimeOffset, uptimeOffsetErr := proc.GetUptime()
+	networkOffsetData, networkOffsetErr := proc.GetNetworkData()
+	sendProcessMetrics := make(chan bool)
+	go metrics.SendProcessEnhancedMetrics(sendProcessMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
+	sendTmpMetrics := make(chan bool)
+	go metrics.SendTmpEnhancedMetrics(sendTmpMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
+
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -163,9 +177,31 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
-		return
+		break
 	case <-doneChannel:
+		break
+	}
+	sendSystemEnhancedMetrics(daemon, cpuOffsetErr == nil && uptimeOffsetErr == nil, networkOffsetErr == nil, uptimeOffset, cpuOffsetData, networkOffsetData, sendTmpMetrics, sendProcessMetrics)
+}
+
+func sendSystemEnhancedMetrics(daemon *daemon.Daemon, emitCPUMetrics, emitNetworkMetrics bool, uptimeOffset float64, cpuOffsetData *proc.CPUData, networkOffsetData *proc.NetworkData, sendTmpMetrics chan bool, sendProcessMetrics chan bool) {
+	if daemon.MetricAgent == nil {
+		log.Debug("Could not send system enhanced metrics")
 		return
+	}
+
+	close(sendTmpMetrics)
+	close(sendProcessMetrics)
+
+	if emitCPUMetrics {
+		metrics.SendCPUEnhancedMetrics(cpuOffsetData, uptimeOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	} else {
+		log.Debug("Could not send CPU enhanced metrics")
+	}
+	if emitNetworkMetrics {
+		metrics.SendNetworkEnhancedMetrics(networkOffsetData, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	} else {
+		log.Debug("Could not send network enhanced metrics")
 	}
 }
 
@@ -213,4 +249,21 @@ func removeQualifierFromArn(functionArn string) string {
 		return strings.Join(functionArnTokens, ":")
 	}
 	return functionArn
+}
+
+func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProactiveInit bool) {
+	ecs := daemon.ExecutionContext.GetCurrentState()
+	timeoutDetails := &invocationlifecycle.InvocationEndDetails{
+		RequestID:          ecs.LastRequestID,
+		Runtime:            ecs.Runtime,
+		ColdStart:          isColdStart,
+		ProactiveInit:      isProactiveInit,
+		EndTime:            time.Now(),
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
+	}
+	log.Debug("Could not complete the execution span due to a timeout. Attempting to finish the span without details from the tracer.")
+	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
+	daemon.SetExecutionSpanIncomplete(false)
 }

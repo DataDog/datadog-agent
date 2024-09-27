@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	RunZip       = "APPSVC_RUN_ZIP"
+	WebsiteStack = "WEBSITE_STACK"
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
 func TestInAzureAppServices(t *testing.T) {
-	os.Setenv(RunZip, " ")
+	os.Setenv(WebsiteStack, " ")
 	isLinuxAzure := inAzureAppServices()
-	os.Unsetenv(RunZip)
+	os.Unsetenv(WebsiteStack)
 
 	os.Setenv(AppLogsTrace, " ")
 	isWindowsAzure := inAzureAppServices()
@@ -31,4 +31,38 @@ func TestInAzureAppServices(t *testing.T) {
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)
 	assert.False(t, isNotAzure)
+}
+
+func TestPeerTagsAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		cfg := New()
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Empty(t, cfg.PeerTags)
+		assert.Empty(t, cfg.ConfiguredPeerTags())
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTagsAggregation = true
+		assert.Empty(t, cfg.PeerTags)
+		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+	})
+	t.Run("disabled-user-tags", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTags = []string{"user_peer_tag"}
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Empty(t, cfg.ConfiguredPeerTags())
+	})
+	t.Run("enabled-user-tags", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTagsAggregation = true
+		cfg.PeerTags = []string{"user_peer_tag"}
+		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.ConfiguredPeerTags())
+	})
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.PeerTagsAggregation = true
+		cfg.PeerTags = basePeerTags[:2]
+		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+	})
 }

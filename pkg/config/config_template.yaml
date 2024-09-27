@@ -478,16 +478,21 @@ api_key:
 #
 # azure_hostname_style: "os"
 
-## @param flare_stripped_keys - list of strings - optional
-## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
-## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
-## including them in the flare.
-## Use this parameter to define additional sensitive keys that the Agent should scrub from
-## the yaml files included in the flare.
+## @param scrubber - custom object - optional
+## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
-# flare_stripped_keys:
-#   - "sensitive_key_1"
-#   - "sensitive_key_2"
+# scrubber:
+#
+  ## @param scrubber.additional_keys - list of strings - optional
+  ## @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
+  ## By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
+  ## including them in the flare.
+  ## Use this parameter to define additional sensitive keys that the Agent should scrub from
+  ## the YAML files included in the flare.
+  #
+  # additional_keys:
+  #   - "sensitive_key_1"
+  #   - "sensitive_key_2"
 
 ## @param no_proxy_nonexact_match - boolean - optional - default: false
 ## @env DD_NO_PROXY_NONEXACT_MATCH - boolean - optional - default: false
@@ -700,6 +705,14 @@ api_key:
 #
 # GUI_port: <GUI_PORT>
 
+## @param GUI_session_expiration - duration - optional
+## @env GUI_SESSION_EXPIRATION - duration - optional
+## The duration after which a GUI session will expire.
+## Setting 'GUI_SESSION_EXPIRATION: 0' disable session expiration.
+## Default is "0s" (sessions do not expire).
+#
+# GUI_session_expiration: <SESSION_EXPIRATION_DURATION>
+
 ## @param health_port - integer - optional - default: 0
 ## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
@@ -736,7 +749,7 @@ api_key:
 # enable_gohai: true
 
 ## @param enable_signing_metadata_collection - boolean - optional - default: true
-## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA_COLLECTION - boolean - optional - default: true
 ## Enable the Linux package signing medatada collection.
 #
 # enable_signing_metadata_collection: true
@@ -847,281 +860,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-## @param snmp_listener - custom object - optional
-## Creates and schedules a listener to automatically discover your SNMP devices.
-## Discovered devices can then be monitored with the SNMP integration by using
-## the auto_conf.yaml file provided by default.
-#
-# snmp_listener:
-
-  ## @param workers - integer - optional - default: 2
-  ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
-  ## discovers devices faster but at the cost of increased resource consumption.
-  #
-  # workers: 2
-
-  ## @param discovery_interval - integer - optional - default: 3600
-  ## How often to discover new SNMP devices, in seconds. Decreasing this value
-  ## discovers devices faster (within the limit of the time taken to scan subnets)
-  ## but at the cost of increased resource consumption.
-  #
-  # discovery_interval: 3600
-
-  ## @param discovery_allowed_failures - integer - optional - default: 3
-  ## The number of failed requests to a given SNMP device before removing it from the list of monitored
-  ## devices.
-  ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
-  #
-  # discovery_allowed_failures: 3
-
-  ## @param loader - string - optional - default: python
-  ## Check loader to use. Available loaders:
-  ## - core: (recommended) Uses new corecheck SNMP integration
-  ## - python: Uses legacy python SNMP integration
-  #
-  # loader: core
-
-  ## @param min_collection_interval - number - optional - default: 15
-  ## This changes the collection interval for the check instances created
-  ## from discovered SNMP devices.
-  ## For more information, see:
-  ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
-  #
-  # min_collection_interval: 15
-
-  ## @param use_device_id_as_hostname - boolean - optional - default: false
-  ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
-  ## for metrics and service checks (meaning that metrics and services checks will have
-  ## `host:device:<DEVICE_ID>` as tag).
-  ## This option is needed for custom tags.
-  #
-  # use_device_id_as_hostname: true
-
-  ## @param ping - custom object - optional
-  ## Configure ICMP pings for all hosts in SNMP autodiscovery
-  ## Devices will be pinged with these settings each time the SNMP
-  ## check is run.
-  ##
-  ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-  ## pings, but some Linux systems require using a raw socket.
-  ##
-  ## If `linux.use_raw_socket` is set, you must enable the `ping` module
-  ## of system-probe for elevated privileges. See
-  ## system-probe.yaml.example for details.
-  #
-  # ping:
-  #   enabled: true             # Disabled by default
-  #   timeout: 3000             # Timeout in milliseconds
-  #   count: 2                  # Number of ping packets to send per check run
-  #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-  #   linux:                    # Linux-specific configuration
-  #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-  #                             # This may be required if your system doesn't support
-  #                             # sending pings in an unprivileged fashion (using a UDP socket).
-  #                             # If `use_raw_socket` is set to true, you MUST also enable
-  #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
-
-  ## @param configs - list - required
-  ## The actual list of configurations used to discover SNMP devices in various subnets.
-  ## Example:
-  ## configs:
-  ##  - network_address: 10.0.0.0/24
-  ##    snmp_version: 1
-  ##    community_string: public
-  ##  - network_address: 10.0.1.0/28
-  ##    community_string: public
-  ##    ignored_ip_addresses:
-  ##      - 10.0.1.0
-  ##      - 10.0.1.1
-  #
-  # configs:
-    ## @param network_address - string - required
-    ## The subnet in CIDR format to scan for SNMP devices.
-    ## All unignored IP addresses in the CIDR range are scanned.
-    ## For optimal discovery time, be sure to use the smallest network mask
-    ## possible as is appropriate for your network topology.
-    ## Ex: 10.0.1.0/24
-    #
-    # - network_address: <NETWORK>
-
-    ## @param ignored_ip_addresses - list of strings - optional
-    ## A list of IP addresses to ignore when scanning the network.
-    #
-    # ignored_ip_addresses:
-    #   - <IP_ADDRESS_1>
-    #   - <IP_ADDRESS_2>
-
-    ## @param port - integer - optional - default: 161
-    ## The UDP port to use when connecting to SNMP devices.
-    #
-    # port: 161
-
-    ## @param snmp_version - integer - optional - default: <BEST_GUESS>
-    ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
-    ## If unset, the Agent tries to guess the correct version based on other configuration
-    ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
-    #
-    # snmp_version: <VERSION>
-
-    ## @param timeout - integer - optional - default: 5
-    ## The number of seconds before timing out.
-    #
-    # timeout: 5
-
-    ## @param retries - integer - optional - default: 3
-    ## The number of retries before failure.
-    #
-    # retries: 3
-
-    ## @param community_string - string - optional
-    ## Required for SNMP v1 & v2.
-    ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
-    ## Ex: 'public'
-    #
-    # community_string: '<COMMUNITY>'
-
-    ## @param user - string - optional
-    ## The username to connect to your SNMP devices.
-    ## SNMPv3 only.
-    #
-    # user: <USERNAME>
-
-    ## @param authKey - string - optional
-    ## The passphrase to use with your Authentication type.
-    ## SNMPv3 only.
-    #
-    # authKey: <AUTHENTICATION_KEY>
-
-    ## @param authProtocol - string - optional
-    ## The authentication protocol to use when connecting to your SNMP devices.
-    ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
-    ## Defaults to MD5 when `authentication_key` is specified.
-    ## SNMPv3 only.
-    #
-    # authProtocol: <AUTHENTICATION_PROTOCOL>
-
-    ## @param privKey - string - optional
-    ## The passphrase to use with your privacy protocol.
-    ## SNMPv3 only.
-    #
-    # privKey: <PRIVACY_KEY>
-
-    ## @param privProtocol - string - optional
-    ## The privacy protocol to use when connecting to your SNMP devices.
-    ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
-    ## Defaults to DES when `privacy_key` is specified.
-    ## SNMPv3 only.
-    #
-    # privProtocol: <PRIVACY_PROTOCOL>
-
-    ## @param context_name - string - optional
-    ## The name of your context (optional SNMP v3-only parameter).
-    #
-    # context_name: <CONTEXT_NAME>
-
-    ## @param tags - list of strings - optional
-    ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
-    ##
-    ## Learn more about tagging at https://docs.datadoghq.com/tagging
-    #
-    # tags:
-    #   - <KEY_1>:<VALUE_1>
-    #   - <KEY_2>:<VALUE_2>
-
-    ## @param ad_identifier - string - optional - default: snmp
-    ## A unique identifier to attach to devices from that subnetwork.
-    ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
-    ## specify the corresponding ad_identifier at the top of the file.
-    #
-    # ad_identifier: snmp
-
-    ## @param loader - string - optional - default: python
-    ## Check loader to use. Available loaders:
-    ## - core: will use corecheck SNMP integration
-    ## - python: will use python SNMP integration
-    #
-    # loader: core
-
-    ## @param min_collection_interval - number - optional - default: 15
-    ## This changes the collection interval for the check instances created from
-    ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
-    ## and has precedence over `snmp_listener.min_collection_interval`.
-    ## For more information, see:
-    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
-    #
-    # min_collection_interval: 15
-
-    ## @param use_device_id_as_hostname - boolean - optional - default: false
-    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
-    ## for metrics and service checks (meaning that metrics and services checks will have
-    ## `host:device:<DEVICE_ID>` as tag).
-    ## This option is needed for custom tags.
-    #
-    # use_device_id_as_hostname: true
-
-    ## @param oid_batch_size - integer - optional - default: 5
-    ## The number of OIDs handled by each batch.
-    #
-    # oid_batch_size: 5
-
-    ## @param interface_configs - map - optional
-    ## This option is used to override interface inbound/outbound speed and add interface tags
-    ## Example:
-    ## interface_configs:
-    ##   "10.0.0.1":              # target device IP address
-    ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
-    ##       match_value: "eth0"  # (required) the value to match
-    ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
-    ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
-    ##       tags:                # (optional) interface level tags
-    ##         - "testTagKey:testTagValue"
-    ##         - "tagKey2:tagValue2"
-    #
-    # interface_config:
-    #   "10.0.0.1":
-    #     - match_field: name
-    #       match_value: eth0
-    #       in_speed: 50
-    #       out_speed: 25
-    #     - match_field: index
-    #       match_value: '10'
-    #       in_speed: 50
-    #       out_speed: 25
-    #   "10.0.0.2":
-    #     - match_field: name
-    #       match_value: eth3
-    #       in_speed: 50
-    #       out_speed: 25
-    #   "10.0.0.3":
-    #     - match_field: name
-    #       match_value: eth4
-    #       tags:
-    #         - "monitored:true"
-    #         - "customKey:customValue"
-
-    ## @param ping - custom object - optional
-    ## Configure ICMP pings for all hosts in SNMP autodiscovery
-    ## Devices will be pinged with these settings each time the SNMP
-    ## check is run.
-    ##
-    ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-    ## pings, but some linux systems require using a raw socket.
-    ##
-    ## If `linux.use_raw_socket` is set, you must enable the `ping` module
-    ## of system-probe for elevated privileges. See
-    ## system-probe.yaml.example for details.
-    #
-    # ping:
-    #   enabled: true             # Disabled by default
-    #   timeout: 3000             # Timeout in milliseconds
-    #   count: 2                  # Number of ping packets to send per check run
-    #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-    #   linux:                    # Linux-specific configuration
-    #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-    #                             # This may be required if your system doesn't support
-    #                             # sending pings in an unprivileged fashion (using a UDP socket).
-    #                             # If `use_raw_socket` is set to true, you MUST also enable
-    #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1147,6 +885,8 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+
 {{ end -}}
 
 {{- if .LogsAgent }}
@@ -1175,7 +915,7 @@ api_key:
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
-  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
+  ## @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
@@ -1234,7 +974,7 @@ api_key:
 
   ## @param batch_wait - integer - optional - default: 5
   ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
-  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
 
@@ -1275,6 +1015,12 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
+  ## @param integrations_logs_files_max_size - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
+  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  #
+  # integrations_logs_files_max_size
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -1311,12 +1057,23 @@ api_key:
   #
   # receiver_port: 8126
 
-  ## @param receiver_socket - string - optional
-  ## @env DD_APM_RECEIVER_SOCKET - string - optional
+{{- if (eq .OS "windows")}}
+  ## Please note that UDS receiver is not available in Windows.
+  #@ Enabling this setting may result in unexpected behavior.
+  ## @param receiver_socket - string - optional - default: ""
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
   ## Accept traces through Unix Domain Sockets.
-  ## It is off by default. When set, it must point to a valid socket file.
+  ## Set to "" to disable the UDS receiver.
   #
-  # receiver_socket: <UNIX_SOCKET_PATH>
+  # receiver_socket: ""
+{{else}}
+  ## @param receiver_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## Accept traces through Unix Domain Sockets.
+  ## Set to "" to disable the UDS receiver.
+  #
+  # receiver_socket: /var/run/datadog/apm.socket
+{{ end }}
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -1332,6 +1089,7 @@ api_key:
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
+  ## DEPRECATED - please use `target_traces_per_second` instead.
   ## @param max_traces_per_second - integer - optional - default: 10
   ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1341,6 +1099,16 @@ api_key:
   ## value sufficiently high for your traffic pattern.
   #
   # max_traces_per_second: 10
+
+  ## @param target_traces_per_second - integer - optional - default: 10
+  ## @env DD_APM_TARGET_TPS - integer - optional - default: 10
+  ## The target traces per second to sample. Sampling rates to apply are adjusted given
+  ## the received traffic and communicated to tracers. This configures head-based sampling.
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
+  ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
+  ## value sufficiently high for your traffic pattern.
+  #
+  # target_traces_per_second: 10
 
   ## @param errors_per_second - integer - optional - default: 10
   ## @env DD_APM_ERROR_TPS - integer - optional - default: 10
@@ -1380,8 +1148,8 @@ api_key:
   # obfuscation:
   #     credit_cards:
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for credit cards. Disabled by default.
-  #         enabled: false
+  ##        Enables obfuscation rules for credit cards. Enabled by default.
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
   ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
   #         luhn: false
@@ -1389,12 +1157,25 @@ api_key:
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
   #             - client_id
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     opensearch:
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+  #         enabled: true
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
@@ -1410,7 +1191,7 @@ api_key:
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
   ##        If enabled, the full command for the query will be kept, including any lookup
   ##        keys that could be present. The value for storage commands will still be
@@ -1420,7 +1201,7 @@ api_key:
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "mongodb". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
@@ -1433,7 +1214,7 @@ api_key:
   #     redis:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "redis". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
@@ -1536,12 +1317,6 @@ api_key:
   #
   # log_file: <APM_LOG_FILE_PATH>
 
-  ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
-  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
-  #
-  # log_throttling: true
-
   ## @param connection_limit - integer - default: 2000
   ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
   ## The APM connection limit for the Agent.
@@ -1555,6 +1330,7 @@ api_key:
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
 
   ## @param peer_service_aggregation - bool - default: false
@@ -1587,7 +1363,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -1652,6 +1428,25 @@ api_key:
   #
   # trace_buffer: 0
 
+  ## @param probabilistic_sampler - object - optional
+  ## Enables and configures the Probabilistic Sampler, compatible with the
+  ## OTel Probabilistic Sampler Processor ( https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor#probabilistic-sampling-processor )
+  ##
+  #probabilistic_sampler:
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_ENABLED - boolean - optional - default: false
+  ## Enables or disables the probabilistic sampler
+  #  enabled: false
+  #
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
+  ## Samples this percentage (0-100) of traffic
+  #  sampling_percentage: 0
+  #
+  ## @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
+  ## hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
+  ##            collectors using the probabilistic sampler to ensure consistent sampling.
+  #  hash_seed: 0
+
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.
@@ -1689,6 +1484,15 @@ api_key:
 ## See https://docs.datadoghq.com/graphing/infrastructure/process/
 #
 # process_config:
+
+  {{- if (eq .OS "linux")}}
+  ## @param run_in_core_agent - custom object - optional
+  ## Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
+  # run_in_core_agent:
+    ## @param enabled - boolean - optional - default: false
+    ## Enables process/container collection on the core Agent instead of the process Agent.
+    # enabled: false
+  {{ end }}
 
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
@@ -1850,6 +1654,39 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+{{- if .NetworkPath }}
+{{- if (ne .OS "darwin")}}
+
+########################################
+## Network Path Configuration         ##
+########################################
+
+# network_path:
+  ## @param connections_monitoring - custom object - optional
+  ## Specific configurations for monitoring network connections via Network Path.
+  #
+  # connections_monitoring:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
+    ## [Beta] Enables monitoring network connections via Network Path.
+    #
+    # enabled: false
+
+  ## @param collector - custom object - optional
+  ## Configuration related to Network Path Collector.
+  #
+  # collector:
+
+    ## @param workers - integer - optional - default: 4
+    ## @env DD_WORKERS - integer - optional - default: 4
+    ## The `workers` refers to the number of concurrent workers available for network path execution.
+    #
+    # workers: 4
+
+{{ end -}}
+{{ end -}}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
@@ -1881,6 +1718,28 @@ api_key:
   ## @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
   ##
   # check_max_events_per_run: 100
+{{ end -}}
+
+{{- if .SBOM }}
+## @param sbom - custom object - optional
+## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
+# sbom:
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Cloud Security Management Vulnerability Management
+  # enabled: false
+
+  ## uncomment the sections below to enable where the vulnerability scanning is done
+
+  ## @param enabled - boolean - optional - default: false
+  ## set to true to enable Infrastructure Vulnerabiltilies
+  # host:
+  #  enabled: false
+{{- if (eq .OS "linux")}}
+
+ 
+  # container_image:
+  #   enabled: false
+{{ end -}}
 {{ end -}}
 {{- if .SystemProbe }}
 
@@ -2035,6 +1894,21 @@ api_key:
 # ping:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Ping Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
+
+{{- if .TracerouteModule }}
+
+###########################################
+## System Probe Traceroute Configuration ##
+###########################################
+
+# traceroute:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Traceroute Module of the System Probe
   #
   # enabled: false
 
@@ -2239,11 +2113,23 @@ api_key:
 #
 # bind_host: localhost
 
+{{- if (eq .OS "windows")}}
+## Please note that UDS receiver is not available in Windows.
+#@ Enabling this setting may result in unexpected behavior.
 ## @param dogstatsd_socket - string - optional - default: ""
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
+{{else}}
+## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
+#
+# dogstatsd_socket: "/var/run/datadog/dsd.socket"
+{{ end }}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2862,10 +2748,11 @@ api_key:
   #
   # listen_address: /var/vcap/data/garden/garden.sock
 
-## @param podman_db_path - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
+## @param podman_db_path - string - optional - default: ""
+## @env DD_PODMAN_DB_PATH - string - optional - default: ""
 ## Settings for Podman DB that Datadog Agent collects container metrics.
 #
-# podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
+# podman_db_path: ""
 
 {{ end -}}
 {{- if .ClusterAgent }}
@@ -3133,6 +3020,15 @@ api_key:
     #
     # trace_agent_socket: unix:///var/run/datadog/apm.socket
 
+    ## @param type_socket_volumes - boolean - optional - default: false
+    ## @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
+    ## When enabled, injected volumes are of type "Socket". This means that
+    ## injected pods will not start until the Agent creates the dogstatsd and
+    ## trace-agent sockets. This ensures no lost traces or dogstatsd metrics but
+    ## can cause the pod to wait if the agent has issues creating the sockets.
+    #
+    # type_socket_volumes: false
+
   ## @param inject_tags - custom object - optional
   ## Tags injection parameters.
   #
@@ -3193,6 +3089,16 @@ api_key:
       ## Configures the memory request and limit for the init containers.
       #
       # memory:
+
+    ## @param init_security_context - json - optional
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
+    ## Security context for the init containers in JSON format. Follows the Kubernetes security context spec,
+    ## https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#securitycontext-v1-core,
+    ## ignores unknown properties.
+    #
+    # init_security_context: '{"privileged": false}'
+    #
+    # DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3331,6 +3237,13 @@ api_key:
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
 # ecs_metadata_timeout: 500
+
+## @param ecs_task_collection_enabled - boolean - optional - default: false
+## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
+## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
+## which is used for the orchestrator ECS check.
+#
+# ecs_task_collection_enabled: false
 
 {{ end -}}
 {{- if .CRI }}
@@ -3798,6 +3711,288 @@ api_key:
   #
   # namespace: default
 
+  ## @param autodiscovery - custom object - optional
+  ## Creates and schedules a listener to automatically discover your SNMP devices.
+  ## Discovered devices can then be monitored with the SNMP integration by using
+  ## the auto_conf.yaml file provided by default.
+  #
+  # autodiscovery:
+
+    ## @param workers - integer - optional - default: 2
+    ## The number of concurrent tasks used to discover SNMP devices. Increasing this value
+    ## discovers devices faster but at the cost of increased resource consumption.
+    #
+    # workers: 2
+
+    ## @param discovery_interval - integer - optional - default: 3600
+    ## How often to discover new SNMP devices, in seconds. Decreasing this value
+    ## discovers devices faster (within the limit of the time taken to scan subnets)
+    ## but at the cost of increased resource consumption.
+    #
+    # discovery_interval: 3600
+
+    ## @param discovery_allowed_failures - integer - optional - default: 3
+    ## The number of failed requests to a given SNMP device before removing it from the list of monitored
+    ## devices.
+    ## If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
+    #
+    # discovery_allowed_failures: 3
+
+    ## @param loader - string - optional - default: python
+    ## Check loader to use. Available loaders:
+    ## - core: (recommended) Uses new corecheck SNMP integration
+    ## - python: Uses legacy python SNMP integration
+    #
+    # loader: core
+
+    ## @param min_collection_interval - number - optional - default: 15
+    ## This changes the collection interval for the check instances created
+    ## from discovered SNMP devices.
+    ## For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 15
+
+    ## @param use_device_id_as_hostname - boolean - optional - default: false
+    ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+    ## for metrics and service checks (meaning that metrics and services checks will have
+    ## `host:device:<DEVICE_ID>` as tag).
+    ## This option is needed for custom tags.
+    #
+    # use_device_id_as_hostname: true
+
+    ## @param collect_topology - boolean - optional - default: true
+    ## Enable the collection of topology (LLDP/CDP) data
+    #
+    # collect_topology: true
+
+    ## @param ping - custom object - optional
+    ## Configure ICMP pings for all hosts in SNMP autodiscovery
+    ## Devices will be pinged with these settings each time the SNMP
+    ## check is run.
+    ##
+    ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
+    ## pings, but some Linux systems require using a raw socket.
+    ##
+    ## If `linux.use_raw_socket` is set, you must enable the `ping` module
+    ## of system-probe for elevated privileges. See
+    ## system-probe.yaml.example for details.
+    #
+    # ping:
+    #   enabled: true             # Disabled by default
+    #   timeout: 3000             # Timeout in milliseconds
+    #   count: 2                  # Number of ping packets to send per check run
+    #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+    #   linux:                    # Linux-specific configuration
+    #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+    #                             # This may be required if your system doesn't support
+    #                             # sending pings in an unprivileged fashion (using a UDP socket).
+    #                             # If `use_raw_socket` is set to true, you MUST also enable
+    #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
+    ## @param configs - list - required
+    ## The actual list of configurations used to discover SNMP devices in various subnets.
+    ## Example:
+    ## configs:
+    ##  - network_address: 10.0.0.0/24
+    ##    snmp_version: 1
+    ##    community_string: public
+    ##  - network_address: 10.0.1.0/28
+    ##    community_string: public
+    ##    ignored_ip_addresses:
+    ##      - 10.0.1.0
+    ##      - 10.0.1.1
+    #
+    # configs:
+      ## @param network_address - string - required
+      ## The subnet in CIDR format to scan for SNMP devices.
+      ## All unignored IP addresses in the CIDR range are scanned.
+      ## For optimal discovery time, be sure to use the smallest network mask
+      ## possible as is appropriate for your network topology.
+      ## Ex: 10.0.1.0/24
+      #
+      # - network_address: <NETWORK>
+
+      ## @param ignored_ip_addresses - list of strings - optional
+      ## A list of IP addresses to ignore when scanning the network.
+      #
+      # ignored_ip_addresses:
+      #   - <IP_ADDRESS_1>
+      #   - <IP_ADDRESS_2>
+
+      ## @param port - integer - optional - default: 161
+      ## The UDP port to use when connecting to SNMP devices.
+      #
+      # port: 161
+
+      ## @param snmp_version - integer - optional - default: <BEST_GUESS>
+      ## Set the version of the SNMP protocol. Available options are: `1`, `2` or `3`.
+      ## If unset, the Agent tries to guess the correct version based on other configuration
+      ## parameters, for example: if `user` is set, the Agent uses SNMP v3.
+      #
+      # snmp_version: <VERSION>
+
+      ## @param timeout - integer - optional - default: 5
+      ## The number of seconds before timing out.
+      #
+      # timeout: 5
+
+      ## @param retries - integer - optional - default: 3
+      ## The number of retries before failure.
+      #
+      # retries: 3
+
+      ## @param community_string - string - optional
+      ## Required for SNMP v1 & v2.
+      ## Enclose the community string with single quote like below (to avoid special characters being interpreted).
+      ## Ex: 'public'
+      #
+      # community_string: '<COMMUNITY>'
+
+      ## @param user - string - optional
+      ## The username to connect to your SNMP devices.
+      ## SNMPv3 only.
+      #
+      # user: <USERNAME>
+
+      ## @param authKey - string - optional
+      ## The passphrase to use with your Authentication type.
+      ## SNMPv3 only.
+      #
+      # authKey: <AUTHENTICATION_KEY>
+
+      ## @param authProtocol - string - optional
+      ## The authentication protocol to use when connecting to your SNMP devices.
+      ## Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512
+      ## Defaults to MD5 when `authentication_key` is specified.
+      ## SNMPv3 only.
+      #
+      # authProtocol: <AUTHENTICATION_PROTOCOL>
+
+      ## @param privKey - string - optional
+      ## The passphrase to use with your privacy protocol.
+      ## SNMPv3 only.
+      #
+      # privKey: <PRIVACY_KEY>
+
+      ## @param privProtocol - string - optional
+      ## The privacy protocol to use when connecting to your SNMP devices.
+      ## Available options are: DES, AES (128 bits), AES192, AES192C, AES256, AES256C
+      ## Defaults to DES when `privacy_key` is specified.
+      ## SNMPv3 only.
+      #
+      # privProtocol: <PRIVACY_PROTOCOL>
+
+      ## @param context_name - string - optional
+      ## The name of your context (optional SNMP v3-only parameter).
+      #
+      # context_name: <CONTEXT_NAME>
+
+      ## @param tags - list of strings - optional
+      ## A list of tags to attach to every metric and service check of all devices discovered in the subnet.
+      ##
+      ## Learn more about tagging at https://docs.datadoghq.com/tagging
+      #
+      # tags:
+      #   - <KEY_1>:<VALUE_1>
+      #   - <KEY_2>:<VALUE_2>
+
+      ## @param ad_identifier - string - optional - default: snmp
+      ## A unique identifier to attach to devices from that subnetwork.
+      ## When configuring the SNMP integration in snmp.d/auto_conf.yaml,
+      ## specify the corresponding ad_identifier at the top of the file.
+      #
+      # ad_identifier: snmp
+
+      ## @param loader - string - optional - default: python
+      ## Check loader to use. Available loaders:
+      ## - core: will use corecheck SNMP integration
+      ## - python: will use python SNMP integration
+      #
+      # loader: core
+
+      ## @param min_collection_interval - number - optional - default: 15
+      ## This changes the collection interval for the check instances created from
+      ## discovered SNMP devices. It applies to each specific config from `snmp_listener.configs`
+      ## and has precedence over `snmp_listener.min_collection_interval`.
+      ## For more information, see:
+      ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+      #
+      # min_collection_interval: 15
+
+      ## @param use_device_id_as_hostname - boolean - optional - default: false
+      ## Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
+      ## for metrics and service checks (meaning that metrics and services checks will have
+      ## `host:device:<DEVICE_ID>` as tag).
+      ## This option is needed for custom tags.
+      #
+      # use_device_id_as_hostname: true
+
+      ## @param oid_batch_size - integer - optional - default: 5
+      ## The number of OIDs handled by each batch.
+      #
+      # oid_batch_size: 5
+
+      ## @param interface_configs - map - optional
+      ## This option is used to override interface inbound/outbound speed and add interface tags
+      ## Example:
+      ## interface_configs:
+      ##   "10.0.0.1":              # target device IP address
+      ##     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
+      ##       match_value: "eth0"  # (required) the value to match
+      ##       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
+      ##       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+      ##       tags:                # (optional) interface level tags
+      ##         - "testTagKey:testTagValue"
+      ##         - "tagKey2:tagValue2"
+      #
+      # interface_config:
+      #   "10.0.0.1":
+      #     - match_field: name
+      #       match_value: eth0
+      #       in_speed: 50
+      #       out_speed: 25
+      #     - match_field: index
+      #       match_value: '10'
+      #       in_speed: 50
+      #       out_speed: 25
+      #   "10.0.0.2":
+      #     - match_field: name
+      #       match_value: eth3
+      #       in_speed: 50
+      #       out_speed: 25
+      #   "10.0.0.3":
+      #     - match_field: name
+      #       match_value: eth4
+      #       tags:
+      #         - "monitored:true"
+      #         - "customKey:customValue"
+
+      ## @param ping - custom object - optional
+      ## Configure ICMP pings for all hosts in SNMP autodiscovery
+      ## Devices will be pinged with these settings each time the SNMP
+      ## check is run.
+      ##
+      ## By default, Datadog tries to use an unprivileged UDP socket to send ICMP
+      ## pings, but some linux systems require using a raw socket.
+      ##
+      ## If `linux.use_raw_socket` is set, you must enable the `ping` module
+      ## of system-probe for elevated privileges. See
+      ## system-probe.yaml.example for details.
+      #
+      # ping:
+      #   enabled: true             # Disabled by default
+      #   timeout: 3000             # Timeout in milliseconds
+      #   count: 2                  # Number of ping packets to send per check run
+      #   interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
+      #   linux:                    # Linux-specific configuration
+      #     use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
+      #                             # This may be required if your system doesn't support
+      #                             # sending pings in an unprivileged fashion (using a UDP socket).
+      #                             # If `use_raw_socket` is set to true, you MUST also enable
+      #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
+
+
   ## @param snmp_traps - custom object - optional
   ## This section configures SNMP traps collection.
   ## Traps are forwarded as logs and can be found in the logs explorer with a source:snmp-traps query
@@ -3912,6 +4107,83 @@ api_key:
     #
     # stop_timeout: 5
 
+    ## @param reverse_dns_enrichment_enabled - boolean - optional - default: false
+    ## Set to true to enable reverse DNS enrichment of private source and destination IP addresses in NetFlow records.
+    # reverse_dns_enrichment_enabled: false
+
+## @param reverse_dns_enrichment - custom object - optional
+## This section configures the reverse DNS enrichment component that can be used by other components in the Datadog Agent.
+# reverse_dns_enrichment:
+
+  ## @param workers - integer - optional - default: 10
+  ## The number of concurrent workers used to perform reverse DNS lookups.
+  # workers: 10
+
+  ## @param chan_size - integer - optional - default: 5000
+  ## The size of the channel used to send reverse DNS lookup requests to the workers.
+  # chan_size: 5000
+
+  ## @param cache - custom object - optional
+  ## This section configures the cache used by the reverse DNS enrichment component.
+  # cache:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable reverse DNS enrichment caching.
+    #
+    # enabled: true
+
+    ## @param entry_ttl - duration - optional - default: 24h
+    ## The amount of time that a cache entry remains valid before it is expired and removed from the cache.
+    # entry_ttl: 24h
+
+    ## @param clean_interval - duration - optional - default: 2h
+    ## An interval that specifies how often expired entries are removed from the cache to free space.
+    # clean_interval: 2h
+
+    ## @param persist_interval - duration - optional - default: 2h
+    ## An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the Agent is upgraded or restarted.
+    # persist_interval: 2h
+
+    ## @param max_retries - integer - optional - default: 10
+    ## The maximum number of retries to perform when a DNS lookup operation fails, after which the hostname "" is returned and cached for the IP address.
+    # max_retries: 10
+
+    ## @param max_size - integer - optional - default: 1000000
+    ## The maximum size in entries of the cache, above which additional entries will not be cached.
+    #
+    # max_size: 1000000
+
+  ## @param rate_limiter - custom object - optional
+  ## This section configures the rate limiter used by the reverse DNS enrichment component.
+  # rate_limiter:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable the reverse DNS enrichment rate limiter.
+    #
+    # enabled: true
+
+    ## @param limit_per_sec - integer - optional - default: 1000
+    ## The maximum number of reverse DNS lookups allowed per second by the rate limiter.
+    # limit_per_sec: 1000
+
+    ## @param limit_throttled_per_sec - integer - optional - default: 1
+    ## The maximum number of reverse DNS lookups allowed per second when the rate limiter is throttled due to errors exceeding the threshold.
+    # limit_throttled_per_sec: 1
+
+    ## @param throttle_error_threshold - integer - optional - default: 10
+    ## The number of consecutive errors that will trigger the rate limiter to throttle down to limit_throttled_per_sec.
+    # throttle_error_threshold: 10
+
+    ## @param recovery_intervals - integer - optional - default: 5
+    ## The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    # recovery_intervals: 5
+
+    ## @param recovery_interval - duration - optional - default: 5s
+    ## The interval between incrementally increasing the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    ## The rate limit will be increased by (limit_per_sec - limit_throttled_per_sec) / recovery_intervals every recovery_interval, until it reaches
+    ## limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
+    ## be increased by 200 every 5 seconds until reaching 1000.
+    # recovery_interval: 5s
 
 {{end -}}
 {{- if .OTLP }}
@@ -4156,22 +4428,13 @@ api_key:
   ## Debug-specific configuration for OTLP ingest in the Datadog Agent.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
   ## for a full list of available settings:
-  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/loggingexporter#getting-started
+  ## https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/debugexporter#getting-started
   #
   # debug:
-
-    ## Deprecated (v[6/7].41.0) - use `verbosity` instead
-    ## @param loglevel - string - optional - default: none
-    ## @env DD_OTLP_CONFIG_DEBUG_LOGLEVEL - string - optional - default: none
-    ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are disabled, debug, info, error, warn.
-    #
-    # loglevel: info
-
     ## @param verbosity - string - optional - default: normal
     ## @env DD_OTLP_CONFIG_DEBUG_VERBOSITY - string - optional - default: normal
     ## Verbosity of debug logs when Datadog Agent receives otlp traces/metrics.
-    ## Valid values are basic, normal, detailed.
+    ## Valid values are basic, normal, detailed, none.
     #
     # verbosity: normal
 {{- if (eq .OS "windows")}}

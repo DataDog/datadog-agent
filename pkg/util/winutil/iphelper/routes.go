@@ -198,20 +198,3 @@ func GetIFTable() (table map[uint32]windows.MibIfRow, err error) {
 	return table, nil
 
 }
-
-// Ntohs converts a network byte order 16 bit int to host byte order
-func Ntohs(i uint16) uint16 {
-	return binary.BigEndian.Uint16((*(*[2]byte)(unsafe.Pointer(&i)))[:])
-}
-
-// Ntohl converts a network byte order 32 bit int to host byte order
-func Ntohl(i uint32) uint32 {
-	return binary.BigEndian.Uint32((*(*[4]byte)(unsafe.Pointer(&i)))[:])
-}
-
-// Htonl converts a host byte order 32 bit int to network byte order
-func Htonl(i uint32) uint32 {
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, i)
-	return *(*uint32)(unsafe.Pointer(&b[0]))
-}

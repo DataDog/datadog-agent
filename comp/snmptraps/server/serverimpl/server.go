@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coreStatus "github.com/DataDog/datadog-agent/comp/core/status"
 
 	"go.uber.org/fx"
@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // Module defines the fx options for this component.
@@ -95,7 +96,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) provides {
 	// careful never to double-instantiate anything. Do not use this solution
 	// elsewhere if possible.
 	app := fx.New(
-		fxutil.FxLoggingOption(),
+		logging.FxLoggingOption(),
 		fx.Supply(injections{
 			Conf:      deps.Conf,
 			HNService: deps.HNService,

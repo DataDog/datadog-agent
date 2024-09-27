@@ -8,15 +8,21 @@
 package listeners
 
 import (
+	"errors"
 	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // KubeletListener listens to pod creation through a subscription
@@ -26,19 +32,21 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(Config) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		Source:    workloadmeta.SourceNodeOrchestrator,
-		EventType: workloadmeta.EventTypeAll,
-	}
-	f := workloadmeta.NewFilter(&filterParams)
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceAll).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
 
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance, telemetryStore)
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +93,10 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
+	taggerEntityID := common.BuildTaggerEntityID(pod.GetID()).String()
 	svc := &service{
 		entity:        pod,
+		tagsHash:      tagger.GetEntityHash(taggerEntityID, tagger.ChecksCardinality()),
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -126,7 +136,7 @@ func (l *KubeletListener) createContainerService(
 	// stopped.
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
-		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
+		excludeAge := time.Duration(pkgconfigsetup.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return
@@ -147,9 +157,10 @@ func (l *KubeletListener) createContainerService(
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
 	svc := &service{
-		entity: container,
-		ready:  pod.Ready,
-		ports:  ports,
+		entity:   container,
+		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
+		ready:    pod.Ready,
+		ports:    ports,
 		extraConfig: map[string]string{
 			"pod_name":  pod.Name,
 			"namespace": pod.Namespace,

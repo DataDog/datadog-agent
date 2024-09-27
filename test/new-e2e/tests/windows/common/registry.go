@@ -21,3 +21,20 @@ func GetRegistryValue(host *components.RemoteHost, path string, value string) (s
 	}
 	return strings.TrimSpace(out), nil
 }
+
+// RegistryKeyExists returns true if the registry key exists on the remote host
+func RegistryKeyExists(host *components.RemoteHost, path string) (bool, error) {
+	cmd := fmt.Sprintf("Test-Path -Path '%s'", path)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return false, err
+	}
+	return strings.EqualFold(strings.TrimSpace(out), "True"), nil
+}
+
+// DeleteRegistryKey deletes a registry key on the remote host
+func DeleteRegistryKey(host *components.RemoteHost, path string) error {
+	cmd := fmt.Sprintf("Remove-Item -Path '%s' -Recurse -Force", path)
+	_, err := host.Execute(cmd)
+	return err
+}

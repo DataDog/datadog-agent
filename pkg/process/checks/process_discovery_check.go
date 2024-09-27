@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -19,7 +20,7 @@ import (
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
-func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
+func NewProcessDiscoveryCheck(config pkgconfigmodel.Reader) *ProcessDiscoveryCheck {
 	return &ProcessDiscoveryCheck{
 		config:    config,
 		scrubber:  procutil.NewDefaultDataScrubber(),
@@ -31,7 +32,7 @@ func NewProcessDiscoveryCheck(config ddconfig.Reader) *ProcessDiscoveryCheck {
 // It uses its own ProcessDiscovery payload.
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
-	config ddconfig.Reader
+	config pkgconfigmodel.Reader
 
 	probe      procutil.Probe
 	scrubber   *procutil.DataScrubber
@@ -64,7 +65,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 		return false
 	}
 
-	if ddconfig.IsECSFargate() {
+	if env.IsECSFargate() {
 		log.Debug("Process discovery is not supported on ECS Fargate")
 		return false
 	}
@@ -88,7 +89,7 @@ func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
+func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if !d.initCalled {
 		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
 	}
@@ -104,7 +105,16 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 		NumCpus:     calculateNumCores(d.info.SystemInfo),
 		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber), d.maxBatchSize)
+
+	procDiscoveries := pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber)
+
+	// For no chunking, set max batch size as number of process discoveries to ensure one chunk
+	runMaxBatchSize := d.maxBatchSize
+	if options != nil && options.NoChunking {
+		runMaxBatchSize = len(procDiscoveries)
+	}
+
+	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, runMaxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()

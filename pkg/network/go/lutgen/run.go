@@ -16,8 +16,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/rungo"
 	"github.com/DataDog/datadog-agent/pkg/network/go/rungo/matrix"
 )
@@ -52,10 +51,9 @@ type LookupTableGenerator struct {
 // Binary wraps the information about a single compiled test binary
 // that is given to the inspection callback.
 type Binary struct {
-	Architecture    string
-	GoVersion       goversion.GoVersion
-	GoVersionString string
-	Path            string
+	Architecture string
+	GoVersion    goversion.GoVersion
+	Path         string
 }
 
 type architectureVersion struct {
@@ -90,7 +88,7 @@ func (g *LookupTableGenerator) Run(ctx context.Context, writer io.Writer) error 
 	})
 	log.Println("versions:")
 	for _, v := range sortedVersions {
-		log.Printf("- %s", versionToString(v))
+		log.Printf("- %s", v)
 	}
 
 	// Create a matrix runner to build the test program
@@ -148,7 +146,7 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	// Parse each Go version to the struct form
 	allVersions := []goversion.GoVersion{}
 	for _, rawVersion := range allRawVersions {
-		if version, ok := goversion.Parse(fmt.Sprintf("go%s", rawVersion)); ok {
+		if version, err := goversion.NewGoVersion(rawVersion); err == nil {
 			allVersions = append(allVersions, version)
 		}
 	}
@@ -213,18 +211,16 @@ func (g *LookupTableGenerator) getAllBinaries() []Binary {
 	return newSlice
 }
 
-func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion.GoVersion, arch string) *exec.Cmd {
-	versionStr := versionToString(version)
-	outPath := filepath.Join(g.OutDirectory, fmt.Sprintf("%s.go%s", arch, versionStr))
+func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion.GoVersion, arch, goExe string) *exec.Cmd {
+	outPath := filepath.Join(g.OutDirectory, fmt.Sprintf("%s.go%s", arch, version))
 
 	// Store the binary struct in a list so that it can later be opened.
 	// If the command ends up failing, this will be ignored
 	// and the entire lookup table generation will exit early.
 	g.addBinary(Binary{
-		Path:            outPath,
-		GoVersion:       version,
-		GoVersionString: versionStr,
-		Architecture:    arch,
+		Path:         outPath,
+		GoVersion:    version,
+		Architecture: arch,
 	})
 
 	command := exec.CommandContext(
@@ -236,9 +232,6 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 		g.TestProgramPath,
 	)
 
-	// Disable go module support
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GO111MODULE", "off"))
-
 	// Set the GOPATH and GOCACHE variables.
 	// Make sure to resolve the absolute path of install directory first.
 	installDirectoryAbs, err := filepath.Abs(g.InstallDirectory)
@@ -248,10 +241,20 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 	}
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOPATH", filepath.Join(installDirectoryAbs, "build-gopath")))
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOCACHE", filepath.Join(installDirectoryAbs, "build-gocache")))
+	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOARCH", arch))
+	// The $HOME directory needs to be set to the Go installation directory
+	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "HOME", filepath.Join(g.InstallDirectory, "install")))
+	command.Path = goExe
 
 	// Add in the normal PATH environment variable
 	// so that Go can resolve gcc in case it needs to use cgo.
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "PATH", os.Getenv("PATH")))
+
+	err = setupGoModule(ctx, command, g.TestProgramPath)
+	if err != nil {
+		log.Printf("error setting up go module for  %s (%s): %s", g.TestProgramPath, version, err)
+		return nil
+	}
 
 	return command
 }
@@ -285,7 +288,7 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 		case result := <-results:
 			if result.err != nil {
 				// Bail early and return
-				return nil, fmt.Errorf("error inspecting binary for (Go version, arch pair) (go%s, %s) at %q: %w", result.bin.GoVersionString, result.bin.Architecture, result.bin.Path, result.err)
+				return nil, fmt.Errorf("error inspecting binary for (Go version, arch pair) (go%s, %s) at %q: %w", result.bin.GoVersion, result.bin.Architecture, result.bin.Path, result.err)
 			}
 
 			resultTable[architectureVersion{result.bin.Architecture, result.bin.GoVersion}] = result.result
@@ -297,14 +300,44 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 	return resultTable, nil
 }
 
-func versionToString(v goversion.GoVersion) string {
-	// RC and beta versions always have Rev = 0
-	if v.RC > 0 {
-		return fmt.Sprintf("%d.%drc%d", v.Major, v.Minor, v.RC)
-	} else if v.Beta > 0 {
-		return fmt.Sprintf("%d.%dbeta%d", v.Major, v.Minor, v.Beta)
-	} else if v.Rev > 0 {
-		return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Rev)
+func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error {
+	moduleDir, err := os.MkdirTemp("", "lut")
+	if err != nil {
+		return err
 	}
-	return fmt.Sprintf("%d.%d", v.Major, v.Minor)
+
+	// symlink test program
+	err = os.MkdirAll(filepath.Join(moduleDir, filepath.Dir(programPath)), os.ModePerm)
+	if err != nil {
+		return err
+	}
+	absProgramPath, err := filepath.Abs(programPath)
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(absProgramPath, filepath.Join(moduleDir, programPath))
+	if err != nil {
+		return err
+	}
+
+	// create go.mod file
+	err = os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module foobar"), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("error creating go.mod file: %w", err)
+	}
+
+	// modify original `exec.Cmd` object by setting the `Dir` field to the one we created
+	cmd.Dir = moduleDir
+
+	// now run `go mod tidy`
+	modCmd := exec.CommandContext(ctx, "go", "mod", "tidy")
+	modCmd.Env = cmd.Env
+	modCmd.Dir = cmd.Dir
+	modCmd.Path = cmd.Path
+	output, err := modCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error executing 'go mod tidy': %s\n%s", err, output)
+	}
+
+	return nil
 }

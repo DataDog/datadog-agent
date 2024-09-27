@@ -22,10 +22,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,8 +39,8 @@ var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not starte
 
 // GrpcClient interface that represents a gRPC client for the remote workloadmeta.
 type GrpcClient interface {
-	// StreamEntites establishes the stream between the client and the remote gRPC server.
-	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
+	// StreamEntities establishes the stream between the client and the remote gRPC server.
+	StreamEntities(ctx context.Context) (Stream, error)
 }
 
 // Stream is an interface that represents a gRPC stream.
@@ -58,7 +58,7 @@ type StreamHandler interface {
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
-	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
+	HandleResponse(store workloadmeta.Component, response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
 	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
 }
@@ -94,7 +94,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	opts := []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		return net.Dial("tcp", url)
 	})}
 
@@ -113,7 +113,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	conn, err := grpc.DialContext(
+	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
 		fmt.Sprintf(":%v", c.StreamHandler.Port()),
 		opts...,
@@ -148,7 +148,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfig.Datadog)
+		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
@@ -179,6 +179,8 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
+	recvWithoutTimeout := pkgconfigsetup.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -193,21 +195,21 @@ func (c *GenericCollector) Run() {
 			}
 		}
 
-		var response interface{}
-		err := grpcutil.DoWithTimeout(func() error {
-			var err error
+		var (
+			response interface{}
+			err      error
+		)
+		if recvWithoutTimeout {
 			response, err = c.stream.Recv()
-			return err
-		}, streamRecvTimeout)
+		} else {
+			err = grpcutil.DoWithTimeout(func() error {
+				var err error
+				response, err = c.stream.Recv()
+				return err
+			}, streamRecvTimeout)
+		}
 		if err != nil {
-			// at the end of stream, but its OK
-			if err == io.EOF {
-				continue
-			}
-
 			c.streamCancel()
-
-			telemetry.RemoteClientErrors.Inc(c.CollectorID)
 
 			// when Recv() returns an error, the stream is aborted and the
 			// contents of our store are considered out of sync. The stream must
@@ -216,12 +218,15 @@ func (c *GenericCollector) Run() {
 			c.stream = nil
 			c.resyncNeeded = true
 
-			log.Warnf("error received from remote workloadmeta: %s", err)
+			if err != io.EOF {
+				telemetry.RemoteClientErrors.Inc(c.CollectorID)
+				log.Warnf("error received from remote workloadmeta: %s", err)
+			}
 
 			continue
 		}
 
-		collectorEvents, err := c.StreamHandler.HandleResponse(response)
+		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
 			continue
@@ -230,9 +235,9 @@ func (c *GenericCollector) Run() {
 		if c.resyncNeeded {
 			c.StreamHandler.HandleResync(c.store, collectorEvents)
 			c.resyncNeeded = false
+		} else {
+			c.store.Notify(collectorEvents)
 		}
-
-		c.store.Notify(collectorEvents)
 	}
 }
 

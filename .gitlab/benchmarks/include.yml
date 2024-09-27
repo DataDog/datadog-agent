@@ -3,5 +3,5 @@
 # Contains jobs to benchmark the Agent.
 
 include:
-  - /.gitlab/benchmarks/benchmarks.yml
-  - /.gitlab/benchmarks/macrobenchmarks.yml
+  - .gitlab/benchmarks/benchmarks.yml
+  - .gitlab/benchmarks/macrobenchmarks.yml

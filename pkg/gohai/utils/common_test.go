@@ -234,3 +234,27 @@ func TestAsJSONSuffix(t *testing.T) {
 	}`
 	require.JSONEq(t, expected, string(marshalled))
 }
+
+func TestAsJSONSameError(t *testing.T) {
+	info := &struct {
+		FieldOne   Value[int] `json:"field_one"`
+		FieldTwo   Value[int] `json:"field_two"`
+		FieldThree Value[int] `json:"field_three"`
+	}{
+		FieldOne:   NewErrorValue[int](errors.New("this is an error")),
+		FieldTwo:   NewErrorValue[int](errors.New("this is an error")),
+		FieldThree: NewErrorValue[int](ErrNotCollectable),
+	}
+
+	_, warns, err := AsJSON(info, false)
+	require.ErrorIs(t, err, ErrNoFieldCollected)
+	require.ErrorContains(t, err, "this is an error")
+	require.Empty(t, warns)
+}
+
+func TestAllEqual(t *testing.T) {
+	require.True(t, allEqual([]string{}))
+	require.True(t, allEqual([]string{"1"}))
+	require.True(t, allEqual([]string{"1", "1"}))
+	require.False(t, allEqual([]string{"1", "2"}))
+}

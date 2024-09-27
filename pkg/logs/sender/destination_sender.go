@@ -76,16 +76,16 @@ func (d *DestinationSender) Stop() {
 }
 
 func (d *DestinationSender) canSend() bool {
-	if d.destination.IsHA() {
+	if d.destination.IsMRF() {
 		if !d.sendEnabled {
-			if d.config.GetBool("ha.enabled") && d.config.GetBool("ha.failover") {
+			if d.config.GetBool("multi_region_failover.enabled") && d.config.GetBool("multi_region_failover.failover_logs") {
 				d.sendEnabled = true
-				log.Infof("Forwarder for domain %v has been failed over to, enabling it for HA.", d.destination.Target())
+				log.Infof("Forwarder for domain %v has been failed over to, enabling it for MRF.", d.destination.Target())
 			} else {
 				log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", d.destination.Target())
 			}
 		} else {
-			if !d.config.GetBool("ha.enabled") || !d.config.GetBool("ha.failover") {
+			if !d.config.GetBool("multi_region_failover.enabled") || !d.config.GetBool("multi_region_failover.failover_logs") {
 				d.sendEnabled = false
 				log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", d.destination.Target())
 			}

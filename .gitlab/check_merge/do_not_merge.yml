@@ -16,8 +16,6 @@ do-not-merge:
              [ ! -z "$DATADOG_AGENT_WINBUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX" ] ||
-             [ ! -z "$DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX" ] ||
              [ ! -z "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
             echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"

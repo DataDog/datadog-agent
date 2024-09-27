@@ -1,15 +1,16 @@
+from __future__ import annotations
+
 import os
 import re
 import time
 from collections import Counter
 from functools import lru_cache
-from typing import List
 
-from invoke import Exit, task
+from invoke.context import Context
+from invoke.exceptions import Exit
+from invoke.tasks import task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_pretty_ref
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.github_actions_tools import (
+from tasks.libs.ciproviders.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -17,9 +18,15 @@ from tasks.libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.pipeline_notifications import read_owners
+from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.owners.parsing import read_owners
+from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
+
+ALL_TEAMS = '@datadog/agent-all'
 
 
 @lru_cache(maxsize=None)
@@ -68,6 +75,8 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
+    test_washer=False,
+    integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
@@ -88,6 +97,7 @@ def trigger_macos(
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
             bucket_branch=os.environ.get("BUCKET_BRANCH", None),
             version_cache_file_content=version_cache,
+            integrations_core_ref=integrations_core_ref,
         )
     elif workflow_type == "test":
         conclusion = _trigger_macos_workflow(
@@ -100,6 +110,7 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
+            test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -163,7 +174,7 @@ def _get_code_owners(root_folder):
 def get_milestone_id(_, milestone):
     # Local import as github isn't part of our default set of installed
     # dependencies, and we don't want to propagate it to files importing this one
-    from libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     m = gh.get_milestone_by_name(milestone)
@@ -173,29 +184,33 @@ def get_milestone_id(_, milestone):
 
 
 @task
-def send_rate_limit_info_datadog(_, pipeline_id):
-    from .libs.common.github_api import GithubAPI
+def send_rate_limit_info_datadog(_, pipeline_id, app_instance):
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
-    print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
-    metric = create_count(
+    print(f"Remaining rate limit for app instance {app_instance}: {rate_limit_info[0]}/{rate_limit_info[1]}")
+    metric = create_gauge(
         metric_name='github.rate_limit.remaining',
         timestamp=int(time.time()),
         value=rate_limit_info[0],
-        tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+        tags=[
+            'source:github',
+            'repository:datadog-agent',
+            f'app_instance:{app_instance}',
+        ],
     )
     send_metrics([metric])
 
 
 @task
 def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-    from .libs.common.github_api import GithubAPI
+    from .libs.ciproviders.github_api import GithubAPI
 
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -216,7 +231,7 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
 def _get_team_labels():
     import toml
 
-    with open('.ddqa/config.toml', 'r') as f:
+    with open('.ddqa/config.toml') as f:
         data = toml.loads(f.read())
 
     labels = []
@@ -231,9 +246,7 @@ def assign_team_label(_, pr_id=-1):
     Assigns the github team label name if teams can
     be deduced from the changed files
     """
-    import github
-
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
 
@@ -254,6 +267,15 @@ def assign_team_label(_, pr_id=-1):
         print('No team found')
         return
 
+    _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _assign_pr_team_labels(gh, pr_id, teams):
+    """
+    Assign team labels (team/team-name) for each team (@datadog/team-name)
+    """
+    import github
+
     # Get labels
     all_team_labels = _get_team_labels()
     team_labels = [f"team{team.removeprefix('@datadog')}" for team in teams]
@@ -266,5 +288,146 @@ def assign_team_label(_, pr_id=-1):
             try:
                 gh.add_pr_label(pr_id, label_name)
                 print(label_name, 'label assigned to the pull request')
-            except github.GithubException.GithubException:
+            except github.GithubException:
                 print(f'Failed to assign label {label_name}')
+
+
+@task
+def handle_community_pr(_, repo='', pr_id=-1, labels=''):
+    """
+    Will set labels and notify teams about a newly opened community PR
+    """
+    from slack_sdk import WebClient
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    # Get review teams / channels
+    gh = GithubAPI()
+
+    # Find teams corresponding to file changes
+    teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
+    channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
+
+    # Remove duplicates
+    channels = list(set(channels))
+
+    # Update labels
+    for label in labels.split(','):
+        if label:
+            gh.add_pr_label(pr_id, label)
+
+    if teams != [ALL_TEAMS]:
+        _assign_pr_team_labels(gh, pr_id, teams)
+
+    # Create message
+    pr = gh.get_pr(pr_id)
+    title = pr.title.strip()
+    message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
+
+    # Post message
+    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    for channel in channels:
+        client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def milestone_pr_team_stats(_: Context, milestone: str, team: str):
+    """
+    This task prints statistics about the PRs opened by a given team and
+    merged in the given milestone.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    team_members = gh.get_team_members(team)
+    authors = ' '.join("author:" + member.login for member in team_members)
+    common_query = f'repo:DataDog/datadog-agent is:pr is:merged milestone:{milestone} {authors}'
+
+    no_code_changes_query = common_query + ' label:qa/no-code-change'
+    no_code_changes = gh.search_issues(no_code_changes_query).totalCount
+
+    qa_done_query = common_query + ' -label:qa/no-code-change label:qa/done'
+    qa_done = gh.search_issues(qa_done_query).totalCount
+
+    with_qa_query = common_query + ' -label:qa/no-code-change -label:qa/done'
+    with_qa = gh.search_issues(with_qa_query).totalCount
+
+    print("no code changes :", no_code_changes)
+    print("qa done :", qa_done)
+    print("with qa :", with_qa)
+    print("proportion of PRs with code changes and QA done :", 100 * qa_done / (qa_done + with_qa), "%")
+
+
+@task
+def pr_commenter(
+    _,
+    title: str,
+    body: str = '',
+    pr_id: int | None = None,
+    verbose: bool = True,
+    delete: bool = False,
+    force_delete: bool = False,
+    echo: bool = False,
+):
+    """
+    Will comment or update current comment posted on the PR with the new data.
+    The title is used to identify the comment to update.
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
+    - delete: If True and the body is empty, will delete the comment.
+    - force_delete: Won't throw error if the comment to delete is not found.
+    - echo: Print comment content to stdout.
+
+    Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not body and not delete:
+        return
+
+    assert not delete or not body, "Use delete with an empty body to delete the comment"
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(pr_id)
+
+    # Created / updated / deleted comment
+    action = ''
+    header = f'## {title}'
+    content = f'{header}\n\n{body}'
+
+    comment = github.find_comment(pr, header)
+
+    if comment:
+        if delete:
+            comment.delete()
+            action = 'Deleted'
+        else:
+            comment.edit(content)
+            action = 'Updated'
+    else:
+        if delete and force_delete:
+            if verbose:
+                print('Comment to delete not found, skipping')
+            return
+        else:
+            assert not delete, 'Comment to delete not found'
+
+        github.publish_comment(pr, content)
+        action = 'Created'
+
+    if echo:
+        if verbose:
+            print('Content:\n')
+        print(content)
+        print()
+
+    if verbose:
+        print(f"{action} comment on PR #{pr.number} - {pr.title}")

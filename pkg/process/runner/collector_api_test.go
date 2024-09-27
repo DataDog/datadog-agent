@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -32,7 +33,7 @@ import (
 
 const testHostName = "test-host"
 
-func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -45,7 +46,7 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 	config.SetWithoutSource("process_config.additional_endpoints", additionalEps)
 }
 
-func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+func setProcessEventsEndpointsForTest(config pkgconfigmodel.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
@@ -69,8 +70,8 @@ func TestSendConnectionsMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
@@ -109,8 +110,8 @@ func TestSendContainerMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -147,8 +148,8 @@ func TestSendProcMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -188,8 +189,8 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
@@ -238,8 +239,8 @@ func TestSendProcessEventMessage(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
@@ -283,8 +284,8 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	cfg := ddconfig.Mock(t)
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	cfg := configmock.New(t)
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -323,7 +324,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -354,7 +355,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	mockConfig := ddconfig.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 1)
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, func(_ *CheckRunner, ep *mockEndpoint) {
@@ -384,10 +385,10 @@ func TestQueueSpaceReleased(t *testing.T) {
 		data: [][]process.MessageBody{{m1}, {m2}},
 	}
 
-	mockConfig := ddconfig.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)
@@ -423,7 +424,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -431,11 +432,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig pkgconfigmodel.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()
@@ -460,12 +461,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
-	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	submitter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	c.Submitter = submitter
 	require.NoError(t, err)
 
-	err = c.Submitter.Start()
+	err = submitter.Start()
 	require.NoError(t, err)
-	defer c.Submitter.Stop()
+	defer submitter.Stop()
 
 	err = c.Run()
 	require.NoError(t, err)
@@ -554,8 +556,8 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	eventsMux := http.NewServeMux()
 	eventsMux.HandleFunc("/api/v2/proclcycle", m.handleEvents)
 
-	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
-	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
+	m.collectorServer = &http.Server{Addr: "127.0.0.1:", Handler: collectorMux}
+	m.eventsServer = &http.Server{Addr: "127.0.0.1:", Handler: eventsMux}
 
 	return m
 }
@@ -568,7 +570,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()
@@ -582,7 +584,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()

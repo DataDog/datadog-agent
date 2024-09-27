@@ -18,8 +18,10 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -31,6 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
+const (
+	maxResolverPidCacheSize  = 32768
+	maxResolverAddrCacheSize = 4096
+)
+
 var (
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -40,19 +47,21 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
+		wmeta:              wmeta,
+		npCollector:        npCollector,
 	}
 }
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
 	syscfg             *sysconfigtypes.Config
-	sysprobeYamlConfig config.Reader
-	config             config.Reader
+	sysprobeYamlConfig pkgconfigmodel.Reader
+	config             pkgconfigmodel.Reader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -67,6 +76,9 @@ type ConnectionsCheck struct {
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
 
 	localresolver *resolver.LocalResolver
+	wmeta         workloadmeta.Component
+
+	npCollector npcollector.Component
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -95,7 +107,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 		}
 	}
 
-	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	networkID, err := retryGetNetworkID(tu)
 	if err != nil {
 		log.Infof("no network ID detected: %s", err)
 	}
@@ -110,7 +122,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(), clock.New())
+	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil
@@ -177,6 +189,8 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
+	c.npCollector.ScheduleConns(conns.Conns)
+
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
@@ -198,7 +212,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(config config.Reader, conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config pkgconfigmodel.Reader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}
@@ -394,11 +408,10 @@ func batchConnections(
 				continue
 			}
 
-			//nolint:revive // TODO(NET) Fix revive linter
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
+			newIdx := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = newIdx
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
+			c.RouteIdx = newIdx
 		}
 
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
@@ -466,13 +479,6 @@ func batchConnections(
 	return batches
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func groupSize(total, maxBatchSize int) int32 {
 	groupSize := total / maxBatchSize
 	if total%maxBatchSize > 0 {
@@ -496,4 +502,18 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 
 	return tagsStr
+}
+
+// fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
+func retryGetNetworkID(sysProbeUtil *net.RemoteSysProbeUtil) (string, error) {
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	if err != nil && sysProbeUtil != nil {
+		log.Infof("no network ID detected. retrying via system-probe: %s", err)
+		networkID, err = sysProbeUtil.GetNetworkID()
+		if err != nil {
+			log.Infof("failed to get network ID from system-probe: %s", err)
+			return "", err
+		}
+	}
+	return networkID, err
 }

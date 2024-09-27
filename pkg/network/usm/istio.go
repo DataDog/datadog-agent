@@ -8,9 +8,8 @@
 package usm
 
 import (
-	"bytes"
 	"fmt"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,17 +21,22 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const (
+	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
+	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+)
+
 var istioProbes = []manager.ProbesSelector{
 	&manager.AllOf{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeProbe,
+					EBPFFuncName: sslDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeRetprobe,
+					EBPFFuncName: sslDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -47,7 +51,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslReadRetprobe,
+					EBPFFuncName: istioSslReadRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -57,7 +61,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslWriteRetprobe,
+					EBPFFuncName: istioSslWriteRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -66,21 +70,6 @@ var istioProbes = []manager.ProbesSelector{
 				},
 			},
 		},
-	},
-}
-
-// envoyCmd represents the search term used for determining
-// whether or not a given PID represents an Envoy process.
-// The search is done over the /proc/<pid>/cmdline file.
-var envoyCmd = []byte("/bin/envoy")
-
-// readBufferPool is used for reading /proc/<pid>/cmdline files.
-// We use a pointer to a slice to avoid allocations when casting
-// values to the empty interface during Put() calls.
-var readBufferPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, 128)
-		return &b
 	},
 }
 
@@ -93,6 +82,7 @@ var readBufferPool = sync.Pool{
 type istioMonitor struct {
 	registry *utils.FileRegistry
 	procRoot string
+	envoyCmd string
 
 	// `utils.FileRegistry` callbacks
 	registerCB   func(utils.FilePath) error
@@ -103,6 +93,9 @@ type istioMonitor struct {
 	done chan struct{}
 }
 
+// Validate that istioMonitor implements the Attacher interface.
+var _ utils.Attacher = &istioMonitor{}
+
 func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	if !c.EnableIstioMonitoring {
 		return nil
@@ -112,6 +105,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
 		procRoot: procRoot,
+		envoyCmd: c.EnvoyPath,
 		done:     make(chan struct{}),
 
 		// Callbacks
@@ -120,6 +114,33 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	}
 }
 
+// DetachPID detaches a given pid from the eBPF program
+func (m *istioMonitor) DetachPID(pid uint32) error {
+	return m.registry.Unregister(pid)
+}
+
+var (
+	// ErrNoEnvoyPath is returned when no envoy path is found for a given PID
+	ErrNoEnvoyPath = fmt.Errorf("no envoy path found for PID")
+)
+
+// AttachPID attaches a given pid to the eBPF program
+func (m *istioMonitor) AttachPID(pid uint32) error {
+	path := m.getEnvoyPath(pid)
+	if path == "" {
+		return ErrNoEnvoyPath
+	}
+
+	return m.registry.Register(
+		path,
+		pid,
+		m.registerCB,
+		m.unregisterCB,
+		utils.IgnoreCB,
+	)
+}
+
+// Start the istioMonitor
 func (m *istioMonitor) Start() {
 	if m == nil {
 		return
@@ -166,9 +187,11 @@ func (m *istioMonitor) Start() {
 		}
 	}()
 
-	log.Debug("Istio monitoring enabled")
+	utils.AddAttacher("istio", m)
+	log.Info("Istio monitoring enabled")
 }
 
+// Stop the istioMonitor.
 func (m *istioMonitor) Stop() {
 	if m == nil {
 		return
@@ -194,79 +217,42 @@ func (m *istioMonitor) sync() {
 		}
 
 		// This is a new PID so we attempt to attach SSL probes to it
-		m.handleProcessExec(uint32(pid))
+		_ = m.AttachPID(uint32(pid))
 		return nil
 	})
 
 	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should dettach our SSL probes from them
+	// we should detach our SSL probes from them
 	for pid := range deletionCandidates {
 		m.handleProcessExit(pid)
 	}
-}
-
-func (m *istioMonitor) handleProcessExec(pid uint32) {
-	path := m.getEnvoyPath(pid)
-	if path == "" {
-		return
-	}
-
-	m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-	)
 }
 
 func (m *istioMonitor) handleProcessExit(pid uint32) {
 	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
 	// instead of fetching a process name in order to determine whether it is an
 	// envoy process or not (which at the very minimum involves syscalls)
-	m.registry.Unregister(pid)
+	_ = m.DetachPID(pid)
+}
+
+func (m *istioMonitor) handleProcessExec(pid uint32) {
+	_ = m.AttachPID(pid)
 }
 
 // getEnvoyPath returns the executable path of the envoy binary for a given PID.
-// In case the PID doesn't represent an envoy process, an empty string is returned.
+// It constructs the path to the symbolic link for the executable file of the process with the given PID,
+// then resolves this symlink to determine the actual path of the binary.
 //
-// TODO:
-// refine process detection heuristic so we can remove the number of false
-// positives. A common case that is likely worth optimizing for is filtering
-// out "vanilla" envoy processes, and selecting only envoy processes that are
-// running inside istio containers. Based on a quick inspection I made, it
-// seems that we could also search for "istio" in the cmdline string in addition
-// to "envoy", since the command line arguments look more or less the following:
-//
-// /usr/local/bin/envoy -cetc/istio/proxy/envoy-rev.json ...
+// If the resolved path contains the expected envoy command substring (as defined by m.envoyCmd),
+// the function returns this path. If the PID does not correspond to an envoy process or if an error
+// occurs during resolution, it returns an empty string.
 func (m *istioMonitor) getEnvoyPath(pid uint32) string {
-	cmdlinePath := fmt.Sprintf("%s/%d/cmdline", m.procRoot, pid)
+	exePath := fmt.Sprintf("%s/%d/exe", m.procRoot, pid)
 
-	f, err := os.Open(cmdlinePath)
-	if err != nil {
-		// This can happen often in the context of ephemeral processes
-		return ""
-	}
-	defer f.Close()
-
-	// From here on we shouldn't allocate for the common case
-	// (eg., a process is *not* envoy)
-	bufferPtr := readBufferPool.Get().(*[]byte)
-	defer func() {
-		readBufferPool.Put(bufferPtr)
-	}()
-
-	buffer := *bufferPtr
-	n, _ := f.Read(buffer)
-	if n == 0 {
+	envoyPath, err := utils.ResolveSymlink(exePath)
+	if err != nil || !strings.Contains(envoyPath, m.envoyCmd) {
 		return ""
 	}
 
-	buffer = buffer[:n]
-	i := bytes.Index(buffer, envoyCmd)
-	if i < 0 {
-		return ""
-	}
-
-	executable := buffer[:i+len(envoyCmd)]
-	return string(executable)
+	return envoyPath
 }

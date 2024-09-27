@@ -20,11 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 )
 
-type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error)
+type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error)
 
 func socketPathConfKey(transport string) string {
 	if transport == "unix" {
@@ -40,17 +42,19 @@ func testSocketPath(t *testing.T) string {
 	return path
 }
 
-func newPacketPoolManagerUDS(cfg config.Component) *packets.PoolManager {
-	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"))
-	return packets.NewPoolManager(packetPoolUDS)
+func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
+	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
+	return packets.NewPoolManager[packets.Packet](packetPoolUDS)
 }
 
 func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	config := fulfillDepsWithConfig(t, cfg)
-	_, err = listenerFactory(nil, newPacketPoolManagerUDS(config), config)
+	deps := fulfillDepsWithConfig(t, cfg)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	_, err = listenerFactory(nil, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
 	assert.Error(t, err)
 }
 
@@ -63,8 +67,10 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[str
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
-	config := fulfillDepsWithConfig(t, cfg)
-	s, err := listenerFactory(nil, newPacketPoolManagerUDS(config), config)
+	deps := fulfillDepsWithConfig(t, cfg)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -98,8 +104,10 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	mockConfig[socketPathConfKey(transport)] = socketPath
 	mockConfig["dogstatsd_origin_detection"] = false
 
-	config := fulfillDepsWithConfig(t, mockConfig)
-	s, err := listenerFactory(nil, newPacketPoolManagerUDS(config), config)
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

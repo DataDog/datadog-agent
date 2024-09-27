@@ -18,7 +18,7 @@ import (
 func TestReplacer(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("traces", func(t *testing.T) {
+	t.Run("traces", func(_ *testing.T) {
 		for _, tt := range []struct {
 			rules     [][3]string
 			got, want map[string]string
@@ -52,12 +52,14 @@ func TestReplacer(t *testing.T) {
 					"http.url":      "some/[REDACTED]/token/abcdef/abc",
 					"other.url":     "some/guid/token/abcdef/abc",
 					"custom.tag":    "/foo/bar/foo",
+					"_special":      "this should not be changed",
 				},
 				want: map[string]string{
 					"resource.name": "that is stage",
 					"http.url":      "some/[REDACTED]/token/?/abc",
 					"other.url":     "some/guid/token/?/abc",
 					"custom.tag":    "/foo/bar/extra",
+					"_special":      "this should not be changed",
 				},
 			},
 		} {
@@ -81,7 +83,7 @@ func TestReplacer(t *testing.T) {
 		}
 	})
 
-	t.Run("stats", func(t *testing.T) {
+	t.Run("stats", func(_ *testing.T) {
 		for _, tt := range []struct {
 			rules     [][3]string
 			got, want *pb.ClientGroupedStats

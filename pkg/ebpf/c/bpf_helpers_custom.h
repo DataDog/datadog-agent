@@ -3,6 +3,8 @@
 
 #include "bpf_cross_compile.h"
 
+extern void __format_check(const char *fmt, ...) __attribute__ ((format(printf, 1, 2)));
+
 /*
  * Macro to output debug logs to /sys/kernel/debug/tracing/trace_pipe
  *
@@ -18,6 +20,7 @@
 #define log_debug(fmt, ...)                                        \
     ({                                                             \
         char ____fmt[] = fmt "\n";                                 \
+        if (0) __format_check(fmt, ##__VA_ARGS__);                 \
         bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
     })
 #else

@@ -15,10 +15,10 @@ type orgStore struct {
 	orgBucket string
 }
 
-func newOrgStore(db *transactionalStore, cacheKey string) *orgStore {
+func newOrgStore(db *transactionalStore) *orgStore {
 	return &orgStore{
 		db:        db,
-		orgBucket: fmt.Sprintf("%s_org", cacheKey),
+		orgBucket: "org",
 	}
 }
 

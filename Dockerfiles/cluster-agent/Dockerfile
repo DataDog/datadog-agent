@@ -1,14 +1,16 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-ARG BASE_IMAGE_UBUNTU_VERSION=23.10
-ARG BASE_IMAGE_UBUNTU_NAME=mantic
+ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
+ARG BASE_IMAGE_UBUNTU_VERSION
+ARG BASE_IMAGE_UBUNTU_NAME
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-# Can be used by Dependabot
-LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
 WORKDIR /output
 
@@ -20,8 +22,15 @@ COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 
-RUN chmod 755 entrypoint.sh \
-    && chown root:root readsecret.sh readsecret_multiple_providers.sh \
+# CWS Instrumentation
+COPY --chmod=0755 ./datadog-cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y adduser \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && addgroup --system secret-manager \
+    && chmod 755 entrypoint.sh \
+    && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
     && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
     && chmod g+r,g+w,g+X -R etc/datadog-agent/ \
     && chmod +x opt/datadog-agent/bin/datadog-cluster-agent \
@@ -45,6 +54,8 @@ LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 
 ARG CIBUILD
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
@@ -62,7 +73,9 @@ RUN if [ "$CIBUILD" = "true" ]; then \
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true" \
     # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 RUN apt-get update \
     && apt full-upgrade -y \
@@ -79,6 +92,8 @@ COPY --from=builder /output /
 # of an empty folder. Creating .placeholder files as a workaround.
 #
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+    && addgroup --system secret-manager \
+    && usermod -a -G secret-manager dd-agent \
     && mkdir -p /var/log/datadog/ /conf.d \
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \

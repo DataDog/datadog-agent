@@ -1,0 +1,3 @@
+deprecations:
+  - |
+    The `flare_stripped_keys` configuration is now deprecated. Use `scrubber.additional_keys` instead.

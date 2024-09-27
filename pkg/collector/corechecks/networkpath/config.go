@@ -6,36 +6,127 @@
 package networkpath
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"fmt"
+	"strings"
+	"time"
+
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
+
+const (
+	defaultCheckInterval time.Duration = 1 * time.Minute
+)
+
+// Number is a type that is used to make a generic version
+// of the firstNonZero function
+type Number interface {
+	~int | ~int64 | ~uint8
+}
+
+// InitConfig is used to deserialize integration init config
+type InitConfig struct {
+	MinCollectionInterval int64 `yaml:"min_collection_interval"`
+	TimeoutMs             int64 `yaml:"timeout"`
+	MaxTTL                uint8 `yaml:"max_ttl"`
+}
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	DestName     string `yaml:"name"`
 	DestHostname string `yaml:"hostname"`
+
+	DestPort uint16 `yaml:"port"`
+
+	Protocol string `yaml:"protocol"`
+
+	SourceService      string `yaml:"source_service"`
+	DestinationService string `yaml:"destination_service"`
+
+	MaxTTL uint8 `yaml:"max_ttl"`
+
+	TimeoutMs int64 `yaml:"timeout"`
+
+	MinCollectionInterval int `yaml:"min_collection_interval"`
+
+	Tags []string `yaml:"tags"`
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname string
-	DestName     string
+	DestHostname          string
+	DestPort              uint16
+	SourceService         string
+	DestinationService    string
+	MaxTTL                uint8
+	Protocol              payload.Protocol
+	Timeout               time.Duration
+	MinCollectionInterval time.Duration
+	Tags                  []string
+	Namespace             string
 }
 
 // NewCheckConfig builds a new check config
-func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckConfig, error) {
+func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
+	initConfig := InitConfig{}
 
-	err := yaml.Unmarshal(rawInstance, &instance)
+	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid init_config: %s", err)
+	}
+
+	err = yaml.Unmarshal(rawInstance, &instance)
+	if err != nil {
+		return nil, fmt.Errorf("invalid instance config: %s", err)
 	}
 
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
-	c.DestName = instance.DestName
+	c.DestPort = instance.DestPort
+	c.SourceService = instance.SourceService
+	c.DestinationService = instance.DestinationService
+	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
+
+	c.MinCollectionInterval = firstNonZero(
+		time.Duration(instance.MinCollectionInterval)*time.Second,
+		time.Duration(initConfig.MinCollectionInterval)*time.Second,
+		defaultCheckInterval,
+	)
+	if c.MinCollectionInterval <= 0 {
+		return nil, fmt.Errorf("min collection interval must be > 0")
+	}
+
+	c.Timeout = firstNonZero(
+		time.Duration(instance.TimeoutMs)*time.Millisecond,
+		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
+		setup.DefaultNetworkPathTimeout*time.Millisecond,
+	)
+	if c.Timeout <= 0 {
+		return nil, fmt.Errorf("timeout must be > 0")
+	}
+
+	c.MaxTTL = firstNonZero(
+		instance.MaxTTL,
+		initConfig.MaxTTL,
+		setup.DefaultNetworkPathMaxTTL,
+	)
+
+	c.Tags = instance.Tags
+	c.Namespace = setup.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
+}
+
+func firstNonZero[T Number](values ...T) T {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
 }

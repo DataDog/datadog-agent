@@ -9,8 +9,13 @@
 package tracecmd
 
 import (
+	"bufio"
 	"fmt"
+	"math"
 	"os"
+	"os/exec"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,42 +26,60 @@ import (
 )
 
 const (
-	// envDisableStats defines the environment variable to set to disable avoidable stats
-	envDisableStats = "DD_CWS_INSTRUMENTATION_DISABLE_STATS"
-	// envDisableProcScan defines the environment variable to disable procfs scan
-	envDisableProcScan = "DD_CWS_INSTRUMENTATION_DISABLE_PROC_SCAN"
+	// envStatsDisabled defines the environment variable to set to disable avoidable stats
+	envStatsDisabled = "DD_CWS_INSTRUMENTATION_STATS_DISABLED"
+	// envProcScanDisabled defines the environment variable to disable procfs scan
+	envProcScanDisabled = "DD_CWS_INSTRUMENTATION_PROC_SCAN_DISABLED"
 	// envProcScanRate defines the rate of the prodfs scan
 	envProcScanRate = "DD_CWS_INSTRUMENTATION_PROC_SCAN_RATE"
+	// envSeccompDisabled defines the environment variable to disable seccomp
+	envSeccompDisabled = "DD_CWS_INSTRUMENTATION_SECCOMP_DISABLED"
 )
 
 const (
-	// gRPCAddr defines the system-probe addr
-	probeAddr = "probe-addr"
-	// logLevel defines the log level
-	verbose = "verbose"
-	// uid used to start the tracee
-	uid = "uid"
-	// gid used to start the tracee
-	gid = "gid"
-	// async enable the traced program to start and run until we manage to connect to the GRPC endpoint
-	async = "async"
-	// disableStats -if set- disable the avoidable use of stats to fill more files properties
-	disableStats = "disable-stats"
-	// disableProcScan disable the procfs scan
-	disableProcScan = "disable-proc-scan"
-	// scanProcEvery procfs scan rate
-	scanProcEvery = "proc-scan-rate"
+	// probeAddrOpt defines the system-probe addr
+	probeAddrOpt = "probe-addr"
+	// verboseOpt makes the tracer verbose during operation
+	verboseOpt = "verbose"
+	// debugOpt makes the tracer log debugging information
+	debugOpt = "debug"
+	// uidOpt used to start the tracee
+	uidOpt = "uid"
+	// gidOpt used to start the tracee
+	gidOpt = "gid"
+	// asyncOpt enable the traced program to start and run until we manage to connect to the GRPC endpoint
+	asyncOpt = "async"
+	// disableStatsOpt -if set- disable the avoidable use of stats to fill more files properties
+	disableStatsOpt = "disable-stats"
+	// disableProcScanOpt disable the procfs scan
+	disableProcScanOpt = "disable-proc-scan"
+	// scanProcEveryOpt procfs scan rate
+	scanProcEveryOpt = "proc-scan-rate"
+	// disableSeccompOpt disable seccomp
+	disableSeccompOpt = "disable-seccomp"
+	// pidOpt attach mode
+	pidOpt = "pid"
+	// pidPerTracer number of pid per tracer
+	pidPerTracer = "pid-per-tracer"
 )
 
 type traceCliParams struct {
-	ProbeAddr       string
-	Verbose         bool
-	UID             int32
-	GID             int32
-	Async           bool
-	DisableStats    bool
-	DisableProcScan bool
-	ScanProcEvery   string
+	ProbeAddr        string
+	Verbose          bool
+	Debug            bool
+	UID              int32
+	GID              int32
+	Async            bool
+	StatsDisabled    bool
+	ProcScanDisabled bool
+	ScanProcEvery    string
+	SeccompDisabled  bool
+	PIDs             []int
+	PIDPerTracer     int
+}
+
+func envToBool(name string) bool {
+	return strings.ToLower(os.Getenv(name)) == "true"
 }
 
 // Command returns the commands for the trace subcommand
@@ -66,7 +89,7 @@ func Command() []*cobra.Command {
 	traceCmd := &cobra.Command{
 		Use:   "trace",
 		Short: "trace the syscalls and signals of the given binary",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			creds := ptracer.Creds{}
 			if params.UID != -1 {
 				uid := uint32(params.UID)
@@ -78,11 +101,13 @@ func Command() []*cobra.Command {
 			}
 
 			opts := ptracer.Opts{
-				Creds:           creds,
-				Verbose:         params.Verbose,
-				Async:           params.Async,
-				DisableStats:    params.DisableStats,
-				DisableProcScan: params.DisableProcScan,
+				Creds:            creds,
+				Verbose:          params.Verbose,
+				Debug:            params.Debug,
+				Async:            params.Async,
+				StatsDisabled:    params.StatsDisabled,
+				ProcScanDisabled: params.ProcScanDisabled,
+				SeccompDisabled:  params.SeccompDisabled,
 			}
 
 			if params.ScanProcEvery != "" {
@@ -93,18 +118,108 @@ func Command() []*cobra.Command {
 				opts.ScanProcEvery = every
 			}
 
-			return ptracer.StartCWSPtracer(args, os.Environ(), params.ProbeAddr, opts)
+			// attach mode
+			if n := len(params.PIDs); n > 0 {
+				if n < params.PIDPerTracer {
+					return ptracer.Attach(params.PIDs, params.ProbeAddr, opts)
+				}
+
+				executable, err := os.Executable()
+				if err != nil {
+					return err
+				}
+
+				var (
+					wg   sync.WaitGroup
+					pids = params.PIDs
+					size int
+				)
+
+				for {
+					size = params.PIDPerTracer
+					if n := len(pids); n < params.PIDPerTracer {
+						size = n
+					}
+
+					wg.Add(1)
+					go func(set []int) {
+						defer wg.Done()
+
+						args := []string{"trace"}
+
+						if params.ProcScanDisabled {
+							args = append(args, fmt.Sprintf(`--%s`, disableProcScanOpt))
+						}
+						if params.Async {
+							args = append(args, fmt.Sprintf(`--%s`, asyncOpt))
+						}
+						if params.Verbose {
+							args = append(args, fmt.Sprintf(`--%s`, verboseOpt))
+						}
+						if params.StatsDisabled {
+							args = append(args, fmt.Sprintf(`--%s`, disableStatsOpt))
+						}
+						if params.UID != -1 {
+							args = append(args, fmt.Sprintf(`--%s`, uidOpt), fmt.Sprintf(`%d`, params.UID))
+						}
+						if params.GID != -1 {
+							args = append(args, fmt.Sprintf(`--%s`, gidOpt), fmt.Sprintf(`%d`, params.GID))
+						}
+						args = append(args, fmt.Sprintf(`--%s`, probeAddrOpt), params.ProbeAddr)
+
+						for _, pid := range set {
+							args = append(args, fmt.Sprintf(`--%s`, pidOpt), fmt.Sprintf(`%d`, pid))
+						}
+
+						cmd := exec.Command(executable, args...)
+						stderr, err := cmd.StderrPipe()
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "unable to start: %s", err)
+							return
+						}
+						if err = cmd.Start(); err != nil {
+							fmt.Fprintf(os.Stderr, "unable to start: %s", err)
+							return
+						}
+
+						scanner := bufio.NewScanner(stderr)
+						scanner.Split(bufio.ScanLines)
+						for scanner.Scan() {
+							fmt.Println(scanner.Text())
+						}
+
+						if err = cmd.Wait(); err != nil {
+							fmt.Fprintf(os.Stderr, "unable to start: %s", err)
+							return
+						}
+					}(pids[:size])
+
+					if len(pids) <= params.PIDPerTracer {
+						break
+					}
+					pids = pids[params.PIDPerTracer:]
+				}
+
+				wg.Wait()
+
+				return nil
+			}
+			return ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
 		},
 	}
 
-	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddr, constants.DefaultEBPFLessProbeAddr, "system-probe eBPF less GRPC address")
-	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
-	traceCmd.Flags().Int32Var(&params.UID, uid, -1, "uid used to start the tracee")
-	traceCmd.Flags().Int32Var(&params.GID, gid, -1, "gid used to start the tracee")
-	traceCmd.Flags().BoolVar(&params.Async, async, false, "enable async GRPC connection")
-	traceCmd.Flags().BoolVar(&params.DisableStats, disableStats, os.Getenv(envDisableStats) != "", "disable use of stats")
-	traceCmd.Flags().BoolVar(&params.DisableProcScan, disableProcScan, os.Getenv(envDisableProcScan) != "", "disable proc scan")
-	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEvery, os.Getenv(envProcScanRate), "proc scan rate")
+	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddrOpt, constants.DefaultEBPFLessProbeAddr, "system-probe eBPF less GRPC address")
+	traceCmd.Flags().BoolVar(&params.Verbose, verboseOpt, false, "enable verbose output")
+	traceCmd.Flags().BoolVar(&params.Debug, debugOpt, false, "enable debug output")
+	traceCmd.Flags().Int32Var(&params.UID, uidOpt, -1, "uid used to start the tracee")
+	traceCmd.Flags().Int32Var(&params.GID, gidOpt, -1, "gid used to start the tracee")
+	traceCmd.Flags().BoolVar(&params.Async, asyncOpt, false, "enable async GRPC connection")
+	traceCmd.Flags().BoolVar(&params.StatsDisabled, disableStatsOpt, envToBool(envStatsDisabled), "disable use of stats")
+	traceCmd.Flags().BoolVar(&params.ProcScanDisabled, disableProcScanOpt, envToBool(envProcScanDisabled), "disable proc scan")
+	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEveryOpt, os.Getenv(envProcScanRate), "proc scan rate")
+	traceCmd.Flags().BoolVar(&params.SeccompDisabled, disableSeccompOpt, envToBool(envSeccompDisabled), "disable seccomp")
+	traceCmd.Flags().IntSliceVar(&params.PIDs, pidOpt, nil, "attach tracer to pid")
+	traceCmd.Flags().IntVar(&params.PIDPerTracer, pidPerTracer, math.MaxInt, "maximum number of pid per tracer")
 
 	traceCmd.AddCommand(selftestscmd.Command()...)
 

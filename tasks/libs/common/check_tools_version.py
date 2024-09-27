@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import json
 import sys
-from typing import List
 
 from invoke import Context
 
@@ -13,7 +14,7 @@ def expected_go_repo_v() -> str:
     """
     Returns the repository go version by reading the .go-version file.
     """
-    with open(GO_VPATH, 'r', encoding='utf-8') as f:
+    with open(GO_VPATH, encoding='utf-8') as f:
         return f.read().strip()
 
 
@@ -37,6 +38,13 @@ def expected_golangci_lint_repo_v(ctx: Context) -> str:
     return ""
 
 
+def custom_golangci_v(v: str) -> str:
+    """
+    Returns the golangci-lint version with the custom suffix.
+    """
+    return f"{v}-custom-gcl"
+
+
 def current_golangci_lint_v(ctx: Context) -> str:
     """
     Returns the current user golangci-lint version by running golangci-lint --version
@@ -45,14 +53,17 @@ def current_golangci_lint_v(ctx: Context) -> str:
     return ctx.run(cmd, hide=True).stdout.split(' ')[3]
 
 
-def check_tools_version(ctx: Context, tools_list: List[str]) -> bool:
+def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
     """
     Check that each installed tool in tools_list is the version expected for the repo.
     """
     is_expected_versions = True
     tools_versions = {
         'go': {'current_v': current_go_v(ctx), 'expected_v': expected_go_repo_v()},
-        'golangci-lint': {'current_v': current_golangci_lint_v(ctx), 'expected_v': expected_golangci_lint_repo_v(ctx)},
+        'golangci-lint': {
+            'current_v': current_golangci_lint_v(ctx),
+            'expected_v': custom_golangci_v(expected_golangci_lint_repo_v(ctx)),
+        },
     }
     for tool in tools_list:
         if tool not in tools_versions:

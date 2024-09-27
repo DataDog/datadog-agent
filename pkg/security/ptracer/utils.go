@@ -27,9 +27,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -74,19 +74,26 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getCurrentProcContainerID() (string, error) {
-	cgroups, err := getProcControlGroupsFromFile("/proc/self/cgroup")
+func getContainerIDFromProcFS(cgroupPath string) (string, error) {
+	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
 	if err != nil {
 		return "", err
 	}
 
 	for _, cgroup := range cgroups {
-		cid := containerutils.FindContainerID(cgroup.path)
-		if cid != "" {
+		if cid, _ := containerutils.FindContainerID(cgroup.path); cid != "" {
 			return cid, nil
 		}
 	}
 	return "", nil
+}
+
+func getCurrentProcContainerID() (string, error) {
+	return getContainerIDFromProcFS("/proc/self/cgroup")
+}
+
+func getProcContainerID(pid int) (string, error) {
+	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
 }
 
 func getNSID() uint64 {
@@ -160,24 +167,25 @@ func fillProcessCwd(process *Process) error {
 	if err != nil {
 		return err
 	}
-	process.Res.Cwd = cwd
+	process.FsRes.Cwd = cwd
 	return nil
 }
 
 func getFullPathFromFd(process *Process, filename string, fd int32) (string, error) {
 	if len(filename) > 0 && filename[0] != '/' {
 		if fd == unix.AT_FDCWD { // if use current dir, try to prefix it
-			if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-				filename = filepath.Join(process.Res.Cwd, filename)
+			if process.FsRes.Cwd != "" || fillProcessCwd(process) == nil {
+				filename = filepath.Join(process.FsRes.Cwd, filename)
 			} else {
 				return "", errors.New("fillProcessCwd failed")
 			}
 		} else { // if using another dir, prefix it, we should have it in cache
-			if path, exists := process.Res.Fd[fd]; exists {
-				filename = filepath.Join(path, filename)
-			} else {
-				return "", errors.New("process FD cache incomplete during path resolution")
+			path, err := process.GetFilenameFromFd(fd)
+			if err != nil {
+				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
+
+			filename = filepath.Join(path, filename)
 		}
 	}
 	return filename, nil
@@ -185,8 +193,8 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 
 func getFullPathFromFilename(process *Process, filename string) (string, error) {
 	if len(filename) > 0 && filename[0] != '/' {
-		if process.Res.Cwd != "" || fillProcessCwd(process) == nil {
-			filename = filepath.Join(process.Res.Cwd, filename)
+		if process.FsRes.Cwd != "" || fillProcessCwd(process) == nil {
+			filename = filepath.Join(process.FsRes.Cwd, filename)
 		} else {
 			return "", errors.New("fillProcessCwd failed")
 		}
@@ -297,6 +305,7 @@ func fillFileMetadata(tracer *Tracer, filepath string, fileMsg *ebpfless.FileSys
 	stat := fileInfo.Sys().(*syscall.Stat_t)
 	fileMsg.MTime = uint64(stat.Mtim.Nano())
 	fileMsg.CTime = uint64(stat.Ctim.Nano())
+	fileMsg.Inode = stat.Ino
 	fileMsg.Credentials = &ebpfless.Credentials{
 		UID:   stat.Uid,
 		User:  getUserFromUID(tracer, int32(stat.Uid)),
@@ -477,5 +486,6 @@ func getModuleNameFromFile(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 	return getModuleName(file)
 }

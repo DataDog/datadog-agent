@@ -1,13 +1,20 @@
-#include "kconfig.h"
 #include "ktypes.h"
+#include "bpf_metadata.h"
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
+#endif
+
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
+#include "bpf_bypass.h"
 
+#ifdef COMPILE_RUNTIME
 #include <linux/version.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
+#endif
 
 #include "defs.h"
 #include "conntrack.h"
@@ -19,20 +26,15 @@
 #include "ipv6.h"
 #endif
 
-#ifndef LINUX_VERSION_CODE
-# error "kernel version not included?"
-#endif
-
 SEC("kprobe/__nf_conntrack_hash_insert")
-int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
-    struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
-
-    u32 status = ct_status(ct);
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+    u32 status = 0;
+    BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
 
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(&ct->ct_net), status);
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(ct), status);
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
@@ -47,7 +49,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 }
 
 SEC("kprobe/ctnetlink_fill_info")
-int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
+int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process");
@@ -56,12 +58,13 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
 
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM5(ctx);
 
-    u32 status = ct_status(ct);
+    u32 status = 0;
+    BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
 
-    log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x", get_netns(&ct->ct_net), status);
+    log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x", get_netns(ct), status);
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {

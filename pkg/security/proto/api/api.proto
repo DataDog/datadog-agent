@@ -46,7 +46,7 @@ message RuleSetReportMessage{
 message EventTypePolicy{
     string EventType = 1;
     uint32 Mode = 2;
-    uint32 Flags = 3;
+    // field 3 is deprecated
     Approvers Approvers = 4;
 }
 
@@ -100,8 +100,8 @@ message RuleStatus {
 }
 
 message PolicyStatus {
-    string name = 1;
-    string source = 2;
+    string Name = 1;
+    string Source = 2;
     repeated RuleStatus Status = 3;
 }
 
@@ -142,11 +142,10 @@ message StorageRequestParams {
 }
 
 message ActivityDumpParams {
-    string Comm = 1;
-    string Timeout = 2;
-    bool DifferentiateArgs = 4;
-    StorageRequestParams Storage = 5;
-    string ContainerID = 6;
+    string Timeout = 1;
+    bool DifferentiateArgs = 2;
+    StorageRequestParams Storage = 3;
+    string ContainerID = 4;
 }
 
 message MetadataMessage {
@@ -159,7 +158,7 @@ message MetadataMessage {
     string Name = 6;
     string ProtobufVersion = 7;
     bool DifferentiateArgs = 8;
-    string Comm = 9;
+    string Comm = 9 [deprecated = true];
     string ContainerID = 10;
     string Start = 11;
     string Timeout = 12;
@@ -196,7 +195,6 @@ message ActivityDumpListMessage {
 message ActivityDumpStopParams {
     string Name = 1;
     string ContainerID = 2;
-    string Comm = 3;
 }
 
 message ActivityDumpStopMessage {
@@ -244,19 +242,33 @@ message ActivityTreeStatsMessage {
     int64 ApproximateSize = 5;
 }
 
+message event_type_state {
+    uint64 last_anomaly_nano = 1;
+    string event_profile_state = 2;
+}
+
+message ProfileContextMessage {
+    uint64 first_seen = 1;
+    uint64 last_seen = 2;
+    map<string, event_type_state> event_type_state = 3;
+    repeated string tags = 4;
+}
+
 message SecurityProfileMessage {
     bool LoadedInKernel = 1;
     string LoadedInKernelTimestamp = 2;
     WorkloadSelectorMessage Selector = 3;
     uint64 ProfileCookie = 4;
     repeated string EventTypes = 5;
-    repeated LastAnomalyTimestampMessage LastAnomalies = 6;
+    repeated LastAnomalyTimestampMessage LastAnomalies = 6 [deprecated = true];
     repeated InstanceMessage Instances = 7;
-    string Status = 8;
-    string Version = 9;
+    string Status = 8 [deprecated = true];
+    string Version = 9 [deprecated = true];
     MetadataMessage Metadata = 10;
-    repeated string Tags = 11;
+    repeated string Tags = 11 [deprecated = true];
     ActivityTreeStatsMessage Stats = 12;
+    string ProfileGlobalState = 13;
+    map<string, ProfileContextMessage> profile_contexts = 14;
 }
 
 message SecurityProfileListParams {

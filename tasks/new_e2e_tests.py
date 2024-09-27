@@ -2,13 +2,14 @@
 Running E2E Tests with infra based on Pulumi
 """
 
+from __future__ import annotations
+
 import json
 import os
 import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List
 
 import yaml
 from invoke.context import Context
@@ -16,9 +17,10 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
-from tasks.go_test import test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit
-from tasks.libs.junit_upload_core import produce_junit_tar
+from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -32,6 +34,8 @@ from tasks.modules import DEFAULT_MODULES
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
         'skip': 'Only run tests not matching the regular expression',
+        'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
+        'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
     },
 )
 def run(
@@ -56,6 +60,9 @@ def run(
     cache=False,
     junit_tar="",
     test_run_name="",
+    test_washer=False,
+    agent_image="",
+    cluster_agent_image="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -71,19 +78,25 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    env_vars = {}
     if profile:
-        envVars["E2E_PROFILE"] = profile
+        env_vars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsed_params = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
             raise Exit(message=f"wrong format given for config parameter, expects key=value, actual: {param}", code=1)
-        parsedParams[parts[0]] = parts[1]
+        parsed_params[parts[0]] = parts[1]
 
-    if parsedParams:
-        envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
+    if agent_image:
+        parsed_params["ddagent:fullImagePath"] = agent_image
+
+    if cluster_agent_image:
+        parsed_params["ddagent:clusterAgentFullImagePath"] = cluster_agent_image
+
+    if parsed_params:
+        env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
@@ -92,7 +105,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
     args = {
         "go_mod": "mod",
@@ -100,7 +113,7 @@ def run(
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
-        "commit": get_git_commit(),
+        "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
         "test_run_arg": test_run_arg,
@@ -125,27 +138,30 @@ def run(
         modules=[e2e_module],
         args=args,
         cmd=cmd,
-        env=envVars,
+        env=env_vars,
         junit_tar=junit_tar,
         save_result_json="",
         test_profiler=None,
     )
-    if junit_tar:
-        junit_files = []
-        for module_test_res in test_res:
-            if module_test_res.junit_file_path:
-                junit_files.append(module_test_res.junit_file_path)
-        produce_junit_tar(junit_files, junit_tar)
 
-    some_test_failed = False
-    for module_test_res in test_res:
-        failed, failure_string = module_test_res.get_failure(AgentFlavor.base)
-        some_test_failed = some_test_failed or failed
-        if failed:
-            print(failure_string)
+    success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
-    if some_test_failed:
-        # Exit if any of the modules failed
+    if running_in_ci():
+        # Do not print all the params, they could contain secrets needed only in the CI
+        params = [f'--targets {t}' for t in targets]
+
+        param_keys = ('osversion', 'platform', 'arch')
+        for param_key in param_keys:
+            if args.get(param_key):
+                params.append(f'-{args[param_key]}')
+
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
+        print(
+            f'To run this test locally, use: `{command}`. '
+            'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+        )
+
+    if not success:
         raise Exit(code=1)
 
 
@@ -154,9 +170,10 @@ def run(
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
         'output': 'Cleans up local test output directory, default False',
+        'skip_destroy': 'Skip stack\'s resources removal. Use it only if your resources are already removed by other means, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False, output=False):
+def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -171,10 +188,18 @@ def clean(ctx, locks=True, stacks=False, output=False):
             print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
-        _clean_stacks(ctx)
+        _clean_stacks(ctx, skip_destroy)
 
     if output:
         _clean_output()
+
+
+@task
+def deps(ctx, verbose=False):
+    """
+    Setup Go dependencies
+    """
+    download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
 def _get_default_env():
@@ -238,22 +263,24 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context):
+def _clean_stacks(ctx: Context, skip_destroy: bool):
     print("🧹 Clean up stack")
-    stacks = _get_existing_stacks(ctx)
 
-    for stack in stacks:
-        print(f"🗑️  Destroying stack {stack}")
-        _destroy_stack(ctx, stack)
+    if not skip_destroy:
+        stacks = _get_existing_stacks(ctx)
+        for stack in stacks:
+            print(f"🔥 Destroying stack {stack}")
+            _destroy_stack(ctx, stack)
 
+    # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
-        print(f"🗑️ Cleaning up stack {stack}")
+        print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> List[str]:
-    e2e_stacks: List[str] = []
+def _get_existing_stacks(ctx: Context) -> list[str]:
+    e2e_stacks: list[str] = []
     output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
     if output is None or not output:
         return []
@@ -280,13 +307,27 @@ def _destroy_stack(ctx: Context, stack: str):
             env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
+            if "No valid credential sources found" in ret.stdout:
+                print(
+                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
+                )
+                print(ret.stdout)
+                raise Exit(
+                    color_message(
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
+                        "red",
+                    ),
+                    1,
+                )
             # run with refresh on first destroy attempt failure
-            ctx.run(
+            ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
                 env=_get_default_env(),
             )
+        if ret is not None and ret.exited != 0:
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):
@@ -296,7 +337,7 @@ def _remove_stack(ctx: Context, stack: str):
 def _get_pulumi_about(ctx: Context) -> dict:
     output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
     if output is None or not output:
-        return ""
+        return {}
     return json.loads(output.stdout)
 
 

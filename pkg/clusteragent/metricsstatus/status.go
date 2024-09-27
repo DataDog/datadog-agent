@@ -14,9 +14,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -59,12 +57,6 @@ func populateStatus(stats map[string]interface{}) {
 		stats["custommetrics"] = map[string]string{"Error": apiErr.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
-	}
-
-	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		stats["externalmetrics"] = externalmetrics.GetStatus()
-	} else {
-		stats["externalmetrics"] = apiserver.GetStatus()
 	}
 }
 

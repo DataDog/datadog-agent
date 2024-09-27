@@ -36,21 +36,21 @@ func (m *MockTagEnricher) Enrich(_ context.Context, extraTags []string, dimensio
 func newFactory() exp.Factory {
 	return NewFactory(&MockSerializer{}, &MockTagEnricher{}, func(context.Context) (string, error) {
 		return "", nil
-	})
+	}, nil, nil)
 }
 
 func TestNewFactory(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
-	_, ok := factory.CreateDefaultConfig().(*exporterConfig)
+	_, ok := factory.CreateDefaultConfig().(*ExporterConfig)
 	assert.True(t, ok)
 }
 
 func TestNewMetricsExporter(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	exp, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
@@ -60,10 +60,10 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	expCfg := cfg.(*exporterConfig)
+	expCfg := cfg.(*ExporterConfig)
 	expCfg.Metrics.HistConfig.Mode = "InvalidMode"
 
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	_, err := factory.CreateMetricsExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
@@ -72,7 +72,7 @@ func TestNewTracesExporter(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	_, err := factory.CreateTracesExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }
@@ -81,7 +81,7 @@ func TestNewLogsExporter(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 
-	set := exportertest.NewNopCreateSettings()
+	set := exportertest.NewNopSettings()
 	_, err := factory.CreateLogsExporter(context.Background(), set, cfg)
 	assert.Error(t, err)
 }

@@ -78,6 +78,6 @@ func (t *telemetryMock) incLowLimit() {
 	t.lowLimit++
 }
 
-func (t *telemetryMock) incNoWait()                      {}
-func (t *telemetryMock) incLowLimitFreeOSMemory()        {}
-func (t *telemetryMock) setMemoryUsageRate(rate float64) {} //nolint:revive // TODO fix revive unused-parameter
+func (t *telemetryMock) incNoWait()                   {}
+func (t *telemetryMock) incLowLimitFreeOSMemory()     {}
+func (t *telemetryMock) setMemoryUsageRate(_ float64) {}

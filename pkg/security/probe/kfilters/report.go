@@ -7,8 +7,6 @@
 package kfilters
 
 import (
-	"math"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -17,7 +15,6 @@ import (
 // PolicyReport describes the result of the kernel policy and the approvers for an event type
 type PolicyReport struct {
 	Mode      PolicyMode
-	Flags     PolicyFlag
 	Approvers rules.Approvers
 }
 
@@ -30,13 +27,15 @@ type ApplyRuleSetReport struct {
 func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	policies := make(map[eval.EventType]*PolicyReport)
 
+	// We need to call the approver detection even when approvers aren't enabled as it may have impact on some rule flags and
+	// the discarder mechanism, see ruleset.go
 	approvers, err := rs.GetApprovers(GetCapababilities())
 	if err != nil {
 		return nil, err
 	}
 
 	for _, eventType := range rs.GetEventTypes() {
-		report := &PolicyReport{Mode: PolicyModeDeny, Flags: math.MaxUint8}
+		report := &PolicyReport{Mode: PolicyModeDeny}
 		policies[eventType] = report
 
 		if !config.EnableKernelFilters {

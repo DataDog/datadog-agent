@@ -49,7 +49,7 @@ func NewGoTLSClient(t *testing.T, serverAddr string, numRequests int, enableHTTP
 func buildGoTLSClientBin(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, "gotls_client")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, "gotls_client")
 	require.NoError(t, err)
 	return serverBin
 }

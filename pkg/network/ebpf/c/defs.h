@@ -1,6 +1,8 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
+#include "compiler.h"
+
 __maybe_unused static const __u64 ENABLED = 1;
 
 #ifdef COMPILE_CORE

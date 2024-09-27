@@ -14,8 +14,8 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -24,11 +24,11 @@ import (
 )
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image.enabled")
+	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
 }
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
+	return imageMetadataCollectionIsEnabled() && pkgconfigsetup.Datadog().GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
@@ -41,15 +41,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetEventType(workloadmeta.EventTypeSet).
+		Build()
+
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 
 	scanner := collectors.GetDockerScanner()
@@ -147,9 +147,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 }
 
 func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
-	scanRequest := docker.ScanRequest{
-		ImageID: imageID,
-	}
+	scanRequest := docker.NewScanRequest(imageID)
 
 	if err := c.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)

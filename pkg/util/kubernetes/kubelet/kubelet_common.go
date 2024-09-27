@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -31,12 +32,6 @@ var (
 
 	// KubePodTaggerEntityPrefix is the tagger entity prefix for Kubernetes pods
 	KubePodTaggerEntityPrefix = KubePodTaggerEntityName + containers.EntitySeparator
-
-	// KubeNodeTaggerEntityName is the tagger entity name for Kubernetes nodes
-	KubeNodeTaggerEntityName = "kubernetes_node_uid"
-
-	// KubeNodeTaggerEntityPrefix is the tagger entity prefix for Kubernetes pods
-	KubeNodeTaggerEntityPrefix = KubeNodeTaggerEntityName + containers.EntitySeparator
 )
 
 // PodUIDToEntityName returns a prefixed entity name from a pod UID
@@ -45,22 +40,6 @@ func PodUIDToEntityName(uid string) string {
 		return ""
 	}
 	return KubePodPrefix + uid
-}
-
-// PodUIDToTaggerEntityName returns a prefixed tagger entity name from a pod UID
-func PodUIDToTaggerEntityName(uid string) string {
-	if uid == "" {
-		return ""
-	}
-	return KubePodTaggerEntityPrefix + uid
-}
-
-// NodeUIDToTaggerEntityName returns a prefixed tagger entity name from a node UID
-func NodeUIDToTaggerEntityName(uid string) string {
-	if uid == "" {
-		return ""
-	}
-	return KubeNodeTaggerEntityPrefix + uid
 }
 
 // ParseMetricFromRaw parses a metric from raw prometheus text
@@ -84,7 +63,7 @@ func ParseMetricFromRaw(raw []byte, metric string) (string, error) {
 func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
 	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
 	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
-		return containers.ContainerEntityName + ctrID[sep:], nil
+		return types.NewEntityID(types.ContainerID, ctrID[sep+len(containers.EntitySeparator):]).String(), nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }
@@ -94,7 +73,7 @@ func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
 func KubePodUIDToTaggerEntityID(podUID string) (string, error) {
 	sep := strings.LastIndex(podUID, containers.EntitySeparator)
 	if sep != -1 && len(podUID) > sep+len(containers.EntitySeparator) {
-		return KubePodTaggerEntityName + podUID[sep:], nil
+		return types.NewEntityID(types.KubernetesPodUID, podUID[sep+len(containers.EntitySeparator):]).String(), nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from pod UID %s", podUID)
 }

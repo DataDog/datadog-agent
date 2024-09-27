@@ -8,18 +8,20 @@
 package python
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -82,9 +84,11 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
+void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
+void SendLog(char *, char *);
 void SetCheckMetadata(char *, char *, char *);
 void SetExternalTags(char *, char *, char **);
 void WritePersistentCache(char *, char *);
@@ -92,13 +96,16 @@ bool TracemallocEnabled();
 char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
+char* ObfuscateMongoDBString(char *, char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
+	set_send_log_cb(rtloader, SendLog);
 	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
 	set_set_external_tags_cb(rtloader, SetExternalTags);
 	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
@@ -107,6 +114,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
+	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
 }
 
 //
@@ -243,10 +251,7 @@ func expvarPythonInitErrors() interface{} {
 	pyInitLock.RLock()
 	defer pyInitLock.RUnlock()
 
-	pyInitErrorsCopy := []string{}
-	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
-
-	return pyInitErrorsCopy
+	return slices.Clone(pyInitErrors)
 }
 
 func addExpvarPythonInitErrors(msg string) error {
@@ -254,7 +259,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 }
 
 func sendTelemetry(pythonVersion string) {
@@ -371,11 +376,11 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 
 //nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
-	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
+	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
+	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
-	if config.Datadog.GetBool("memtrack_enabled") {
+	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
 	}
 
@@ -421,7 +426,7 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
 		initPymemTelemetry()
 	}
 

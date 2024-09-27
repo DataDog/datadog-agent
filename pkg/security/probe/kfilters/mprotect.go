@@ -9,44 +9,44 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var mprotectCapabilities = Capabilities{
-	"mprotect.req_protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+var mprotectCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "mprotect.req_protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
-	"mprotect.vm_protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+	{
+		Field:       "mprotect.vm_protection",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func mprotectOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	var mprotectApprovers []activeApprover
+func mprotectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	var (
+		kfilters     []activeKFilter
+		fieldHandled []eval.Field
+	)
 
 	for field, values := range approvers {
 		switch field {
 		case "mprotect.vm_protection":
-			approver, err := approveFlags("mprotect_vm_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_vm_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			mprotectApprovers = append(mprotectApprovers, approver)
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		case "mprotect.req_protection":
-			approver, err := approveFlags("mprotect_req_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_req_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			mprotectApprovers = append(mprotectApprovers, approver)
-
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(mprotectApprovers...), nil
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }

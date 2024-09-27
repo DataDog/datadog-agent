@@ -13,6 +13,9 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func FuzzProcessStats(f *testing.F) {
@@ -26,6 +29,12 @@ func FuzzProcessStats(f *testing.F) {
 		err := payload.UnmarshalVT(stats)
 		return payload, err
 	}
+	equal := func(x, y *pb.ClientStatsPayload) bool {
+		// This function provides a fuzzier comparison than reflect.DeepEqual,
+		// allowing for empty slices to be equal using cmpopts.EquateEmpty().
+		// cmp.Exporter is an option to compare unexported fields.
+		return cmp.Equal(x, y, cmpopts.EquateEmpty(), cmp.Exporter(func(reflect.Type) bool { return true }))
+	}
 	pbStats := testutil.StatsPayloadSample()
 	stats, err := encode(pbStats)
 	if err != nil {
@@ -37,6 +46,17 @@ func FuzzProcessStats(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid payload: %v", err)
 		}
+		encPreProcess, err := encode(pbStats)
+		if err != nil {
+			t.Fatalf("Couldn't encode stats before processing: %v", err)
+		}
+		decPreProcess, err := decode(encPreProcess)
+		if err != nil {
+			t.Fatalf("Couldn't decode stats before processing: %v", err)
+		}
+		if !equal(decPreProcess, pbStats) {
+			t.Fatalf("Inconsistent encoding/decoding before processing: (%v) is different from (%v)", decPreProcess, pbStats)
+		}
 		processedStats := agent.processStats(pbStats, lang, version)
 		encPostProcess, err := encode(processedStats)
 		if err != nil {
@@ -46,7 +66,7 @@ func FuzzProcessStats(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Couldn't decode stats after processing: %v", err)
 		}
-		if !reflect.DeepEqual(decPostProcess, processedStats) {
+		if !equal(decPostProcess, processedStats) {
 			t.Fatalf("Inconsistent encoding/decoding after processing: (%v) is different from (%v)", decPostProcess, processedStats)
 		}
 	})

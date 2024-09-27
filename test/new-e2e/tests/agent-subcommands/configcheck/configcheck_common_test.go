@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type baseConfigCheckSuite struct {
@@ -80,23 +81,27 @@ Config for instance ID: cpu:e331d61ed1323219
 ~
 ===`
 
-	result, err := MatchCheckToTemplate("uptime", sampleCheck)
-	assert.NoError(t, err)
+	t.Run("uptime", func(t *testing.T) {
+		result, err := MatchCheckToTemplate("uptime", sampleCheck)
+		require.NoError(t, err)
 
-	assert.Contains(t, result.CheckName, "uptime")
-	assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default")
-	assert.Contains(t, result.InstanceID, "uptime:c72f390abdefdf1a")
-	assert.Contains(t, result.Settings, "key: value")
-	assert.Contains(t, result.Settings, "path: http://example.com/foo")
-	assert.NotContains(t, result.Settings, "{}")
+		assert.Contains(t, result.CheckName, "uptime")
+		assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default")
+		assert.Contains(t, result.InstanceID, "uptime:c72f390abdefdf1a")
+		assert.Contains(t, result.Settings, "key: value")
+		assert.Contains(t, result.Settings, "path: http://example.com/foo")
+		assert.NotContains(t, result.Settings, "{}")
+	})
 
-	result, err = MatchCheckToTemplate("cpu", sampleCheck)
-	assert.NoError(t, err)
+	t.Run("cpu", func(t *testing.T) {
+		result, err := MatchCheckToTemplate("cpu", sampleCheck)
+		require.NoError(t, err)
 
-	assert.Contains(t, result.CheckName, "cpu")
-	assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
-	assert.Contains(t, result.InstanceID, "cpu:e331d61ed1323219")
-	assert.Contains(t, result.Settings, "{}")
+		assert.Contains(t, result.CheckName, "cpu")
+		assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
+		assert.Contains(t, result.InstanceID, "cpu:e331d61ed1323219")
+		assert.Contains(t, result.Settings, "{}")
+	})
 }
 
 func VerifyDefaultInstalledCheck(t *testing.T, output string, testChecks []CheckConfigOutput) {
@@ -105,7 +110,7 @@ func VerifyDefaultInstalledCheck(t *testing.T, output string, testChecks []Check
 	for _, testCheck := range testChecks {
 		t.Run(fmt.Sprintf("default - %s test", testCheck.CheckName), func(t *testing.T) {
 			result, err := MatchCheckToTemplate(testCheck.CheckName, output)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Contains(t, result.Filepath, testCheck.Filepath)
 			assert.Contains(t, result.InstanceID, testCheck.InstanceID)
 			assert.Contains(t, result.Settings, testCheck.Settings)

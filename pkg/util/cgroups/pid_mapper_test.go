@@ -111,6 +111,18 @@ var ecsFargateCgroup = `11:perf_event:/ecs/8474ac4cec7a4f488834b00591271ec3/8474
 2:cpuset:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820
 1:name=systemd:/ecs/8474ac4cec7a4f488834b00591271ec3/8474ac4cec7a4f488834b00591271ec3-3054012820`
 
+var ecsFargateCgroupShort = `11:pids:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+10:blkio:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+9:cpu,cpuacct:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+8:perf_event:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+7:net_cls,net_prio:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+6:cpuset:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+5:devices:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+4:freezer:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+3:memory:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+2:hugetlb:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567
+1:name=systemd:/ecs/0520ecd8e4194fd48309d1ae6eec92ec/0520ecd8e4194fd48309d1ae6eec92ec-946514567`
+
 func TestProcPidMapperCgroupV1(t *testing.T) {
 	fakeFsPath := t.TempDir()
 	paths := []string{
@@ -215,6 +227,11 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 			name:        "ecs fargate",
 			fileContent: ecsFargateCgroup,
 			expectedID:  "8474ac4cec7a4f488834b00591271ec3-3054012820",
+		},
+		{
+			name:        "ecs fargate shorter",
+			fileContent: ecsFargateCgroupShort,
+			expectedID:  "0520ecd8e4194fd48309d1ae6eec92ec-946514567",
 		},
 	}
 

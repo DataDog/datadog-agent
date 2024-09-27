@@ -3,25 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux || windows
 
 // Package events handles process events
 package events
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Start starts the event consumer (noop)
 func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Stop stops the event consumer (noop)
 func (n *NetworkConsumer) Stop() {
 }
 
@@ -32,13 +31,9 @@ func (n *NetworkConsumer) ID() string {
 
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
-	h := Handler()
-	if err := evm.AddEventTypeHandler(smodel.ForkEventType, h); err != nil {
+	h := Consumer()
+	if err := evm.AddEventConsumer(h); err != nil {
 		return nil, err
 	}
-	if err := evm.AddEventTypeHandler(smodel.ExecEventType, h); err != nil {
-		return nil, err
-	}
-
 	return &NetworkConsumer{}, nil
 }

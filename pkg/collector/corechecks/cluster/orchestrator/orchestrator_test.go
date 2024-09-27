@@ -33,11 +33,13 @@ func newCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		check:              chk,
 		inventory:          inventory.NewCollectorInventory(),
 		runCfg: &collectors.CollectorRunConfig{
-			APIClient:                   chk.apiClient,
-			ClusterID:                   chk.clusterID,
-			Config:                      chk.orchestratorConfig,
-			MsgGroupRef:                 chk.groupID,
-			OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
+				APIClient:                   chk.apiClient,
+				OrchestratorInformerFactory: chk.orchestratorInformerFactory,
+			},
+			ClusterID:   chk.clusterID,
+			Config:      chk.orchestratorConfig,
+			MsgGroupRef: chk.groupID,
 		},
 		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),
@@ -75,7 +77,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(_ interface{}) {
 			wg.Done()
 		},
 	})

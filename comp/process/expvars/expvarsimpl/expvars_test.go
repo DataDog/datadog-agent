@@ -17,12 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestExpvarServer(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("process_agent")
+
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"process_config.expvar_port": 43423,
+		}}),
 
 		Module(),
 		hostinfoimpl.MockModule(),
@@ -30,7 +38,7 @@ func TestExpvarServer(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6062/debug/vars")
+		res, err := http.Get("http://localhost:43423/debug/vars")
 		if err != nil {
 			return false
 		}
@@ -41,10 +49,15 @@ func TestExpvarServer(t *testing.T) {
 }
 
 func TestTelemetry(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("process_agent")
+
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"telemetry.enabled": true,
+			"telemetry.enabled":          true,
+			"process_config.expvar_port": 43423,
 		}}),
 
 		Module(),
@@ -53,7 +66,7 @@ func TestTelemetry(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6062/telemetry")
+		res, err := http.Get("http://localhost:43423/telemetry")
 		if err != nil {
 			return false
 		}

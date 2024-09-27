@@ -6,7 +6,6 @@ class TailFile(TestCase):
     name = "[Files] Agent can tail a file"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -26,21 +25,21 @@ class TailFile(TestCase):
         self.append(
             f"""
 ```
-logs: 
+logs:
   - type: file
     path: {path}
     service: test-file-tailing
     source: hello-world
-``` 
+```
 - Start the agent
 - generate some logs ({genlogs})
 
 # Test
 - Validate the logs show up in app with the correct `source` and `service` tags
-- Block permission to the file ({blockPermissions}) and check that the Agent status shows that it is inaccessible. 
-- Change the permissions back ({restorePermissions}) so it is accessible again. 
+- Block permission to the file ({blockPermissions}) and check that the Agent status shows that it is inaccessible.
+- Change the permissions back ({restorePermissions}) so it is accessible again.
 - Stop the agent, generate new logs, start the agent and make sure those are sent.
-- Rotate the log file ({rotate}), ensure that logs continue to send after rotation. 
+- Rotate the log file ({rotate}), ensure that logs continue to send after rotation.
 """
         )
 
@@ -49,7 +48,6 @@ class TailFileMultiLine(TestCase):
     name = "[Files] Agent can tail multi line logs"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -57,7 +55,7 @@ class TailFileMultiLine(TestCase):
         self.append(
             f"""
 ```
-logs: 
+logs:
   - type: file
     path: {path}
     service: test-file-tailing
@@ -66,7 +64,7 @@ logs:
       - type: multi_line
         name: new_log_start_with_date
         pattern: \\d{{4}}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])
-``` 
+```
 """
         )
 
@@ -76,7 +74,7 @@ logs:
 - generate some multi-line logs `docker run -it bfloerschddog/java-excepton-logger > {path}`
 
 # Test
-- Validate that the logs show up in app correctly. Look for the multi-line exception logs and ensure they are combined into a single log line. 
+- Validate that the logs show up in app correctly. Look for the multi-line exception logs and ensure they are combined into a single log line.
 """
         )
 
@@ -85,7 +83,6 @@ class TailFileUTF16(TestCase):
     name = "[Files] Agent can tail UTF16 files"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -93,13 +90,13 @@ class TailFileUTF16(TestCase):
         self.append(
             f"""
 ```
-logs: 
+logs:
   - type: file
     path: {path}
     service: test-file-tailing
     source: hello-world
     encoding: utf-16-le
-``` 
+```
 """
         )
 
@@ -121,7 +118,6 @@ class TailFileWildcard(TestCase):
     name = "[Files] Agent can use wildcards to tail a file"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -134,7 +130,7 @@ logs:
     path: {path}
     service: test-wildcard
     source: wildcard
-``` 
+```
 """
         )
 
@@ -157,7 +153,6 @@ class TailFileStartPosition(TestCase):
     name = "[Files] `start_position` defines where to tail from"
 
     def build(self, config):
-
         self.append("# Setup")
         self.append(confDir(config))
 
@@ -171,7 +166,7 @@ logs:
     service: test-file-tailing
     source: hello-world
     start_position: beginning
-``` 
+```
 """
         )
 
@@ -180,7 +175,7 @@ logs:
 1. start the agent
 2. generate some logs like `docker run -it bfloerschddog/flog -l > hello-world.log`
 3. check the logs show up in app
-4. stop the agent. 
+4. stop the agent.
 """
         )
         self.append(filePositionSharedSteps())

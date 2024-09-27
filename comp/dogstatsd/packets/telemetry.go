@@ -6,69 +6,85 @@
 package packets
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 var (
+	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
+)
+
+// TelemetryStore holds all the telemetry counters and gauges for the dogstatsd packets
+type TelemetryStore struct {
 	// packet buffer
 	// This is the size of the output channel of the packet buffer. Even
 	// though all buffers currently share a single channel it's still worth
 	// tagging it with listener_id in case this changes later.
-	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		[]string{}, "Size of the packets channel (batch of packets)")
-	tlmChannelSizePackets = telemetry.NewGauge("dogstatsd", "packets_channel_packets_count",
-		[]string{"listener_id"}, "Number of packets in the packets channel")
-	tlmChannelSizePacketsBytes = telemetry.NewGauge("dogstatsd", "packets_channel_packets_bytes",
-		[]string{"listener_id"}, "Number of bytes in the packets channel")
+	tlmChannelSize             telemetry.Gauge
+	tlmChannelSizePackets      telemetry.Gauge
+	tlmChannelSizePacketsBytes telemetry.Gauge
 
-	tlmListenerChannel    = telemetry.NewHistogramNoOp()
-	defaultChannelBuckets = []float64{250, 500, 750, 1000, 10000}
-
+	tlmListenerChannel telemetry.Histogram
 	// buffer flush
-	tlmBufferFlushedTimer = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_timer",
-		[]string{"listener_id"}, "Count of packets buffer flush triggered by the timer")
-	tlmBufferFlushedFull = telemetry.NewCounter("dogstatsd", "packets_buffer_flush_full",
-		[]string{"listener_id"}, "Count of packets buffer flush triggered because the buffer is full")
-	tlmBufferSize = telemetry.NewGauge("dogstatsd", "packets_buffer_size",
-		[]string{"listener_id"}, "Size of the packets buffer")
-	tlmBufferSizeBytes = telemetry.NewGauge("dogstatsd", "packets_buffer_size_bytes",
-		[]string{"listener_id"}, "Size of the packets buffer in bytes")
+	tlmBufferFlushedTimer telemetry.Counter
+	tlmBufferFlushedFull  telemetry.Counter
+	tlmBufferSize         telemetry.Gauge
+	tlmBufferSizeBytes    telemetry.Gauge
 
 	// packet pool
-	tlmPoolGet = telemetry.NewCounter("dogstatsd", "packet_pool_get",
-		nil, "Count of get done in the packet pool")
-	tlmPoolPut = telemetry.NewCounter("dogstatsd", "packet_pool_put",
-		nil, "Count of put done in the packet pool")
-	tlmPool = telemetry.NewGauge("dogstatsd", "packet_pool",
-		nil, "Usage of the packet pool in dogstatsd")
-)
+	tlmPoolGet telemetry.Counter
+	tlmPoolPut telemetry.Counter
+	tlmPool    telemetry.Gauge
+}
 
-// InitTelemetry initialize the telemetry.Histogram buckets for the internal
-// telemetry. This will be called once the first dogstatsd server is created
-// since we need the configuration to be fully loaded.
-func InitTelemetry(buckets []float64) {
+// NewTelemetryStore returns a new TelemetryStore
+func NewTelemetryStore(buckets []float64, telemetrycomp telemetry.Component) *TelemetryStore {
 	if buckets == nil {
 		buckets = defaultChannelBuckets
 	}
 
-	tlmListenerChannel = telemetry.NewHistogram(
-		"dogstatsd",
-		"listener_channel_latency",
-		[]string{"listener_id"},
-		"Time in nanoseconds to push a packets from a listeners to dogstatsd pipeline",
-		buckets)
+	return &TelemetryStore{
+		tlmChannelSize: telemetrycomp.NewGauge("dogstatsd", "packets_channel_size",
+			[]string{}, "Size of the packets channel (batch of packets)"),
+		tlmChannelSizePackets: telemetrycomp.NewGauge("dogstatsd", "packets_channel_packets_count",
+			[]string{"listener_id"}, "Number of packets in the packets channel"),
+		tlmChannelSizePacketsBytes: telemetrycomp.NewGauge("dogstatsd", "packets_channel_packets_bytes",
+			[]string{"listener_id"}, "Number of bytes in the packets channel"),
+
+		tlmListenerChannel: telemetrycomp.NewHistogram(
+			"dogstatsd",
+			"listener_channel_latency",
+			[]string{"listener_id"},
+			"Time in nanoseconds to push a packets from a listeners to dogstatsd pipeline",
+			buckets),
+
+		tlmBufferFlushedTimer: telemetrycomp.NewCounter("dogstatsd", "packets_buffer_flush_timer",
+			[]string{"listener_id"}, "Count of packets buffer flush triggered by the timer"),
+		tlmBufferFlushedFull: telemetrycomp.NewCounter("dogstatsd", "packets_buffer_flush_full",
+			[]string{"listener_id"}, "Count of packets buffer flush triggered because the buff,er is full"),
+		tlmBufferSize: telemetrycomp.NewGauge("dogstatsd", "packets_buffer_size",
+			[]string{"listener_id"}, "Size of the packets buffer"),
+		tlmBufferSizeBytes: telemetrycomp.NewGauge("dogstatsd", "packets_buffer_size_bytes",
+			[]string{"listener_id"}, "Size of the packets buffer in bytes"),
+
+		tlmPoolGet: telemetrycomp.NewCounter("dogstatsd", "packet_pool_get",
+			nil, "Count of get done in the packet pool"),
+		tlmPoolPut: telemetrycomp.NewCounter("dogstatsd", "packet_pool_put",
+			nil, "Count of put done in the packet pool"),
+		tlmPool: telemetrycomp.NewGauge("dogstatsd", "packet_pool",
+			nil, "Usage of the packet pool in dogstatsd"),
+	}
 }
 
 // TelemetryTrackPackets tracks the number of packets in the channel and the number of bytes
-func TelemetryTrackPackets(packets Packets, listenerID string) {
-	tlmChannelSizePackets.Add(float64(len(packets)), listenerID)
-	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()+packets.DataSizeInBytes()), listenerID)
+func (t *TelemetryStore) TelemetryTrackPackets(packets Packets, listenerID string) {
+	t.tlmChannelSizePackets.Add(float64(len(packets)), listenerID)
+	t.tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()+packets.DataSizeInBytes()), listenerID)
 }
 
 // TelemetryUntrackPackets untracks the number of packets in the channel and the number of bytes
-func TelemetryUntrackPackets(packets Packets) {
+func (t *TelemetryStore) TelemetryUntrackPackets(packets Packets) {
 	for _, packet := range packets {
-		tlmChannelSizePackets.Add(-1, packet.ListenerID)
-		tlmChannelSizePacketsBytes.Add(-float64(packet.SizeInBytes()+packet.DataSizeInBytes()), packet.ListenerID)
+		t.tlmChannelSizePackets.Add(-1, packet.ListenerID)
+		t.tlmChannelSizePacketsBytes.Add(-float64(packet.SizeInBytes()+packet.DataSizeInBytes()), packet.ListenerID)
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -49,17 +51,19 @@ type CWSConsumer struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	selfTester    *selftests.SelfTester
 	reloader      ReloaderInterface
+	crtelemetry   *telemetry.ContainersRunningTelemetry
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts) (*CWSConsumer, error) {
+	crtelemetry, err := telemetry.NewContainersRunningTelemetry(cfg, evm.StatsdClient, wmeta)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	var (
-		selfTester *selftests.SelfTester
-		err        error
-	)
-
+	var selfTester *selftests.SelfTester
 	if cfg.SelfTestEnabled {
 		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
 		if err != nil {
@@ -76,12 +80,13 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		apiServer:     NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
+		crtelemetry:   crtelemetry,
 	}
 
 	// set sender
@@ -150,6 +155,11 @@ func (c *CWSConsumer) Start() error {
 
 	c.wg.Add(1)
 	go c.statsSender()
+
+	if c.crtelemetry != nil {
+		// Send containers running telemetry
+		go c.crtelemetry.Run(c.ctx)
+	}
 
 	seclog.Infof("runtime security started")
 
@@ -252,6 +262,11 @@ func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	}
 }
 
+// APIServer returns the api server
+func (c *CWSConsumer) APIServer() *APIServer {
+	return c.apiServer
+}
+
 // HandleActivityDump sends an activity dump to the backend
 func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
 	c.apiServer.SendActivityDump(dump)
@@ -275,7 +290,7 @@ func (c *CWSConsumer) sendStats() {
 		if counter > 0 {
 			tags := []string{
 				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
-				fmt.Sprintf("tree_type:%s", statsTags.TreeType),
+				fmt.Sprintf("suppression_type:%s", statsTags.SuppressionType),
 			}
 			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}
@@ -304,4 +319,12 @@ func (c *CWSConsumer) statsSender() {
 // GetRuleEngine returns new current rule engine
 func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 	return c.ruleEngine
+}
+
+// PrepareForFunctionalTests tweaks the module to be ready for functional tests
+// currently it:
+// - disables the container running telemetry
+func (c *CWSConsumer) PrepareForFunctionalTests() {
+	// no need for container running telemetry in functional tests
+	c.crtelemetry = nil
 }

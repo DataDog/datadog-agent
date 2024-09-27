@@ -1,9 +1,9 @@
 using System;
 using System.Security.AccessControl;
-using Newtonsoft.Json;
 using Datadog.CustomActions.Interfaces;
+using Newtonsoft.Json;
 
-namespace Datadog.CustomActions.RollbackData
+namespace Datadog.CustomActions.Rollback
 {
     class FilePermissionRollbackData : IRollbackAction
     {

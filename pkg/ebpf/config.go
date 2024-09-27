@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -76,8 +76,9 @@ type Config struct {
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
 
-	// EBPFInstrumentationEnabled enables instrumenting eBPF programs via a trampoline instruction in the beginning of the bytecode sequence.
-	EBPFInstrumentationEnabled bool
+	// BypassEnabled is used in tests only.
+	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	BypassEnabled bool
 }
 
 func key(pieces ...string) string {
@@ -86,7 +87,7 @@ func key(pieces ...string) string {
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.SystemProbe
+	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{
@@ -112,7 +113,6 @@ func NewConfig() *Config {
 		AllowRuntimeCompiledFallback: cfg.GetBool(key(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
-		EBPFInstrumentationEnabled:       cfg.GetBool(key(spNS, "ebpf_instrumentation", "enabled")),
 	}
 
 	return c

@@ -11,9 +11,9 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-)
 
-var contextKeyTokenInfoID = &contextKey{"token-info-id"}
+	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
+)
 
 // verifierFunc receives the token passed in the request headers, and returns
 // arbitrary information about the token to be stored in the request context,
@@ -34,6 +34,6 @@ func AuthInterceptor(verifier verifierFunc) grpc_auth.AuthFunc {
 			return nil, status.Errorf(codes.Unauthenticated, "invalid auth token: %v", err)
 		}
 
-		return context.WithValue(ctx, contextKeyTokenInfoID, tokenInfo), nil
+		return context.WithValue(ctx, grpccontext.ContextKeyTokenInfoID, tokenInfo), nil
 	}
 }

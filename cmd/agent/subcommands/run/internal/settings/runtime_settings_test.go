@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -25,6 +28,7 @@ import (
 
 type testDeps struct {
 	fx.In
+	Config        config.Component
 	Server        server.Component
 	Debug         serverdebug.Component
 	Demultiplexer demultiplexer.Mock
@@ -37,12 +41,10 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
-		fx.Supply(server.Params{
-			Serverless: false,
-		}),
 		demultiplexerimpl.MockModule(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(server.Params{Serverless: false}),
 		defaultforwarder.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := DsdStatsRuntimeSetting{
@@ -53,44 +55,44 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	// true string
 
-	err = s.Set("true", model.SourceDefault)
+	err = s.Set(deps.Config, "true", model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
-	v, err := s.Get()
+	v, err := s.Get(deps.Config)
 	assert.Nil(err)
 	assert.Equal(v, true)
 
 	// false string
 
-	err = s.Set("false", model.SourceDefault)
+	err = s.Set(deps.Config, "false", model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
-	v, err = s.Get()
+	v, err = s.Get(deps.Config)
 	assert.Nil(err)
 	assert.Equal(v, false)
 
 	// true boolean
 
-	err = s.Set(true, model.SourceDefault)
+	err = s.Set(deps.Config, true, model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), true)
-	v, err = s.Get()
+	v, err = s.Get(deps.Config)
 	assert.Nil(err)
 	assert.Equal(v, true)
 
 	// false boolean
 
-	err = s.Set(false, model.SourceDefault)
+	err = s.Set(deps.Config, false, model.SourceDefault)
 	assert.Nil(err)
 	assert.Equal(deps.Debug.IsDebugEnabled(), false)
-	v, err = s.Get()
+	v, err = s.Get(deps.Config)
 	assert.Nil(err)
 	assert.Equal(v, false)
 
 	// ensure the getter uses the value from the actual server
 
 	deps.Debug.SetMetricStatsEnabled(true)
-	v, err = s.Get()
+	v, err = s.Get(deps.Config)
 	assert.Nil(err)
 	assert.Equal(v, true)
 }

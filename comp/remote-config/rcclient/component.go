@@ -18,10 +18,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
-	// Once the remote config client is refactored and can push updates directly to the listeners,
-	// we can remove this.
-	Start(agentName string) error
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
 	// SubscribeApmTracing subscribes the remote-config client to APM_TRACING
@@ -29,6 +25,12 @@ type Component interface {
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+}
+
+// Params is the input parameter struct for the RC client Component.
+type Params struct {
+	AgentName    string
+	AgentVersion string
 }
 
 // NoneModule return a None optional type for rcclient.Component.

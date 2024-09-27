@@ -155,10 +155,48 @@ type ProviderConfiguration struct {
 
 	// PIDs allow filtering by PIDs if non-empty
 	PIDs []uint32
+
+	// The EnabledIDs and DisabledIDs fields are mutually exclusive; the API allows you to send one or the other but not both.
+	//
+	// Setting the list of EnabledIDs will enable only listed events.
+	// Setting the list of DisabledIDs will disable only listed events, and allow all others
+
+	// EventIDs for enableTrace = TRUE
+	EnabledIDs []uint16
+
+	// eventIds for enabletrace = FALSE
+	DisabledIDs []uint16
 }
 
 // ProviderConfigurationFunc is a function used to configure a provider
 type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
+
+// SessionConfiguration is a structure containing all the configuration options for an ETW session
+type SessionConfiguration struct {
+	//MinBuffers is the minimum number of trace buffers for ETW to allocate for a session.  The default is 0
+	MinBuffers uint32
+	//MaxBuffers is the maximum number of buffers for ETW to allocate.  The default is 0
+	MaxBuffers uint32
+}
+
+// SessionStatistics contains statistics about the session
+type SessionStatistics struct {
+	// NumberOfBuffers is the number of buffers allocated for the session
+	NumberOfBuffers uint32
+	// FreeBuffers is the number of buffers that are free
+	FreeBuffers uint32
+	// EventsLost is the number of events not recorded
+	EventsLost uint32
+	// BuffersWritten is the number of buffers written
+	BuffersWritten uint32
+	// LogBuffersLost is the number of log buffers lost
+	LogBuffersLost uint32
+	// RealTimeBuffersLost is the number of real-time buffers lost
+	RealTimeBuffersLost uint32
+}
+
+// SessionConfigurationFunc is a function used to configure a session
+type SessionConfigurationFunc func(cfg *SessionConfiguration)
 
 // Session represents an ETW session. A session can have multiple tracing providers enabled.
 type Session interface {
@@ -180,11 +218,15 @@ type Session interface {
 	// StopTracing stops all tracing activities.
 	// It's not possible to use the session anymore after a call to StopTracing.
 	StopTracing() error
+
+	// GetSessionStatistics returns statistics about the session
+	GetSessionStatistics() (SessionStatistics, error)
 }
 
 // Component offers a way to create ETW tracing sessions with a given name.
 type Component interface {
-	NewSession(sessionName string) (Session, error)
+	NewSession(sessionName string, f SessionConfigurationFunc) (Session, error)
+	NewWellKnownSession(sessionName string, f SessionConfigurationFunc) (Session, error)
 }
 
 // UserData offers a wrapper around the UserData field of an ETW event.

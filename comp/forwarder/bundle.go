@@ -11,10 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
+// team: agent-processing-and-routing
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(params defaultforwarder.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		defaultforwarder.Module())
+		defaultforwarder.Module(params))
 }

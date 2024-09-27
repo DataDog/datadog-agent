@@ -22,18 +22,20 @@ import (
 	"time"
 
 	sysctl "github.com/lorenzosaino/go-sysctl"
+	"golang.org/x/net/netutil"
 )
 
 // Options wraps all configurable params for the HTTPServer
 type Options struct {
 	// If TLS is enabled, allows to upgrade the connections to http/2.
-	EnableHTTP2        bool
-	EnableTLS          bool
-	EnableKeepAlive    bool
-	EnableTCPTimestamp *bool
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	SlowResponse       time.Duration
+	EnableHTTP2         bool
+	EnableTLS           bool
+	EnableKeepAlive     bool
+	EnableLimitListener bool
+	EnableTCPTimestamp  *bool
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
+	SlowResponse        time.Duration
 }
 
 func isNetIPV4TCPTimestampEnabled(t *testing.T) bool {
@@ -110,6 +112,13 @@ func HTTPServer(t *testing.T, addr string, options Options) func() {
 
 	listenFn := func() error {
 		ln, err := net.Listen("tcp", srv.Addr)
+
+		// LimitListener is widely used at internal services so it's important
+		// to test it as well as it modifies how GoTLS tracing is done
+		if options.EnableLimitListener {
+			ln = netutil.LimitListener(ln, 1)
+		}
+
 		if err == nil {
 			go func() { _ = srv.Serve(ln) }()
 		}

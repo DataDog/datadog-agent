@@ -25,24 +25,6 @@ const (
 // onDeleteCallback describes a callback function that is called before deleting an entry from a PersistentDB.
 type onDeleteCallback = func(key string, value []byte) error
 
-// PersistentDB describes an interface for a persistent key-value store.
-type PersistentDB interface {
-	// Clear closes the database and removes all stored data.
-	Clear() error
-	// Close closes the database connection.
-	Close() error
-	// Delete deletes a set of keys from the database and invokes the specified callback for each key before committing the transaction.
-	Delete(keys []string, callback onDeleteCallback) error
-	// Get returns the value associated with the given key. If the key is not found, it returns nil.
-	Get(key string) ([]byte, error)
-	// Store stores a key-value pair in the database.
-	Store(key string, value []byte) error
-	// ForEach invokes the specified function for every key-value pair in the database.
-	ForEach(func(string, []byte) error) error
-	// Size returns the number of key-value pairs in the database.
-	Size() (uint, error)
-}
-
 // BoltDB implements the PersistentDB interface. It holds a bolt.DB instance and the storage directory.
 type BoltDB struct {
 	db        *bolt.DB
@@ -76,7 +58,7 @@ func NewBoltDB(cacheDir string) (BoltDB, error) {
 	}, nil
 }
 
-// Clear implements PersistentDB
+// Clear clears the cache directory.
 func (b BoltDB) Clear() error {
 	if err := b.Close(); err != nil {
 		return err
@@ -84,12 +66,13 @@ func (b BoltDB) Clear() error {
 	return os.RemoveAll(b.directory)
 }
 
-// Close implements PersistentDB
+// Close closes the db.
 func (b BoltDB) Close() error {
 	return b.db.Close()
 }
 
-// Delete implements PersistentDB
+// Delete deletes the given keys from the database and calls the callback for each deleted key-value pair.
+// It returns an error if the transaction fails and returns nil if the key doesn't exist.
 func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
@@ -110,7 +93,7 @@ func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 	return err
 }
 
-// Get implements PersistentDB
+// Get retrieves the value attached to the given key.
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
 	return res, b.db.View(func(tx *bolt.Tx) error {
@@ -123,7 +106,7 @@ func (b BoltDB) Get(key string) ([]byte, error) {
 	})
 }
 
-// Store implements PersistentDB
+// Store inserts a key in the database.
 func (b BoltDB) Store(key string, value []byte) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))
@@ -134,7 +117,7 @@ func (b BoltDB) Store(key string, value []byte) error {
 	})
 }
 
-// ForEach implements PersistentDB
+// ForEach runs a function for each key in the db.
 func (b BoltDB) ForEach(f func(string, []byte) error) error {
 	return b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(boltBucket))
@@ -145,7 +128,7 @@ func (b BoltDB) ForEach(f func(string, []byte) error) error {
 	})
 }
 
-// Size implements PersistentDB. It is different from the total size of cached objects
+// Size returns the size of the database file.
 func (b BoltDB) Size() (uint, error) {
 	var res uint
 	return res, b.db.View(func(tx *bolt.Tx) error {

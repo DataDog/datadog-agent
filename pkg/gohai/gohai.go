@@ -78,61 +78,82 @@ func GetPayloadAsString(IsContainerized bool) (string, error) {
 func getGohaiInfo(isContainerized, withProcesses bool) *gohai {
 	res := new(gohai)
 
-	cpuPayload, _, err := cpu.CollectInfo().AsJSON()
+	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
 	if err == nil {
 		res.CPU = cpuPayload
 	} else {
-		log.Errorf("Failed to retrieve cpu metadata: %s", err)
+		for _, warn := range warns {
+			log.Debug(warn)
+		}
+		log.Warnf("Failed to retrieve cpu metadata: %s", err)
 	}
 
 	var fileSystemPayload interface{}
 	fileSystemInfo, err := filesystem.CollectInfo()
+	warns = nil
 	if err == nil {
-		fileSystemPayload, _, err = fileSystemInfo.AsJSON()
+		fileSystemPayload, warns, err = fileSystemInfo.AsJSON()
 	}
 	if err == nil {
 		res.FileSystem = fileSystemPayload
 	} else {
-		log.Errorf("Failed to retrieve filesystem metadata: %s", err)
+		for _, warn := range warns {
+			log.Debug(warn)
+		}
+		log.Warnf("Failed to retrieve filesystem metadata: %s", err)
 	}
 
-	memoryPayload, _, err := memory.CollectInfo().AsJSON()
+	memoryPayload, warns, err := memory.CollectInfo().AsJSON()
 	if err == nil {
 		res.Memory = memoryPayload
 	} else {
-		log.Errorf("Failed to retrieve memory metadata: %s", err)
+		for _, warn := range warns {
+			log.Debug(warn)
+		}
+		log.Warnf("Failed to retrieve memory metadata: %s", err)
 	}
 
 	if !isContainerized || detectDocker0() {
 		var networkPayload interface{}
 		networkInfo, err := network.CollectInfo()
+		warns = nil
 		if err == nil {
-			networkPayload, _, err = networkInfo.AsJSON()
+			networkPayload, warns, err = networkInfo.AsJSON()
 		}
 		if err == nil {
 			res.Network = networkPayload
 		} else {
-			log.Errorf("Failed to retrieve network metadata: %s", err)
+			for _, warn := range warns {
+				log.Debug(warn)
+			}
+			log.Warnf("Failed to retrieve network metadata: %s", err)
 		}
 	}
 
-	platformPayload, _, err := platform.CollectInfo().AsJSON()
+	platformPayload, warns, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {
-		log.Errorf("Failed to retrieve platform metadata: %s", err)
+		for _, warn := range warns {
+			log.Debug(warn)
+		}
+		log.Warnf("Failed to retrieve platform metadata: %s", err)
 	}
 
 	if withProcesses {
 		var processesPayload interface{}
 		processesInfo, err := processes.CollectInfo()
+		warns = nil
 		if err == nil {
-			processesPayload, _, err = processesInfo.AsJSON()
+			processesPayload, warns, err = processesInfo.AsJSON()
 		}
 		if err == nil {
 			res.Processes = processesPayload
 		} else {
-			log.Errorf("Failed to retrieve processes metadata: %s", err)
+			for _, warn := range warns {
+				log.Debug(warn)
+			}
+			log.Warnf("Failed to retrieve processes metadata: %s", err)
 		}
 	}
 

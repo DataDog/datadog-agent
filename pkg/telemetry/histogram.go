@@ -16,10 +16,10 @@ type Histogram interface {
 
 type histogramNoOp struct{}
 
-func (h histogramNoOp) Observe(_ float64, _ ...string)                                    {}
-func (h histogramNoOp) Delete(_ ...string)                                                {}
-func (h histogramNoOp) WithValues(tagsValue ...string) telemetryComponent.SimpleHistogram { return nil } //nolint:revive // TODO fix revive unused-parameter
-func (h histogramNoOp) WithTags(tags map[string]string) telemetryComponent.SimpleHistogram { //nolint:revive // TODO fix revive unused-parameter
+func (h histogramNoOp) Observe(_ float64, _ ...string)                            {}
+func (h histogramNoOp) Delete(_ ...string)                                        {}
+func (h histogramNoOp) WithValues(_ ...string) telemetryComponent.SimpleHistogram { return nil }
+func (h histogramNoOp) WithTags(_ map[string]string) telemetryComponent.SimpleHistogram {
 	return nil
 }
 
@@ -37,5 +37,5 @@ func NewHistogram(subsystem, name string, tags []string, help string, buckets []
 // NewHistogramWithOpts creates a Histogram with the given options for telemetry purpose.
 // See NewHistogram()
 func NewHistogramWithOpts(subsystem, name string, tags []string, help string, buckets []float64, opts Options) Histogram {
-	return telemetryComponent.GetCompatComponent().NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetryComponent.Options(opts))
+	return GetCompatComponent().NewHistogramWithOpts(subsystem, name, tags, help, buckets, telemetryComponent.Options(opts))
 }

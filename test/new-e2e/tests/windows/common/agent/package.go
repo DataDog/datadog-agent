@@ -29,7 +29,7 @@ const (
 	betaChannel                   = "beta"
 	betaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
 	stableChannel                 = "stable"
-	stableURL                     = "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json"
+	stableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
 // Package contains identifying information about an Agent MSI package.
@@ -117,6 +117,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 	s3Client := s3.NewFromConfig(config)
 
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
+	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
 	result, err := s3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(agentS3BucketTesting),
 		Prefix: aws.String(fmt.Sprintf("pipelines/A%s/%s", majorVersion, pipelineID)),
@@ -130,11 +131,27 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 		return "", fmt.Errorf("no agent MSI found for pipeline %v", pipelineID)
 	}
 
-	// match the arch
+	// In case there are multiple artifacts, try to match the right one
+	// This is only here as a workaround for a CI issue that can cause artifacts
+	// from different pipelines to be mixed together. This should be removed once
+	// the issue is resolved.
+	// TODO: CIREL-1970
 	for _, obj := range result.Contents {
-		if strings.Contains(*obj.Key, arch) {
-			return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
+		// Example: datadog-agent-7.52.0-1-x86_64.msi
+		// Example: datadog-agent-7.53.0-devel.git.512.41b1225.pipeline.30353507-1-x86_64.msi
+		if !strings.Contains(*obj.Key, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
+			continue
 		}
+		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
+		if strings.Contains(*obj.Key, "pipeline.") &&
+			!strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
+			continue
+		}
+		if !strings.Contains(*obj.Key, fmt.Sprintf("-%s.msi", arch)) {
+			continue
+		}
+
+		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
 	}
 
 	return "", fmt.Errorf("no agent MSI found for pipeline %v and arch %v", pipelineID, arch)
@@ -231,7 +248,7 @@ func LookupChannelURLFromEnv() (string, bool) {
 //
 // WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
 //
-// CI_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
+// E2E_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
 //
 // WINDOWS_AGENT_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7, arch and channel are used
 //
@@ -251,7 +268,7 @@ func GetPackageFromEnv() (*Package, error) {
 	channel, channelFound := LookupChannelFromEnv()
 	version, _ := LookupVersionFromEnv()
 	arch, _ := LookupArchFromEnv()
-	pipelineID, pipelineIDFound := os.LookupEnv("CI_PIPELINE_ID")
+	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
 
 	majorVersion := strings.Split(version, ".")[0]
 

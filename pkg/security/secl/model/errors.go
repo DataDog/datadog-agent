@@ -72,19 +72,7 @@ func (e *ErrProcessIncompleteLineage) Error() string {
 }
 
 // ErrNoProcessContext defines an error for event without process context
-type ErrNoProcessContext struct {
-	Err error
-}
-
-// Error implements the error interface
-func (e *ErrNoProcessContext) Error() string {
-	return e.Err.Error()
-}
-
-// Unwrap implements the error interface
-func (e *ErrNoProcessContext) Unwrap() error {
-	return e.Err
-}
+var ErrNoProcessContext = errors.New("process context not resolved")
 
 // ErrProcessBrokenLineage returned when a process lineage is broken
 type ErrProcessBrokenLineage struct {

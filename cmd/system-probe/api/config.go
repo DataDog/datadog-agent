@@ -10,15 +10,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints
-func setupConfigHandlers(r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFullSystemProbeConfig(getAggregatedNamespaces()...)).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+func setupConfigHandlers(r *mux.Router, settings settings.Component) {
+	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
+	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
 }
 
 func getAggregatedNamespaces() []string {

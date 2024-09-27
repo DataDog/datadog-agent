@@ -20,7 +20,7 @@ func TestServiceNameFromTags(t *testing.T) {
 	}{
 		{
 			name: "nominal case",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(string) ([]string, error) {
 				return []string{"env:foo", "service:bar"}, nil
 			},
 			ctrName:      "ctr-name",
@@ -29,7 +29,7 @@ func TestServiceNameFromTags(t *testing.T) {
 		},
 		{
 			name: "tagger error",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(string) ([]string, error) {
 				return nil, errors.New("err")
 			},
 			ctrName:      "ctr-name",
@@ -38,7 +38,7 @@ func TestServiceNameFromTags(t *testing.T) {
 		},
 		{
 			name: "not found",
-			tFunc: func(e string) ([]string, error) {
+			tFunc: func(string) ([]string, error) {
 				return []string{"env:foo", "version:bar"}, nil
 			},
 			ctrName:      "ctr-name",
@@ -48,8 +48,7 @@ func TestServiceNameFromTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			taggerFunc = tt.tFunc
-			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity); got != tt.want {
+			if got := ServiceNameFromTags(tt.ctrName, tt.taggerEntity, tt.tFunc); got != tt.want {
 				t.Errorf("ServiceNameFromTags() = %v, want %v", got, tt.want)
 			}
 		})

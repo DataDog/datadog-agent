@@ -24,7 +24,7 @@ import (
 )
 
 // nolint: revive
-func applyEmpty(s string, as state.ApplyStatus) {}
+func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -193,7 +193,7 @@ func TestLogLevel(t *testing.T) {
 	rareSampler := NewMockrareSampler(ctrl)
 
 	pkglog.SetupLogger(seelog.Default, "debug")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 	}))
 	defer srv.Close()

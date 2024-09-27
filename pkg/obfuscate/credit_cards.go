@@ -5,9 +5,67 @@
 
 package obfuscate
 
+import (
+	"strings"
+)
+
+// creditCard maintains credit card obfuscation state and processing.
+type creditCard struct {
+	luhn bool
+}
+
+func newCCObfuscator(config *CreditCardsConfig) *creditCard {
+	return &creditCard{
+		luhn: config.Luhn,
+	}
+}
+
+// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value for keys not in the allow-list
+func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
+	switch key {
+	case "_sample_rate",
+		"_sampling_priority_v1",
+		"account_id",
+		"aws_account",
+		"error",
+		"error.msg",
+		"error.type",
+		"error.stack",
+		"env",
+		"graphql.field",
+		"graphql.query",
+		"graphql.type",
+		"graphql.operation.name",
+		"grpc.code",
+		"grpc.method",
+		"grpc.request",
+		"http.status_code",
+		"http.method",
+		"runtime-id",
+		"out.host",
+		"out.port",
+		"sampling.priority",
+		"span.type",
+		"span.name",
+		"service.name",
+		"service",
+		"sql.query",
+		"version":
+		// these tags are known to not be credit card numbers
+		return val
+	}
+	if strings.HasPrefix(key, "_") {
+		return val
+	}
+	if o.ccObfuscator.IsCardNumber(val) {
+		return "?"
+	}
+	return val
+}
+
 // IsCardNumber checks if b could be a credit card number by checking the digit count and IIN prefix.
 // If validateLuhn is true, the Luhn checksum is also applied to potential candidates.
-func IsCardNumber(b string, validateLuhn bool) (ok bool) {
+func (cc *creditCard) IsCardNumber(b string) (ok bool) {
 	//
 	// Just credit card numbers for now, based on:
 	// • https://baymard.com/checkout-usability/credit-card-patterns
@@ -28,7 +86,7 @@ func IsCardNumber(b string, validateLuhn bool) (ok bool) {
 	count := 0                  // counts digits encountered
 	foundPrefix := false        // reports whether we've detected a valid prefix
 	recdigit := func(_ byte) {} // callback on each found digit; no-op by default (we only need this for Luhn)
-	if validateLuhn {
+	if cc.luhn {
 		// we need Luhn checksum validation, so we have to take additional action
 		// and record all digits found
 		buf := make([]byte, 0, len(b))

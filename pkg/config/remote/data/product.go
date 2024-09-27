@@ -29,6 +29,10 @@ const (
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
 	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
+	// ProductContainerAutoscalingSettings receives definition of container autoscaling
+	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
+	// ProductContainerAutoscalingValues receives values for container autoscaling
+	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 )
 
 // ProductListToString converts a product list to string list

@@ -8,7 +8,7 @@ scan_nightly-dogstatsd:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
+    !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_dogstatsd_amd64
   variables:
@@ -20,7 +20,7 @@ scan_nightly-a6:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a6]
+    !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -37,7 +37,7 @@ scan_nightly-a7:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
+    !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -54,7 +54,7 @@ dca_scan_nightly:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
+    !reference [.on_deploy_nightly_repo_branch]
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev
@@ -66,7 +66,7 @@ scan_master-dogstatsd:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_main_a7]
+    !reference [.on_main]
   needs:
     - docker_build_dogstatsd_amd64
   variables:
@@ -78,7 +78,7 @@ scan_master-a6:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_main_a6]
+    !reference [.on_main]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -95,7 +95,7 @@ scan_master-a7:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_main_a7]
+    !reference [.on_main]
   needs:
     - docker_build_agent7
     - docker_build_agent7_jmx
@@ -112,7 +112,7 @@ dca_scan_master:
   extends: .docker_publish_job_definition
   stage: container_scan
   rules:
-    !reference [.on_main_a7]
+    !reference [.on_main]
   needs: ["docker_build_cluster_agent_amd64"]
   variables:
     IMG_REGISTRIES: dev

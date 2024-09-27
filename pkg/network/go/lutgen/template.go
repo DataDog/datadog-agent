@@ -13,7 +13,7 @@ import (
 	"io"
 	"text/template"
 
-	"github.com/go-delve/delve/pkg/goversion"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 )
 
 //go:embed template.go.tpl

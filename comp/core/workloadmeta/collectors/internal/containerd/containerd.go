@@ -19,8 +19,9 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -75,7 +76,7 @@ var containerdTopics = []string{
 }
 
 type exitInfo struct {
-	exitCode *uint32
+	exitCode *int64
 	exitTS   time.Time
 }
 
@@ -123,7 +124,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Containerd) {
+	if !env.IsFeaturePresent(env.Containerd) {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
 
@@ -189,7 +190,7 @@ func (c *collector) stream(ctx context.Context) {
 
 		case ev := <-c.eventsChan:
 			if err := c.handleEvent(ctx, ev); err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case err := <-c.errorsChan:
@@ -261,7 +262,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 
 		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
@@ -279,7 +280,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 
 	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
-		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil)
+		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil, true)
 		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
 			continue
@@ -299,6 +300,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 			},
 		})
 	}
+	log.Debugf("%d initial image events sent for namespace %s. total number of images reference is %d", len(mergedImages), namespace, len(existingImages))
 	return nil
 }
 
@@ -420,7 +422,7 @@ func (c *collector) deleteExitInfo(id string) {
 	delete(c.contToExitInfo, id)
 }
 
-func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time) {
+func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) {
 	c.contToExitInfo[id] = &exitInfo{
 		exitTS:   exitTS,
 		exitCode: exitCode,
@@ -428,5 +430,5 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 }
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image.enabled")
+	return pkgconfigsetup.Datadog().GetBool("container_image.enabled")
 }

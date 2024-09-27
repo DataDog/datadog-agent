@@ -49,11 +49,11 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		c.reportTelemetry(base, result)
 	}()
 
-	btfData, result, err := c.btfLoader.Get()
+	ret, result, err := c.btfLoader.Get()
 	if err != nil {
 		return fmt.Errorf("BTF load: %w", err)
 	}
-	if btfData == nil {
+	if ret == nil {
 		return fmt.Errorf("no BTF data")
 	}
 
@@ -65,10 +65,10 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 	defer buf.Close()
 
 	opts := manager.Options{
+		KernelModuleBTFLoadFunc: ret.moduleLoadFunc,
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
-				KernelTypes: btfData,
-				LogSize:     10 * 1024 * 1024,
+				KernelTypes: ret.vmlinux,
 			},
 		},
 	}

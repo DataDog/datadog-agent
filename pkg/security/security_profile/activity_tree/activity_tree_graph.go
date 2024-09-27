@@ -102,6 +102,17 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		}
 	}
 
+	for _, n := range p.IMDSEvents {
+		imdsNodeID, ok := at.prepareIMDSNode(n, data, panGraphID)
+		if ok {
+			data.Edges = append(data.Edges, &utils.Edge{
+				From:  panGraphID,
+				To:    imdsNodeID,
+				Color: networkColor,
+			})
+		}
+	}
+
 	for _, f := range p.Files {
 		fileID := at.prepareFileNode(f, data, "", panGraphID)
 		data.Edges = append(data.Edges, &utils.Edge{
@@ -158,6 +169,48 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	}
 	data.Nodes[dnsNode.ID] = dnsNode
 	return dnsNode.ID, true
+}
+
+func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processID utils.GraphID) (utils.GraphID, bool) {
+	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"2\" CELLSPACING=\"0\" CELLPADDING=\"10\">"
+	label += "<TR><TD>IMDS</TD><TD>" + n.Event.Type + "</TD></TR>"
+	label += "<TR><TD>Cloud provider</TD><TD>" + n.Event.CloudProvider + "</TD></TR>"
+	if len(n.Event.UserAgent) > 0 {
+		label += "<TR><TD>URL</TD><TD>" + n.Event.URL + "</TD></TR>"
+	}
+	if len(n.Event.UserAgent) > 0 {
+		label += "<TR><TD>User agent</TD><TD>" + n.Event.UserAgent + "</TD></TR>"
+	}
+	if len(n.Event.Server) > 0 {
+		label += "<TR><TD>Server</TD><TD>" + n.Event.Server + "</TD></TR>"
+	}
+	if len(n.Event.Host) > 0 {
+		label += "<TR><TD>Host</TD><TD>" + n.Event.Host + "</TD></TR>"
+	}
+	if n.Event.CloudProvider == model.IMDSAWSCloudProvider {
+		label += "<TR><TD>IMDSv2</TD><TD>" + fmt.Sprintf("%v", n.Event.AWS.IsIMDSv2) + "</TD></TR>"
+		if len(n.Event.AWS.SecurityCredentials.AccessKeyID) > 0 {
+			label += "<TR><TD> AccessKeyID </TD><TD>" + n.Event.AWS.SecurityCredentials.AccessKeyID + "</TD></TR>"
+		}
+	}
+	label += "</TABLE>>"
+
+	imdsNode := &utils.Node{
+		ID:      processID.Derive(utils.NewNodeIDFromPtr(n)),
+		Label:   label,
+		Size:    30,
+		Color:   networkColor,
+		Shape:   networkShape,
+		IsTable: true,
+	}
+	switch n.GenerationType {
+	case Runtime, Snapshot, Unknown:
+		imdsNode.FillColor = networkRuntimeColor
+	case ProfileDrift:
+		imdsNode.FillColor = networkProfileDriftColor
+	}
+	data.Nodes[imdsNode.ID] = imdsNode
+	return imdsNode.ID, true
 }
 
 func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, processID utils.GraphID) utils.GraphID {
@@ -238,7 +291,7 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.Graph, prefix s
 }
 
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.Graph) utils.GraphID {
-	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"1\">"
+	label := "<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"5\">"
 	for _, s := range p.Syscalls {
 		label += "<TR><TD>" + model.Syscall(s).String() + "</TD></TR>"
 	}

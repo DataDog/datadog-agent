@@ -29,10 +29,11 @@ const (
 
 type checkImpl struct {
 	corechecks.CheckBase
+	telemetry telemetry.Component
 }
 
 func (c *checkImpl) Run() error {
-	mfs, err := telemetry.GetCompatComponent().GatherDefault()
+	mfs, err := c.telemetry.Gather(true)
 	if err != nil {
 		return err
 	}
@@ -106,12 +107,11 @@ func (c *checkImpl) buildTags(lps []*dto.LabelPair) []string {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
-}
-
-func newCheck() check.Check {
-	return &checkImpl{
-		CheckBase: corechecks.NewCheckBase(CheckName),
-	}
+func Factory(telemetry telemetry.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &checkImpl{
+			CheckBase: corechecks.NewCheckBase(CheckName),
+			telemetry: telemetry,
+		}
+	})
 }

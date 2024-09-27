@@ -7,9 +7,9 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
@@ -36,8 +36,8 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval       BoolEvalFnc
-	EventTypes []EventType
+	Eval      BoolEvalFnc
+	EventType EventType
 
 	fieldValues map[Field][]FieldValue
 	fields      []Field
@@ -66,6 +66,12 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 		Tags:        tags,
 		pprofLabels: labelSet,
 	}
+}
+
+// IsPartialAvailable checks if partial have been generated for the given Field
+func (r *RuleEvaluator) IsPartialAvailable(field Field) bool {
+	_, exists := r.partialEvals[field]
+	return exists
 }
 
 // PartialEval partially evaluation of the Rule with the given Field.
@@ -102,19 +108,13 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
-	result, err := r.evaluator.PartialEval(ctx, field)
-	if err == nil {
-		return result, nil
-	}
-
-	var errNotFound *ErrFieldNotFound
-	if errors.As(err, &errNotFound) {
-		if err = r.genPartials(field); err != nil {
+	if !r.evaluator.IsPartialAvailable(field) {
+		if err := r.genPartials(field); err != nil {
 			return false, err
 		}
-		result, err = r.evaluator.PartialEval(ctx, field)
 	}
-	return result, err
+
+	return r.evaluator.PartialEval(ctx, field)
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
@@ -151,19 +151,25 @@ func (r *Rule) GetEvaluator() *RuleEvaluator {
 	return r.evaluator
 }
 
-// GetEventTypes - Returns a list of all the event that the `Expression` handles
-func (r *Rule) GetEventTypes() ([]EventType, error) {
+// GetEventType - Returns the event type that the `Expression` handles
+func (r *Rule) GetEventType() (EventType, error) {
 	if r.evaluator == nil {
-		return nil, &ErrRuleNotCompiled{RuleID: r.ID}
+		return "", &ErrRuleNotCompiled{RuleID: r.ID}
 	}
 
-	eventTypes := r.evaluator.EventTypes
+	eventType := r.evaluator.EventType
 
 	for _, macro := range r.Opts.MacroStore.List() {
-		eventTypes = append(eventTypes, macro.GetEventTypes()...)
+		evt := macro.GetEventType()
+		if evt != "" {
+			if eventType != "" && eventType != evt {
+				return "", ErrMultipleEventTypes
+			}
+			eventType = evt
+		}
 	}
 
-	return eventTypes, nil
+	return eventType, nil
 }
 
 // GetAst - Returns the representation of the SECL `Expression`
@@ -199,21 +205,21 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	events, err := eventTypesFromFields(model, state)
+	eventType, err := eventTypeFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}
 
 	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
-		evalBool.EvalFnc = func(ctx *Context) bool {
+		evalBool.EvalFnc = func(_ *Context) bool {
 			return evalBool.Value
 		}
 	}
 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
-		EventTypes:  events,
+		EventType:   eventType,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
 	}, nil
@@ -241,72 +247,60 @@ func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
 	return nil
 }
 
-func (r *Rule) genMacroPartials(field Field) (map[Field]map[MacroID]*MacroEvaluator, error) {
-	partials := make(map[Field]map[MacroID]*MacroEvaluator)
-	for _, f := range r.GetFields() {
-		if f != field {
-			continue
-		}
-		for _, macro := range r.Opts.MacroStore.List() {
-			var err error
-			var evaluator *MacroEvaluator
-			if macro.ast != nil {
-				// NOTE(safchain) this is not working with nested macro. It will be removed once partial
-				// will be generated another way
-				evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
-				if err != nil {
-					if err, ok := err.(*ErrAstToEval); ok {
-						return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
-					}
-					return nil, fmt.Errorf("macro compilation error: %w", err)
+func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error) {
+	macroEvaluators := make(map[MacroID]*MacroEvaluator)
+	for _, macro := range r.Opts.MacroStore.List() {
+		var err error
+		var evaluator *MacroEvaluator
+		if macro.ast != nil {
+			// NOTE(safchain) this is not working with nested macro. It will be removed once partial
+			// will be generated another way
+			evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
+			if err != nil {
+				if err, ok := err.(*ErrAstToEval); ok {
+					return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
 				}
-			} else {
-				evaluator = macro.GetEvaluator()
+				return nil, fmt.Errorf("macro compilation error: %w", err)
 			}
-
-			macroEvaluators, exists := partials[field]
-			if !exists {
-				macroEvaluators = make(map[MacroID]*MacroEvaluator)
-				partials[field] = macroEvaluators
-			}
-			macroEvaluators[macro.ID] = evaluator
+		} else {
+			evaluator = macro.GetEvaluator()
 		}
+
+		macroEvaluators[macro.ID] = evaluator
 	}
 
-	return partials, nil
+	return macroEvaluators, nil
 }
 
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
-	macroPartials, err := r.genMacroPartials(field)
+	if !slices.Contains(r.GetFields(), field) {
+		return nil
+	}
+
+	macroPartial, err := r.genMacroPartials(field)
 	if err != nil {
 		return err
 	}
 
-	for _, f := range r.GetFields() {
-		if f != field {
-			continue
-		}
-
-		state := NewState(r.Model, field, macroPartials[field])
-		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
-		if err != nil {
-			return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
-		}
-
-		pEvalBool, ok := pEval.(*BoolEvaluator)
-		if !ok {
-			return NewTypeError(r.ast.Pos, reflect.Bool)
-		}
-
-		if pEvalBool.EvalFnc == nil {
-			pEvalBool.EvalFnc = func(ctx *Context) bool {
-				return pEvalBool.Value
-			}
-		}
-
-		r.evaluator.setPartial(field, pEvalBool.EvalFnc)
+	state := NewState(r.Model, field, macroPartial)
+	pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
+	if err != nil {
+		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 	}
+
+	pEvalBool, ok := pEval.(*BoolEvaluator)
+	if !ok {
+		return NewTypeError(r.ast.Pos, reflect.Bool)
+	}
+
+	if pEvalBool.EvalFnc == nil {
+		pEvalBool.EvalFnc = func(_ *Context) bool {
+			return pEvalBool.Value
+		}
+	}
+
+	r.evaluator.setPartial(field, pEvalBool.EvalFnc)
 
 	return nil
 }

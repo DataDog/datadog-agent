@@ -101,7 +101,7 @@ func TestRegisterSuccess(t *testing.T) {
 	t.Setenv("AWS_REGION", "us-east-1")
 
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		//add the extension id
 		w.Header().Add(HeaderExtID, expectedId)
 		// add extension feature response
@@ -121,7 +121,7 @@ func TestRegisterSuccess(t *testing.T) {
 
 func TestRegisterErrorNoExtensionId(t *testing.T) {
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		//no the extension id
 		w.WriteHeader(200)
 		// add extension feature response
@@ -139,7 +139,7 @@ func TestRegisterErrorNoExtensionId(t *testing.T) {
 
 func TestRegisterErrorHttp(t *testing.T) {
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// non 200 http code
 		w.WriteHeader(500)
 	}))
@@ -161,7 +161,7 @@ func TestRegisterErrorTimeout(t *testing.T) {
 
 func TestRegisterErrorBuildRequest(t *testing.T) {
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(registerExtensionTimeout + 10*time.Millisecond)
 		w.WriteHeader(200)
 	}))

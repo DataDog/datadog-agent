@@ -17,7 +17,6 @@ The script takes 4 arguments, which are:
   * Version   The Python version to be created
   * md5sum    (optional) the MD5 sum of the installer package to be used
   * OutDir    The directory (relative to the container) into which to copy the resulting zip
-  * x86       (switch)(optional) indicates that the 32 bit zip should be created.
 ```
 
 Running the script

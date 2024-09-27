@@ -8,12 +8,15 @@
 
 package tagger
 
-// Mock implements mock-specific methods for the inventorychecks component.
+// Mock implements mock-specific methods for the tagger component.
 type Mock interface {
 	Component
 
 	// SetTags allows to set tags in the mock fake tagger
-	SetTags(entity, source string, low, orch, high, std []string)
+	SetTags(entityID string, source string, low, orch, high, std []string)
+
+	// SetGlobalTags allows to set tags in store for the global entity
+	SetGlobalTags(low, orch, high, std []string)
 
 	// ResetTagger for testing only
 	ResetTagger()

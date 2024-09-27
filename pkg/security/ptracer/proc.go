@@ -9,7 +9,6 @@ package ptracer
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -32,7 +31,24 @@ type ProcProcess struct {
 	CreateTime int64
 }
 
-func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
+func collectProcess(pid int32) (*ProcProcess, error) {
+	proc, err := process.NewProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProcProcess{
+		Process:    proc,
+		CreateTime: createTime,
+	}, nil
+}
+
+func collectProcesses(traceePIDs []int, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, nil, err
@@ -58,17 +74,17 @@ func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, [
 	}
 
 	toIgnore := func(proc *ProcProcess) bool {
-		var deja []int32
+		var dejaVu []int32
 
 		// loop to check if proc is not a child of the tracee
 		for {
 			// protection against infinite loop
-			if slices.Contains(deja, proc.Pid) {
+			if slices.Contains(dejaVu, proc.Pid) {
 				return true
 			}
-			deja = append(deja, proc.Pid)
+			dejaVu = append(dejaVu, proc.Pid)
 
-			if proc.Pid == traceePID {
+			if slices.Contains(traceePIDs, int(proc.Pid)) {
 				return true
 			}
 
@@ -195,6 +211,11 @@ func collectPIDEnvVars(pid int32) ([]string, bool, error) {
 }
 
 func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
+	ppid, err := proc.Ppid()
+	if err != nil {
+		return nil, err
+	}
+
 	uids, err := proc.Uids()
 	if err != nil {
 		return nil, err
@@ -220,12 +241,18 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 
 	envs, truncated, _ := collectPIDEnvVars(proc.Pid)
 
+	containerID, err := getProcContainerID(int(proc.Pid))
+	if err != nil {
+		return nil, fmt.Errorf("snapshot failed for %d: couldn't get container ID: %w", proc.Pid, err)
+	}
+
 	return &ebpfless.Message{
 		Type: ebpfless.MessageTypeSyscall,
 		Syscall: &ebpfless.SyscallMsg{
-			Type:      ebpfless.SyscallTypeExec,
-			PID:       uint32(proc.Pid),
-			Timestamp: uint64(time.Unix(0, proc.CreateTime*int64(time.Millisecond)).UnixNano()),
+			Type:        ebpfless.SyscallTypeExec,
+			PID:         uint32(proc.Pid),
+			Timestamp:   uint64(time.Unix(0, proc.CreateTime*int64(time.Millisecond)).UnixNano()),
+			ContainerID: containerID,
 			Exec: &ebpfless.ExecSyscallMsg{
 				File: ebpfless.FileSyscallMsg{
 					Filename: filename,
@@ -240,20 +267,27 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 					GID:  uint32(gids[0]),
 					EGID: uint32(gids[1]),
 				},
+				PPID:       uint32(ppid),
+				FromProcFS: true,
 			},
 		},
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func (ctx *CWSPtracerCtx) scanProcfs() {
 	cache := make(map[int32]int64)
 
+	every := ctx.opts.ScanProcEvery
+	if every == 0 {
+		every = 500 * time.Millisecond
+	}
 	ticker := time.NewTicker(every)
-
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			add, del, err := collectProcesses(int32(traceePID), cache)
+			ctx.pidLock.RLock()
+			add, del, err := collectProcesses(ctx.PIDs, cache)
 			if err != nil {
 				logger.Errorf("unable to collect processes: %v", err)
 				continue
@@ -261,7 +295,7 @@ func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.M
 
 			for _, proc := range add {
 				if msg, err := procToMsg(proc); err == nil {
-					sendFnc(msg)
+					_ = ctx.sendMsg(msg)
 				}
 				cache[proc.Pid] = proc.CreateTime
 			}
@@ -279,10 +313,23 @@ func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.M
 						Exit:      &ebpfless.ExitSyscallMsg{},
 					},
 				}
-				sendFnc(msg)
+				_ = ctx.sendMsg(msg)
 			}
-		case <-ctx.Done():
+			ctx.pidLock.RUnlock()
+		case <-ctx.cancel.Done():
 			return
 		}
 	}
+}
+
+func (ctx *CWSPtracerCtx) startScanProcfs() {
+	ctx.wg.Add(1)
+	go func() {
+		defer ctx.wg.Done()
+
+		// introduce a delay before starting to scan procfs to let the tracer event first
+		time.Sleep(2 * time.Second)
+
+		ctx.scanProcfs()
+	}()
 }

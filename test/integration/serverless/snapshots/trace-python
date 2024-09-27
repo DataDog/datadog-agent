@@ -11,9 +11,10 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -24,6 +25,7 @@
               "env": "integration-tests-env",
               "function.request.body": "testing request payload",
               "function.response.body": "ok",
+              "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-python",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-python",
@@ -45,12 +47,11 @@
               "version": "integration-tests-version"
             },
             "metrics": {
-              "_dd.agent_psr": 1,
               "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
+              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
-              "function.response.statusCode": 200,
               "process_id": null
             },
             "name": "aws.lambda",
@@ -66,6 +67,7 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "account_id": "############",
@@ -98,7 +100,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",
@@ -122,9 +126,10 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -134,6 +139,7 @@
               "dd_trace": "X.X.X",
               "env": "integration-tests-env",
               "function.response.body": "ok",
+              "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:############:function:integration-tests-extension-XXXXXX-trace-python",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-python",
@@ -155,12 +161,11 @@
               "version": "integration-tests-version"
             },
             "metrics": {
-              "_dd.agent_psr": 1,
               "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
+              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
-              "function.response.statusCode": 200,
               "process_id": null
             },
             "name": "aws.lambda",
@@ -176,6 +181,7 @@
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "account_id": "############",
@@ -208,7 +214,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",

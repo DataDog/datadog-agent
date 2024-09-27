@@ -8,7 +8,7 @@
 package otelcol
 
 import (
-	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx-pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -17,5 +17,5 @@ import (
 // Bundle specifies the bundle for the OTLP ingest pipeline.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		collector.Module())
+		collectorfx.Module())
 }

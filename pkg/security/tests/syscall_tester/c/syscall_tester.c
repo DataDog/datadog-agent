@@ -48,9 +48,9 @@ struct thread_opts {
 
 void *register_tls() {
     uint64_t max_threads = 100;
-    uint64_t len = max_threads * sizeof(uint64_t) * 2;
+    uint64_t len = max_threads * (sizeof(uint64_t) + sizeof(__int128));
 
-    uint64_t *base = (uint64_t *)malloc(len);
+    void *base = (void *)malloc(len);
     if (base == NULL)
         return NULL;
     bzero(base, len);
@@ -72,12 +72,34 @@ void *register_tls() {
     return tls;
 }
 
-void register_span(struct span_tls_t *tls, unsigned trace_id, unsigned span_id) {
-    int offset = (gettid() % tls->max_threads) * 2;
+void register_span(struct span_tls_t *tls, __int128 trace_id, unsigned long span_id) {
+    int offset = (gettid() % tls->max_threads) * 24; // sizeof uint64 + sizeof int128
 
-    uint64_t *base = tls->base;
-    base[offset] = span_id;
-    base[offset + 1] = trace_id;
+    *(uint64_t*)(tls->base + offset) = span_id;
+    *(__int128*)(tls->base + offset + 8) = trace_id;
+}
+
+__int128 atouint128(char *s) {
+    if (s == NULL)
+        return (0);
+
+    __int128_t val = 0;
+    for (; *s != 0 && *s >= '0' && *s <= '9'; s++) {
+        val = (10 * val) + (*s - '0');
+    }
+    return val;
+}
+
+static void *thread_span_exec(void *data) {
+    struct thread_opts *opts = (struct thread_opts *)data;
+
+    __int128_t trace_id = atouint128(opts->argv[1]);
+    unsigned span_id = atoi(opts->argv[2]);
+
+    register_span(opts->tls, trace_id, span_id);
+
+    execv(opts->argv[3], opts->argv + 3);
+    return NULL;
 }
 
 int span_exec(int argc, char **argv) {
@@ -92,12 +114,16 @@ int span_exec(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    unsigned trace_id = atoi(argv[1]);
-    unsigned span_id = atoi(argv[2]);
+    struct thread_opts opts = {
+        .argv = argv,
+        .tls = tls,
+    };
 
-    register_span(tls, trace_id, span_id);
-
-    execv(argv[3], argv + 3);
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_span_exec, &opts) < 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
 
     return EXIT_SUCCESS;
 }
@@ -105,7 +131,7 @@ int span_exec(int argc, char **argv) {
 static void *thread_open(void *data) {
     struct thread_opts *opts = (struct thread_opts *)data;
 
-    unsigned trace_id = atoi(opts->argv[1]);
+    __int128_t trace_id = atouint128(opts->argv[1]);
     unsigned span_id = atoi(opts->argv[2]);
 
     register_span(opts->tls, trace_id, span_id);
@@ -212,7 +238,7 @@ int test_signal(int argc, char **argv) {
         }
     }
 
-    if (!strcmp(argv[1], "sigusr"))
+    if (!strcmp(argv[1], "sigusr1"))
         return test_signal_sigusr(pid, SIGUSR1);
     else if (!strcmp(argv[1], "sigusr2"))
         return test_signal_sigusr(pid, SIGUSR2);
@@ -553,21 +579,30 @@ int test_unlink(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-sigset_t set;
-int test_set_signal_handler(int argc, char** argv) {
-    sigemptyset(&set);
-    sigaddset(&set, SIGUSR2);
-    int ret = sigprocmask( SIG_BLOCK, &set, NULL );
+int usr2_received = 0;
 
-    return ret;
+void usr2_handler(int v) {
+    usr2_received = 1;
+}
+
+int test_set_signal_handler(int argc, char** argv) {
+
+    struct sigaction act;
+    act.sa_handler = usr2_handler;
+    act.sa_flags = 0;
+    sigemptyset(&act.sa_mask);
+    if (sigaction(SIGUSR2, &act, NULL) < 0) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }
 
 int test_wait_signal(int argc, char** argv) {
-    int sig;
-    int *sigptr = &sig;
-    int ret_val;
-
-    return sigwait(&set, sigptr);
+    while(!usr2_received) {
+        sleep(1);
+    }
+    return EXIT_SUCCESS;
 }
 
 void *thread_exec(void *arg) {
@@ -607,8 +642,48 @@ int test_sleep(int argc, char **argv) {
     if (duration <= 0) {
         fprintf(stderr, "Please specify at a valid sleep duration\n");
     }
-    for (int i = 0; i < duration; i++)
-        sleep(1);
+    sleep(duration);
+
+    return EXIT_SUCCESS;
+}
+
+int test_slow_cat(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: Please pass a duration in seconds, and a path.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int duration = atoi(argv[1]);
+    int fd = open(argv[2], O_RDONLY);
+
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+
+    close(fd);
+
+    return EXIT_SUCCESS;
+}
+
+int test_slow_write(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "%s: Please pass a duration in seconds, a path, and a content.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    int duration = atoi(argv[1]);
+    int fd = open(argv[2], O_CREAT|O_WRONLY);
+
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+
+    write(fd, argv[3], strlen(argv[3]));
+
+    close(fd);
+
     return EXIT_SUCCESS;
 }
 
@@ -666,6 +741,8 @@ int test_new_netns_exec(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    setbuf(stdout, NULL);
+
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
         return EXIT_FAILURE;
@@ -734,7 +811,12 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
-        } else {
+        } else if (strcmp(cmd, "slow-cat") == 0) {
+            exit_code = test_slow_cat(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "slow-write") == 0) {
+            exit_code = test_slow_write(sub_argc, sub_argv);
+        }
+        else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;
         }

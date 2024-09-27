@@ -106,6 +106,24 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: "http2_ctx_heap",
 		},
+		{
+			Name: "http2_batch_events",
+		},
+		{
+			Name: "http2_batch_state",
+		},
+		{
+			Name: "http2_batches",
+		},
+		{
+			Name: "terminated_http2_batch_events",
+		},
+		{
+			Name: "terminated_http2_batch_state",
+		},
+		{
+			Name: "terminated_http2_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -145,42 +163,42 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2FirstFrame),
+			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFirstFrameTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2Filter),
+			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFilterTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2HeaderParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsHeadersParserTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2DynamicTableCleaner),
+			Key:           uint32(protocols.ProgramHTTP2DynamicTableCleaner),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDynamicTableCleaner,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2EOSParser),
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEOSParserTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2Termination),
+			Key:           uint32(protocols.ProgramHTTP2Termination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
@@ -291,25 +309,14 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
-func getMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
-	m, _, err := mgr.GetMap(name)
-	if err != nil {
-		return nil, fmt.Errorf("error getting %q map: %s", name, err)
-	}
-	if m == nil {
-		return nil, fmt.Errorf("%q map is nil", name)
-	}
-	return m, nil
-}
-
 func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, err := getMap(mgr, TelemetryMap)
+	mp, err := protocols.GetMap(mgr, TelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return
 	}
 
-	tlsMap, err := getMap(mgr, TLSTelemetryMap)
+	tlsMap, err := protocols.GetMap(mgr, TLSTelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return
@@ -408,7 +415,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key HTTP2StreamKey, val HTTP2Stream) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, _ HTTP2StreamKey, val HTTP2Stream) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

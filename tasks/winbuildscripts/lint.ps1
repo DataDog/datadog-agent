@@ -2,23 +2,14 @@ $ErrorActionPreference = "Stop"
 
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 
-if ($Env:TARGET_ARCH -eq "x64") {
-    & ridk enable
-}
+& ridk enable
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
 $LINT_ROOT=(Get-Location).Path
 $Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
-& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
-
-$archflag = "x64"
-if ($Env:TARGET_ARCH -eq "x86") {
-    $archflag = "x86"
-}
-
 & inv -e deps
-& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e rtloader.format --raise-if-changed
 $err = $LASTEXITCODE
@@ -29,11 +20,23 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e lint-go --arch $archflag
 
+& inv -e linter.go
 $err = $LASTEXITCODE
-Write-Host Lint result is $err
+Write-Host Go linter result is $err
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "lint failed $err"
+    Write-Host -ForegroundColor Red "go linter failed $err"
     [Environment]::Exit($err)
 }
+
+$timeTaken = Measure-Command {
+  & dotnet format --verify-no-changes .\\tools\\windows\\DatadogAgentInstaller
+  $err = $LASTEXITCODE
+  Write-Host Dotnet linter result is $err
+  if($err -ne 0){
+      Write-Host -ForegroundColor Red "dotnet linter failed $err"
+      [Environment]::Exit($err)
+  }
+}
+
+Write-Host "Dotnet linter run time: $($timeTaken.TotalSeconds) seconds"

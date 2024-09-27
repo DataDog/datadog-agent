@@ -53,7 +53,7 @@ func TestUnlink(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertInode(t, event.Unlink.File.Inode, inode)
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
@@ -62,6 +62,10 @@ func TestUnlink(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.unlink.dirfd")
+			validateSyscallContext(t, event, "$.syscall.unlink.path")
+			validateSyscallContext(t, event, "$.syscall.unlink.flags")
 		})
 	}))
 
@@ -79,7 +83,7 @@ func TestUnlink(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "unlink", event.GetType(), "wrong event type")
 			assertInode(t, event.Unlink.File.Inode, inode)
 			assertRights(t, event.Unlink.File.Mode, expectedMode)
@@ -88,6 +92,10 @@ func TestUnlink(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			validateSyscallContext(t, event, "$.syscall.unlink.dirfd")
+			validateSyscallContext(t, event, "$.syscall.unlink.path")
+			validateSyscallContext(t, event, "$.syscall.unlink.flags")
 		})
 	})
 

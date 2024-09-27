@@ -10,12 +10,16 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 //go:embed fixtures/metric_bytes
 var metricsData []byte
+
+//go:embed fixtures/metric_json_bytes
+var metricsJSONData []byte
 
 func TestNewMetricPayloads(t *testing.T) {
 	t.Run("parseMetricSeries empty JSON object should be ignored", func(t *testing.T) {
@@ -37,5 +41,12 @@ func TestNewMetricPayloads(t *testing.T) {
 		gotTags := metrics[0].GetTags()
 		sort.Strings(gotTags)
 		assert.Equal(t, expectedTags, gotTags)
+	})
+
+	t.Run("parseMetricSeries application/json content type should parse metrics", func(t *testing.T) {
+		metrics, err := ParseMetricSeries(api.Payload{Data: metricsJSONData, Encoding: encodingGzip, ContentType: "application/json"})
+		assert.NoError(t, err)
+		assert.Equal(t, 569, len(metrics))
+		assert.Equal(t, "otelcol_datadog_trace_agent_stats_writer_stats_entries", metrics[0].name())
 	})
 }

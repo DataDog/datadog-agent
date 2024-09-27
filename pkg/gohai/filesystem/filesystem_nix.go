@@ -22,7 +22,7 @@ type fsInfoGetter func(*mountinfo.Info) (uint64, error)
 func sizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
-		return 0, fmt.Errorf("statfs %s: %w", mount.Source, err)
+		return 0, fmt.Errorf("gohai filesystem collection: statfs %s: %w", mount.Source, err)
 	}
 
 	sizeKB := statfs.Blocks * uint64(statfs.Bsize) / 1024
@@ -74,9 +74,7 @@ func replaceDev(oldMount, newMount MountInfo) bool {
 }
 
 // getFileSystemInfoWithMounts is an internal method to help testing with test mounts and mocking syscalls
-func getFileSystemInfoWithMounts(initialMounts []*mountinfo.Info, sizeKB, dev fsInfoGetter) ([]MountInfo, error) {
-	mounts := initialMounts
-
+func getFileSystemInfoWithMounts(mounts []*mountinfo.Info, sizeKB, dev fsInfoGetter) ([]MountInfo, error) {
 	devMountInfos := map[uint64]MountInfo{}
 	for _, mount := range mounts {
 		// Skip mounts that seem to be missing data
@@ -150,6 +148,7 @@ func isDummyFS(fsType string) bool {
 		"squashfs":    {}, // added by a patch on ubuntu
 		"subfs":       {},
 		"sysfs":       {},
+		"tracefs":     {}, // debug/tracing was moved out of debugfs
 	}
 
 	_, found := ignoredFSTypes[fsType]

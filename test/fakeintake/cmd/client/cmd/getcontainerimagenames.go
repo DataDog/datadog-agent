@@ -18,7 +18,7 @@ func NewGetContainerImageNamesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "names",
 		Short: "Get container image names",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			names, err := (*cl).GetContainerImageNames()
 			if err != nil {
 				return err

@@ -26,6 +26,9 @@ type multiVMEnv struct {
 func multiVMEnvProvisioner() e2e.PulumiEnvRunFunc[multiVMEnv] {
 	return func(ctx *pulumi.Context, env *multiVMEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
 
 		main, err := ec2.NewVM(awsEnv, "main", ec2.WithOS(os.UbuntuDefault))
 		if err != nil {

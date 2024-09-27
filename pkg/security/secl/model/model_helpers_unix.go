@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"modernc.org/mathutil"
 )
 
 const (
@@ -87,7 +88,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	if strings.HasSuffix(field, "path") {
+	if strings.HasSuffix(field, ".path") && !strings.HasSuffix(field, ".syscall.path") {
 		if err := validatePath(field, fieldValue); err != nil {
 			return err
 		}
@@ -133,7 +134,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID uint64) {
+func (p *Process) SetSpan(spanID uint64, traceID mathutil.Int128) {
 	p.SpanID = spanID
 	p.TraceID = traceID
 }
@@ -236,6 +237,52 @@ func (e *FileEvent) GetPathResolutionError() string {
 // IsOverlayFS returns whether it is an overlay fs
 func (e *FileEvent) IsOverlayFS() bool {
 	return e.Filesystem == "overlay"
+}
+
+// MountOrigin origin of the mount
+type MountOrigin = uint32
+
+const (
+	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                     //MountOriginProcfs mount point info from procfs
+	MountOriginEvent                      // MountOriginEvent mount point info from an event
+	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
+)
+
+// MountSource source of the mount
+type MountSource = uint32
+
+const (
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
+	MountSourceDevice                      // MountSourceDevice mount resolved with the device
+	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
+)
+
+// MountSources defines mount sources
+var MountSources = [...]string{
+	"unknown",
+	"mount_id",
+	"device",
+	"snapshot",
+}
+
+// MountSourceToString returns the string corresponding to a mount source
+func MountSourceToString(source MountSource) string {
+	return MountSources[source]
+}
+
+// MountOrigins defines mount origins
+var MountOrigins = [...]string{
+	"unknown",
+	"procfs",
+	"event",
+	"unshare",
+}
+
+// MountOriginToString returns the string corresponding to a mount origin
+func MountOriginToString(origin MountOrigin) string {
+	return MountOrigins[origin]
 }
 
 // GetFSType returns the filesystem type of the mountpoint
@@ -354,6 +401,14 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
 
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
+	return nil
+}
+
+// ResolveSyscallCtxArgs resolves syscall context
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -371,4 +426,6 @@ type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 	ResolveUserSessionContext(evtCtx *UserSessionContext)
+	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
+	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }

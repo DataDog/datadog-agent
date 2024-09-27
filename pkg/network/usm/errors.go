@@ -12,6 +12,7 @@ type errNotSupported struct {
 	error
 }
 
+// Unwrap returns the underlying error
 func (e *errNotSupported) Unwrap() error {
 	return e.error
 }

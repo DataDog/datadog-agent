@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NDM) Fix revive linter
+// Package metadata defines types for describing data about a device.
 package metadata
+
+import "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
@@ -42,6 +44,7 @@ type NetworkDevicesMetadata struct {
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
+	DeviceOIDs       []DeviceOID            `json:"device_oids,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -70,6 +73,12 @@ type DeviceMetadata struct {
 	OsHostname     string       `json:"os_hostname,omitempty"`
 	Integration    string       `json:"integration,omitempty"` // indicates the source of the data SNMP, meraki_api, etc.
 	DeviceType     string       `json:"device_type,omitempty"`
+}
+
+// DeviceOID device scan oid data
+type DeviceOID struct {
+	*gosnmplib.PDU
+	DeviceID string `json:"device_id"`
 }
 
 // InterfaceMetadata contains interface metadata

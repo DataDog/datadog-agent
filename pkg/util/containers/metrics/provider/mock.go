@@ -74,7 +74,7 @@ func (d *dummyCollector) ContainerIDForPodUIDAndContName(podUID, contName string
 		initPrefix = "i-"
 	}
 	cacheKey := contPodUIDContNameToCidCachePrefix + podUID + "/" + initPrefix + contName
-	return d.cIDForPodCont[cacheKey], nil
+	return d.cIDForPodCont[cacheKey], d.err
 }
 
 // Helpers not part of Collector interface

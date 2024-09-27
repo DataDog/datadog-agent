@@ -59,11 +59,12 @@ func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsDat
 			Runtime_g_in_register:     boolToBinary(result.GoroutineIDMetadata.RuntimeGInRegister),
 		},
 		Conn_layout: gotls.TlsConnLayout{
-			Tls_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetTLSConn],
-			Tcp_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetTCPConn],
-			Conn_fd_offset:             result.StructOffsets[bininspect.StructOffsetNetConnFd],
-			Net_fd_pfd_offset:          result.StructOffsets[bininspect.StructOffsetNetFdPfd],
-			Fd_sysfd_offset:            result.StructOffsets[bininspect.StructOffsetPollFdSysfd],
+			Tls_conn_inner_conn_offset:     result.StructOffsets[bininspect.StructOffsetTLSConn],
+			Tcp_conn_inner_conn_offset:     result.StructOffsets[bininspect.StructOffsetTCPConn],
+			Limited_conn_inner_conn_offset: result.StructOffsets[bininspect.StructOffsetLimitListenerConnNetConn],
+			Conn_fd_offset:                 result.StructOffsets[bininspect.StructOffsetNetConnFd],
+			Net_fd_pfd_offset:              result.StructOffsets[bininspect.StructOffsetNetFdPfd],
+			Fd_sysfd_offset:                result.StructOffsets[bininspect.StructOffsetPollFdSysfd],
 		},
 		Read_conn_pointer:  readConnPointer,
 		Read_buffer:        readBufferLocation,
@@ -122,7 +123,7 @@ func getWriteBufferLocation(result *bininspect.Result) (gotls.SliceLocation, err
 }
 
 func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location, error) {
-	// Manually re-consturct the location of the first return parameter (bytes read).
+	// Manually re-construct the location of the first return parameter (bytes read).
 	// Unpack the first return parameter (bytes read).
 	// The error return value isn't useful in eBPF
 	// unless we can determine whether it is equal to io.EOF,
@@ -136,7 +137,7 @@ func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location,
 	switch result.ABI {
 	case bininspect.GoABIRegister:
 		// Manually assign the registers.
-		// This is fairly finnicky, but is simple
+		// This is fairly finicky, but is simple
 		// since the return arguments are short and are word-aligned
 		switch result.Arch {
 		case bininspect.GoArchX86_64:

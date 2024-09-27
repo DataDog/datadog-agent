@@ -27,8 +27,7 @@ static __attribute__((always_inline)) u32 atoi(char *buff) {
     }
 
 #pragma unroll
-    for (int i = 0; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++)
-    {
+    for (int i = 0; i < CHAR_TO_UINT32_BASE_10_MAX_LEN; i++) {
         bpf_probe_read(&c, sizeof(c), buffer + i);
         if (c == 0 || c == '\n') {
             break;

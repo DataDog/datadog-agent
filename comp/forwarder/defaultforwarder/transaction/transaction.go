@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -98,7 +98,7 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 					log.Debugf("Request writing failure: %s", wroteInfo.Err)
 				}
 			},
-			ConnectDone: func(network, addr string, err error) {
+			ConnectDone: func(_, addr string, err error) {
 				if err != nil {
 					transactionsConnectionErrors.Add(1)
 					tlmTxErrors.Inc("unknown", "unknown", "connection_failure")
@@ -109,7 +109,7 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 				tlmConnectEvents.Inc("connection_success")
 				log.Tracef("New successful connection to address: %q", addr)
 			},
-			TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
+			TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
 				if err != nil {
 					transactionsTLSErrors.Add(1)
 					tlmTxErrors.Inc("unknown", "unknown", "tls_handshake_failure")
@@ -130,8 +130,8 @@ type HTTPAttemptHandler func(transaction *HTTPTransaction)
 // HTTPCompletionHandler is an  event handler that will get called after this transaction has completed
 type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, body []byte, err error)
 
-var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
-var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
+var defaultAttemptHandler = func(_ *HTTPTransaction) {}
+var defaultCompletionHandler = func(_ *HTTPTransaction, _ int, _ []byte, _ error) {}
 
 func init() {
 	TransactionsExpvars.Init()
@@ -194,6 +194,31 @@ const (
 	Process
 )
 
+// Destination indicates which regions the transaction should be sent to
+type Destination int
+
+const (
+	// AllRegions indicates the transaction should be sent to all regions (default behavior)
+	AllRegions = iota
+	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
+	PrimaryOnly
+	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
+	SecondaryOnly
+)
+
+func (d Destination) String() string {
+	switch d {
+	case AllRegions:
+		return "AllRegions"
+	case PrimaryOnly:
+		return "PrimaryOnly"
+	case SecondaryOnly:
+		return "SecondaryOnly"
+	default:
+		return "Unknown"
+	}
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -224,6 +249,8 @@ type HTTPTransaction struct {
 	Priority Priority
 
 	Kind Kind
+
+	Destination Destination
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -241,6 +268,7 @@ type Transaction interface {
 	GetEndpointName() string
 	GetPayloadSize() int
 	GetPointCount() int
+	GetDestination() Destination
 
 	// This method serializes the transaction to `TransactionsSerializer`.
 	// It forces a new implementation of `Transaction` to define how to
@@ -311,6 +339,11 @@ func (t *HTTPTransaction) GetPointCount() int {
 	return 0
 }
 
+// GetDestination returns the region(s) this transaction should be sent to.
+func (t *HTTPTransaction) GetDestination() Destination {
+	return t.Destination
+}
+
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error {
 	t.AttemptHandler(t)
@@ -333,7 +366,8 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(t.Payload.GetContent())
+	payload := t.Payload.GetContent()
+	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
@@ -347,6 +381,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return 0, nil, nil
 	}
 	req.Header = t.Headers
+	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -412,16 +447,16 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	loggingFrequency := config.GetInt64("logging_frequency")
 
 	if transactionsSuccess.Value() == 1 {
-		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
+		log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
+		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
-		log.Infof("Successfully posted payload to %q", logURL)
-		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
+		log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
+		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %q", logURL, truncateBodyForLog(body))
+	log.Tracef("Successfully posted payload to %q (%s): %q", logURL, resp.Status, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil
 }
 

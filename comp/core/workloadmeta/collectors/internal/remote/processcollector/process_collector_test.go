@@ -25,10 +25,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,7 +56,7 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for _, response := range s.responses {
 		err := out.Send(response)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -63,11 +65,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog)
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
 		}()
 	}
 	creationTime := time.Now().Unix()
@@ -244,13 +246,10 @@ func TestCollection(t *testing.T) {
 
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
-			mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				fx.Supply(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 			))
 
 			time.Sleep(time.Second)
@@ -263,14 +262,13 @@ func TestCollection(t *testing.T) {
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
-			lis, err := net.Listen("tcp", ":0")
+			lis, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 
 			go func() {
 				err := grpcServer.Serve(lis)
 				require.NoError(t, err)
 			}()
-			defer grpcServer.Stop()
 
 			_, portStr, err := net.SplitHostPort(lis.Addr().String())
 			require.NoError(t, err)
@@ -298,21 +296,29 @@ func TestCollection(t *testing.T) {
 			require.NoError(t, err)
 
 			// Number of events expected. Each response can hold multiple events, either Set or Unset
-			numberOfEvents := len(test.preEvents)
+			expectedNumberOfEvents := len(test.preEvents)
 			for _, ev := range test.serverResponses {
-				numberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
+				expectedNumberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
 			}
 
 			// Keep listening to workloadmeta until enough events are received. It is possible that the
 			// first bundle does not hold any events. Thus, it is required to look at the number of events
 			// in the bundle.
-			for i := 0; i < numberOfEvents; {
+			// Also, when a problem occurs and a re-sync is triggered, we might
+			// receive duplicate events, so we need to keep a map of received
+			// events to account for duplicates.
+			eventsReceived := make(map[workloadmeta.Event]struct{})
+			for len(eventsReceived) < expectedNumberOfEvents {
 				bundle := <-ch
-				close(bundle.Ch)
-				i += len(bundle.Events)
+				bundle.Acknowledge()
+
+				for _, ev := range bundle.Events {
+					eventsReceived[ev] = struct{}{}
+				}
 			}
 
 			mockStore.Unsubscribe(ch)
+			grpcServer.Stop()
 			cancel()
 
 			// Verify final state

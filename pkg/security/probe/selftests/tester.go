@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -19,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/go-multierror"
-	"go.uber.org/atomic"
 )
 
 // SelfTest represent one self test
@@ -66,12 +67,8 @@ func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
 	return nil
 }
 
-// Start the self tester policy provider
-func (t *SelfTester) Start() {
-	if t.config.EBPFLessEnabled {
-		t.selfTestRunning <- DefaultTimeout
-	}
-}
+// Start implements the policy provider interface
+func (t *SelfTester) Start() {}
 
 // GetStatus returns the result of the last performed self tests
 func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
@@ -170,18 +167,23 @@ func (t *SelfTester) Close() error {
 func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	t.Lock()
 	defer t.Unlock()
-	p := &rules.Policy{
-		Name:       policyName,
-		Source:     policySource,
-		Version:    policyVersion,
-		IsInternal: true,
+
+	policyDef := &rules.PolicyDef{
+		Version: policyVersion,
+		Rules:   make([]*rules.RuleDefinition, len(t.selfTests)),
 	}
 
-	for _, selftest := range t.selfTests {
-		p.AddRule(selftest.GetRuleDefinition())
+	for i, selfTest := range t.selfTests {
+		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	return []*rules.Policy{p}, nil
+	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, policyDef, nil, nil)
+	if err != nil {
+		return nil, multierror.Append(nil, err)
+	}
+	policy.IsInternal = true
+
+	return []*rules.Policy{policy}, nil
 }
 
 func (t *SelfTester) beginSelfTests(timeout time.Duration) {
@@ -201,7 +203,7 @@ type selfTestEvent struct {
 
 // IsExpectedEvent sends an event to the tester
 func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
-	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
+	if t.waitingForEvent.Load() && rule.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {
 			return true
@@ -217,7 +219,12 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			Event:  s,
 		}
 
-		t.eventChan <- selfTestEvent
+		select {
+		case t.eventChan <- selfTestEvent:
+		default:
+			log.Debug("self test channel is full, discarding event.")
+		}
+
 		return true
 	}
 	return false

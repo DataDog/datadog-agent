@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -59,8 +59,6 @@ type Response struct {
 
 // Forwarder interface allows packages to send payload to the backend
 type Forwarder interface {
-	Start() error
-	Stop()
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
@@ -193,6 +191,13 @@ func (o *Options) setRetryQueuePayloadsTotalMaxSizeFromQueueMax(v int) {
 	o.RetryQueuePayloadsTotalMaxSize = v * maxPayloadSize
 }
 
+// SetEnabledFeatures sets the features enabled
+func (o *Options) SetEnabledFeatures(features []Features) {
+	for _, feature := range features {
+		o.EnabledFeatures = SetFeature(o.EnabledFeatures, feature)
+	}
+}
+
 // DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
 	config config.Component
@@ -274,13 +279,16 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		isHA := false
-		if config.GetBool("ha.enabled") && config.GetString("ha.site") != "" {
-			log.Infof("HA is enabled, checking site: %v ", config.GetString("ha.site"))
-			siteURL := utils.BuildURLWithPrefix(utils.InfraURLPrefix, config.GetString("ha.site"))
+		isMRF := false
+		if config.GetBool("multi_region_failover.enabled") {
+			log.Infof("MRF is enabled, checking site: %v ", domain)
+			siteURL, err := utils.GetMRFInfraEndpoint(config)
+			if err != nil {
+				log.Error("Error building MRF infra endpoint: ", err)
+			}
 			if domain == siteURL {
-				log.Infof("HA domain '%s', configured ", domain)
-				isHA = true
+				log.Infof("MRF domain '%s', configured ", domain)
+				isMRF = true
 			}
 
 		}
@@ -313,7 +321,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				config,
 				log,
 				domain,
-				isHA,
+				isMRF,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
@@ -326,6 +334,19 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			}
 		}
 	}
+
+	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "api_key" {
+			return
+		}
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, dr := range f.domainResolvers {
+				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
+			}
+		}
+	})
 
 	timeInterval := config.GetInt("forwarder_retry_queue_capacity_time_interval_sec")
 	if f.agentName != "" {
@@ -461,6 +482,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Priority = priority
 				t.Kind = kind
 				t.StorableOnDisk = storableOnDisk
+				t.Destination = payload.Destination
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
@@ -538,7 +560,7 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads,
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityHigh, transaction.Metadata, storableOnDisk)
@@ -548,7 +570,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads,
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, transaction.Metadata, storableOnDisk)

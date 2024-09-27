@@ -10,7 +10,7 @@ import (
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
+	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 )
 
 type serverSecure struct {

@@ -42,7 +42,8 @@ namespace CustomActions.Tests.Flare
                 { "version", CiInfo.PackageVersion },
                 { "log", string.Empty },
                 { "email", email },
-                { "apikey", apiKey }
+                { "apikey", apiKey },
+                { "variant", "windows_installer" }
             };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
@@ -82,7 +83,8 @@ namespace CustomActions.Tests.Flare
                 { "version", CiInfo.PackageVersion },
                 { "log", string.Empty },
                 { "email", email },
-                { "apikey", apiKey }
+                { "apikey", apiKey },
+                { "variant", "windows_installer" }
             };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
@@ -131,7 +133,8 @@ namespace CustomActions.Tests.Flare
                 { "version", CiInfo.PackageVersion },
                 { "log", log },
                 { "email", email },
-                { "apikey", apiKey }
+                { "apikey", apiKey },
+                { "variant", "windows_installer" }
             };
             httpClientMock.Verify(c => c.Post(
                 $"https://api.{site}/agent_stats/report_failure",
