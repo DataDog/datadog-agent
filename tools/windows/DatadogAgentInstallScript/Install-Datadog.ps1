@@ -128,7 +128,7 @@ function Start-ProcessWithOutput {
 # Set some defaults if not provided
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://s3.amazonaws.com/ddagent-windows-trial/datadog-installer-x86_64.exe"
+   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
 }
 
 $ddRemoteUpdates = $env:DD_REMOTE_UPDATES
