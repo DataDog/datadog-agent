@@ -3,7 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-require "./lib/fips_compliance.rb"
+require "omnibus/logging"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -328,10 +328,9 @@ if windows_target?
   raise_if_fips_symbol_not_found = Proc.new { |symbols|
       count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
       if count == 0
-        puts "Checking for FIPS symbols: '#{symbols}'"
         raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
       else
-        puts "Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary."
+        log.info(log_key) { "Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary." }
       end
   }
 

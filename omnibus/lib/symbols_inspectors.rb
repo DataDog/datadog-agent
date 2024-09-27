@@ -2,6 +2,7 @@ require 'find'
 require 'singleton'
 
 class ForbiddenSymbolsFoundError < StandardError
+class FIPSSymbolsNotFound < StandardError
 
 end
 

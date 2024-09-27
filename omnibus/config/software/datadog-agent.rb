@@ -4,7 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
-require "./lib/fips_compliance.rb"
+require "omnibus/logging"
 require 'pathname'
 
 name 'datadog-agent'
@@ -256,9 +256,18 @@ build do
           "#{install_dir}/embedded/bin/system-probe",
         ]
 
-        linux_symbol_checker = FIPSComplianceChecker.new("_Cfunc_go_openssl")
+        symbol = "_Cfunc_go_openssl"
+        check_block = Proc.new { |symbols|
+          count = symbols.scan(symbol).count
+          if count > 0
+            log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{@binary}'." }
+          else
+            raise FIPSSymbolsNotFound.new("Expected to find '#{@symbol}' symbol in #{@binary} but did not")
+          end
+        }
+
         LINUX_BINARIES.each do |bin|
-          linux_symbol_checker.check(bin)
+          GoSymbolsInspector.new(bin,  &check_block).inspect()
         end
       end
   end
