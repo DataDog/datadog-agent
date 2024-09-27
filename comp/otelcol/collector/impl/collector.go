@@ -32,7 +32,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
@@ -61,7 +60,6 @@ type Requires struct {
 	// Log specifies the logging component.
 	Log                 log.Component
 	Provider            confmap.Converter
-	ConfigStore         configstore.Component
 	Config              config.Component
 	CollectorContrib    collectorcontrib.Component
 	Serializer          serializer.MetricSerializer
@@ -123,8 +121,8 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
+	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs, false))
 }
 
 // NewComponent returns a new instance of the collector component.
@@ -136,11 +134,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	addFactories(reqs, factories)
 
 	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
-	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, converterEnabled), factories)
-	if err != nil {
-		return Provides{}, err
-	}
-
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
