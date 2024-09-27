@@ -11,6 +11,7 @@ powershell_script_signing:
     paths:
       - omnibus/pkg
   script:
+    - mkdir omnibus\pkg
     - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e IS_AWS_CONTAINER=true 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
-    - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 omnibus\pkg\Install-Datadog.ps1
+    - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 .\omnibus\pkg\Install-Datadog.ps1
   
