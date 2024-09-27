@@ -74,6 +74,7 @@ type RuleDefinition struct {
 	Every                  time.Duration       `yaml:"every,omitempty" json:"every,omitempty"`
 	Silent                 bool                `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string              `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	UniqueID               []string            `yaml:"unique_id,omitempty" json:"unique_id,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
