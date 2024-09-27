@@ -109,6 +109,8 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 	return &span
 }
 
+// getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
+// If flush is true, the data will be cleared from the handler
 func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
