@@ -232,14 +232,14 @@ func setupCommand() *cobra.Command {
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstraperCmd("setup")
-			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
+			i, err := newInstallerCmd("setup")
+			defer func() { i.Stop(err) }()
+			ctx, cancel := context.WithTimeout(i.ctx, timeout)
 			defer cancel()
-			return bootstraper.InstallDefaultPackages(ctx, b.env)
+			return installer.Setup(ctx, i.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
 	return cmd
 }
 
