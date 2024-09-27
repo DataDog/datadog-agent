@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-type gpuSystemInfo struct {
+type systemContext struct {
 	deviceSmVersions map[int]int
 	fileData         map[string]*fileData
 	pidMaps          map[int]*kernel.ProcMapEntries
@@ -25,37 +25,37 @@ type fileData struct {
 	fatbin      *cuda.Fatbin
 }
 
-func getGpuSystemInfo() (*gpuSystemInfo, error) {
-	info := &gpuSystemInfo{
+func getSystemContext() (*systemContext, error) {
+	ctx := &systemContext{
 		fileData: make(map[string]*fileData),
 		pidMaps:  make(map[int]*kernel.ProcMapEntries),
 	}
-	if err := info.queryDevices(); err != nil {
+	if err := ctx.queryDevices(); err != nil {
 		return nil, fmt.Errorf("error querying devices: %w", err)
 	}
 
-	return info, nil
+	return ctx, nil
 }
 
-func (info *gpuSystemInfo) queryDevices() error {
+func (ctx *systemContext) queryDevices() error {
 	devices, err := cuda.GetGPUDevices()
 	if err != nil {
 		return fmt.Errorf("error getting GPU devices: %w", err)
 	}
 
-	info.deviceSmVersions = make(map[int]int)
+	ctx.deviceSmVersions = make(map[int]int)
 	for i, device := range devices {
 		major, minor, ret := device.GetCudaComputeCapability()
 		if err = cuda.WrapNvmlError(ret); err != nil {
 			return fmt.Errorf("error getting SM version: %w", err)
 		}
-		info.deviceSmVersions[i] = major*10 + minor
+		ctx.deviceSmVersions[i] = major*10 + minor
 	}
 
 	return nil
 }
 
-func (info *gpuSystemInfo) getFileData(path string) (*fileData, error) {
+func (ctx *systemContext) getFileData(path string) (*fileData, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("error getting absolute path: %w", err)
@@ -66,7 +66,7 @@ func (info *gpuSystemInfo) getFileData(path string) (*fileData, error) {
 		return nil, fmt.Errorf("error reading link %s: %w", path, err)
 	}
 
-	if fd, ok := info.fileData[path]; ok {
+	if fd, ok := ctx.fileData[path]; ok {
 		return fd, nil
 	}
 
@@ -94,12 +94,12 @@ func (info *gpuSystemInfo) getFileData(path string) (*fileData, error) {
 		fd.symbolTable[sym.Value] = sym.Name
 	}
 
-	info.fileData[path] = fd
-	return info.fileData[path], nil
+	ctx.fileData[path] = fd
+	return ctx.fileData[path], nil
 }
 
-func (info *gpuSystemInfo) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries, error) {
-	if maps, ok := info.pidMaps[pid]; ok {
+func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries, error) {
+	if maps, ok := ctx.pidMaps[pid]; ok {
 		return maps, nil
 	}
 
@@ -108,6 +108,6 @@ func (info *gpuSystemInfo) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries
 		return nil, fmt.Errorf("error reading process memory maps: %w", err)
 	}
 
-	info.pidMaps[pid] = &maps
+	ctx.pidMaps[pid] = &maps
 	return &maps, nil
 }

@@ -32,17 +32,18 @@ type cudaEventConsumer struct {
 	wg                              sync.WaitGroup
 	scanTerminatedProcessesInterval time.Duration
 	running                         atomic.Bool
-	gpuInfo                         *gpuSystemInfo
 	cfg                             *Config
+	sysCtx                          *systemContext
 }
 
 // NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, gpuInfo *gpuSystemInfo) *cudaEventConsumer {
+func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, cfg *Config, sysCtx *systemContext) *cudaEventConsumer {
 	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
 		streamHandlers: make(map[model.StreamKey]*StreamHandler),
 		cfg:            cfg,
+		sysCtx:         sysCtx,
 	}
 }
 
@@ -109,7 +110,7 @@ func (c *cudaEventConsumer) Start() {
 				streamKey := model.StreamKey{Pid: pid, Stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = newStreamHandler(&streamKey, c.gpuInfo)
+					c.streamHandlers[streamKey] = newStreamHandler(&streamKey, c.sysCtx)
 				}
 
 				switch header.Type {
