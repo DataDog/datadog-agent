@@ -657,9 +657,10 @@ func TestCalendarJavaApp(s OTelTestSuite) {
 	createJavaCalendarApp(ctx, s)
 
 	var metrics []*aggregator.MetricSeries
+	var mn []string
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		mn, err := s.Env().FakeIntake.Client().GetMetricNames()
+		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
 		s.T().Log("CalendarJavaApp Metric Names", mn)
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar.api.hits", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-java-otel"}))
 		assert.NoError(c, err)
@@ -678,9 +679,10 @@ func TestCalendarGoApp(s OTelTestSuite) {
 	createGoCalendarApp(ctx, s)
 
 	var metrics []*aggregator.MetricSeries
+	var mn []string
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		mn, err := s.Env().FakeIntake.Client().GetMetricNames()
+		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
 		s.T().Log("CalendarGoApp Metric Names", mn)
 		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-rest-go"}))
 		assert.NoError(c, err)
