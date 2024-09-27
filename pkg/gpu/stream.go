@@ -58,6 +58,10 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
+	if sh.sysCtx == nil {
+		return nil // No system context, kernel data attaching is disabled
+	}
+
 	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.key.Pid))
 	if err != nil {
 		return fmt.Errorf("error reading process memory maps: %w", err)
