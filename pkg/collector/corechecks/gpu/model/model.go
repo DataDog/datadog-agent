@@ -9,11 +9,11 @@ package model
 
 // MemoryAllocation represents a memory allocation event
 type MemoryAllocation struct {
-	// Start is the UNIX timestamp of the allocation event
-	Start uint64 `json:"start"`
+	// Start is the kernel-time timestamp of the allocation event
+	StartKtime uint64 `json:"start"`
 
-	// End is the UNIX timestamp of the deallocation event. If 0, this means the allocation was not deallocated yet
-	End uint64 `json:"end"`
+	// End is the kernel-time timestamp of the deallocation event. If 0, this means the allocation was not deallocated yet
+	EndKtime uint64 `json:"end"`
 
 	// Size is the size of the allocation in bytes
 	Size uint64 `json:"size"`
@@ -25,10 +25,17 @@ type MemoryAllocation struct {
 // KernelSpan represents a span of time during which one or more kernels were running on a GPU until
 // a synchronization event happened
 type KernelSpan struct {
-	Start          uint64 `json:"start"`
-	End            uint64 `json:"end"`
+	// StartKtime is the kernel-time timestamp of the start of the span, the moment the first kernel was launched
+	StartKtime uint64 `json:"start"`
+
+	// EndKtime is the kernel-time timestamp of the end of the span, the moment the synchronization event happened
+	EndKtime uint64 `json:"end"`
+
+	// AvgThreadCount is the average number of threads running on the GPU during the span
 	AvgThreadCount uint64 `json:"avg_thread_count"`
-	NumKernels     uint64 `json:"num_kernels"`
+
+	// NumKernels is the number of kernels that were launched during the span
+	NumKernels uint64 `json:"num_kernels"`
 }
 
 // StreamKey is a unique identifier for a CUDA stream

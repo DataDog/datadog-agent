@@ -48,10 +48,10 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	}
 
 	data := model.MemoryAllocation{
-		Start:    alloc.Header.Ktime_ns,
-		End:      event.Header.Ktime_ns,
-		Size:     alloc.Size,
-		IsLeaked: false, // Came from a free event, so it's not a leak
+		StartKtime: alloc.Header.Ktime_ns,
+		EndKtime:   event.Header.Ktime_ns,
+		Size:       alloc.Size,
+		IsLeaked:   false, // Came from a free event, so it's not a leak
 	}
 
 	sh.allocations = append(sh.allocations, &data)
@@ -82,8 +82,8 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan {
 	span := model.KernelSpan{
-		Start:      math.MaxUint64,
-		End:        maxTime,
+		StartKtime: math.MaxUint64,
+		EndKtime:   maxTime,
 		NumKernels: 0,
 	}
 
@@ -92,8 +92,8 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 			continue
 		}
 
-		span.Start = min(launch.Header.Ktime_ns, span.Start)
-		span.End = max(launch.Header.Ktime_ns, span.End)
+		span.StartKtime = min(launch.Header.Ktime_ns, span.StartKtime)
+		span.EndKtime = max(launch.Header.Ktime_ns, span.EndKtime)
 		blockSize := launch.Block_size.X * launch.Block_size.Y * launch.Block_size.Z
 		blockCount := launch.Grid_size.X * launch.Grid_size.Y * launch.Grid_size.Z
 		span.AvgThreadCount += uint64(blockSize) * uint64(blockCount)
@@ -139,16 +139,18 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 
 	for _, alloc := range sh.memAllocEvents {
 		data.Allocations = append(data.Allocations, &model.MemoryAllocation{
-			Start:    alloc.Header.Ktime_ns,
-			End:      0,
-			Size:     alloc.Size,
-			IsLeaked: false,
+			StartKtime: alloc.Header.Ktime_ns,
+			EndKtime:   0,
+			Size:       alloc.Size,
+			IsLeaked:   false,
 		})
 	}
 
 	return data
 }
 
+// markEnd is called when this stream is closed (process exited or stream destroyed).
+// A synchronization event will be triggered and all pending events (allocations) will be resolved.
 func (sh *StreamHandler) markEnd() error {
 	nowTs, err := ddebpf.NowNanoseconds()
 	if err != nil {
@@ -161,10 +163,10 @@ func (sh *StreamHandler) markEnd() error {
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for _, alloc := range sh.memAllocEvents {
 		data := model.MemoryAllocation{
-			Start:    alloc.Header.Ktime_ns,
-			End:      uint64(nowTs),
-			Size:     alloc.Size,
-			IsLeaked: true,
+			StartKtime: alloc.Header.Ktime_ns,
+			EndKtime:   uint64(nowTs),
+			Size:       alloc.Size,
+			IsLeaked:   true,
 		}
 		sh.allocations = append(sh.allocations, &data)
 	}
