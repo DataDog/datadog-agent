@@ -10,23 +10,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
-	"time"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	detectenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/google/uuid"
+	"github.com/DataDog/go-tuf/data"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -38,10 +28,12 @@ const configOrderID = "configuration_order"
 // CDN provides access to the Remote Config CDN.
 type CDN interface {
 	Get(ctx context.Context) (*Config, error)
+	Close() error
 }
 
 type cdnRemote struct {
-	env *env.Env
+	client              *remoteconfig.HTTPClient
+	currentRootsVersion uint64
 }
 
 // Config represents the configuration from the CDN.
@@ -57,22 +49,32 @@ type orderConfig struct {
 }
 
 // New creates a new CDN.
-func New(env *env.Env) CDN {
+func New(env *env.Env, configDBPath string) (CDN, error) {
 	if env.CDNLocalDirPath != "" {
 		return newLocal(env)
 	}
-	return newRemote(env)
+	return newRemote(env, configDBPath)
 }
 
-func newRemote(env *env.Env) CDN {
-	return &cdnRemote{
-		env: env,
+func newRemote(env *env.Env, configDBPath string) (CDN, error) {
+	client, err := remoteconfig.NewHTTPClient(
+		configDBPath,
+		env.Site,
+		env.APIKey,
+		version.AgentVersion,
+	)
+	if err != nil {
+		return nil, err
 	}
+	return &cdnRemote{
+		client:              client,
+		currentRootsVersion: 1,
+	}, nil
 }
 
 // Get gets the configuration from the CDN.
 func (c *cdnRemote) Get(ctx context.Context) (_ *Config, err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "cdn.Get")
+	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	configLayers, err := c.getOrderedLayers(ctx)
 	if err != nil {
@@ -81,82 +83,71 @@ func (c *cdnRemote) Get(ctx context.Context) (_ *Config, err error) {
 	return newConfig(configLayers...)
 }
 
+// Close cleans up the CDN's resources
+func (c *cdnRemote) Close() error {
+	return c.client.Close()
+}
+
 // getOrderedLayers calls the Remote Config service to get the ordered layers.
-// Today it doesn't use the CDN, but it should in the future
 func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
-	// HACK(baptiste): Create a dedicated one-shot RC service just for the configuration
-	// We should use the CDN instead
-	config := pkgconfigsetup.Datadog()
-	detectenv.DetectFeatures(config)
-	hostname, err := pkghostname.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	dbName := fmt.Sprintf("rc-db-%s", uuid.New().String())
-	options := []remoteconfig.Option{
-		remoteconfig.WithAPIKey(c.env.APIKey),
-		remoteconfig.WithConfigRootOverride(c.env.Site, ""),
-		remoteconfig.WithDirectorRootOverride(c.env.Site, ""),
-		remoteconfig.WithDatabaseFileName(dbName),
-	}
-	service, err := remoteconfig.NewService(
-		config,
-		"Datadog Installer",
-		fmt.Sprintf("https://config.%s", c.env.Site),
-		hostname,
-		getHostTags(ctx, config),
-		&rctelemetryreporterimpl.DdRcTelemetryReporter{}, // No telemetry for this client
-		version.AgentVersion,
-		options...,
+	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
+		ctx,
+		[]string{"AGENT_CONFIG"},
+		// Always send 0 since we are relying on the CDN cache state instead of our own tracer cache. This will fetch the latest configs from the cache/CDN everytime.
+		0,
+		// Not using the roots; send the highest seen version of roots so don't received them all on every request
+		c.currentRootsVersion,
+		// Not using a client cache; fetch all the applicable target files every time.
+		[]*pbgo.TargetFileMeta{},
 	)
 	if err != nil {
 		return nil, err
 	}
-	service.Start()
-	defer func() {
-		stopErr := service.Stop()
-		if stopErr != nil {
-			log.Errorf("error stopping the Remote Config service: %v", stopErr)
-			return
+
+	orderedLayers := []*layer{}
+	if agentConfigUpdate == nil {
+		return orderedLayers, nil
+	}
+
+	// Update CDN root versions
+	for _, root := range agentConfigUpdate.TUFRoots {
+		var signedRoot data.Signed
+		err = json.Unmarshal(root, &signedRoot)
+		if err != nil {
+			continue
 		}
-		// delete the database file
-		stopErr = os.Remove(filepath.Join(config.GetString("run_path"), dbName))
-		if stopErr != nil {
-			log.Errorf("error deleting the database file: %v", stopErr)
+		var r data.Root
+		err = json.Unmarshal(signedRoot.Signed, &r)
+		if err != nil {
+			continue
 		}
-	}()
-	// Force a cache bypass
-	cfgs, err := service.ClientGetConfigs(ctx, &pbgo.ClientGetConfigsRequest{
-		Client: &pbgo.Client{
-			Id:            uuid.New().String(),
-			Products:      []string{"AGENT_CONFIG"},
-			IsUpdater:     true,
-			ClientUpdater: &pbgo.ClientUpdater{},
-			State: &pbgo.ClientState{
-				RootVersion:    1,
-				TargetsVersion: 1,
-			},
-		},
-	})
-	if err != nil {
-		return nil, err
+		if uint64(r.Version) > c.currentRootsVersion {
+			c.currentRootsVersion = uint64(r.Version)
+		}
 	}
 
 	// Unmarshal RC results
 	configLayers := map[string]*layer{}
 	var configOrder *orderConfig
 	var layersErr error
-	for _, file := range cfgs.TargetFiles {
-		matched := datadogConfigIDRegexp.FindStringSubmatch(file.GetPath())
+	paths := agentConfigUpdate.ClientConfigs
+	targetFiles := agentConfigUpdate.TargetFiles
+	for _, path := range paths {
+		matched := datadogConfigIDRegexp.FindStringSubmatch(path)
 		if len(matched) != 2 {
-			layersErr = multierr.Append(layersErr, fmt.Errorf("invalid config path: %s", file.GetPath()))
+			layersErr = multierr.Append(layersErr, fmt.Errorf("invalid config path: %s", path))
 			continue
 		}
 		configName := matched[1]
 
+		file, ok := targetFiles[path]
+		if !ok {
+			layersErr = multierr.Append(layersErr, fmt.Errorf("missing expected target file in update response: %s", path))
+			continue
+		}
 		if configName != configOrderID {
 			configLayer := &layer{}
-			err = json.Unmarshal(file.GetRaw(), configLayer)
+			err = json.Unmarshal(file, configLayer)
 			if err != nil {
 				// If a layer is wrong, fail later to parse the rest and check them all
 				layersErr = multierr.Append(layersErr, err)
@@ -165,7 +156,7 @@ func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 			configLayers[configName] = configLayer
 		} else {
 			configOrder = &orderConfig{}
-			err = json.Unmarshal(file.GetRaw(), configOrder)
+			err = json.Unmarshal(file, configOrder)
 			if err != nil {
 				// Return first - we can't continue without the order
 				return nil, err
@@ -181,20 +172,6 @@ func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	}
 
 	return orderLayers(*configOrder, configLayers), nil
-}
-
-func getHostTags(ctx context.Context, config model.Config) func() []string {
-	return func() []string {
-		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
-		// if the host tags are not available yet and need to be fetched. They will be fetched
-		// by the first agent metadata V5 payload.
-		ctx, cc := context.WithTimeout(ctx, time.Second)
-		defer cc()
-		hostTags := hosttags.Get(ctx, true, config)
-		tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
-		tags = append(tags, "installer:true")
-		return tags
-	}
 }
 
 func orderLayers(configOrder orderConfig, configLayers map[string]*layer) []*layer {

@@ -20,10 +20,10 @@ type cdnLocal struct {
 }
 
 // newLocal creates a new local CDN.
-func newLocal(env *env.Env) CDN {
+func newLocal(env *env.Env) (CDN, error) {
 	return &cdnLocal{
 		dirPath: env.CDNLocalDirPath,
-	}
+	}, nil
 }
 
 // Get gets the configuration from the CDN.
@@ -65,4 +65,8 @@ func (c *cdnLocal) Get(_ context.Context) (_ *Config, err error) {
 	}
 
 	return newConfig(orderLayers(*configOrder, configLayers)...)
+}
+
+func (c *cdnLocal) Close() error {
+	return nil
 }

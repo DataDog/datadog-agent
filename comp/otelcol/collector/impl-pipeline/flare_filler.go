@@ -9,19 +9,16 @@
 package collectorimpl
 
 import (
-	"context"
-	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -130,35 +127,15 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return []byte(overrideConfigResponse), nil
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-
-	timeoutSeconds := c.config.GetInt("otelcollector.extension_timeout")
-	if timeoutSeconds == 0 {
-		timeoutSeconds = defaultExtensionTimeout
+	options := apiutil.ReqOptions{
+		Ctx:       c.ctx,
+		Authtoken: c.authToken.Get(),
 	}
 
-	ctx := context.TODO()
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", endpointURL, nil)
+	data, err := apiutil.DoGetWithOptions(c.client, endpointURL, &options)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode >= 400 {
-		return nil, errors.New(string(body))
-	}
-	return body, nil
+	return data, nil
 }
