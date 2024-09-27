@@ -254,6 +254,9 @@ variables:
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
 
   ATLASSIAN_WRITE: atlassian-write
+  AGENT_GITHUB_APP: agent-github-app
+  MACOS_GITHUB_APP_1: macos-github-app-one
+  MACOS_GITHUB_APP_2: macos-github-app-two
 
   DD_PKG_VERSION: "latest"
 

@@ -35,7 +35,7 @@
       GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_1 installation_id) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 1"
     else
-      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 key_b64 || exit $?; export GITHUB_KEY_B64
+      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 key_b64) || exit $?; export GITHUB_KEY_B64
       GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 app_id) || exit $?; export GITHUB_APP_ID
       GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_2 installation_id) || exit $?; export GITHUB_INSTALLATION_ID
       echo "Using GitHub App instance 2"
