@@ -110,6 +110,10 @@ const (
 	EcsClusterName = "ecs_cluster_name"
 	// EcsServiceName is the tag for the ECS service name
 	EcsServiceName = "ecs_service"
+	// Account is the tag for the ECS account id
+	Account = "account"
+	// AwsAccount is the tag for ECS account id
+	AwsAccount = "aws_account"
 
 	// Language is the tag for the process language
 	Language = "language"
