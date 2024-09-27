@@ -695,6 +695,6 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.flo
 		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
 		gauge.Add(goMetricValue)
 	default:
-		log.Warnf("EmitAgentTelemetry: unsupported metric type %s", goMetricType)
+		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
 	}
 }
