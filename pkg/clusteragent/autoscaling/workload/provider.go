@@ -64,9 +64,9 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
 	}
 
-	hashHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects)
+	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects)
 
-	controller, err := newController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher, sender, hashHeap)
+	controller, err := newController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher, sender, limitHeap)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
