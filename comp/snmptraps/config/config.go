@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
@@ -51,7 +52,7 @@ type TrapsConfig struct {
 // ReadConfig builds the traps configuration from the Agent configuration.
 func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
 	var c = &TrapsConfig{}
-	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
+	err := structure.UnmarshalKey(conf, "network_devices.snmp_traps", c)
 	if err != nil {
 		return nil, err
 	}

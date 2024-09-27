@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -381,7 +381,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			series := makeSeries(10000, 50)
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			strategy := compressionimpl.NewCompressor(mockConfig)
 			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig, strategy)
@@ -414,7 +414,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
 
@@ -437,7 +437,7 @@ func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
 
@@ -482,7 +482,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
@@ -531,7 +531,7 @@ func TestPayloadsSeries(t *testing.T) {
 				testSeries = append(testSeries, &point)
 			}
 
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			originalLength := len(testSeries)
 			strategy := compressionimpl.NewCompressor(mockConfig)
@@ -581,7 +581,8 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	}
 
 	var r transaction.BytesPayloads
-	builder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf(), compressionimpl.NewCompressor(pkgconfigsetup.Conf()))
+	mockConfig := mock.New(b)
+	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

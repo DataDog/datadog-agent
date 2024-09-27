@@ -7,7 +7,7 @@ package tagger
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // AgentTypeForTagger represents agent types that tagger is used for
@@ -29,7 +29,7 @@ type Params struct {
 
 // NewTaggerParamsForCoreAgent is a constructor function for creating core agent tagger params
 func NewTaggerParamsForCoreAgent(_ config.Component) Params {
-	if pkgconfig.IsCLCRunner() {
+	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		return NewCLCRunnerRemoteTaggerParams()
 	}
 	return NewTaggerParams()

@@ -690,13 +690,14 @@ def generate_complexity_summary_for_pr(
         raise Exit("tabulate is required to print the complexity summary")
 
     pr_comment_head = 'eBPF complexity changes'
+    github = GithubAPI()
+    prs = list(github.get_pr_for_branch(branch_name))
+    has_prs = len(prs) > 0
 
     if branch_name is None:
         branch_name = get_current_branch(ctx)
 
     if base_branch is None:
-        github = GithubAPI()
-        prs = list(github.get_pr_for_branch(branch_name))
         if len(prs) == 0:
             print(f"Warning: No PR found for branch {branch_name}, using main branch as base")
             base_branch = "main"
@@ -707,9 +708,9 @@ def generate_complexity_summary_for_pr(
             base_branch = prs[0].base.ref
             print(f"Found PR {prs[0].number} for this branch, using base branch {base_branch}")
 
-    def _exit_or_delete_github_comment(msg: str):
-        if skip_github_comment:
-            raise Exit(msg)
+    def _try_delete_github_comment(msg: str):
+        if skip_github_comment or not has_prs:
+            print(f"{msg}: exiting ({skip_github_comment=}, {has_prs=})")
         else:
             print(f"{msg}: removing GitHub comment in PR")
             pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
@@ -722,7 +723,7 @@ def generate_complexity_summary_for_pr(
     current_branch_artifacts_path = Path(current_branch_artifacts_path)
     complexity_files = list(current_branch_artifacts_path.glob("verifier-complexity-*.tar.gz"))
     if len(complexity_files) == 0:
-        _exit_or_delete_github_comment(
+        _try_delete_github_comment(
             f"No complexity data found for the current branch at {current_branch_artifacts_path}"
         )
         return
@@ -737,7 +738,7 @@ def generate_complexity_summary_for_pr(
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
     if len(main_complexity_files) == 0:
-        _exit_or_delete_github_comment(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+        _try_delete_github_comment(f"No complexity data found for the main branch at {main_branch_complexity_path}")
         return
 
     # Uncompress all local complexity files, and store the results
@@ -795,7 +796,7 @@ def generate_complexity_summary_for_pr(
             )
 
     if len(program_complexity) == 0:
-        _exit_or_delete_github_comment("No complexity data found, skipping report generation")
+        _try_delete_github_comment("No complexity data found, skipping report generation")
         return
 
     summarized_complexity_changes = []
@@ -904,7 +905,8 @@ def generate_complexity_summary_for_pr(
 
     print(msg)
 
-    if skip_github_comment:
+    if skip_github_comment or not has_prs:
+        print("Skipping commenting on PR")
         return
 
     if not has_any_changes:

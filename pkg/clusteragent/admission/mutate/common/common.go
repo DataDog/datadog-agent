@@ -11,16 +11,22 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// K8sAutoscalerSafeToEvictVolumesAnnotation is the annotation used by the
+// Kubernetes cluster-autoscaler to mark a volume as safe to evict
+const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
 // MutationFunc is a function that mutates a pod
 type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
@@ -175,9 +181,35 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
 func ContainerRegistry(specificConfigOpt string) string {
-	if config.Datadog().IsSet(specificConfigOpt) {
-		return config.Datadog().GetString(specificConfigOpt)
+	if pkgconfigsetup.Datadog().IsSet(specificConfigOpt) {
+		return pkgconfigsetup.Datadog().GetString(specificConfigOpt)
 	}
 
-	return config.Datadog().GetString("admission_controller.container_registry")
+	return pkgconfigsetup.Datadog().GetString("admission_controller.container_registry")
+}
+
+// MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler
+// annotation to the given pod, marking the specified local volume as safe to
+// evict. This annotation allows the cluster-autoscaler to evict pods with the
+// local volume mounted, enabling the node to scale down if necessary.
+// This function will not add the volume to the annotation if it is already
+// there.
+// Ref: https://github.com/kubernetes/autoscaler/blob/cluster-autoscaler-release-1.31/cluster-autoscaler/FAQ.md#what-types-of-pods-can-prevent-ca-from-removing-a-node
+func MarkVolumeAsSafeToEvictForAutoscaler(pod *corev1.Pod, volumeNameToAdd string) {
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	currentVolumes := pod.Annotations[K8sAutoscalerSafeToEvictVolumesAnnotation]
+	var volumeList []string
+	if currentVolumes != "" {
+		volumeList = strings.Split(currentVolumes, ",")
+	}
+
+	if slices.Contains(volumeList, volumeNameToAdd) {
+		return // Volume already in the list, no need to add
+	}
+
+	volumeList = append(volumeList, volumeNameToAdd)
+	pod.Annotations[K8sAutoscalerSafeToEvictVolumesAnnotation] = strings.Join(volumeList, ",")
 }

@@ -70,7 +70,7 @@ func Initialized() bool {
 	return theMonitor.Load() != nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// ProcessEventHandler represents a handler function triggered for process events
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }

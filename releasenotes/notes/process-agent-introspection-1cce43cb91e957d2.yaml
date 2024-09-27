@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The process agent will no longer exit prematurely when language detection is enabled or
+    when there is a misconfiguration stemming from `process_config.run_in_core_agent.enabled`'s
+    default enablement in Kubernetes.

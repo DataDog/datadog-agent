@@ -114,7 +114,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &protocol{
 		cfg:         cfg,
-		telemetry:   NewTelemetry(),
+		telemetry:   NewTelemetry(cfg),
 		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }
@@ -201,7 +201,7 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx)
 		p.statskeeper.Process(eventWrapper)
-		p.telemetry.Count(tx, eventWrapper, CountOptions{TelemetryBufferSize: p.cfg.MaxPostgresTelemetryBuffer})
+		p.telemetry.Count(tx, eventWrapper)
 	}
 }
 

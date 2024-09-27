@@ -88,8 +88,8 @@ func (r *Repositories) Delete(_ context.Context, pkg string) error {
 	return nil
 }
 
-// GetState returns the state of all repositories.
-func (r *Repositories) GetState() (map[string]State, error) {
+// GetStates returns the state of all repositories.
+func (r *Repositories) GetStates() (map[string]State, error) {
 	state := make(map[string]State)
 	repositories, err := r.loadRepositories()
 	if err != nil {
@@ -104,8 +104,8 @@ func (r *Repositories) GetState() (map[string]State, error) {
 	return state, nil
 }
 
-// GetPackageState returns the state of the given package.
-func (r *Repositories) GetPackageState(pkg string) (State, error) {
+// GetState returns the state of the given package.
+func (r *Repositories) GetState(pkg string) (State, error) {
 	repo := r.newRepository(pkg)
 	return repo.GetState()
 }

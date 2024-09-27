@@ -475,11 +475,6 @@ func (m *EventTypePolicy) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	if m.Flags != 0 {
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Flags))
-		i--
-		dAtA[i] = 0x18
-	}
 	if m.Mode != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Mode))
 		i--
@@ -3010,9 +3005,6 @@ func (m *EventTypePolicy) SizeVT() (n int) {
 	if m.Mode != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.Mode))
 	}
-	if m.Flags != 0 {
-		n += 1 + protohelpers.SizeOfVarint(uint64(m.Flags))
-	}
 	if m.Approvers != nil {
 		l = m.Approvers.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
@@ -4875,25 +4867,6 @@ func (m *EventTypePolicy) UnmarshalVT(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Mode |= uint32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Flags", wireType)
-			}
-			m.Flags = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Flags |= uint32(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

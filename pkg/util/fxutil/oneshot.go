@@ -33,7 +33,7 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 
 	opts = append(opts,
 		delayedCall.option(),
-		FxAgentBase(),
+		FxAgentBase(true),
 	)
 	// Temporarily increase timeout for all fxutil.OneShot calls until we can better characterize our
 	// start time requirements. Prepend to opts so individual calls can override the timeout.

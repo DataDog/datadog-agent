@@ -29,13 +29,24 @@ type dependencies struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	Config    config.Component
-	Log       log.Component
-	Authtoken authtoken.Component
+	Config     config.Component
+	Log        log.Component
+	Authtoken  authtoken.Component
+	SyncParams Params
 }
 
 // OptionalModule defines the fx options for this component.
 func OptionalModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newOptionalConfigSync),
+		fx.Supply(Params{}),
+	)
+}
+
+// OptionalModuleWithParams defines the fx options for this component, but
+// requires additionally specifying custom Params from the fx App, to be
+// passed to the constructor.
+func OptionalModuleWithParams() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newOptionalConfigSync),
 	)
@@ -46,9 +57,10 @@ type configSync struct {
 	Log       log.Component
 	Authtoken authtoken.Component
 
-	url    *url.URL
-	client *http.Client
-	ctx    context.Context
+	url       *url.URL
+	client    *http.Client
+	connected bool
+	ctx       context.Context
 }
 
 // newOptionalConfigSync checks if the component was enabled as per the config, and returns an optional.Option
@@ -76,7 +88,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClient(false)
+	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout, false)
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
@@ -86,6 +98,19 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		url:       url,
 		client:    client,
 		ctx:       ctx,
+	}
+
+	if deps.SyncParams.OnInit {
+		if deps.SyncParams.Delay != 0 {
+			select {
+			case <-ctx.Done(): //context cancelled
+				// TODO: this component should return an error
+				cancel()
+				return nil
+			case <-time.After(deps.SyncParams.Delay):
+			}
+		}
+		configSync.updater()
 	}
 
 	// start and stop the routine in fx hooks

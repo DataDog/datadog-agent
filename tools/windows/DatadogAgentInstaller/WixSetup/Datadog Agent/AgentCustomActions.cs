@@ -24,7 +24,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallState { get; }
 
-        public ManagedAction UninstallWriteInstallState { get; }
+        public ManagedAction DeleteInstallState { get; }
 
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
@@ -510,9 +510,9 @@ namespace WixSetup.Datadog_Agent
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
                                "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
 
-            UninstallWriteInstallState = new CustomAction<CustomActions>(
-                    new Id(nameof(UninstallWriteInstallState)),
-                    CustomActions.UninstallWriteInstallState,
+            DeleteInstallState = new CustomAction<CustomActions>(
+                    new Id(nameof(DeleteInstallState)),
+                    CustomActions.DeleteInstallState,
                     Return.check,
                     // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
                     // so that the built-in registry keys can be removed if they are empty.

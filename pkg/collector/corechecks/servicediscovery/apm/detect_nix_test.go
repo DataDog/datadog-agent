@@ -8,12 +8,18 @@
 package apm
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 func TestInjected(t *testing.T) {
@@ -87,7 +93,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs, nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -100,21 +106,23 @@ func Test_nodeDetector(t *testing.T) {
 	assert.NoError(t, err)
 
 	data := []struct {
-		name   string
-		envs   map[string]string
-		result Instrumentation
+		name       string
+		contextMap usm.DetectorContextMap
+		result     Instrumentation
 	}{
 		{
 			name: "not instrumented",
-			envs: map[string]string{
-				"PWD": filepath.Join(curDir, "testdata/node/not_instrumented"),
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/not_instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: None,
 		},
 		{
 			name: "instrumented",
-			envs: map[string]string{
-				"PWD": filepath.Join(curDir, "testdata/node/instrumented"),
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: Provided,
 		},
@@ -122,7 +130,7 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, d.envs)
+			result := nodeDetector(0, nil, nil, d.contextMap)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -163,4 +171,100 @@ func Test_pythonDetector(t *testing.T) {
 			assert.Equal(t, d.result, result)
 		})
 	}
+}
+
+func TestDotNetDetector(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		env    map[string]string
+		maps   string
+		result Instrumentation
+	}{
+		{
+			name:   "no env, no maps",
+			result: None,
+		},
+		{
+			name: "profiling disabled",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			result: None,
+		},
+		{
+			name: "profiling enabled",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "1",
+			},
+			result: Provided,
+		},
+		{
+			name: "not in maps",
+			maps: `
+785c8ab24000-785c8ab2c000 r--s 00000000 fc:06 12762114                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Diagnostics.StackTrace.dll
+785c8ab2c000-785c8acce000 r--s 00000000 fc:06 12762148                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Net.Http.dll
+			`,
+			result: None,
+		},
+		{
+			name: "in maps, no env",
+			maps: `
+785c89c00000-785c8a400000 rw-p 00000000 00:00 0
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
+785c8aaec000-785c8ab0d000 rw-p 00000000 00:00 0
+785c8ab0d000-785c8ab24000 r--s 00000000 fc:06 12761829                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/System.Collections.Specialized.dll
+			`,
+			result: Provided,
+		},
+		{
+			name: "in maps, env misleading",
+			env: map[string]string{
+				"CORECLR_ENABLE_PROFILING": "0",
+			},
+			maps: `
+785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
+			`,
+			result: Provided,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var result Instrumentation
+			if test.maps == "" {
+				result = dotNetDetector(0, nil, test.env, nil)
+			} else {
+				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
+			}
+			assert.Equal(t, test.result, result)
+		})
+	}
+}
+
+func TestGoDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBinWithSymbols, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+	serverBinWithoutSymbols, err := usmtestutil.BuildGoBinaryWrapperWithoutSymbols(filepath.Join(curDir, "testutil"), "instrumented")
+	require.NoError(t, err)
+
+	cmdWithSymbols := exec.Command(serverBinWithSymbols)
+	require.NoError(t, cmdWithSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithSymbols.Process.Kill()
+	})
+
+	cmdWithoutSymbols := exec.Command(serverBinWithoutSymbols)
+	require.NoError(t, cmdWithoutSymbols.Start())
+	t.Cleanup(func() {
+		_ = cmdWithoutSymbols.Process.Kill()
+	})
+
+	result := goDetector(os.Getpid(), nil, nil, nil)
+	require.Equal(t, None, result)
+
+	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
+	require.Equal(t, Provided, result)
+
+	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
+	require.Equal(t, Provided, result)
 }

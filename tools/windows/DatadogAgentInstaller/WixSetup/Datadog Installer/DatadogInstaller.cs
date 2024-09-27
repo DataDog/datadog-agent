@@ -1,7 +1,6 @@
+using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
-using System.Windows;
-using NineDigit.WixSharpExtensions;
 using WixSetup.Datadog_Agent;
 using WixSharp;
 using WixSharp.CommonTasks;
@@ -53,6 +52,16 @@ namespace WixSetup.Datadog_Installer
                     // Can't use %CommonAppDataFolder% because it's a Wix property.
                     Value = @"C:\ProgramData\Datadog",
                     AttributesDefinition = "Secure=yes",
+                },
+                // User provided password property
+                new Property("DDAGENTUSER_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
+                // ProcessDDAgentUserCredentials CustomAction processed password property
+                new Property("DDAGENTUSER_PROCESSED_PASSWORD")
+                {
+                    AttributesDefinition = "Hidden=yes"
                 },
                 new Dir(@"%ProgramFiles%\Datadog\Datadog Installer",
                     new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",

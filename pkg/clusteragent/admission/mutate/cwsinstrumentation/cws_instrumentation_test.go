@@ -875,6 +875,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						require.NotNil(t, annotations, "failed to annotate pod")
 						if annotations != nil {
 							require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+							require.Equal(t, cwsVolumeName, annotations[common.K8sAutoscalerSafeToEvictVolumesAnnotation], "CWS instrumentation volume should be marked as safe to evict")
 						}
 					} else {
 						testNoInjectedCWSVolume(t, tt.args.pod)

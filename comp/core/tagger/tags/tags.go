@@ -108,6 +108,8 @@ const (
 	EcsContainerName = "ecs_container_name"
 	// EcsClusterName is the tag for the ECS cluster name
 	EcsClusterName = "ecs_cluster_name"
+	// EcsServiceName is the tag for the ECS service name
+	EcsServiceName = "ecs_service"
 
 	// Language is the tag for the process language
 	Language = "language"

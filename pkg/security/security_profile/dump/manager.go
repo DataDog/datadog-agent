@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -338,7 +338,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
+	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -432,7 +432,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	defer adm.Unlock()
 
 	if len(event.ContainerContext.ContainerID) == 0 {
-		seclog.Errorf("received a cgroup tracing event with an empty container ID")
+		seclog.Warnf("received a cgroup tracing event with an empty container ID")
 		return
 	}
 
@@ -690,7 +690,7 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	// compute the list of ancestors, we need to start inserting them from the root
 	ancestors := []*model.ProcessCacheEntry{entry}
 	parent := pces.getNextAncestorBinaryOrArgv0(&entry.ProcessContext)
-	for parent != nil && pces.ad.MatchesSelector(entry) {
+	for parent != nil && pces.ad.MatchesSelector(parent) {
 		ancestors = append(ancestors, parent)
 		parent = pces.getNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 	}
@@ -700,8 +700,8 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	for _, parent = range ancestors {
 		node, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {
-			// if one of the parents wasn't inserted, leave now
-			break
+			// try to insert the other ancestors as we might find a valid root node in the lineage
+			continue
 		}
 		if node != nil {
 			// This step is important to populate the kernel space "traced_pids" map. Some traced event types use this

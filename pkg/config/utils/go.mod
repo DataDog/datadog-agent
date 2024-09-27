@@ -11,6 +11,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../setup/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
@@ -31,6 +32,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3

@@ -18,6 +18,7 @@ const (
 	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
 	tracerouteURL        = "http://unix/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	networkIDURL         = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"

@@ -6,7 +6,9 @@
 // Package module holds module related files
 package module
 
-import "github.com/DataDog/datadog-agent/pkg/security/events"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+)
 
 // Opts define module options
 type Opts struct {

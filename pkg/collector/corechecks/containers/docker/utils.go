@@ -17,6 +17,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
 func getProcessorFilter(legacyFilter *containers.Filter, store workloadmeta.Component) generic.ContainerFilter {
@@ -43,7 +44,7 @@ func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, 
 }
 
 func getImageTags(imageName string) ([]string, error) {
-	long, _, short, tag, err := containers.SplitImageName(imageName)
+	long, _, short, tag, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
 		return nil, err
 	}

@@ -21,9 +21,10 @@ type messageContext struct {
 	rawMessage []byte
 	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
 	// Heuristic implementations must check if tokens is nil before using it.
-	tokens        []tokens.Token
-	tokenIndicies []int
-	label         Label
+	tokens          []tokens.Token
+	tokenIndicies   []int
+	label           Label
+	labelAssignedBy string
 }
 
 // Heuristic is an interface representing a strategy to label log messages.
@@ -37,27 +38,37 @@ type Heuristic interface {
 // Each Heuristic operates on the output of the previous heuristic - mutating the message context.
 // A label is chosen when a herusitc signals the labeler to stop or when all herustics have been processed.
 type Labeler struct {
-	heuristics []Heuristic
+	lablerHeuristics    []Heuristic
+	analyticsHeuristics []Heuristic
 }
 
 // NewLabeler creates a new labeler with the given heuristics.
-func NewLabeler(heuristics []Heuristic) *Labeler {
+// lablerHeuristics are used to mutate the label of a log message.
+// analyticsHeuristics are used to analyze the log message and labeling process
+// for the status page and telemetry.
+func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) *Labeler {
 	return &Labeler{
-		heuristics: heuristics,
+		lablerHeuristics:    lablerHeuristics,
+		analyticsHeuristics: analyticsHeuristics,
 	}
 }
 
 // Label labels a log message.
 func (l *Labeler) Label(rawMessage []byte) Label {
 	context := &messageContext{
-		rawMessage: rawMessage,
-		tokens:     nil,
-		label:      aggregate,
+		rawMessage:      rawMessage,
+		tokens:          nil,
+		label:           aggregate,
+		labelAssignedBy: "default",
 	}
-	for _, h := range l.heuristics {
+	for _, h := range l.lablerHeuristics {
 		if !h.ProcessAndContinue(context) {
-			return context.label
+			break
 		}
+	}
+	// analyticsHeuristics are always run and don't change the final label
+	for _, h := range l.analyticsHeuristics {
+		h.ProcessAndContinue(context)
 	}
 	return context.label
 }

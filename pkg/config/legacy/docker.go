@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -64,7 +63,7 @@ type legacyDockerInstance struct {
 // ImportDockerConf read the configuration from docker_daemon check (agent5)
 // and create the configuration for the new docker check (agent 6) and move
 // needed option to datadog.yaml
-func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyConfigConverter) error {
+func ImportDockerConf(src, dst string, overwrite bool, converter *ConfigConverter) error {
 	fmt.Printf("%s\n", warningNewCheck)
 
 	// read docker_daemon.yaml

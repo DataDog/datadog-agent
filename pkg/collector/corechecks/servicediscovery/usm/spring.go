@@ -185,7 +185,11 @@ func (s springBootParser) newPropertySourceFromFile(filename string) (props.Prop
 	if err != nil {
 		return nil, err
 	}
-	return newPropertySourceFromStream(f, filename, uint64(fi.Size()))
+	reader, err := SizeVerifiedReader(f)
+	if err != nil {
+		return nil, err
+	}
+	return newPropertySourceFromStream(reader, filename, uint64(fi.Size()))
 }
 
 // longestPathPrefix extracts the longest path's portion that's not a pattern (i.e. /test/**/*.xml will return /test/)
@@ -297,6 +301,9 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	defer file.Close()
 	fi, err := file.Stat()
 	if err != nil {
+		return "", false
+	}
+	if !fi.Mode().IsRegular() {
 		return "", false
 	}
 	reader, err := zip.NewReader(file.(io.ReaderAt), fi.Size())

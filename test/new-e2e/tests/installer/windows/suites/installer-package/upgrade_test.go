@@ -27,7 +27,10 @@ func TestInstallerUpgrades(t *testing.T) {
 // TestUpgrades tests upgrading the stable version of the Datadog installer to the latest from the pipeline.
 func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	// Arrange
-	s.Require().NoError(s.Installer().Install(installerwindows.WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, s.StableInstallerVersion().PackageVersion())))
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, s.StableInstallerVersion().PackageVersion())),
+		installerwindows.WithMSILogFile("install.log"),
+	)
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(installerwindows.BinaryPath).
@@ -36,7 +39,9 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 
 	// Act
 	// Install "latest" from the pipeline
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile("upgrade.log"),
+	))
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).

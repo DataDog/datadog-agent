@@ -46,8 +46,11 @@ var (
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
+
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
+	ConfigState(pkg string) (repository.State, error)
+	ConfigStates() (map[string]repository.State, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
@@ -61,6 +64,8 @@ type Installer interface {
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
+
+	Close() error
 }
 
 // installerImpl is the implementation of the package manager.
@@ -79,7 +84,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -88,9 +93,13 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+	cdn, err := cdn.New(env, configDBPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create CDN client: %w", err)
+	}
 	return &installerImpl{
 		env:        env,
-		cdn:        cdn.New(env),
+		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
@@ -103,12 +112,22 @@ func NewInstaller(env *env.Env) (Installer, error) {
 
 // State returns the state of a package.
 func (i *installerImpl) State(pkg string) (repository.State, error) {
-	return i.packages.GetPackageState(pkg)
+	return i.packages.GetState(pkg)
 }
 
 // States returns the states of all packages.
 func (i *installerImpl) States() (map[string]repository.State, error) {
-	return i.packages.GetState()
+	return i.packages.GetStates()
+}
+
+// ConfigState returns the state of a package.
+func (i *installerImpl) ConfigState(pkg string) (repository.State, error) {
+	return i.configs.GetState(pkg)
+}
+
+// ConfigStates returns the states of all packages.
+func (i *installerImpl) ConfigStates() (map[string]repository.State, error) {
+	return i.configs.GetStates()
 }
 
 // IsInstalled checks if a package is installed.
@@ -383,6 +402,11 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	return nil
 }
 
+// Close cleans up the Installer's dependencies
+func (i *installerImpl) Close() error {
+	return i.cdn.Close()
+}
+
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
@@ -410,7 +434,7 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	case packageDatadogAgent:
 		return service.PromoteAgentExperiment(ctx)
 	case packageDatadogInstaller:
-		return service.StopInstallerExperiment(ctx)
+		return service.PromoteInstallerExperiment(ctx)
 	default:
 		return nil
 	}

@@ -8,6 +8,8 @@
 package workload
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 type fixture struct {
@@ -227,4 +230,122 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 	f.Actions = nil
 	f.RunControllerSync(true, "default/dpa-0")
 	assert.Len(t, f.store.GetAll(), 0)
+}
+
+func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		targetRef autoscalingv2.CrossVersionObjectReference
+	}{
+		{
+			"target set to cluster agent deployment",
+			autoscalingv2.CrossVersionObjectReference{
+				Kind:       "Deployment",
+				Name:       "datadog-agent-cluster-agent",
+				APIVersion: "apps/v1",
+			},
+		},
+		{
+			"target set to cluster agent replicaset",
+			autoscalingv2.CrossVersionObjectReference{
+				Kind:       "ReplicaSet",
+				Name:       "datadog-agent-cluster-agent-7dbf798595",
+				APIVersion: "apps/v1",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testTime := time.Now()
+			f := newFixture(t, testTime)
+
+			t.Setenv("DD_POD_NAME", "datadog-agent-cluster-agent-7dbf798595-tp9lg")
+			currentNs := common.GetMyNamespace()
+			id := fmt.Sprintf("%s/dpa-dca", currentNs)
+
+			dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: tt.targetRef,
+				// Local owner means .Spec source of truth is K8S
+				Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
+			}
+
+			dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-dca", 1, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+			f.InformerObjects = append(f.InformerObjects, dpa)
+
+			expectedDPAError := &datadoghq.DatadogPodAutoscaler{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DatadogPodAutoscaler",
+					APIVersion: "datadoghq.com/v1alpha1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "dpa-dca",
+					Namespace:  currentNs,
+					Generation: 1,
+					UID:        dpa.GetUID(),
+				},
+				Spec: datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{
+						Kind:       "",
+						Name:       "",
+						APIVersion: "",
+					},
+					Owner: "",
+				},
+				Status: datadoghq.DatadogPodAutoscalerStatus{
+					Conditions: []datadoghq.DatadogPodAutoscalerCondition{
+						{
+							Type:               datadoghq.DatadogPodAutoscalerErrorCondition,
+							Status:             corev1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(testTime),
+							Reason:             "Autoscaling target cannot be set to the cluster agent",
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerActiveCondition,
+							Status:             corev1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition,
+							Status:             corev1.ConditionUnknown,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition,
+							Status:             corev1.ConditionUnknown,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition,
+							Status:             corev1.ConditionFalse,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition,
+							Status:             corev1.ConditionUnknown,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+						{
+							Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToApply,
+							Status:             corev1.ConditionUnknown,
+							LastTransitionTime: metav1.NewTime(testTime),
+						},
+					},
+				},
+			}
+			expectedUnstructuredError, err := autoscaling.ToUnstructured(expectedDPAError)
+			assert.NoError(t, err)
+			f.RunControllerSync(true, id)
+
+			f.Objects = append(f.Objects, dpaTyped)
+			f.Actions = nil
+
+			f.ExpectUpdateStatusAction(expectedUnstructuredError)
+			f.RunControllerSync(true, id)
+			assert.Len(t, f.store.GetAll(), 1)
+			pai, found := f.store.Get(id)
+			assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
+			assert.Equal(t, errors.New("Autoscaling target cannot be set to the cluster agent"), pai.Error())
+		})
+	}
 }

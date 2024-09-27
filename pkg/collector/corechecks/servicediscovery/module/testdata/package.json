@@ -1,4 +1,7 @@
 {
+  "name": "my-awesome-package",
+  "version": "1.0.0",
+  "author": "Your Name <email@example.com>",
   "dependencies": {
     "bar": ">=1.9.0",
     "dd-trace": "9.99.9",

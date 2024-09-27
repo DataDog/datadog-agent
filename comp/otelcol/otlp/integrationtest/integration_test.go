@@ -54,7 +54,6 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
-	configstorefx "github.com/DataDog/datadog-agent/comp/otelcol/configstore/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -80,7 +79,7 @@ import (
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
-		forwarder.BundleWithProvider(defaultforwarder.NewParams),
+		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -96,9 +95,8 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
-		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
+			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
 			if err != nil {
 				return nil, err
 			}

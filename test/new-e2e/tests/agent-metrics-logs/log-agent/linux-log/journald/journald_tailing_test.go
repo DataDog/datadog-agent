@@ -82,8 +82,13 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	_, err := s.Env().RemoteHost.Execute("sudo usermod -a -G systemd-journal dd-agent")
 	require.NoErrorf(t, err, "Unable to adjust permissions for dd-agent user: %s", err)
 
-	// Restart agent
-	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
+	// Restart agent and make sure it's ready before adding logs
+	_, err = s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
+	assert.NoErrorf(t, err, "Failed to restart the agent: %s", err)
+	s.EventuallyWithT(func(_ *assert.CollectT) {
+		agentReady := s.Env().Agent.Client.IsReady()
+		assert.True(t, agentReady)
+	}, 1*time.Minute, 5*time.Second, "Agent was not ready")
 
 	// Generate log
 	appendJournaldLog(s, "hello-world", 1)

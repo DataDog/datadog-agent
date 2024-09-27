@@ -1,9 +1,10 @@
+using Datadog.AgentCustomActions;
+using Datadog.CustomActions;
+using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
-using Datadog.CustomActions;
-using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
 
@@ -372,7 +373,7 @@ namespace WixSetup.Datadog_Agent
             // may contain untracked files.
             // These properties are set in the ReadInstallState custom action.
             // https://wixtoolset.org/docs/v3/xsd/util/removefolderex/
-            foreach (var property in InstallStateCustomActions.PathsToRemoveOnUninstall().Keys)
+            foreach (var property in ReadInstallStateCA.PathsToRemoveOnUninstall().Keys)
             {
                 datadogAgentFolder.Add(
                     new RemoveFolderEx
@@ -516,7 +517,7 @@ namespace WixSetup.Datadog_Agent
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
-                "Datadog Security Service",
+                "Datadog Security Agent",
                 "Send Security events to Datadog",
                 "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 "[DDAGENTUSER_PROCESSED_PASSWORD]");

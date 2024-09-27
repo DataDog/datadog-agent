@@ -105,11 +105,15 @@ type jeeExtractor struct {
 // extractContextRootFromApplicationXML parses a standard application.xml file extracting
 // mount points for web application (aka context roots).
 func extractContextRootFromApplicationXML(fs fs.FS) ([]string, error) {
-	reader, err := fs.Open(applicationXMLPath)
+	file, err := fs.Open(applicationXMLPath)
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return nil, err
+	}
 	var a applicationXML
 	err = xml.NewDecoder(reader).Decode(&a)
 	if err != nil {
@@ -220,6 +224,17 @@ func vfsAndTypeFromAppPath(deployment *jeeDeployment, filesystem fs.SubFS) (*fil
 	if err != nil {
 		return nil, dt, err
 	}
+
+	// Re-stat after opening to avoid races with attributes changing before
+	// previous stat and open.
+	fi, err = f.Stat()
+	if err != nil {
+		return nil, dt, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, dt, err
+	}
+
 	r, err := zip.NewReader(f.(io.ReaderAt), fi.Size())
 	if err != nil {
 		_ = f.Close()

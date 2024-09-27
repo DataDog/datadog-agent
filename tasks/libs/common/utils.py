@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import traceback
 from collections import Counter
@@ -18,15 +19,12 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+import requests
 from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import (
-    ALLOWED_REPO_ALL_BRANCHES,
-    DEFAULT_BRANCH,
-    REPO_PATH,
-)
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
@@ -699,3 +697,51 @@ def team_to_label(team):
         'asm-go': "agent-security",
     }
     return dico.get(team, team)
+
+
+@contextmanager
+def download_to_tempfile(url, checksum=None):
+    """
+    Download a file from @url to a temporary file and yields the path.
+
+    The temporary file is removed when the context manager exits.
+
+    if @checksum is provided it will be updated with each chunk of the file
+    """
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with os.fdopen(fd, "wb") as f:
+                # fd will be closed by context manager, so we no longer need it
+                fd = None
+                for chunk in r.iter_content(chunk_size=8192):
+                    if checksum:
+                        checksum.update(chunk)
+                    f.write(chunk)
+        yield tmp_path
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def experimental(message):
+    """
+    Marks this task as experimental and prints the message.
+
+    Note: This decorator must be placed after the `task` decorator.
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            fname = f.__name__
+            print(color_message(f"Warning: {fname} is experimental: {message}", Color.ORANGE), file=sys.stderr)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

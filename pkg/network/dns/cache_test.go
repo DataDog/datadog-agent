@@ -11,6 +11,7 @@ import (
 	cryptorand "crypto/rand"
 	"fmt"
 	"math/rand"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -329,7 +330,7 @@ func randomAddressGen() func() util.Address {
 				continue
 			}
 
-			return util.V4AddressFromBytes(b)
+			return util.Address{Addr: netip.AddrFrom4([4]byte(b))}
 		}
 	}
 }

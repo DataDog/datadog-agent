@@ -372,11 +372,11 @@ kubelet \
 	--protect-kernel-defaults=true \
 	--read-only-port=0 \
 	--resolv-conf=/run/systemd/resolve/resolv.conf \
-	--rotate-certificates=true \
 	--streaming-connection-idle-timeout=4h \
 	--tls-cert-file=/etc/kubernetes/certs/kubeletserver.crt \
 	--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256 \
-	--tls-private-key-file=/etc/kubernetes/certs/kubeletserver.key
+	--tls-private-key-file=/etc/kubernetes/certs/kubeletserver.key \
+	--rotate-certificates
 `
 
 var aksFs = []*mockFile{
@@ -495,7 +495,7 @@ etcd \
 	--listen-peer-urls=https://192.168.5.15:2380 \
 	--name=lima-k8s \
 	--peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt \
-	--peer-client-cert-auth=true \
+	--peer-client-cert-auth \
 	--peer-key-file=/etc/kubernetes/pki/etcd/peer.key \
 	--peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt \
 	--snapshot-count=10000 \

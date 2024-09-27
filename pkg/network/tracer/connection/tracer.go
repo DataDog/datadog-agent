@@ -23,15 +23,10 @@ import (
 type TracerType int
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbePrebuilt TracerType = iota
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeRuntimeCompiled
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeCORE
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
-	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeEbpfless
 )
 

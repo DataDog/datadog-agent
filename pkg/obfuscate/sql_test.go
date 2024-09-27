@@ -2412,6 +2412,20 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users where id = 1",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users where id = ?",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2591,6 +2605,20 @@ func TestSQLLexerNormalization(t *testing.T) {
 			metadata: SQLMetadata{
 				Size:      11,
 				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "select with cte",
+			query:    "WITH users AS (SELECT * FROM people) SELECT * FROM users",
+			expected: "WITH users AS ( SELECT * FROM people ) SELECT * FROM users",
+			metadata: SQLMetadata{
+				Size:      12,
+				TablesCSV: "people",
 				Commands: []string{
 					"SELECT",
 				},

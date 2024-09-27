@@ -21,33 +21,44 @@ import (
 func Test_findInArgs(t *testing.T) {
 	data := []struct {
 		name string
+		exe  string
 		args []string
 		lang Language
 	}{
 		{
 			name: "empty",
+			exe:  "",
 			args: nil,
 			lang: "",
 		},
 		{
 			name: "simple_java",
+			exe:  "",
 			args: strings.Split("java -jar MyApp.jar MyApp", " "),
 			lang: Java,
 		},
 		{
 			name: "path_java",
+			exe:  "",
 			args: strings.Split("/usr/bin/java -jar MyApp.jar MyApp", " "),
 			lang: Java,
 		},
 		{
 			name: "just_command",
+			exe:  "",
 			args: strings.Split("./mybinary arg1 arg2 arg3", " "),
 			lang: "",
+		},
+		{
+			name: "exe fallback",
+			exe:  "/usr/local/bin/python3.10",
+			args: strings.Split("gunicorn: worker [foo]", " "),
+			lang: Python,
 		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := FindInArgs(d.args)
+			result := FindInArgs(d.exe, d.args)
 			if result != d.lang {
 				t.Errorf("got %v, want %v", result, d.lang)
 			}

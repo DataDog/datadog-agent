@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -93,7 +92,8 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid := range seenContainers {
-		tags, err := tagger.Tag(containers.BuildTaggerEntityName(cid), types.HighCardinality)
+
+		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {

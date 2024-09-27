@@ -15,11 +15,13 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
@@ -32,15 +34,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TODO: are these good defaults?
 const (
-	DefaultSourcePort   = 12345
-	DefaultDestPort     = 33434
-	DefaultNumPaths     = 1
-	DefaultMinTTL       = 1
-	DefaultMaxTTL       = 30
-	DefaultDelay        = 50 //msec
-	DefaultReadTimeout  = 10 * time.Second
+	// DefaultSourcePort defines the default source port
+	DefaultSourcePort = 12345
+	// DefaultDestPort defines the default destination port
+	DefaultDestPort = 33434
+	// DefaultNumPaths defines the default number of paths
+	DefaultNumPaths = 1
+	// DefaultMinTTL defines the default minimum TTL
+	DefaultMinTTL = 1
+	// DefaultDelay defines the default delay
+	DefaultDelay = 50 //msec
+	// DefaultOutputFormat defines the default output format
 	DefaultOutputFormat = "json"
 
 	tracerouteRunnerModuleName = "traceroute_runner__"
@@ -111,14 +116,14 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = DefaultMaxTTL
+		maxTTL = setup.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
-	if cfg.TimeoutMs == 0 {
-		timeout = DefaultReadTimeout
+	if cfg.Timeout == 0 {
+		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
-		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+		timeout = cfg.Timeout
 	}
 
 	hname, err := hostname.Get(ctx)
@@ -221,9 +226,10 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 
 func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolTCP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolTCP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -283,9 +289,10 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 	}
 
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolUDP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolUDP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,

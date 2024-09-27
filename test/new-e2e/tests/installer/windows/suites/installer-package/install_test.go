@@ -7,20 +7,15 @@
 package installertests
 
 import (
-	"embed"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"testing"
 )
 
-//go:embed fixtures/sample_config
-var fixturesFS embed.FS
-
 type testInstallerSuite struct {
-	installerwindows.BaseInstallerSuite
+	baseInstallerSuite
 }
 
 // TestInstaller tests the installation of the Datadog installer on a system.
@@ -43,25 +38,6 @@ func (s *testInstallerSuite) TestInstalls() {
 	})
 }
 
-func (s *testInstallerSuite) freshInstall() {
-	// Arrange
-
-	// Act
-	s.Require().NoError(s.Installer().Install())
-
-	// Assert
-	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.BinaryPath).
-		WithSignature(agent.GetCodeSignatureThumbprints()).
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().NotEmpty(version)
-		}).
-		HasAService(installerwindows.ServiceName).
-		// the service cannot start because of the missing API key
-		WithStatus("Stopped").
-		WithIdentity(common.GetIdentityForSID(common.LocalSystemSID))
-}
-
 func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Arrange
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.ConfigPath)
@@ -82,9 +58,8 @@ func (s *testInstallerSuite) uninstall() {
 	s.Require().NoError(s.Installer().Uninstall())
 
 	// Assert
+	s.requireUninstalled()
 	s.Require().Host(s.Env().RemoteHost).
-		NoFileExists(installerwindows.BinaryPath).
-		HasNoService(installerwindows.ServiceName).
 		FileExists(installerwindows.ConfigPath)
 }
 
@@ -92,9 +67,12 @@ func (s *testInstallerSuite) installWithExistingConfigFile() {
 	// Arrange
 
 	// Act
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile("with-config-install.log"),
+	))
 
 	// Assert
+	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
@@ -106,9 +84,12 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Env().RemoteHost.Remove(installerwindows.BinaryPath))
 
 	// Act
-	s.Require().NoError(s.Installer().Install())
+	s.Require().NoError(s.Installer().Install(
+		installerwindows.WithMSILogFile("repair.log"),
+	))
 
 	// Assert
+	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")

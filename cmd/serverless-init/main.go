@@ -41,8 +41,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
@@ -96,8 +96,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger)
 
 	err := modeConf.Runner(logConfig)
 
@@ -107,11 +107,11 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog())
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -123,7 +123,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog(), false)),
+			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -134,11 +134,11 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := pkgconfig.LoadWithoutSecret()
+	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger)
 
 	traceAgent := setupTraceAgent(tags)
 
@@ -151,7 +151,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
-	traceAgent := trace.StartServerlessTraceAgent(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfigsetup.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
@@ -162,8 +162,8 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
-	pkgconfig.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,

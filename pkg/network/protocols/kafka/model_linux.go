@@ -70,7 +70,8 @@ RawKernelTelemetry{
 		"in range [81, 90]": %d,
 		"in range [91, 255]": %d,
 	}
-}`, t.Name_size_buckets[0], t.Name_size_buckets[1], t.Name_size_buckets[2], t.Name_size_buckets[3],
-		t.Name_size_buckets[4], t.Name_size_buckets[5], t.Name_size_buckets[6], t.Name_size_buckets[7],
-		t.Name_size_buckets[8], t.Name_size_buckets[9])
+	"produce no required acks": %d,
+}`, t.Topic_name_size_buckets[0], t.Topic_name_size_buckets[1], t.Topic_name_size_buckets[2], t.Topic_name_size_buckets[3],
+		t.Topic_name_size_buckets[4], t.Topic_name_size_buckets[5], t.Topic_name_size_buckets[6], t.Topic_name_size_buckets[7],
+		t.Topic_name_size_buckets[8], t.Topic_name_size_buckets[9], t.Produce_no_required_acks)
 }

@@ -24,7 +24,7 @@ import (
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,8 +50,14 @@ const (
 	socket  = "socket"
 	service = "service"
 
-	// DatadogVolumeName is the name of the volume used to mount the socket
+	// DatadogVolumeName is the name of the volume used to mount the sockets when the volume source is a directory
 	DatadogVolumeName = "datadog"
+
+	// TraceAgentSocketVolumeName is the name of the volume used to mount the trace agent socket
+	TraceAgentSocketVolumeName = "datadog-trace-agent"
+
+	// DogstatsdSocketVolumeName is the name of the volume used to mount the dogstatsd socket
+	DogstatsdSocketVolumeName = "datadog-dogstatsd"
 
 	webhookName = "agent_config"
 )
@@ -69,7 +75,7 @@ var (
 
 	agentHostServiceEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
 	defaultDdEntityIDEnvVar = corev1.EnvVar{
@@ -84,12 +90,12 @@ var (
 
 	traceURLSocketEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
 
 	dogstatsdURLSocketEnvVar = corev1.EnvVar{
 		Name:  dogstatsdURLEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
 	}
 )
 
@@ -109,11 +115,11 @@ type Webhook struct {
 func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       config.Datadog().GetBool("admission_controller.inject_config.enabled"),
-		endpoint:        config.Datadog().GetString("admission_controller.inject_config.endpoint"),
+		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled"),
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:       []string{"pods"},
 		operations:      []admiv1.OperationType{admiv1.Create},
-		mode:            config.Datadog().GetString("admission_controller.inject_config.mode"),
+		mode:            pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.mode"),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
 	}
@@ -184,11 +190,10 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog().GetString("admission_controller.inject_config.socket_path"), true)
-		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		injectedVolumes := injectSocketVolumes(pod)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
-		injectedConfig = injectedEnv || injectedVol
+		injectedConfig = injectedVolumes || injectedEnv
 	default:
 		log.Errorf("invalid injection mode %q", w.mode)
 		return false, errors.New(metrics.InvalidInput)
@@ -245,14 +250,13 @@ func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	return
 }
 
-func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
-	pathType := corev1.HostPathDirectoryOrCreate
+func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
 		Name: volumeName,
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
 				Path: path,
-				Type: &pathType,
+				Type: &hostpathType,
 			},
 		},
 	}
@@ -264,4 +268,53 @@ func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.
 	}
 
 	return volume, volumeMount
+}
+
+// injectSocketVolumes injects the volumes for the dogstatsd and trace agent
+// sockets.
+//
+// The type of the volume injected can be either a directory or a socket
+// depending on the configuration. They offer different trade-offs. Using a
+// socket ensures no lost traces or dogstatsd metrics but can cause the pod to
+// wait if the agent has issues that prevent it from creating the sockets.
+//
+// This function returns true if at least one volume was injected.
+func injectSocketVolumes(pod *corev1.Pod) bool {
+	var injectedVolNames []string
+
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
+		volumes := map[string]string{
+			DogstatsdSocketVolumeName: strings.TrimPrefix(
+				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
+			),
+			TraceAgentSocketVolumeName: strings.TrimPrefix(
+				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
+			),
+		}
+
+		for volumeName, volumePath := range volumes {
+			volume, volumeMount := buildVolume(volumeName, volumePath, corev1.HostPathSocket, true)
+			injectedVol := common.InjectVolume(pod, volume, volumeMount)
+			if injectedVol {
+				injectedVolNames = append(injectedVolNames, volumeName)
+			}
+		}
+	} else {
+		volume, volumeMount := buildVolume(
+			DatadogVolumeName,
+			pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.socket_path"),
+			corev1.HostPathDirectoryOrCreate,
+			true,
+		)
+		injectedVol := common.InjectVolume(pod, volume, volumeMount)
+		if injectedVol {
+			injectedVolNames = append(injectedVolNames, DatadogVolumeName)
+		}
+	}
+
+	for _, volName := range injectedVolNames {
+		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volName)
+	}
+
+	return len(injectedVolNames) > 0
 }

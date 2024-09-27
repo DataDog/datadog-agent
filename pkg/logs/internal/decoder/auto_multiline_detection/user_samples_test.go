@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestUserPatternsInvalidConfig(t *testing.T) {
@@ -20,7 +20,7 @@ logs_config:
   auto_multi_line_detection_custom_samples:
     - foo bar
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 0, len(samples.samples))
@@ -34,7 +34,7 @@ logs_config:
       match_threshold: "abcd"
       label: foo bar
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 0, len(samples.samples))
@@ -49,7 +49,7 @@ logs_config:
   auto_multi_line_detection_custom_samples:
     - sample: "sample"
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, expectedOutput, samples.samples[0].tokens)
@@ -71,7 +71,7 @@ logs_config:
     - sample: "4"
       label: "invalid"
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 3, len(samples.samples))
@@ -97,7 +97,7 @@ logs_config:
     - match_threshold: 0.1
     - label: no_aggregate
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
 	assert.Equal(t, 2, len(samples.samples))
@@ -113,7 +113,7 @@ logs_config:
     - sample: "!!![$my custom prefix%]"
 `
 
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig)
 	tokenizer := NewTokenizer(60)
 
@@ -152,7 +152,7 @@ logs_config:
       label: no_aggregate
 `
 
-	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig)
 	tokenizer := NewTokenizer(60)
 
@@ -167,6 +167,83 @@ logs_config:
 		{noAggregate, false, "!!![$my custom prefix%] some other log line"},
 		{noAggregate, false, "!!![$my slight variation%] some other log line"},
 		{noAggregate, false, "!!![$Not_close_enough%] some other log line"}, // Now this case works with a lower match threshold
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
+}
+
+func TestUserPatternsRegexProcess(t *testing.T) {
+
+	datadogYaml := `
+logs_config:
+  auto_multi_line_extra_patterns:
+    - "le\\wacy"
+  auto_multi_line_detection_custom_samples:
+    - regex: "(foo|bar)test\\d+"
+`
+
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
+	samples := NewUserSamples(mockConfig)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{aggregate, true, ""},
+		{aggregate, true, "some random log line"},
+		{aggregate, true, "2023-03-28T14:33:53.743350Z App started successfully"},
+		{startGroup, false, "footest123 some other log line"},
+		{startGroup, false, "bartest123 some other log line"},
+		{startGroup, false, "legacy pattern should match me"},
+		{aggregate, true, "!!![$Not_close_enough%] some other log line"},
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
+}
+
+func TestUserPatternsProcessRegexCustomSettings(t *testing.T) {
+
+	datadogYaml := `
+logs_config:
+  auto_multi_line_detection_custom_samples:
+    - regex: "(foo|bar)test\\d+"
+      label: no_aggregate
+`
+
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
+	samples := NewUserSamples(mockConfig)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{aggregate, true, ""},
+		{aggregate, true, "some random log line"},
+		{aggregate, true, "2023-03-28T14:33:53.743350Z App started successfully"},
+		{noAggregate, false, "footest123 some other log line"},
+		{noAggregate, false, "bartest123 some other log line"},
 	}
 
 	for _, test := range tests {

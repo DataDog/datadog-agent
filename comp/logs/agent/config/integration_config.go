@@ -289,6 +289,21 @@ func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
 }
 
+// ExperimentalAutoMultiLineEnabled determines whether experimental auto multi line detection is enabled for this config.
+// NOTE - this setting is subject to change as the feature is still experimental and being tested.
+// If logs_config.experimental_auto_multi_line_detection, but the log source has AutoMultiLine explicitly set to false,
+// disable the feature.
+func (c *LogsConfig) ExperimentalAutoMultiLineEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	if !coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+		return false
+	}
+
+	if c.AutoMultiLine != nil && !*c.AutoMultiLine {
+		return false
+	}
+	return true
+}
+
 // ShouldProcessRawMessage returns if the raw message should be processed instead
 // of only the message content.
 // This is tightly linked to how messages are transmitted through the pipeline.

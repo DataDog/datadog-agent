@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import datetime
 import io
 import json
 import os
 import re
 import tarfile
+import urllib.parse
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, overload
 
@@ -250,3 +252,47 @@ def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJ
                 break
 
     return setup_jobs, test_jobs
+
+
+def get_kmt_dashboard_links() -> None | list:
+    stage = os.environ.get("CI_JOB_STAGE")
+    pipeline = os.environ.get("CI_PIPELINE_ID")
+    branch = os.environ.get("CI_COMMIT_REF_NAME")
+    pipeline_start = os.environ.get("CI_PIPELINE_CREATED_AT")
+
+    # Check we're running in Gitlab CI
+    if pipeline_start is None or branch is None or pipeline is None or stage is None:
+        return None
+
+    # Check this is a KMT job
+    if "kernel_matrix_testing" not in stage:
+        return None
+
+    try:
+        pipeline_start_date = datetime.datetime.fromisoformat(pipeline_start)
+    except Exception:
+        print(f"Error: Could not parse pipeline start date {pipeline_start}")
+        return None
+
+    dashboard_end = pipeline_start_date + datetime.timedelta(hours=4)
+
+    query_args = {
+        "fromUser": "false",
+        "refresh_mode": "paused",
+        "tpl_var_ci.pipeline.id[0]": pipeline,
+        "tpl_var_git-branch[0]": branch,
+        "from_ts": int(pipeline_start_date.timestamp()) * 1000,
+        "to_ts": int(dashboard_end.timestamp()) * 1000,
+        "live": "false",
+    }
+
+    url = f"https://app.datadoghq.com/dashboard/zs9-uia-gsg?{urllib.parse.urlencode(query_args)}"
+
+    return [
+        {
+            "external_link": {
+                "label": "KMT: Pipeline dashboard",
+                "url": url,
+            }
+        }
+    ]

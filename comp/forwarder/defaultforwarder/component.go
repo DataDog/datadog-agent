@@ -29,11 +29,12 @@ func Module(params Params) fxutil.Module {
 	)
 }
 
-// ModuleWithProvider defines the fx options for this component.
-func ModuleWithProvider[T1 any, T2 any](provider func(T1, T2) Params) fxutil.Module {
+// ModulWithOptionTMP defines the fx options for this component with an option.
+// This is a temporary function to until configsync is cleanup.
+func ModulWithOptionTMP(option fx.Option) fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newForwarder),
-		fx.Provide(provider),
+		option,
 	)
 }
 

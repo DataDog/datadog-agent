@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -36,7 +37,9 @@ func (tf *testFactory) MakeTailer(source *sources.LogSource) (tailerfactory.Tail
 }
 
 func TestStartStop(t *testing.T) {
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 
 	sp := launchers.NewMockSourceProvider()
 	pl := pipeline.NewMockProvider()
@@ -54,7 +57,9 @@ func TestStartStop(t *testing.T) {
 }
 
 func TestAddsRemovesSource(t *testing.T) {
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name}, nil
@@ -83,7 +88,9 @@ func TestAddsRemovesSource(t *testing.T) {
 }
 
 func TestCannotMakeTailer(t *testing.T) {
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
 			return nil, errors.New("uhoh")
@@ -104,7 +111,9 @@ func TestCannotMakeTailer(t *testing.T) {
 }
 
 func TestCannotStartTailer(t *testing.T) {
-	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component](), fakeTagger)
 	l.tailerFactory = &testFactory{
 		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
 			return &tailerfactory.TestTailer{Name: source.Name, StartError: true}, nil

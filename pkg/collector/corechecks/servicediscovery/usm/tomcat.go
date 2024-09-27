@@ -132,8 +132,14 @@ func (te tomcatExtractor) parseServerXML(domainHome string) *tomcatServerXML {
 		log.Debugf("Unable to locate tomcat server.xml (%q). Err: %v", xmlFilePath, err)
 		return nil
 	}
+	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		log.Debugf("Invalid tomcat server.xml (%q). Err %v", xmlFilePath, err)
+		return nil
+	}
 	var serverXML tomcatServerXML
-	err = xml.NewDecoder(file).Decode(&serverXML)
+	err = xml.NewDecoder(reader).Decode(&serverXML)
 	if err != nil {
 		log.Debugf("Unable to parse tomcat server.xml (%q). Err: %v", xmlFilePath, err)
 		return nil

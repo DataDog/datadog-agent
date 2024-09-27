@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -277,7 +276,7 @@ reverse_dns_enrichment:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.ConfFromYAML(tt.configYaml)
+			mockConfig := mock.NewFromYAML(t, tt.configYaml)
 			testConfig := newConfig(mockConfig)
 			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})

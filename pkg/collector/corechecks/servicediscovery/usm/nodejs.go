@@ -73,19 +73,34 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 // FindNameFromNearestPackageJSON finds the package.json walking up from the abspath.
 // if a package.json is found, returns the value of the field name if declared
 func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string, bool) {
+	var (
+		value           string
+		currentFilePath string
+		ok              bool
+	)
+
 	current := path.Dir(absFilePath)
 	up := path.Dir(current)
-	for run := true; run; run = current != up {
-		value, ok := n.maybeExtractServiceName(path.Join(current, "package.json"))
-		if ok {
-			return value, ok && len(value) > 0
+
+	for {
+		currentFilePath = path.Join(current, "package.json")
+		value, ok = n.maybeExtractServiceName(currentFilePath)
+		if ok || current == up {
+			break
 		}
+
 		current = up
 		up = path.Dir(current)
 	}
-	value, ok := n.maybeExtractServiceName(path.Join(current, "package.json")) // this is for the root folder
-	return value, ok && len(value) > 0
 
+	foundServiceName := ok && len(value) > 0
+	if foundServiceName {
+		// Save package.json path for the instrumentation detector to use.
+		n.ctx.contextMap[NodePackageJSONPath] = currentFilePath
+		n.ctx.contextMap[ServiceSubFS] = n.ctx.fs
+	}
+
+	return value, foundServiceName
 }
 
 // maybeExtractServiceName return true if a package.json has been found and eventually the value of its name field inside.
@@ -96,16 +111,13 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	ok, err := canSafelyParse(file)
+	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
 	if err != nil {
-		//file not accessible or don't exist. Continuing searching up
-		return "", false
-	}
-	if !ok {
-		log.Debugf("skipping package.js (%q) because too large", filename)
+		log.Debugf("skipping package.js (%q). Err: %v", filename, err)
 		return "", true // stops here
 	}
-	bytes, err := io.ReadAll(file)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		log.Debugf("unable to read a package.js file (%q). Err: %v", filename, err)
 		return "", true
