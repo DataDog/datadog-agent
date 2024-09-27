@@ -44,10 +44,12 @@ func (v *windowsStatusSuite) TestStatusHostname() {
 
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *windowsStatusSuite) TestChecksMetadataWindows() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
-		agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
-		agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
-	)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(
+			agentparams.WithFile("C:/ProgramData/Datadog/conf.d/custom_check.d/conf.yaml", string(customCheckYaml), true),
+			agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
+		)))
 
 	section := expectedSection{
 		name:            "Collector",
