@@ -64,6 +64,8 @@ type Installer interface {
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
+
+	Close() error
 }
 
 // installerImpl is the implementation of the package manager.
@@ -82,7 +84,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env) (Installer, error) {
+func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -91,9 +93,13 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+	cdn, err := cdn.New(env, configDBPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not create CDN client: %w", err)
+	}
 	return &installerImpl{
 		env:        env,
-		cdn:        cdn.New(env),
+		cdn:        cdn,
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
@@ -394,6 +400,11 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
 	return nil
+}
+
+// Close cleans up the Installer's dependencies
+func (i *installerImpl) Close() error {
+	return i.cdn.Close()
 }
 
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
