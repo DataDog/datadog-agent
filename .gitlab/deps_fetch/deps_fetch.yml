@@ -59,7 +59,7 @@ go_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_deps_modcache"
       paths:
-        - $CI_PROJECT_DIR/modcache.tar.xz
+        - modcache.tar.xz
 
 go_tools_deps:
   extends: .cache
@@ -78,7 +78,7 @@ go_tools_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps_modcache"
       paths:
-        - $CI_PROJECT_DIR/modcache_tools.tar.xz
+        - modcache_tools.tar.xz
 
 go_e2e_deps:
   extends: .cache
@@ -97,4 +97,4 @@ go_e2e_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_e2e_deps_modcache"
       paths:
-        - $CI_PROJECT_DIR/modcache_e2e.tar.xz
+        - modcache_e2e.tar.xz
