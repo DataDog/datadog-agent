@@ -42,13 +42,13 @@ func newTestConfig(repo testRepositories) model.Config {
 	return cfg
 }
 
-func newTestClient(db *bbolt.DB, cfg model.Config) (*Client, error) {
+func newTestClient(db *bbolt.DB, cfg model.Config) (*CoreAgentClient, error) {
 	opts := []ClientOption{
 		WithOrgIDCheck(2),
 		WithConfigRootOverride("datadoghq.com", cfg.GetString("remote_configuration.config_root")),
 		WithDirectorRootOverride("datadoghq.com", cfg.GetString("remote_configuration.director_root")),
 	}
-	return NewClient(db, getTestOrgUUIDProvider(2), opts...)
+	return NewCoreAgentClient(db, getTestOrgUUIDProvider(2), opts...)
 }
 
 func TestClientState(t *testing.T) {
@@ -278,7 +278,7 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 
 func TestOrgStore(t *testing.T) {
 	db := getTestDB(t)
-	client, err := NewClient(db, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	client, err := NewCoreAgentClient(db, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Store key
