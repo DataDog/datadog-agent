@@ -257,17 +257,18 @@ build do
         ]
 
         symbol = "_Cfunc_go_openssl"
-        check_block = Proc.new { |symbols|
+        check_block = Proc.new { |binary, symbols|
           count = symbols.scan(symbol).count
           if count > 0
             log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{@binary}'." }
           else
             raise FIPSSymbolsNotFound.new("Expected to find '#{@symbol}' symbol in #{@binary} but did not")
           end
-        }
+        }.curry
 
         LINUX_BINARIES.each do |bin|
-          GoSymbolsInspector.new(bin,  &check_block).inspect()
+          partially_applied_check = check_block.call(bin)
+          GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
         end
       end
   end
