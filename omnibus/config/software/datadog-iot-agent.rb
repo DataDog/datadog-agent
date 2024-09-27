@@ -11,6 +11,8 @@ name 'datadog-iot-agent'
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
+dependency "systemd" if linux_target?
+
 build do
   license :project_license
 
