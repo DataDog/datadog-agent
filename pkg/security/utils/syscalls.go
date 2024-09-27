@@ -388,6 +388,7 @@ var Syscalls = map[SyscallKey]string{
 	{"amd64", 459}: "lsm_get_self_attr",
 	{"amd64", 460}: "lsm_set_self_attr",
 	{"amd64", 461}: "lsm_list_modules",
+	{"amd64", 462}: "mseal",
 
 	// arm64 syscalls
 	{"arm64", 0}:   "io_setup",
@@ -728,5 +729,5 @@ var Syscalls = map[SyscallKey]string{
 	{"arm64", 459}: "lsm_get_self_attr",
 	{"arm64", 460}: "lsm_set_self_attr",
 	{"arm64", 461}: "lsm_list_modules",
-	{"arm64", 462}: "syscalls",
+	{"arm64", 462}: "mseal",
 }
