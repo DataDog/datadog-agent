@@ -5,6 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=nvInfoAttr,nvInfoFormat,fatbinDataKind -linecomment
 
+// package cuda provides helpers for CUDA binary parsing
 package cuda
 
 import (
