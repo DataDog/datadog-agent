@@ -32,7 +32,7 @@ import (
 
 func TestGoDI(t *testing.T) {
 	if err := rlimit.RemoveMemlock(); err != nil {
-		require.NoError(t, rlimit.RemoveMemlock())
+		t.Error(err)
 	}
 
 	if features.HaveMapType(ebpf.RingBuf) != nil {
