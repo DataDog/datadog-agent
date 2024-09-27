@@ -136,7 +136,6 @@ func ExpectedTagsDuration(coreConfig pkgconfigmodel.Reader) time.Duration {
 
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
 func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
-	log.Infof("Expected Tags Duration = %v", ExpectedTagsDuration(coreConfig))
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
