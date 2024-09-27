@@ -234,7 +234,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		}
 
 		// If the object is owned by remote config and newer, we need to update the spec in Kubernetes
-		// If Kubernetes is newer, we update creation timestamp and wait for RC to update the rest of object in our internal store.
+		// If Kubernetes is newer, we wait for RC to update the object in our internal store.
 		if podAutoscalerInternal.Spec().RemoteVersion != nil &&
 			podAutoscaler.Spec.RemoteVersion != nil &&
 			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
@@ -245,12 +245,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			return autoscaling.Requeue, err
 		}
 
-		podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
-
 		// If Generation != podAutoscaler.Generation, we should compute `.Spec` hash
 		// and compare it with the one in the PodAutoscaler. If they differ, we should update the PodAutoscaler
 		// otherwise store the Generation
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
+			podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
+
 			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec)
 			if err != nil {
 				c.store.Unlock(key)
