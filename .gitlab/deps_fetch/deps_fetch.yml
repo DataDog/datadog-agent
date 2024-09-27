@@ -4,7 +4,6 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - echo $GOPATH/pkg/mod/cache
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
@@ -47,7 +46,7 @@ go_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - modcache.tar.xz
+      - $CI_PROJECT_DIR/modcache.tar.xz
   cache:
     # The `cache:key:files` only accepts up to two path ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
     # Ideally, we should also include the https://github.com/DataDog/datadog-agent/blob/main/.custom-gcl.yml file to
@@ -60,7 +59,7 @@ go_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_deps_modcache"
       paths:
-        - modcache.tar.xz
+        - $CI_PROJECT_DIR/modcache.tar.xz
 
 go_tools_deps:
   extends: .cache
@@ -71,7 +70,7 @@ go_tools_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - modcache_tools.tar.xz
+      - $CI_PROJECT_DIR/modcache_tools.tar.xz
   cache:
     - key:
         files:
@@ -79,7 +78,7 @@ go_tools_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_tools_deps_modcache"
       paths:
-        - modcache_tools.tar.xz
+        - $CI_PROJECT_DIR/modcache_tools.tar.xz
 
 go_e2e_deps:
   extends: .cache
@@ -90,7 +89,7 @@ go_e2e_deps:
   artifacts:
     expire_in: 1 day
     paths:
-      - modcache_e2e.tar.xz
+      - $CI_PROJECT_DIR/modcache_e2e.tar.xz
   cache:
     - key:
         files:
@@ -98,4 +97,4 @@ go_e2e_deps:
           - .gitlab/deps_fetch/deps_fetch.yml
         prefix: "go_e2e_deps_modcache"
       paths:
-        - modcache_e2e.tar.xz
+        - $CI_PROJECT_DIR/modcache_e2e.tar.xz
