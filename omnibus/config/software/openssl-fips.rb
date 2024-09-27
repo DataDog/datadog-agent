@@ -48,7 +48,7 @@ build do
     copy "#{resources_path}/openssl.cnf", "#{install_dir}/embedded/ssl/openssl.cnf.tmp"
     erb source: "fipsinstall.sh.erb",
         dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
-        mode: 0644,
+        mode: 0755,
         vars: { install_dir: install_dir }
 
 end
