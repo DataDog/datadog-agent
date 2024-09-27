@@ -22,31 +22,34 @@ import (
 
 type fatbinDataKind uint16
 
-const FATBIN_DATA_KIND_PTX fatbinDataKind = 1
-const FATBIN_DATA_KIND_SM fatbinDataKind = 2
+const fatbinDataKindPtx fatbinDataKind = 1
+const fatbinDataKindSm fatbinDataKind = 2
 
 const fatbinMagic = 0xBA55ED50
 const fatbinHeaderVersion = 1
 const fatbinDataVersion = 0x0101
-const fatbinDataMinKind = FATBIN_DATA_KIND_PTX
-const fatbinDataMaxKind = FATBIN_DATA_KIND_SM
+const fatbinDataMinKind = fatbinDataKindPtx
+const fatbinDataMaxKind = fatbinDataKindSm
 
+// Fatbin holds all CUDA binaries found in one fatbin package
 type Fatbin struct {
 	Kernels map[CubinKernelKey]*CubinKernel
 }
 
+// CubinKernelKey is the key to identify a kernel in a fatbin
 type CubinKernelKey struct {
 	Name      string
 	SmVersion uint32
 }
 
+// CubinKernel holds the information of a CUDA kernel
 type CubinKernel struct {
-	Name        string
-	attributes  map[nvInfoAttr]nvInfoParsedItem
-	SymtabIndex int
-	KernelSize  uint64
-	SharedMem   uint64
-	ConstantMem uint64
+	Name        string                          // Name of the kernel
+	attributes  map[nvInfoAttr]nvInfoParsedItem // Attributes of the kernel
+	SymtabIndex int                             // Index of this kernel in the ELF symbol table
+	KernelSize  uint64                          // Size of the kernel in bytes
+	SharedMem   uint64                          // Size of the shared memory used by the kernel
+	ConstantMem uint64                          // Size of the constant memory used by the kernel
 }
 
 // GetKernel returns the kernel with the given name and SM version from the fatbin
@@ -82,6 +85,7 @@ type fatbinData struct {
 	UncompressedPayloadSize uint64
 }
 
+// ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
 func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
 	elfFile, err := elf.Open(path)
 	if err != nil {
@@ -157,7 +161,7 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 					}
 				}
 
-				if dataKind != FATBIN_DATA_KIND_SM {
+				if dataKind != fatbinDataKindSm {
 					// We only support SM data for now, skip this one
 					_, err := buffer.Seek(int64(fatbinData.PaddedPayloadSize), io.SeekCurrent)
 					if err != nil {
