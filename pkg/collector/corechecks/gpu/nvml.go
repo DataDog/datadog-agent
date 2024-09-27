@@ -11,9 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
-	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
