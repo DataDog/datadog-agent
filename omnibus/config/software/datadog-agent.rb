@@ -260,9 +260,9 @@ build do
         check_block = Proc.new { |binary, symbols|
           count = symbols.scan(symbol).count
           if count > 0
-            log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{@binary}'." }
+            log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
           else
-            raise FIPSSymbolsNotFound.new("Expected to find '#{@symbol}' symbol in #{@binary} but did not")
+            raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
           end
         }.curry
 
