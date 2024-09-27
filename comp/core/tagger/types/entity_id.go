@@ -29,38 +29,39 @@ type EntityID interface {
 
 // defaultEntityID implements EntityID as a plain string id
 type defaultEntityID struct {
-	id string
+	id     string
+	prefix string
 }
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	separatorIndex := strings.Index(de.id, separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return de.id[separatorIndex+separatorLength:]
+	return de.id
 }
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	separatorIndex := strings.Index(de.id, separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return EntityIDPrefix(de.id[:separatorIndex])
+	return EntityIDPrefix(de.prefix)
 }
 
 // String implements EntityID#String
 func (de defaultEntityID) String() string {
-	return de.id
+	return de.prefix + separator + de.id
 }
 
 func newDefaultEntityID(id string) EntityID {
-	return defaultEntityID{id: id}
+	separatorIndex := strings.Index(id, separator)
+
+	if separatorIndex == -1 {
+		return defaultEntityID{
+			prefix: "",
+			id:     "",
+		}
+	}
+
+	return defaultEntityID{
+		prefix: id[:separatorIndex],
+		id:     id[separatorIndex+separatorLength:],
+	}
 }
 
 // compositeEntityID implements EntityID as a struct of prefix and id
