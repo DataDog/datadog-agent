@@ -149,6 +149,7 @@ func runFipsServer(v *fipsServerSuite, command string) {
 		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --network fips-network --name fips-server ghcr.io/datadog/apps-fips-server:main " + command)
 		if err != nil {
 			v.T().Logf("Error starting fips-server: %v", err)
+			require.NoError(t, err)
 		}
 	}, 10*time.Second, 2*time.Second)
 
