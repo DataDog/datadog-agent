@@ -1,8 +1,30 @@
+# We could (should?) piggy back on deploy_installer_packages_windows-x64 to also deploy this
+# script to $S3_RELEASE_INSTALLER_ARTIFACTS_URI and have the agent-release-management repository
+# publish it to a production bucket.
+# For now we can use the dd-agent-omnibus bucket to store the PowerShell script.
 powershell_script_deploy:
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
   stage: choco_and_install_script_deploy
   rules:
     !reference [.manual]
   needs: ["powershell_script_signing"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/Install-Datadog.ps1 s3://dd-agent/scripts/Install-Datadog.ps1 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/Install-Datadog.ps1 s3://dd-agent-omnibus/Install-Datadog.ps1 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# Technically deploy_installer_packages_windows-x64 also uploads the bootstrapper to $S3_RELEASE_INSTALLER_ARTIFACTS_URI
+# but it requires changes in agent-release-management to deploy to a production bucket.
+# For now we can use the dd-agent-omnibus bucket to store the bootstrapper.
+windows_bootsrapper_deploy:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  stage: choco_and_install_script_deploy
+  rules:
+    !reference [.manual]
+  needs: ["windows-installer-amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer-*-1-x86_64.exe s3://dd-agent-omnibus/datadog-installer-x86_64.exe --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
