@@ -33,6 +33,7 @@ func NewTeeConfig(baseline, compare model.Config) model.Config {
 // Callbacks are only called if the value is effectively changed.
 func (t *teeConfig) OnUpdate(callback model.NotificationReceiver) {
 	t.baseline.OnUpdate(callback)
+	t.compare.OnUpdate(callback)
 }
 
 // Set wraps Viper for concurrent access

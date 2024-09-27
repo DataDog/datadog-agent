@@ -242,10 +242,16 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 
 func init() {
 	osinit()
+
 	// Configure Datadog global configuration
-	if val, found := os.LookupEnv("DD_CONF_NODETREEMODEL"); found && val == "enable" {
+	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	// Possible values for DD_CONF_NODETREEMODEL:
+	// - "enable": Use the nodetreemodel for the config, instead of viper
+	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - other:    Use viper for the config
+	if found && envvar == "enable" {
 		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	} else if val, found := os.LookupEnv("DD_CONF_NODETREEMODEL"); found && val == "tee" {
+	} else if found && envvar == "tee" {
 		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
