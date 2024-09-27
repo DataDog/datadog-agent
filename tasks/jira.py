@@ -64,16 +64,19 @@ def get_failing_tests_names() -> set[str]:
         return tests
 
 
-def get_failed_tests_issues() -> list[dict]:
-    print('Getting potential issues to close')
-
+def get_jira():
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
     jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
 
-    issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
+    return jira
 
-    return issues
+
+def close_failing_test_issue(jira, issue_key: str, verbose_test: str):
+    print('Marking as done issue', issue_key, 'for test', verbose_test)
+
+    jira.issue_add_comment(issue_key, 'Marking this issue as done since the test is not failing anymore')
+    jira.issue_transition(issue_key, 'Done')
 
 
 @task
@@ -88,11 +91,14 @@ def close_failing_tests_stale_issues(_):
     This task is executed periodically.
     """
 
-    robot_name = 'Robot Slack SRE'
     re_test_name = re.compile('Test name: (.*)\n')
 
     still_failing = get_failing_tests_names()
-    issues = get_failed_tests_issues()
+    jira = get_jira()
+
+    print('Getting potential issues to close')
+    # issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
+    issues = jira.jql('project = "CELIANTST" AND status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
 
     print(f'{len(issues)} failing test cards found')
 
@@ -104,7 +110,8 @@ def close_failing_tests_stale_issues(_):
             has_no_comments = True
             test_name = None
             for comment in comments:
-                if comment['author']['displayName'] != robot_name:
+                # This is not a bot message
+                if 'robot' not in comment['author']['displayName'].casefold():
                     has_no_comments = False
                     break
 
@@ -113,8 +120,7 @@ def close_failing_tests_stale_issues(_):
                     test_name = test_name_match[0]
 
             if has_no_comments and test_name and test_name not in still_failing:
-                print(f'Closing issue {issue["key"]} for test {test_name}')
-                # todo
+                close_failing_test_issue(jira, issue['key'], test_name)
                 n_closed += 1
         except Exception as e:
             print(f'Error processing issue {issue["key"]}: {e}', file=sys.stderr)
