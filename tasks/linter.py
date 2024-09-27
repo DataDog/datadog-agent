@@ -17,11 +17,11 @@ from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
-    get_gitlab_repo,
     get_preset_contexts,
     load_context,
     read_includes,
     retrieve_all_paths,
+    test_gitlab_configuration,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
@@ -412,33 +412,8 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
     """
-
-    agent = get_gitlab_repo()
-    has_errors = False
-
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx)
-
-    def test_gitlab_configuration(entry_point, input_config, context=None):
-        nonlocal has_errors
-
-        # Update config and lint it
-        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
-        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
-        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
-        if len(res.warnings) > 0:
-            print(
-                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-                file=sys.stderr,
-            )
-        if not res.valid:
-            print(
-                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-                file=sys.stderr,
-            )
-            has_errors = True
+    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
@@ -453,12 +428,9 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(entry_point, input_config, dict(context))
+                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
             else:
-                test_gitlab_configuration(entry_point, input_config)
-
-    if has_errors:
-        raise Exit(code=1)
+                test_gitlab_configuration(ctx, entry_point, input_config)
 
 
 @task
