@@ -7,7 +7,6 @@ package fipscompliance
 
 import (
 	_ "embed"
-	"fmt"
 
 	"testing"
 
@@ -21,7 +20,7 @@ import (
 )
 
 //go:embed fixtures/openssl-default.cnf
-var defaultOpenSSLConfig string
+var defaultOpenSSLConfig []byte
 
 type LinuxFIPSComplianceSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -46,8 +45,8 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 
 func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp")
-	output := v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo sh -c "echo '%s' > /opt/datadog-agent/embedded/ssl/openssl.cnf"`, defaultOpenSSLConfig))
-	assert.Empty(v.T(), output)
+	_, err := v.Env().RemoteHost.WriteFile("/opt/datadog-agent/embedded/ssl/openssl.cnf", defaultOpenSSLConfig)
+	assert.Nil(v.T(), err)
 
 	status, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
 	assert.Nil(v.T(), err)

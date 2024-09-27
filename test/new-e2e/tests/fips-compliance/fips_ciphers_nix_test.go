@@ -70,22 +70,21 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSEnabled() {
 	)
 
 	for command, shouldConnect := range testcases {
-		v.T().Run(fmt.Sprintf("FIPS enabled testing '%v' (should connect %v)", command, shouldConnect), func(t *testing.T) {
+		v.Run(fmt.Sprintf("FIPS enabled testing '%v' (should connect %v)", command, shouldConnect), func() {
 
 			// Start the fips-server and waits for it to be ready
 			runFipsServer(v, command)
+			defer stopFipsServer(v)
 
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
 
 			serverLogs := v.Env().RemoteHost.MustExecute("docker logs fips-server")
 			if shouldConnect {
-				assert.NotContains(t, serverLogs, "no cipher suite supported by both client and server")
+				assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 			} else {
-				assert.Contains(t, serverLogs, "no cipher suite supported by both client and server")
+				assert.Contains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 			}
-
-			stopFipsServer(v)
 		})
 	}
 }
@@ -105,17 +104,18 @@ func (v *fipsServerSuite) TestFIPSCiphersFIPSDisabled() {
 	)
 
 	for command := range testcases {
-		v.T().Run(fmt.Sprintf("FIPS disabled testing '%v'", command), func(t *testing.T) {
+		v.Run(fmt.Sprintf("FIPS disabled testing '%v'", command), func() {
 
 			// Start the fips-server and waits for it to be ready
 			runFipsServer(v, command)
+			defer stopFipsServer(v)
+
 			// Run diagnose to send requests and verify the server logs
 			runAgentDiagnose(v)
 
 			serverLogs := v.Env().RemoteHost.MustExecute("docker logs fips-server")
-			assert.NotContains(t, serverLogs, "no cipher suite supported by both client and server")
+			assert.NotContains(v.T(), serverLogs, "no cipher suite supported by both client and server")
 
-			stopFipsServer(v)
 		})
 	}
 }
@@ -145,8 +145,11 @@ func (v *fipsServerSuite) TestFIPSCiphersTLSVersion() {
 
 func runFipsServer(v *fipsServerSuite, command string) {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		stopFipsServer(v)
 		_, err := v.Env().RemoteHost.Execute("docker run --rm -d --network fips-network --name fips-server ghcr.io/datadog/apps-fips-server:main " + command)
-		require.NoError(t, err)
+		if err != nil {
+			v.T().Logf("Error starting fips-server: %v", err)
+		}
 	}, 10*time.Second, 2*time.Second)
 
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
@@ -161,8 +164,10 @@ func runAgentDiagnose(v *fipsServerSuite) {
 }
 
 func stopFipsServer(v *fipsServerSuite) {
-	_, err := v.Env().RemoteHost.Execute("docker stop fips-server")
-	require.NoError(v.T(), err)
+	fipsContainer := v.Env().RemoteHost.MustExecute("docker container ls -a --filter name=fips-server --format '{{.Names}}'")
+	if fipsContainer != "" {
+		v.Env().RemoteHost.MustExecute("docker stop fips-server")
+	}
 }
 
 func fillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
