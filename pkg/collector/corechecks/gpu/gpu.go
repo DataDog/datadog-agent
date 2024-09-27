@@ -17,7 +17,6 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -33,6 +32,7 @@ import (
 // GPU check
 const CheckName = "gpu"
 
+// CheckConfig holds the configuration for the GPU check
 type CheckConfig struct {
 }
 
@@ -41,7 +41,6 @@ type Check struct {
 	core.CheckBase
 	config         *CheckConfig
 	sysProbeUtil   *processnet.RemoteSysProbeUtil
-	telemetryComp  telemetryComp.Component
 	lastCheckTime  time.Time
 	timeResolver   *sectime.Resolver
 	statProcessors map[uint32]*StatsProcessor
@@ -61,11 +60,12 @@ func newCheck() check.Check {
 }
 
 // Parse parses the check configuration
-func (c *CheckConfig) Parse(data []byte) error {
-	return yaml.Unmarshal(data, c)
+func (m *CheckConfig) Parse(data []byte) error {
+	return yaml.Unmarshal(data, m)
 }
 
-func (c *Check) Cancel() {
+// Cancel cancels the check
+func (m *Check) Cancel() {
 	ret := nvml.Shutdown()
 	if ret != nvml.SUCCESS {
 		log.Warnf("Failed to shutdown NVML: %v", nvml.ErrorString(ret))
