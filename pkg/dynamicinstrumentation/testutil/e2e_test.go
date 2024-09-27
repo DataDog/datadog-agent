@@ -25,12 +25,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/kr/pretty"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestGoDI(t *testing.T) {
+	if err := rlimit.RemoveMemlock(); err != nil {
+		t.Error(err)
+	}
 
 	if features.HaveMapType(ebpf.RingBuf) != nil {
 		t.Skip("ringbuffers not supported on this kernel")
