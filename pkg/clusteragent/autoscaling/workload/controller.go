@@ -59,13 +59,13 @@ type Controller struct {
 	eventRecorder record.EventRecorder
 	store         *store
 
+	limitHeap *autoscaling.HashHeap
+
 	podWatcher           podWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 
 	localSender sender.Sender
-
-	hashHeap *autoscaling.HashHeap
 }
 
 // newController returns a new workload autoscaling controller
@@ -80,7 +80,7 @@ func newController(
 	store *store,
 	podWatcher podWatcher,
 	localSender sender.Sender,
-	hashHeap *autoscaling.HashHeap,
+	limitHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:     clusterID,
@@ -103,10 +103,10 @@ func newController(
 	}
 
 	c.Controller = baseController
-	c.hashHeap = hashHeap
+	c.limitHeap = limitHeap
 	store.RegisterObserver(autoscaling.Observer{
-		SetFunc:    c.hashHeap.InsertIntoHeap,
-		DeleteFunc: c.hashHeap.DeleteFromHeap,
+		SetFunc:    c.limitHeap.InsertIntoHeap,
+		DeleteFunc: c.limitHeap.DeleteFromHeap,
 	})
 	c.store = store
 	c.podWatcher = podWatcher
@@ -400,7 +400,7 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 
 func (c *Controller) validateAutoscaler(key string, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
-	if !c.hashHeap.Exists(key) {
+	if !c.limitHeap.Exists(key) {
 		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
 	}
 
