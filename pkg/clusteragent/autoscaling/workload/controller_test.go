@@ -46,7 +46,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
-	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects)
+	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
 	return &fixture{
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,

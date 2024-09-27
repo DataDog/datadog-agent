@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
+type store = Store[model.PodAutoscalerInternal]
+
 // TimestampKey is a struct that holds a timestamp and key for a `DatadogPodAutoscaler` object
 type TimestampKey struct {
 	Timestamp time.Time
@@ -82,38 +84,40 @@ type HashHeap struct {
 	Keys    map[string]bool
 	maxSize int
 	mu      sync.RWMutex
+	store   *store
 }
 
 // NewHashHeap returns a new MaxHeap with the given max size
-func NewHashHeap(maxSize int) *HashHeap {
+func NewHashHeap(maxSize int, store *store) *HashHeap {
 	return &HashHeap{
 		MaxHeap: *NewMaxHeap(),
 		Keys:    make(map[string]bool),
 		maxSize: maxSize,
 		mu:      sync.RWMutex{},
+		store:   store,
 	}
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
 // Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
+func (h *HashHeap) InsertIntoHeap(key, _sender string) {
 	// Already in heap, do not try to insert
 	if h.Exists(key) {
 		return
 	}
 
-	// Cast object into PodAutoscalerInternal
-	pai, ok := obj.(model.PodAutoscalerInternal)
-	if !ok {
+	// Get object from store
+	podAutoscalerInternal, podAutoscalerInternalFound := h.store.Get(key)
+	if !podAutoscalerInternalFound {
 		return
 	}
 
-	if pai.CreationTimestamp().IsZero() {
+	if podAutoscalerInternal.CreationTimestamp().IsZero() {
 		return
 	}
 
 	newTimestampKey := TimestampKey{
-		Timestamp: pai.CreationTimestamp(),
+		Timestamp: podAutoscalerInternal.CreationTimestamp(),
 		Key:       key,
 	}
 
@@ -135,8 +139,8 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string, obj any) {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-// Used as an ObserverFunc; accept sender and obj as parameter to match ObserverFunc signature
-func (h *HashHeap) DeleteFromHeap(key, _sender string, _obj any) {
+// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
+func (h *HashHeap) DeleteFromHeap(key, _sender string) {
 	// Key did not exist in heap, return early
 	if !h.Exists(key) {
 		return
