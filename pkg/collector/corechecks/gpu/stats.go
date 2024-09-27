@@ -167,8 +167,6 @@ func (sp *StatsProcessor) markInterval() error {
 		}
 	}
 
-	var memTsBuilder tseriesBuilder
-
 	builders := make(map[model.MemAllocType]*tseriesBuilder)
 	getBuilder := func(allocType model.MemAllocType) *tseriesBuilder {
 		if _, ok := builders[allocType]; !ok {
@@ -178,23 +176,20 @@ func (sp *StatsProcessor) markInterval() error {
 	}
 
 	for _, alloc := range sp.currentAllocs {
-		startTime := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		getBuilder(alloc.Type).AddEvent(startTime, int64(alloc.Size))
+		startTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		getBuilder(alloc.Type).AddEventStart(startTime, int64(alloc.Size))
 	}
 	for _, alloc := range sp.pastAllocs {
-		startTime := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		endTime := sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
+		startTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		endTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
 		getBuilder(alloc.Type).AddEvent(startTime, endTime, int64(alloc.Size))
 	}
 
 	lastCheckEpoch := sp.lastCheck.Unix()
 
-	points, maxValue := memTsBuilder.Build()
-	tags := sp.getTags()
-	sentPoints := false
-
-	lastCheckEpoch := sp.lastCheck.Unix()
 	for allocType, builder := range builders {
+		tags := append(sp.getTags(), fmt.Sprintf("memory_type:%s", allocType))
+		sentPoints := false
 		points, maxMemory := builder.Build()
 		for _, point := range points {
 			// Do not send points that are before the last check, those have been already sent
@@ -204,6 +199,7 @@ func (sp *StatsProcessor) markInterval() error {
 				err := sp.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
 				if err != nil {
 					return fmt.Errorf("cannot send metric: %w", err)
+				}
 			}
 
 			if int64(point.time) > sp.maxTimestampLastMetric.Unix() {
@@ -212,9 +208,10 @@ func (sp *StatsProcessor) markInterval() error {
 
 			sentPoints = true
 		}
+
+		sp.sender.Gauge(metricNameMaxMem, float64(maxMemory), "", tags)
 	}
 
-	sp.sender.Gauge(metricNameMaxMem, float64(maxValue), "", tags)
 	sp.sentEvents++
 
 	return nil
