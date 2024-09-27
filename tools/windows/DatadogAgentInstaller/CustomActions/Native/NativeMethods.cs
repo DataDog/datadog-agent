@@ -934,7 +934,7 @@ namespace Datadog.CustomActions.Native
             if (err != ReturnCodes.NO_ERROR)
             {
                 throw new Exception($"Failed to get version string for product {product}",
-                                       new Win32Exception((int)err));
+                    new Win32Exception((int)err));
             }
 
             return builder.ToString();
