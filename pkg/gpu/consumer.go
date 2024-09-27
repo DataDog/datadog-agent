@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -18,42 +19,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// CudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
+// to the appropriate stream handler.
 type CudaEventConsumer struct {
 	eventHandler   ddebpf.EventHandler
 	requests       chan chan struct{}
 	once           sync.Once
 	closed         chan struct{}
-	streamHandlers map[StreamKey]*StreamHandler
+	streamHandlers map[model.StreamKey]*StreamHandler
 	wg             sync.WaitGroup
 }
 
+// NewCudaEventConsumer creates a new CUDA event consumer.
 func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
 	return &CudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
-		streamHandlers: make(map[StreamKey]*StreamHandler),
+		streamHandlers: make(map[model.StreamKey]*StreamHandler),
 	}
 }
 
-func (c *CudaEventConsumer) FlushPending() {
-	if c == nil {
-		return
-	}
-
-	select {
-	case <-c.closed:
-		return
-	default:
-	}
-
-	wait := make(chan struct{})
-	select {
-	case <-c.closed:
-	case c.requests <- wait:
-		<-wait
-	}
-}
-
+// Stop stops the CUDA event consumer.
 func (c *CudaEventConsumer) Stop() {
 	if c == nil {
 		return
@@ -65,6 +51,7 @@ func (c *CudaEventConsumer) Stop() {
 	})
 }
 
+// Start starts the CUDA event consumer.
 func (c *CudaEventConsumer) Start() {
 	if c == nil {
 		return
@@ -84,7 +71,7 @@ func (c *CudaEventConsumer) Start() {
 				log.Warnf("error de-registering health check: %s", err)
 			}
 			c.wg.Done()
-			log.Infof("CUDA event consumer stopped")
+			log.Debugf("CUDA event consumer stopped")
 		}()
 
 		dataChannel := c.eventHandler.DataChannel()
@@ -110,7 +97,7 @@ func (c *CudaEventConsumer) Start() {
 
 				pid := uint32(header.Pid_tgid >> 32)
 				tid := uint32(header.Pid_tgid)
-				streamKey := StreamKey{Pid: pid, Tid: tid, Stream: header.Stream_id}
+				streamKey := model.StreamKey{Pid: pid, Tid: tid, Stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
 					c.streamHandlers[streamKey] = newStreamHandler()
@@ -149,7 +136,7 @@ func (c *CudaEventConsumer) Start() {
 			}
 		}
 	}()
-	log.Infof("CUDA event consumer started")
+	log.Debugf("CUDA event consumer started")
 }
 
 func (c *CudaEventConsumer) handleProcessExit(pid uint32) {

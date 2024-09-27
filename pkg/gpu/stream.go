@@ -8,37 +8,20 @@ package gpu
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type StreamKey struct {
-	Pid    uint32 `json:"pid"`
-	Tid    uint32 `json:"tid"`
-	Stream uint64 `json:"stream"`
-}
-
+// StreamHandler is responsible for receiving events from a single CUDA stream and generating
+// stats from them.
 type StreamHandler struct {
 	kernelLaunches []*gpuebpf.CudaKernelLaunch
 	memAllocEvents map[uint64]*gpuebpf.CudaMemEvent
-	kernelSpans    []*KernelSpan
-	allocations    []*MemoryAllocation
+	kernelSpans    []*model.KernelSpan
+	allocations    []*model.MemoryAllocation
 	processEnded   bool
-}
-
-type KernelSpan struct {
-	Start          uint64 `json:"start"`
-	End            uint64 `json:"end"`
-	AvgThreadCount uint64 `json:"avg_thread_count"`
-	NumKernels     uint64 `json:"num_kernels"`
-}
-
-type MemoryAllocation struct {
-	Start    uint64 `json:"start"`
-	End      uint64 `json:"end"`
-	Size     uint64 `json:"size"`
-	IsLeaked bool   `json:"is_leaked"`
 }
 
 func newStreamHandler() *StreamHandler {
@@ -64,7 +47,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
-	data := MemoryAllocation{
+	data := model.MemoryAllocation{
 		Start:    alloc.Header.Ktime_ns,
 		End:      event.Header.Ktime_ns,
 		Size:     alloc.Size,
@@ -97,8 +80,8 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 	sh.markSynchronization(event.Header.Ktime_ns)
 }
 
-func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
-	span := KernelSpan{
+func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan {
+	span := model.KernelSpan{
 		Start:      math.MaxUint64,
 		End:        maxTime,
 		NumKernels: 0,
@@ -127,12 +110,12 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	return &span
 }
 
-func (sh *StreamHandler) getPastData(flush bool) *StreamPastData {
+func (sh *StreamHandler) getPastData(flush bool) *model.StreamPastData {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
 	}
 
-	data := &StreamPastData{
+	data := &model.StreamPastData{
 		Spans:       sh.kernelSpans,
 		Allocations: sh.allocations,
 	}
@@ -145,18 +128,18 @@ func (sh *StreamHandler) getPastData(flush bool) *StreamPastData {
 	return data
 }
 
-func (sh *StreamHandler) getCurrentData(now uint64) *StreamCurrentData {
+func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamCurrentData {
 	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
 		return nil
 	}
 
-	data := &StreamCurrentData{
+	data := &model.StreamCurrentData{
 		Span:               sh.getCurrentKernelSpan(now),
 		CurrentMemoryUsage: 0,
 	}
 
 	for _, alloc := range sh.memAllocEvents {
-		data.CurrentAllocations = append(data.CurrentAllocations, &MemoryAllocation{
+		data.CurrentAllocations = append(data.CurrentAllocations, &model.MemoryAllocation{
 			Start:    alloc.Header.Ktime_ns,
 			End:      0,
 			Size:     alloc.Size,
@@ -179,7 +162,7 @@ func (sh *StreamHandler) markEnd() error {
 
 	// Close all allocations. Treat them as leaks, as they weren't freed properly
 	for _, alloc := range sh.memAllocEvents {
-		data := MemoryAllocation{
+		data := model.MemoryAllocation{
 			Start:    alloc.Header.Ktime_ns,
 			End:      uint64(nowTs),
 			Size:     alloc.Size,

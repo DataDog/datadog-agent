@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
@@ -29,6 +30,7 @@ var minimumKernelVersion = kernel.VersionCode(5, 0, 0)
 const (
 	cudaEventMap      = "cuda_events"
 	cudaAllocCacheMap = "cuda_alloc_cache"
+	gpuAttacherName   = "gpu"
 )
 
 // Probe represents the GPU monitoring probe
@@ -41,7 +43,7 @@ type Probe struct {
 
 // NewProbe starts the GPU monitoring probe
 func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, error) {
-	log.Debugf("[gpu] loading GPU monitoring probe")
+	log.Debugf("starting GPU monitoring probe...")
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
@@ -57,23 +59,21 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		log.Debugf("[gpu] loading GPU monitoring probe 2")
 		probe, err = startGPUProbe(buf, opts, telemetryComponent, cfg)
 		if err != nil {
-			log.Errorf("[gpu] starting GPU monitoring probe: %s", err)
-			return fmt.Errorf("starting GPU monitoring probe: %s", err)
+			return fmt.Errorf("cannot start GPU monitoring probe: %s", err)
 		}
+		log.Debugf("started GPU monitoring probe")
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("loading asset: %s", err)
 	}
-	log.Debugf("[gpu] successfully loaded GPU monitoring probe")
 
 	return probe, nil
 }
 
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComponent telemetry.Component, cfg *Config) (*Probe, error) {
+func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.Component, cfg *Config) (*Probe, error) {
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
@@ -94,7 +94,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 	attachCfg := uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			{
-				LibraryNameRegex: regexp.MustCompile("libcudart\\.so"),
+				LibraryNameRegex: regexp.MustCompile(`libcudart\.so`),
 				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.AllOf{
@@ -114,7 +114,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		EnableDetailedLogging: true,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher("gpu", attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
@@ -160,13 +160,13 @@ func (p *Probe) Close() {
 }
 
 // GetAndFlush returns the GPU stats
-func (p *Probe) GetAndFlush() (*GPUStats, error) {
+func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	now, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return nil, fmt.Errorf("getting current time: %w", err)
 	}
 
-	stats := GPUStats{}
+	stats := model.GPUStats{}
 	for key, handler := range p.consumer.streamHandlers {
 		currData := handler.getCurrentData(uint64(now))
 		pastData := handler.getPastData(true)
