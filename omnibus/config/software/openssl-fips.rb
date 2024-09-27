@@ -46,5 +46,9 @@ build do
     copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
 
     copy "#{resources_path}/openssl.cnf", "#{install_dir}/embedded/ssl/openssl.cnf.tmp"
-    copy "#{resources_path}/fipsinstall.sh", "#{install_dir}/embedded/bin/fipsinstall.sh"
+    erb source: "fipsinstall.sh.erb",
+        dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
+        mode: 0644,
+        vars: { install_dir: install_dir }
+
 end
