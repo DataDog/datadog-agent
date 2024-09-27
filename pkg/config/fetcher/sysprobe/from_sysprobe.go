@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package sysprobe is a collection of high level helpers to pull the configuration from system-probe.
-// Is it separated from the other helpers in the parent package to avoid unnecessary imports in processes
+// It is separated from the other helpers in the parent package to avoid unnecessary imports in processes
 // that have no need to directly communicate with system-probe.
 package sysprobe
 
