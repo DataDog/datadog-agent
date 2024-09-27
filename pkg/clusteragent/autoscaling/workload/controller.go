@@ -185,8 +185,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscaler != nil {
 			// If we don't have an instance locally, we create it. Deletion is handled through setting the `Deleted` flag
 			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
-			podAutoscalerInternal := model.NewPodAutoscalerInternal(podAutoscaler)
-			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+			c.store.UnlockSet(key, model.NewPodAutoscalerInternal(podAutoscaler), c.ID)
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
 			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
