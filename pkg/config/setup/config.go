@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -240,8 +242,23 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 
 func init() {
 	osinit()
+
 	// Configure Datadog global configuration
-	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	// Possible values for DD_CONF_NODETREEMODEL:
+	// - "enable": Use the nodetreemodel for the config, instead of viper
+	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - other:    Use viper for the config
+	if found && envvar == "enable" {
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	} else if found && envvar == "tee" {
+		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	}
+
 	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
