@@ -13,6 +13,7 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
+    - !reference [.retrieve_linux_go_tools_deps]
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
     - python3 -m pip install -r tasks/libs/requirements-github.txt
@@ -67,12 +68,12 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7"]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
 installer_oci:
   extends: .package_oci
-  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64"]
+  needs: ["installer-arm64-oci", "installer-amd64-oci", "windows-installer-amd64", "go_tools_deps"]
   variables:
     OCI_PRODUCT: "datadog-installer"

@@ -139,7 +139,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure)HostnameSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
@@ -480,6 +480,7 @@ generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
   rules:
+    - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
@@ -509,6 +510,7 @@ trigger-flakes-finder:
   stage: e2e
   needs: [generate-flakes-finder-pipeline]
   rules:
+    - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   variables:
