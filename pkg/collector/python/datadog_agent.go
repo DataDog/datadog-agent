@@ -614,43 +614,62 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 var (
-	telemetryMap = new(sync.Map)
+	telemetryMap  = map[string]any{}
+	telemetryLock = sync.Mutex{}
 )
 
 func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
 	var key = checkName + "." + metricName
-	histogram, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
-		checkName,
-		metricName,
-		nil,
-		fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
-		[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
-		telemetry.DefaultOptions,
-	))
+	telemetryLock.Lock()
+	histogram, ok := telemetryMap[key]
+	if !ok {
+		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
+			[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = histogram
+	}
+	telemetryLock.Unlock()
 	return histogram.(telemetry.Histogram)
 }
 
 func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
 	var key = checkName + "." + metricName
-	counter, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewCounterWithOpts(
-		checkName,
-		metricName,
-		nil,
-		fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
-		telemetry.DefaultOptions,
-	))
+	telemetryLock.Lock()
+	counter, ok := telemetryMap[key]
+	if !ok {
+		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = counter
+	}
+	telemetryLock.Unlock()
 	return counter.(telemetry.Counter)
 }
 
 func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
 	var key = checkName + "." + metricName
-	gauge, _ := telemetryMap.LoadOrStore(key, telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
-		checkName,
-		metricName,
-		nil,
-		fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
-		telemetry.DefaultOptions,
-	))
+	telemetryLock.Lock()
+	gauge, ok := telemetryMap[key]
+	if !ok {
+		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+			checkName,
+			metricName,
+			nil,
+			fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+			telemetry.DefaultOptions,
+		)
+		telemetryMap[key] = gauge
+	}
+	telemetryLock.Unlock()
 	return gauge.(telemetry.Gauge)
 }
 

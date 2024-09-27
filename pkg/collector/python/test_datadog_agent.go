@@ -9,7 +9,10 @@ package python
 
 import (
 	"context"
+	"math/rand/v2"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,7 +92,19 @@ func testEmitAgentTelemetry(t *testing.T) {
 	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
 
 	// Test second time for laziness check
-	// EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+
+	// Test for lock problems
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			time.Sleep(time.Millisecond * time.Duration(rand.IntN(10)))
+			EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 
 	assert.True(t, true)
 }
