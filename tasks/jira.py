@@ -75,8 +75,8 @@ def get_jira():
 def close_failing_test_issue(jira, issue_key: str, verbose_test: str):
     print('Marking as done issue', issue_key, 'for test', verbose_test)
 
-    jira.issue_add_comment(issue_key, 'Marking this issue as done since the test is not failing anymore')
-    jira.issue_transition(issue_key, 'Done')
+    # jira.issue_add_comment(issue_key, 'Marking this issue as done since the test is not failing anymore')
+    # jira.issue_transition(issue_key, 'Done')
 
 
 @task
@@ -97,8 +97,7 @@ def close_failing_tests_stale_issues(_):
     jira = get_jira()
 
     print('Getting potential issues to close')
-    # issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
-    issues = jira.jql('project = "CELIANTST" AND status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
+    issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
 
     print(f'{len(issues)} failing test cards found')
 
