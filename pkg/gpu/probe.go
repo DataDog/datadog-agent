@@ -42,7 +42,7 @@ type Probe struct {
 	cfg      *Config
 	consumer *cudaEventConsumer
 	attacher *uprobes.UprobeAttacher
-	gpuInfo  *gpuSystemInfo
+	sysCtx   *systemContext
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -141,7 +141,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		attacher: attacher,
 	}
 
-	p.gpuInfo, err = getGpuSystemInfo()
+	p.sysCtx, err = getSystemContext()
 	if err != nil {
 		return nil, fmt.Errorf("error getting GPU system info: %w", err)
 	}
@@ -216,6 +216,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = NewCudaEventConsumer(handler, p.cfg, p.gpuInfo)
+	p.consumer = NewCudaEventConsumer(handler, p.cfg, p.sysCtx)
 	p.consumer.Start()
 }

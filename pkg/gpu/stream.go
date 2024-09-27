@@ -27,7 +27,7 @@ type StreamHandler struct {
 	kernelSpans    []*model.KernelSpan
 	allocations    []*model.MemoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
-	gpuInfo        *gpuSystemInfo
+	sysCtx         *systemContext
 }
 
 type enrichedKernelLaunch struct {
@@ -35,11 +35,11 @@ type enrichedKernelLaunch struct {
 	kernel *cuda.CubinKernel
 }
 
-func newStreamHandler(key *model.StreamKey, gpuInfo *gpuSystemInfo) *StreamHandler {
+func newStreamHandler(key *model.StreamKey, sysCtx *systemContext) *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		key:            key,
-		gpuInfo:        gpuInfo,
+		sysCtx:         sysCtx,
 	}
 }
 
@@ -58,7 +58,7 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 }
 
 func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error {
-	maps, err := sh.gpuInfo.getProcessMemoryMaps(int(sh.key.Pid))
+	maps, err := sh.sysCtx.getProcessMemoryMaps(int(sh.key.Pid))
 	if err != nil {
 		return fmt.Errorf("error reading process memory maps: %w", err)
 	}
@@ -70,7 +70,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 
 	offsetInFile := event.Kernel_addr - entry.Start + entry.Offset
 
-	fileData, err := sh.gpuInfo.getFileData(entry.Path)
+	fileData, err := sh.sysCtx.getFileData(entry.Path)
 	if err != nil {
 		return fmt.Errorf("error getting file data: %w", err)
 	}
@@ -80,7 +80,7 @@ func (sh *StreamHandler) tryAttachKernelData(event *enrichedKernelLaunch) error 
 		return fmt.Errorf("could not find symbol for address 0x%x", event.Kernel_addr)
 	}
 
-	kern := fileData.fatbin.GetKernel(symbol, uint32(sh.gpuInfo.deviceSmVersions[0]))
+	kern := fileData.fatbin.GetKernel(symbol, uint32(sh.sysCtx.deviceSmVersions[0]))
 	if kern == nil {
 		return fmt.Errorf("could not find kernel for symbol %s", symbol)
 	}
