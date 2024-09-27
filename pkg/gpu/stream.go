@@ -31,7 +31,6 @@ func newStreamHandler() *StreamHandler {
 }
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
-	log.Debugf("Handling kernel event: %+v", event)
 	sh.kernelLaunches = append(sh.kernelLaunches, event)
 }
 
