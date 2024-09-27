@@ -115,7 +115,8 @@ func (s *BaseInstallerSuite) SetupSuite() {
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	s.outputDir, err := s.GetTestOutputDir()
+	var err error
+	s.outputDir, err = s.GetTestOutputDir()
 	s.Require().NoError(err, "should get output dir")
 	s.T().Logf("Output dir: %s", s.outputDir)
 	s.installer = NewDatadogInstaller(s.Env(), s.outputDir)
