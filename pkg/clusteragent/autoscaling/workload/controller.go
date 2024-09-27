@@ -406,8 +406,9 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 
 	// Check that targetRef is not set to the cluster agent
 	clusterAgentPodName, err := common.GetSelfPodName()
+	// If we cannot get cluster agent pod name, just skip the validation logic
 	if err != nil {
-		return fmt.Errorf("Unable to get the cluster agent pod name: %w", err)
+		return nil
 	}
 
 	var resourceName string
