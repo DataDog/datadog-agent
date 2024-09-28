@@ -8,10 +8,9 @@
 # Because the provided `openssl.cnf` references to `fipsmodule.cnf` which is not yet created, we first create it
 # as `openssl.cnf.tmp` and then move it to its final name `openssl.cnf` when `fipsmodule.cnf` has been created
 
-# TODO: template INSTALL_DIR fipsinstall.sh.erb
 set -euo pipefail
 
-INSTALL_DIR="<%= install_dir %>"
+INSTALL_DIR="<%= install_dir %>/embedded"
 
 FIPS_MODULE_PATH="${INSTALL_DIR}/ssl/fipsmodule.cnf"
 OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"
