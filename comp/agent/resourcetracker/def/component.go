@@ -15,18 +15,18 @@ import "github.com/DataDog/datadog-agent/pkg/telemetry"
 type Component interface {
 }
 
-// GaugeSubmitter is the interface to submit gauge metrics.
-type GaugeSubmitter interface {
+// Submitter is the interface to submit gauge metrics.
+type Submitter interface {
 	Gauge(name string, value float64, tags []string)
 }
 
-type telemetryGaugeSubmitter struct{}
+type telemetrySubmitter struct{}
 
-func (t *telemetryGaugeSubmitter) Gauge(name string, value float64, tags []string) {
+func (t *telemetrySubmitter) Gauge(name string, value float64, tags []string) {
 	telemetry.GetStatsTelemetryProvider().Gauge(name, value, tags)
 }
 
-// NewTelemetryGaugeSubmitter returns a new GaugeSubmitter that submits metrics to the telemetry provider.
-func NewTelemetryGaugeSubmitter() GaugeSubmitter {
-	return &telemetryGaugeSubmitter{}
+// NewTelemetryGaugeSubmitter returns a new Submitter that submits gauge metrics to the telemetry provider.
+func NewTelemetryGaugeSubmitter() Submitter {
+	return &telemetrySubmitter{}
 }

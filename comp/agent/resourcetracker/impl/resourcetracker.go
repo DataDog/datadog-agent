@@ -24,7 +24,7 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	Log       log.Component
-	Submitter resourcetracker.GaugeSubmitter
+	Submitter resourcetracker.Submitter
 }
 
 // Provides defines the output of the resourcetracker component
@@ -49,7 +49,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 type resourceTracker struct {
 	stop      chan struct{}
 	log       log.Component
-	submitter resourcetracker.GaugeSubmitter
+	submitter resourcetracker.Submitter
 }
 
 func (t *resourceTracker) Start(_ context.Context) error {
@@ -64,6 +64,7 @@ func (t *resourceTracker) Stop(_ context.Context) error {
 }
 
 func (r *resourceTracker) run() {
+	r.submitResourceUsage()
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
