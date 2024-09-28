@@ -5,6 +5,11 @@
 
 package metrics
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/metrics/internal/tag"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+)
+
 // IterableSeries is an specialisation of iterableMetrics for serie.
 type IterableSeries struct {
 	iterableMetrics
@@ -16,6 +21,10 @@ type IterableSeries struct {
 func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
+			serie := value.(*Serie)
+			tags := serie.Tags.UnsafeToReadOnlySliceString()
+			localProvider := tag.NewLocalProvider(tags)
+			serie.Tags = tagset.CompositeTagsFromSlice(localProvider.GetTags())
 			callback(value.(*Serie))
 		}, chanSize, bufferSize),
 	}
