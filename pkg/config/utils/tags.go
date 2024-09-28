@@ -6,6 +6,8 @@
 package utils
 
 import (
+	"fmt"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -14,6 +16,8 @@ import (
 // if includeDogdstatsd is true.
 func GetConfiguredTags(c pkgconfigmodel.Reader, includeDogstatsd bool) []string {
 	tags := c.GetStringSlice("tags")
+	duration := c.GetDuration("expected_tags_duration")
+	fmt.Println("wtf", duration)
 	extraTags := c.GetStringSlice("extra_tags")
 
 	var dsdTags []string

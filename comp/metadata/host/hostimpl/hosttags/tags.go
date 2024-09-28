@@ -123,8 +123,6 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	hname, _ := hostname.Get(ctx)
-	hostname := []string{hname}
-	hostTags = appendToHostTags(hostTags, hostname)
 	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
 	if clusterName != "" {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
@@ -186,5 +184,6 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
+	fmt.Println("wack3", t)
 	return t
 }

@@ -6,6 +6,8 @@
 package metrics
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -25,6 +27,7 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 			tags := serie.Tags.UnsafeToReadOnlySliceString()
 			localProvider := tag.NewLocalProvider(tags)
 			serie.Tags = tagset.CompositeTagsFromSlice(localProvider.GetTags())
+			fmt.Println("raymond", serie.Tags)
 			callback(value.(*Serie))
 		}, chanSize, bufferSize),
 	}
