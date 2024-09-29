@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-require "omnibus/logging"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -330,7 +329,7 @@ if windows_target?
       if count == 0
         raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
       else
-        log.info(log_key) { "Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary." }
+        puts("Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary.")
       end
   }
 

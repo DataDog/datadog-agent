@@ -4,7 +4,6 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
-require "omnibus/logging"
 require 'pathname'
 
 name 'datadog-agent'
