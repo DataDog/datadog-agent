@@ -401,7 +401,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
-
+	fmt.Println("cringe2", series)
 	metrics.Serialize(
 		series,
 		sketches,

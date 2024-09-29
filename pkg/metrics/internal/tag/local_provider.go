@@ -8,7 +8,6 @@ package tag
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -38,14 +37,11 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) *localProvider {
 		expectedTags: t,
 	}
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
-	fmt.Println("aids", duration, duration > 0)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
 		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
-		fmt.Println("WACK7 expected tags are:", p.expectedTags)
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
-
 		// reset submitExpectedTags after deadline elapsed
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()

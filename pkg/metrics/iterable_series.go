@@ -21,13 +21,14 @@ type IterableSeries struct {
 //
 // `callback` is called in the context of the sender's goroutine each time `Append` is called.
 func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
+
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
 			serie := value.(*Serie)
 			tags := serie.Tags.UnsafeToReadOnlySliceString()
 			localProvider := tag.NewLocalProvider(tags)
 			serie.Tags = tagset.CompositeTagsFromSlice(localProvider.GetTags())
-			fmt.Println("raymond", serie.Tags)
+			fmt.Println("raymond7", serie.Tags)
 			callback(value.(*Serie))
 		}, chanSize, bufferSize),
 	}

@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"fmt"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -106,7 +107,7 @@ func createIterableMetrics(
 			tagsetTlm.updateHugeSerieTelemetry(se)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
-
+	fmt.Println("cringe1", series)
 	if serializer.AreSketchesEnabled() {
 		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
 			if logPayloads {
