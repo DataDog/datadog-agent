@@ -86,6 +86,7 @@ single-machine-performance-regression_detector:
               echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
               exit 1
           fi
+          echo "Commit ${BASELINE_SHA} is recent enough"
           echo "Checking if image exists for commit ${BASELINE_SHA}..."
       done
     - echo "Image exists for commit ${BASELINE_SHA}"
