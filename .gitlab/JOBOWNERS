@@ -107,7 +107,7 @@ deploy_packages*                       @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-agent
 powershell_script_deploy               @DataDog/windows-agent
-windows_bootsrapper_deploy             @DataDog/windows-agent
+windows_bootstrapper_deploy             @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
 
 # Deploy containers
