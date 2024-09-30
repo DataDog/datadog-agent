@@ -40,7 +40,7 @@ const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 5 * time.Minute
+	refreshStateInterval = 1 * time.Minute
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
