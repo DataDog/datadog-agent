@@ -304,7 +304,7 @@ func (t *Tagger) run() {
 			t.ready = false
 			t.stream = nil
 
-			// log.Warnf("error received from remote tagger: %s", err)
+			log.Warnf("error received from remote tagger: %s", err)
 
 			continue
 		}
@@ -400,7 +400,7 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 			return err
 		}
 
-		// log.Info("tagger stream established successfully")
+		log.Info("tagger stream established successfully")
 
 		return nil
 	}, expBackoff)
