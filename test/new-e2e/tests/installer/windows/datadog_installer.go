@@ -168,16 +168,15 @@ func WithMSILogFile(filename string) Option {
 
 // WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
-// bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
-// channel: The channel in the bucket, i.e. "stable"
+// jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
 //
 // Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
 // will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(json_url, version string) Option {
+func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
 	return func(params *Params) error {
-		url, err := installers.GetProductURL(json_url, "datadog-installer", version, "x86_64")
+		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
 		if err != nil {
 			return err
 		}
