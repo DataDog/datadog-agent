@@ -96,8 +96,8 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 	v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- /opt/datadog-agent/embedded/bin/pip3 install grpcio pynvml")
 
 	// Assert that the integration was installed successfully
-	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
-	v.Require().Contains(stdout, "Installed version: 1.0.0")
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
+	v.Assert().Contains(stdout, "datadog-nvml==1.0.0")
 
 	// Unset/Reset sticky bit on /tmp to allow the agent to write the error log
 	defer v.Env().RemoteHost.MustExecute("sudo chmod +t /tmp")
