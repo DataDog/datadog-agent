@@ -43,17 +43,17 @@ func (b *tseriesBuilder) Build() ([]tsPoint, int64) {
 	tseries := make([]tsPoint, 0)
 	for i := range b.points {
 		// Check if we need to add a new point
-		currentRoundedTime := b.points[i].time
+		currTime := b.points[i].time
 		if i > 0 {
-			prevRoundedTime := tseries[len(tseries)-1].time
+			prevTime := tseries[len(tseries)-1].time
 
 			// We advanced past the last timeseries point, so create a new one
-			if currentRoundedTime != prevRoundedTime {
-				tseries = append(tseries, tsPoint{time: currentRoundedTime, value: 0})
+			if currTime != prevTime {
+				tseries = append(tseries, tsPoint{time: currTime, value: 0})
 			}
 		} else if i == 0 {
 			// Always add the first point
-			tseries = append(tseries, tsPoint{time: uint64(currentRoundedTime), value: 0})
+			tseries = append(tseries, tsPoint{time: uint64(currTime), value: 0})
 		}
 
 		// Update the current value for this point
