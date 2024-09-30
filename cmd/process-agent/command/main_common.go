@@ -59,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -184,7 +185,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
-		fxutil.FxAgentBase(true),
+		fxutil.FxAgentBase(),
+		logging.EnableFxLoggingOnDebug[logcomp.Component](),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),

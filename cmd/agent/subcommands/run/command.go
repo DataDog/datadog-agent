@@ -148,6 +148,7 @@ import (
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
@@ -185,6 +186,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+			logging.EnableFxLoggingOnDebug[log.Component](),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
