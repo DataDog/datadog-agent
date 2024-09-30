@@ -72,8 +72,6 @@ tests_macos:
 .tests_macos_gitlab:
   stage: source_test
   allow_failure: true
-  rules:
-    !reference [.manual]
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
   variables:
@@ -127,6 +125,8 @@ tests_macos_gitlab_amd64:
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
+  rules:
+    !reference [.manual]
   tags: ["macos:monterey-arm64", "specific:true"]
   after_script:
     - !reference [.upload_junit_source]
