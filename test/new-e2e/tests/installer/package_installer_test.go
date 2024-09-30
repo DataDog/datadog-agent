@@ -100,6 +100,7 @@ func (s *packageInstallerSuite) TestReInstall() {
 }
 
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	s.T().Skip("Skipping this test until an installer is released with the setup method")
 	// Install prod
 	err := s.RunInstallScriptProdOci(
 		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1-1"),
