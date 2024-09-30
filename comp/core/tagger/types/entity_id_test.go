@@ -20,17 +20,17 @@ func TestDefaultEntityID_GetID(t *testing.T) {
 	}{
 		{
 			name:       "invalid format, not containing `://`",
-			entityID:   newDefaultEntityID("invalid_entity_id"),
+			entityID:   defaultEntityID("invalid_entity_id"),
 			expectedID: "",
 		},
 		{
 			name:       "invalid format, multiple `://`",
-			entityID:   newDefaultEntityID("invalid://entity://id"),
+			entityID:   defaultEntityID("invalid://entity://id"),
 			expectedID: "entity://id",
 		},
 		{
 			name:       "conforming format, single `://`",
-			entityID:   newDefaultEntityID("good://format"),
+			entityID:   defaultEntityID("good://format"),
 			expectedID: "format",
 		},
 	}
@@ -50,17 +50,17 @@ func TestDefaultEntityID_GetPrefix(t *testing.T) {
 	}{
 		{
 			name:           "invalid format, not containing `://`",
-			entityID:       newDefaultEntityID("invalid_entity_id"),
+			entityID:       defaultEntityID("invalid_entity_id"),
 			expectedPrefix: "",
 		},
 		{
 			name:           "invalid format, multiple `://`",
-			entityID:       newDefaultEntityID("invalid://entity://id"),
+			entityID:       defaultEntityID("invalid://entity://id"),
 			expectedPrefix: "invalid",
 		},
 		{
 			name:           "conforming format, single `://`",
-			entityID:       newDefaultEntityID("good://format"),
+			entityID:       defaultEntityID("good://format"),
 			expectedPrefix: "good",
 		},
 	}
