@@ -34,7 +34,7 @@ type Logger interface {
 }
 
 // EnableFxLoggingOnDebug enables the logs for FX events when log_level is debug.
-// This function supposes that DefaultFxLoggingOption was used.
+// This function requires that DefaultFxLoggingOption is part of the fx Options.
 // This function uses generic to avoid depending on the logger.
 // When TRACE_FX is set to 0, it will disable the logging.
 func EnableFxLoggingOnDebug[T Logger]() fx.Option {
