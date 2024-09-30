@@ -56,10 +56,6 @@ func (de defaultEntityID) String() string {
 	return string(de)
 }
 
-func newDefaultEntityID(id string) defaultEntityID {
-	return defaultEntityID(id)
-}
-
 // compositeEntityID implements EntityID as a struct of prefix and id
 type compositeEntityID struct {
 	Prefix EntityIDPrefix
@@ -96,7 +92,7 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 	if taggerutils.ShouldUseCompositeStore() {
 		return newCompositeEntityID(prefix, id)
 	}
-	return newDefaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
+	return defaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
 }
 
 // NewEntityIDFromString constructs EntityID from a plain string id
@@ -108,7 +104,7 @@ func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 		parts := strings.Split(plainStringID, separator)
 		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
 	}
-	return newDefaultEntityID(plainStringID), nil
+	return defaultEntityID(plainStringID), nil
 }
 
 const (
