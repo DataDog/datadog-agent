@@ -206,10 +206,10 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
 	var spancount int64
-	for j := 0; j < rspans.ScopeSpans().Len(); j++ {
-		libspans := rspans.ScopeSpans().At(j)
-		for k := 0; k < libspans.Spans().Len(); k++ {
-			otelspan := libspans.Spans().At(k)
+	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
+		libspans := rspans.ScopeSpans().At(i)
+		for j := 0; j < libspans.Spans().Len(); j++ {
+			otelspan := libspans.Spans().At(j)
 			if _, exists := o.ignoreResNames[traceutil.GetOTelResource(otelspan, otelres)]; exists {
 				continue
 			}
@@ -275,6 +275,8 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 	ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
 	payloadTags := flatten(ctags)
+
+	// Ppoulate container tags by calling ContainerTags tagger from configuration
 	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
 		appendTags(payloadTags, tags)
 	} else {
