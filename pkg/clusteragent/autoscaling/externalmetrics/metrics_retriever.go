@@ -18,14 +18,7 @@ import (
 )
 
 const (
-	invalidMetricErrorMessage                  string = "%v, query was: %s"
-	invalidMetricErrorWithRetriesMessage       string = "%v, query was: %s, will retry after %s"
-	invalidMetricOutdatedErrorMessage          string = "Query returned outdated result, check MaxAge setting, query: %s"
-	invalidMetricNotFoundErrorMessage          string = "Unexpected error, query data not found in result, query: %s"
-	invalidMetricGlobalErrorMessage            string = "Global error (all queries) from backend, invalid syntax in query? Check Cluster Agent leader logs for details"
-	invalidMetricGlobalErrorWithRetriesMessage string = "Global error (all queries, batch size %d) from backend, invalid syntax in query? Check Cluster Agent leader logs for details. Will retry after %s"
-	rateLimitErrorMessage                      string = "Rate limit exceeded, too many requests, batching queries until the rate limit clears"
-	metricRetrieverStoreID                     string = "mr"
+	metricRetrieverStoreID string = "mr"
 )
 
 // Backoff range for number of retries R:
@@ -76,7 +69,6 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 }
 
 func (mr *MetricsRetriever) retrieveMetricsValues() {
-	// If any metric encountered a Rate Limit error, do not split up the batch
 	if mr.splitBatchBackoffOnErrors {
 		// We only update active DatadogMetrics
 		// We split metrics in two slices, those with errors and those without.
