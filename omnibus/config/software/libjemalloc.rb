@@ -29,6 +29,8 @@ build do
     # https://github.com/jemalloc/jemalloc/blob/dev/INSTALL.md#advanced-configuration
     env["je_cv_madv_free"] = "no"
 
+    command "autoconf"
+
     # This builds libjemalloc.so.2
     configure_options = [
       "--disable-debug",
