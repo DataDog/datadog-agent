@@ -67,27 +67,32 @@ type expectedSection struct {
 }
 
 // verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
+func verifySectionContent(t require.TestingT, statusOutput string, section expectedSection) {
+	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
+
+	if section.shouldBePresent {
+		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
+			for _, expectedContent := range section.shouldContain {
+				assert.Contains(t, sectionContent.content, expectedContent)
+			}
+
+			for _, unexpectedContent := range section.shouldNotContain {
+				assert.NotContains(t, sectionContent.content, unexpectedContent)
+			}
+		}
+	} else {
+		assert.Error(t, err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
+	}
+}
+
+// fetchAndCheckStatus execute the Agent status subcommand and compare it's output with the provided expectedSections via the verifySectionContent
 func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection) {
 	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		statusOutput := v.Env().Agent.Client.Status()
 
 		for _, section := range expectedSections {
-			sectionContent, err := getStatusComponentContent(statusOutput.Content, section.name)
-
-			if section.shouldBePresent {
-				if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
-					for _, expectedContent := range section.shouldContain {
-						assert.Contains(v.T(), sectionContent.content, expectedContent)
-					}
-
-					for _, unexpectedContent := range section.shouldNotContain {
-						assert.NotContains(v.T(), sectionContent.content, unexpectedContent)
-					}
-				}
-			} else {
-				assert.Error(v.T(), err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
-			}
+			verifySectionContent(t, statusOutput.Content, section)
 		}
 	}, 2*time.Minute, 20*time.Second)
 }
