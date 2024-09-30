@@ -37,7 +37,7 @@ type Launcher struct {
 	stop                 chan struct{}
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
-	integrationToFile    map[string]*FileInfo
+	integrationToFile    map[string]*fileInfo
 	fileSizeMax          int64
 	combinedUsageMax     int64
 	combinedUsageSize    int64
@@ -46,9 +46,9 @@ type Launcher struct {
 	writeLogToFileFunction func(filepath, log string) error
 }
 
-// FileInfo stores information about each file that is needed in order to keep
+// fileInfo stores information about each file that is needed in order to keep
 // track of the combined and overall disk usage by the logs files
-type FileInfo struct {
+type fileInfo struct {
 	filename     string
 	lastModified time.Time
 	size         int64
@@ -57,31 +57,32 @@ type FileInfo struct {
 // NewLauncher creates and returns an integrations launcher, and creates the
 // path for integrations files to run in
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
-	runPath := filepath.Join(pkgconfigsetup.Datadog().GetString("logs_config.run_path"), "integrations")
+	datadogConfig := pkgconfigsetup.Datadog()
+	runPath := filepath.Join(datadogConfig.GetString("logs_config.run_path"), "integrations")
 	err := os.MkdirAll(runPath, 0755)
 
 	if err != nil {
 		ddLog.Error("Unable to create integrations logs directory:", err)
 	}
 
-	logsTotalUsageSetting := pkgconfigsetup.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
-	logsUsageRatio := pkgconfigsetup.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
+	logsTotalUsageSetting := datadogConfig.GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
+	logsUsageRatio := datadogConfig.GetFloat64("logs_config.integrations_logs_disk_ratio")
 	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
 	if err != nil {
-		ddLog.Warn("Unable to compute integrations logs max disk usage, defaulting to set value:", err)
+		ddLog.Warn("Unable to compute integrations logs max disk usage, using default value of 100 MB:", err)
 		maxDiskUsage = logsTotalUsageSetting
 	}
 
 	return &Launcher{
 		sources:              sources,
 		runPath:              runPath,
-		fileSizeMax:          pkgconfigsetup.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
+		fileSizeMax:          datadogConfig.GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
 		combinedUsageMax:     maxDiskUsage,
 		combinedUsageSize:    0,
 		stop:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
 		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
-		integrationToFile:    make(map[string]*FileInfo),
+		integrationToFile:    make(map[string]*fileInfo),
 		// Set the initial least recently modified time to the largest possible
 		// value, used for the first comparison
 		writeLogToFileFunction: writeLogToFile,
@@ -212,7 +213,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 }
 
 // deleteFile deletes the given file
-func (s *Launcher) deleteFile(file *FileInfo) error {
+func (s *Launcher) deleteFile(file *fileInfo) error {
 	filename := filepath.Join(s.runPath, file.filename)
 	err := os.Remove(filename)
 	if err != nil {
@@ -230,9 +231,9 @@ func (s *Launcher) deleteFile(file *FileInfo) error {
 
 // getLeastRecentlyModifiedFile returns the least recently modified file among
 // all the files tracked by the integrations launcher
-func (s *Launcher) getLeastRecentlyModifiedFile() *FileInfo {
+func (s *Launcher) getLeastRecentlyModifiedFile() *fileInfo {
 	leastRecentlyModifiedTime := time.Now()
-	var leastRecentlyModifiedFile *FileInfo
+	var leastRecentlyModifiedFile *fileInfo
 
 	for _, fileInfo := range s.integrationToFile {
 		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
@@ -282,7 +283,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 }
 
 // createFile creates a file for the logsource
-func (s *Launcher) createFile(source string) (*FileInfo, error) {
+func (s *Launcher) createFile(source string) (*fileInfo, error) {
 	filepath := s.integrationLogFilePath(source)
 
 	file, err := os.Create(filepath)
@@ -297,7 +298,7 @@ func (s *Launcher) createFile(source string) (*FileInfo, error) {
 		return nil, err
 	}
 
-	fileInfo := &FileInfo{
+	fileInfo := &fileInfo{
 		filename:     filepath,
 		lastModified: time.Now(),
 		size:         0,
@@ -341,7 +342,7 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 			return nil
 		}
 
-		fileInfo := &FileInfo{
+		fileInfo := &fileInfo{
 			filename:     info.Name(),
 			size:         info.Size(),
 			lastModified: info.ModTime(),

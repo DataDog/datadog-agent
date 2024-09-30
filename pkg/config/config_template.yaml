@@ -1021,8 +1021,8 @@ api_key:
   #
   # integrations_logs_files_max_size
 
-  ## @param integrations_logs_total_usage - integer - optional - default: 1000
-  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 1000
+  ## @param integrations_logs_total_usage - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
   ## The total combined usage all integrations logs files can use
   #
   # integrations_logs_total_usage
@@ -1742,7 +1742,7 @@ api_key:
   #  enabled: false
 {{- if (eq .OS "linux")}}
 
- 
+
   # container_image:
   #   enabled: false
 {{ end -}}

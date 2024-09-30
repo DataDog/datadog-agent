@@ -133,7 +133,7 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	filename := "testfile.log"
 	filepath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(filepath)
-	fileinfo := &FileInfo{filename: filename, size: int64(0)}
+	fileinfo := &fileInfo{filename: filename, size: int64(0)}
 	assert.Nil(suite.T(), err)
 
 	info, err := os.Stat(filepath)
