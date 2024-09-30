@@ -185,6 +185,11 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
 
+	// KeepJsonPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepJsonPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
 }

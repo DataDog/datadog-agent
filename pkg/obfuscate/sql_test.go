@@ -2136,6 +2136,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		keepPositionalParameter       bool
 		keepTrailingSemicolon         bool
 		keepIdentifierQuotation       bool
+		keepJsonPath                  bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2417,6 +2418,50 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "select with json path not keep",
+			query:    "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected: "SELECT * FROM users WHERE id = ? AND name -> ? = ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name -> 'first' = ?",
+			keepJsonPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:         "select with json path ->>",
+			query:        "SELECT * FROM users WHERE id = 1 AND name->>2 = 'test'",
+			expected:     "SELECT * FROM users WHERE id = ? AND name ->> 2 = ?",
+			keepJsonPath: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2437,6 +2482,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+					KeepJsonPath:                  tt.keepJsonPath,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

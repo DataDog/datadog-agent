@@ -439,6 +439,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 			sqllexer.WithReplacePositionalParameter(!opts.KeepPositionalParameter),
 			sqllexer.WithReplaceBoolean(!opts.KeepBoolean),
 			sqllexer.WithReplaceNull(!opts.KeepNull),
+			sqllexer.WithKeepJsonPath(opts.KeepJsonPath),
 		)
 	}
 
