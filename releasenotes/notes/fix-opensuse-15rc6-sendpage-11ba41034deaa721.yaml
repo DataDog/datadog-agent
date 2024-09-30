@@ -2,4 +2,4 @@
 ---
 fixes:
   - |
-    Fixed issue with OpenSUSE 15 RC 6 where the eBPF tracer wouldn't to start due to a failed validation of the tcp_sendpage probe.
+    Fixed issue with openSUSE 15 RC 6 where the eBPF tracer wouldn't to start due to a failed validation of the tcp_sendpage probe.
