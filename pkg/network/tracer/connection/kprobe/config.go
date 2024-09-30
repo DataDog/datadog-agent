@@ -9,25 +9,25 @@ package kprobe
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // After kernel 6.5.0, tcp_sendpage and udp_sendpage are removed.
 // We used to only check for kv < 6.5.0 here - however, OpenSUSE 15.6 backported
 // this change into 6.4.0 to pick up a CVE so the version number is not reliable.
 // Instead, we directly check if the function exists.
-func getHasSendPage(kv kernel.Version) bool {
+func hasTCPSendPage(kv kernel.Version) bool {
 	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
 	if err == nil {
 		return len(missing) == 0
 	}
 
-	log.Errorf("error verifying tcp_sendpage presence, falling back to v6.5 check: %s", err)
+	log.Warnf("error verifying tcp_sendpage presence, falling back to v6.5 check: %s", err)
 
 	kv650 := kernel.VersionCode(6, 5, 0)
 	return kv < kv650
@@ -53,7 +53,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		return nil, err
 	}
 
-	hasSendPage := getHasSendPage(kv)
+	hasSendPage := hasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {
