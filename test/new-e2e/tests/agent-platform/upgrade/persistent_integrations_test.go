@@ -87,9 +87,8 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 	agentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
 
 	// Make sure that the integration is not installed
-	stdout, err = v.Env().RemoteHost.Execute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
-	v.Assert().NotNil(err)
-	v.Assert().Empty(stdout)
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
+	v.Assert().NotContains(stdout, "datadog-nvml")
 
 	// Install a marketplace integration (NVML):
 	v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration install -t datadog-nvml==1.0.0")
@@ -111,6 +110,6 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 	v.Assert().NotEqual(agentVersion, newAgentVersion)
 
 	// Assert that the integration is still installed
-	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
-	v.Assert().Contains(stdout, "Installed version: 1.0.0")
+	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
+	v.Assert().Contains(stdout, "datadog-nvml==1.0.0")
 }
