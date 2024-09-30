@@ -81,7 +81,7 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 	var stdout string
 
 	// Install the agent
-	install.Unix(v.T(), client, installparams.WithFlavor("datadog-agent"), installparams.WithAPIKey(v.apiKey), installparams.WithPipelineID(v.srcPipelineID), installparams.WithArch(string(v.arch)))
+	install.Unix(v.T(), client, installparams.WithFlavor("datadog-agent"), installparams.WithAPIKey(v.apiKey), installparams.WithPipelineID(v.srcPipelineID), installparams.WithArch(string(v.arch)), installparams.WithInstallPythonThirdPartyDeps(true))
 
 	// Check Agent version
 	agentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
