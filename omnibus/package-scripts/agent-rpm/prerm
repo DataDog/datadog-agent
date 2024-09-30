@@ -145,7 +145,7 @@ remove_apm_remote_config()
 remove_fips_module()
 {
     # We explicitly remove the ssl directory because files within this folder are generated via a script
-    # outside of omnibus (omnibus only removes files present in the package).
+    # outside of package installation (rpm package only removes files initially present in the package).
     rm -rf "${INSTALL_DIR}/embedded/ssl/fipsmodule.cnf" || true
 }
 
