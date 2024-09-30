@@ -85,6 +85,7 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 
 	// Check Agent version
 	agentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+	v.Env().RemoteHost.Execute("sudo runuser -u dd-agent -- datadog-agent version > /tmp/agent_version_initial")
 
 	// Make sure that the integration is not installed
 	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
@@ -107,6 +108,7 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 
 	// Check New Agent version is different from the old one
 	newAgentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+	v.Env().RemoteHost.Execute("sudo runuser -u dd-agent -- datadog-agent version > /tmp/agent_version_after_upgrade")
 	v.Assert().NotEqual(agentVersion, newAgentVersion)
 
 	// Assert that the integration is still installed
