@@ -17,7 +17,7 @@ import (
 func TestIterableSeries(t *testing.T) {
 	var names []string
 	Serialize(
-		NewIterableSeries(func(*Serie) {}, 10, 1),
+		NewIterableSeries(func(*Serie) {}, 10, 1, NewHostTagProvider()),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 		func(serieSink SerieSink, _ SketchesSink) {
 			serieSink.Append(&Serie{Name: "serie1"})
@@ -39,7 +39,7 @@ func TestIterableSeries(t *testing.T) {
 func TestIterableSeriesCallback(t *testing.T) {
 	var series Series
 	callback := func(s *Serie) { series = append(series, s) }
-	iterableSeries := NewIterableSeries(callback, 10, 10)
+	iterableSeries := NewIterableSeries(callback, 10, 10, NewHostTagProvider())
 	iterableSeries.Append(&Serie{Name: "serie1"})
 	iterableSeries.Append(&Serie{Name: "serie2"})
 
@@ -52,7 +52,7 @@ func TestIterableSeriesCallback(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestIterableSeriesReceiverStopped(_ *testing.T) {
-	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1)
+	iterableSeries := NewIterableSeries(func(*Serie) {}, 1, 1, NewHostTagProvider())
 	iterableSeries.Append(&Serie{Name: "serie1"})
 
 	// Next call to Append must not block
@@ -65,7 +65,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 	for bufferSize := 1000; bufferSize <= 8000; bufferSize *= 2 {
 		b.Run(fmt.Sprintf("%v", bufferSize), func(b *testing.B) {
 			Serialize(
-				NewIterableSeries(func(*Serie) {}, 100, bufferSize),
+				NewIterableSeries(func(*Serie) {}, 100, bufferSize, NewHostTagProvider()),
 				NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 				func(serieSink SerieSink, _ SketchesSink) {
 					for i := 0; i < b.N; i++ {
@@ -84,7 +84,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 	var series []*Serie
 	var expected []string
 	Serialize(
-		NewIterableSeries(func(*Serie) {}, 10, 2),
+		NewIterableSeries(func(*Serie) {}, 10, 2, NewHostTagProvider()),
 		NewIterableSketches(func(*SketchSeries) {}, 10, 2),
 		func(serieSink SerieSink, _ SketchesSink) {
 			for i := 0; i < 101; i++ {
