@@ -97,14 +97,14 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 
 	// Assert that the integration was installed successfully
 	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration freeze")
-	v.Assert().Contains(stdout, "datadog-nvml==1.0.0")
+	v.Require().Contains(stdout, "datadog-nvml==1.0.0")
 
 	// Unset/Reset sticky bit on /tmp to allow the agent to write the error log
 	defer v.Env().RemoteHost.MustExecute("sudo chmod +t /tmp")
 	v.Env().RemoteHost.MustExecute("sudo chmod -t /tmp")
 
 	// Upgrade the agent with the package from the pipeline:
-	install.Unix(v.T(), client, installparams.WithPipelineID(v.dstPipelineID), installparams.WithAPIKey(v.apiKey), installparams.WithUpgrade(true), installparams.WithArch(string(v.arch)), installparams.WithFlavor("datadog-agent"), installparams.WithInstallPythonThirdPartyDeps(true))
+	install.Unix(v.T(), client, installparams.WithPipelineID(v.dstPipelineID), installparams.WithAPIKey(v.apiKey), installparams.WithArch(string(v.arch)), installparams.WithFlavor("datadog-agent"), installparams.WithInstallPythonThirdPartyDeps(true))
 
 	// Check New Agent version is different from the old one
 	newAgentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
