@@ -36,9 +36,9 @@ build do
                 no-asm no-ssl2 no-ssl3 \
                 shared zlib"
 
-    command "make depend -j"
-    command "make -j"
-    command "make install_sw -j"
+    command "make depend -j $(nproc)"
+    command "make -j $(nproc)"
+    command "make install_sw -j $(nproc)"
     command "openssl version -v"
 
     mkdir "#{install_dir}/embedded/ssl"
