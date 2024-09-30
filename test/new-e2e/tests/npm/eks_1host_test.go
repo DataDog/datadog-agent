@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	envkube "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
@@ -94,15 +92,6 @@ func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRu
 func TestEKSVMSuite(t *testing.T) {
 	t.Parallel()
 	provisionerOpts := []envkube.ProvisionerOption{}
-
-	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
-	if err != nil {
-		t.Logf("Error getting initOnly parameter, defaulted to false: %v", err)
-	}
-
-	if err == nil && initOnly {
-		provisionerOpts = append(provisionerOpts, envkube.WithEKSInitOnly())
-	}
 
 	s := &eksVMSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(provisionerOpts...), nil))}
