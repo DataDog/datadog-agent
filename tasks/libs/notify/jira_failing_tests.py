@@ -32,11 +32,7 @@ def close_issue(jira, issue_key: str, verbose_test: str, dry_run: bool = False):
         return
 
     jira.issue_add_comment(issue_key, 'Closing this issue since the test is not failing anymore')
-    try:
-        jira.issue_transition(issue_key, "Won't Do")
-    except Exception:
-        # There is no `won't do` column
-        jira.issue_transition(issue_key, "Done")
+    jira.issue_transition(issue_key, 'Done')
 
 
 def get_failing_tests_names() -> set[str]:
