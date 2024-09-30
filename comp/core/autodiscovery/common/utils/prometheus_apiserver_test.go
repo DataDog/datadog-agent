@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -220,7 +220,7 @@ func TestConfigsForService(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog().SetWithoutSource("prometheus_scrape.version", tt.version)
+			pkgconfigsetup.Datadog().SetWithoutSource("prometheus_scrape.version", tt.version)
 			assert.NoError(t, tt.check.Init(tt.version))
 			assert.ElementsMatch(t, tt.want, ConfigsForService(tt.check, tt.svc))
 		})

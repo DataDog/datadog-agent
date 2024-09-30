@@ -2,6 +2,61 @@
 Release Notes
 =============
 
+.. _Release Notes_7.57.2:
+
+7.57.2
+======
+
+.. _Release Notes_7.57.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-24
+
+
+.. _Release Notes_7.57.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.22.7``.
+
+
+.. _Release Notes_7.57.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix OOM error with cluster agent auto instrumentation by increasing default memory request from 20Mi to 100Mi.
+
+- Fixes a panic caused by running the Agent on readonly filesystems. The
+  Agent returns integration launchers and handles memory gracefully.
+
+
+.. _Release Notes_7.57.1:
+
+7.57.1
+======
+
+.. _Release Notes_7.57.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-17
+
+- Please refer to the `7.57.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7571>`_ for the list of changes on the Core Checks
+
+.. _Release Notes_7.57.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: When the UDS listener cannot be created on the trace-agent, the process will log the error, instead of crashing.
+- Fixes memory leak caused by container check.
+
+
 .. _Release Notes_7.57.0:
 
 7.57.0
@@ -391,7 +446,7 @@ Deprecation Notes
 Security Notes
 --------------
 
-- Updating OpenSSL to 3.0.14 to address CVE-2024-4741.
+- Updating OpenSSL to 3.0.14 to address CVE-2024-4741 (on Linux and macOS).
 
 
 .. _Release Notes_7.56.0_Bug Fixes:

@@ -242,12 +242,18 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.
 
 // ResolveProcessArgs resolves the args of the event
 func (fh *EBPFFieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Process) string {
-	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
+	if process.Args == "" {
+		process.Args = strings.Join(fh.ResolveProcessArgv(ev, process), " ")
+	}
+	return process.Args
 }
 
 // ResolveProcessArgsScrubbed resolves the args of the event
 func (fh *EBPFFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, process *model.Process) string {
-	return strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+	if process.ArgsScrubbed == "" {
+		process.ArgsScrubbed = strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+	}
+	return process.ArgsScrubbed
 }
 
 // ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.

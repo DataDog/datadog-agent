@@ -26,7 +26,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -241,7 +241,7 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			if tc.hybrid {
 				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}

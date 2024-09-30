@@ -26,10 +26,12 @@ import (
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Module defines the fx options for this component.
@@ -74,7 +76,7 @@ type serverDebugImpl struct {
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
 func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog())
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), pkgconfigsetup.Datadog())
 }
 
 // newServerDebug creates a new instance of a ServerDebug
@@ -82,7 +84,7 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(l log.Component, cfg config.Reader) serverdebug.Component {
+func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
 	sd := &serverDebugImpl{
 		log:     l,
 		enabled: atomic.NewBool(false),
@@ -277,7 +279,7 @@ func (d *serverDebugImpl) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebugImpl) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
+func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 
@@ -289,7 +291,7 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterf
 
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := config.SetupDogstatsdLogger(logFile)
+		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, pkgconfigsetup.Datadog())
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)

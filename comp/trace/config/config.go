@@ -17,9 +17,9 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +46,7 @@ type cfg struct {
 	coreConfig coreconfig.Component
 
 	// warnings are the warnings generated during setup
-	warnings *pkgconfig.Warnings
+	warnings *model.Warnings
 }
 
 // NewConfig is the default constructor for the component, it returns
@@ -70,7 +70,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 	return &c, nil
 }
 
-func (c *cfg) Warnings() *pkgconfig.Warnings {
+func (c *cfg) Warnings() *model.Warnings {
 	return c.warnings
 }
 
@@ -96,7 +96,7 @@ func (c *cfg) SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfigutils.SetLogLevel(lvl, pkgconfig.Datadog(), model.SourceAgentRuntime); err != nil {
+				if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}

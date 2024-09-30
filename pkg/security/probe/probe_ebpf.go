@@ -1108,16 +1108,20 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+// setApprovers applies approvers and removes the unused ones
+func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newKFilters, err := kfiltersGetter(approvers)
+	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+		return err
+	}
+
+	if len(approvers) != len(fieldHandled) {
+		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
@@ -1132,7 +1136,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 			return err
 		}
 
-		approverType := getApproverType(newKFilter.GetTableName())
+		approverType := newKFilter.GetApproverType()
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
@@ -1144,7 +1148,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 				return err
 			}
 
-			approverType := getApproverType(previousKFilter.GetTableName())
+			approverType := previousKFilter.GetApproverType()
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1165,16 +1169,6 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 
 	p.kfilters[eventType] = newKFilters
 	return nil
-}
-
-func getApproverType(tableName string) string {
-	approverType := "flag"
-
-	if tableName == kfilters.BasenameApproverKernelMapName {
-		approverType = "basename"
-	}
-
-	return approverType
 }
 
 func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1576,11 +1570,16 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
-			return nil, err
-		}
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
+			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+
+			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+				return nil, err
+			}
 		}
 	}
 

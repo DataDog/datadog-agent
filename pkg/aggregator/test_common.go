@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // PeekSender returns a Sender with passed ID or an error if the sender is not registered
@@ -34,5 +34,5 @@ func (d *AgentDemultiplexer) PeekSender(cid checkid.ID) (sender.Sender, error) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
-	return defaultforwarder.NewDefaultForwarder(config.Datadog(), log, defaultforwarder.NewOptions(config.Datadog(), log, nil))
+	return defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil))
 }

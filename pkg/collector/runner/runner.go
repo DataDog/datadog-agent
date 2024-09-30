@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,7 +53,7 @@ type Runner struct {
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(senderManager sender.SenderManager) *Runner {
-	numWorkers := config.Datadog().GetInt("check_runners")
+	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
 
 	r := &Runner{
 		senderManager:       senderManager,
@@ -66,7 +66,7 @@ func NewRunner(senderManager sender.SenderManager) *Runner {
 	}
 
 	if !r.isStaticWorkerCount {
-		numWorkers = config.DefaultNumWorkers
+		numWorkers = pkgconfigsetup.DefaultNumWorkers
 	}
 
 	r.ensureMinWorkers(numWorkers)
@@ -164,7 +164,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = config.MaxNumWorkers
+		desiredNumWorkers = pkgconfigsetup.MaxNumWorkers
 	}
 
 	r.ensureMinWorkers(desiredNumWorkers)

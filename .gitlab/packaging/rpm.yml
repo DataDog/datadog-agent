@@ -24,6 +24,7 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -111,24 +112,30 @@ installer_rpm-amd64:
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
+    # There are currently no files to check for in the installer so we
+    # explicitly disable the check
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
     DD_PROJECT: installer
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_rpm_common:
   rules:
@@ -154,6 +161,7 @@ installer_suse_rpm-arm64:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     RELEASE_VERSION: $RELEASE_VERSION_7
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -201,9 +209,11 @@ dogstatsd_rpm-x64:
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"

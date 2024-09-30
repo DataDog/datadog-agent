@@ -13,7 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 ////////////////////////////////
@@ -34,7 +34,7 @@ type ProfileOverride struct {
 // one profile is configured
 func loadSidecarProfiles() ([]ProfileOverride, error) {
 	// Read and parse profiles
-	profilesJSON := config.Datadog().GetString("admission_controller.agent_sidecar.profiles")
+	profilesJSON := pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.profiles")
 
 	var profiles []ProfileOverride
 
