@@ -8,6 +8,8 @@ include:
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
+  - .gitlab/powershell_script_signing/powershell_script_signing.yml
+  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
@@ -91,8 +93,8 @@ stages:
   - deploy_cws_instrumentation
   - deploy_dca
   - trigger_release
-  - choco_build
-  - choco_deploy
+  - choco_and_install_script_build
+  - choco_and_install_script_deploy
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test
@@ -142,6 +144,7 @@ variables:
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
+  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
