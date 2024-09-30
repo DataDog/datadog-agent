@@ -7,22 +7,17 @@
 package gpu
 
 import (
-	"strings"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-const gpuNS = "gpu_monitoring"
+// GPUConfigNS is the namespace for the GPU monitoring probe.
+const GPUConfigNS = "gpu_monitoring"
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
 	*ebpf.Config
-}
-
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
 }
 
 // NewConfig generates a new configuration for the GPU monitoring probe.

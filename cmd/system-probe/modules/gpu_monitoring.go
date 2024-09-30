@@ -18,22 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{"gpu_monitoring"}
+var gpuMonitoringConfigNamespaces = []string{gpu.GPUConfigNS}
 
 // GPUMonitoring Factory
 var GPUMonitoring = module.Factory{
 	Name:             config.GPUMonitoringModule,
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (module.Module, error) {
-		t, err := gpu.NewProbe(gpu.NewConfig(), telemetry)
+	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+		t, err := gpu.NewProbe(gpu.NewConfig(), nil)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start GPU monitoring: %w", err)
 		}
@@ -48,13 +45,15 @@ var GPUMonitoring = module.Factory{
 	},
 }
 
+// GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
 	lastCheck *atomic.Int64
 }
 
+// Register registers the GPU monitoring module
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats, err := t.Probe.GetAndFlush()
 		if err != nil {
@@ -69,8 +68,14 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	return nil
 }
 
+// GetStats returns the last check time
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": t.lastCheck.Load(),
 	}
+}
+
+// Close closes the GPU monitoring module
+func (t *GPUMonitoringModule) Close() {
+	t.Probe.Close()
 }
