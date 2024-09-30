@@ -51,6 +51,7 @@ var (
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
+// JavaDetectorEnvs list of environment variables used for Java detection
 var JavaDetectorEnvs = []string{
 	// These are the environment variables that are used to pass options to the JVM
 	"JAVA_TOOL_OPTIONS",
@@ -64,9 +65,11 @@ var JavaDetectorEnvs = []string{
 }
 
 const (
+	// EnvCoreClrEnableProfiling - environment variable specific to .net application
 	EnvCoreClrEnableProfiling = "CORECLR_ENABLE_PROFILING"
 )
 
+// DotNetDetectorEnvs list of environment variables used for .net detection
 var DotNetDetectorEnvs = []string{
 	EnvCoreClrEnableProfiling,
 }
