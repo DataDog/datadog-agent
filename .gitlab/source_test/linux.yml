@@ -302,7 +302,7 @@ new-e2e-unit-tests:
 agent_integration_tests:
   extends: .integration_tests_deb
   script:
-    - inv -e integration-tests -timeout 30m --race --remote-docker
+    - inv -e integration-tests --timeout 30m --race --remote-docker
 
 docker_integration_tests:
   extends: .integration_tests_deb
