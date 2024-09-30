@@ -274,7 +274,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
 
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    // bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
     if (!tcp_failed_connections_enabled()) {
         cleanup_conn(ctx, &t, sk);
@@ -1167,14 +1167,27 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     return 0;
 }
 
+struct trace_event_tcp_destroy_sock_args {
+    __u64 __do_not_use__;      // Internal field, do not use
+    const void *skaddr;
+    __u16 sport;
+    __u16 dport;
+    __u16 family;
+    __u8 saddr[16];            // IPv6 address size
+    __u8 daddr[16];
+    __u64 sock_cookie;
+};
+
 // tracepoint for tcp_destroy_sock
 SEC("tracepoint/tcp/tcp_destroy_sock")
-int tracepoint__tcp_destroy_sock(struct trace_event_raw_tcp_event_sk *ctx) {
+int tracepoint__tcp_destroy_sock(struct trace_event_tcp_destroy_sock_args *ctx) {
+    log_debug("adamk tracepoint__tcp_destroy_sock");
     struct sock *sk = (struct sock *)ctx->skaddr;
     conn_tuple_t t = {};
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         // increment_telemetry_count(tcp_destroy_sock_failed_tuple);
+        log_debug("adamk error: failed to read conn tuple");
         return 0;
     }
 
@@ -1182,40 +1195,42 @@ int tracepoint__tcp_destroy_sock(struct trace_event_raw_tcp_event_sk *ctx) {
 
     // Clean up tcp_ongoing_connect_pid map
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    log_debug("adamk deleted from map yay");
 
     return 0;
 }
 
 // tracepoint for tcp_connect_fail
-SEC("tracepoint/tcp/tcp_connect_fail")
-int tracepoint__tcp_connect_fail(struct trace_event_raw_tcp_connect_fail *ctx) {
-    struct sock *sk = (struct sock *)ctx->skaddr;
-    int error = ctx->error;
-    conn_tuple_t t = {};
+// SEC("tracepoint/tcp/tcp_connect_fail")
+// int tracepoint__tcp_connect_fail(struct trace_event_raw_tcp_connect_fail *ctx) {
+//     struct sock *sk = (struct sock *)ctx->skaddr;
+//     int error = ctx->error;
+//     conn_tuple_t t = {};
 
-    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
-        // increment_telemetry_count(tcp_connect_fail_failed_tuple);
-        return 0;
-    }
+//     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+//         // increment_telemetry_count(tcp_connect_fail_failed_tuple);
+//         return 0;
+//     }
 
-    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+//     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
-    pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
-    if (!pid_tgid_p) {
-        // increment_telemetry_count(tcp_connect_fail_missing_pid);
-        return 0;
-    }
+//     pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+//     if (!pid_tgid_p) {
+//         // increment_telemetry_count(tcp_connect_fail_missing_pid);
+//         return 0;
+//     }
 
-    t.pid = pid_tgid_p->pid_tgid >> 32;
+//     t.pid = pid_tgid_p->pid_tgid >> 32;
 
-    // Clean up tcp_ongoing_connect_pid map
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+//     // Clean up tcp_ongoing_connect_pid map
+//     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    // Handle the connection failure
-    flush_tcp_failure(ctx, &t, error);
+//     // Handle the connection failure
+//     flush_tcp_failure(ctx, &t, error);
 
-    return 0;
-}
+//     return 0;
+// }
 
 
 char _license[] SEC("license") = "GPL";
