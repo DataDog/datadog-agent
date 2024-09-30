@@ -143,7 +143,7 @@ typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
 typedef double (*cb_get_process_start_time_t)(void);
 // (cmd, error_message)
 typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
-// (check, metric, value)
+// (check_name, metric_name, metric_value, metric_type)
 typedef void (*cb_emit_agent_telemetry_t)(char *, char *, float, char *);
 
 // _util

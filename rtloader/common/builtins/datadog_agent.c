@@ -936,7 +936,7 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
 }
 
 /*! \fn PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
-    \brief This function implements the `datadog_agent.emit_agent_telemetry` method, emitting agent elemetry
+    \brief This function implements the `datadog_agent.emit_agent_telemetry` method, emitting agent telemetry
     for the provided check, metric, and value.
     \param self A PyObject* pointer to the `datadog_agent` module.
     \param args A PyObject* pointer to a tuple containing the key to retrieve.
@@ -956,16 +956,16 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *check = NULL;
-    char *metric = NULL;
-    float value;
-    char *type = NULL;
-    if (!PyArg_ParseTuple(args, "ssfs", &check, &metric, &value, &type)) {
+    char *check_name = NULL;
+    char *metric_name = NULL;
+    float metric_value;
+    char *metric_type = NULL;
+    if (!PyArg_ParseTuple(args, "ssfs", &check_name, &metric_name, &metric_value, &metric_type)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
-    cb_emit_agent_telemetry(check, metric, value, type);
+    cb_emit_agent_telemetry(check_name, metric_name, metric_value, metric_type);
 
     PyGILState_Release(gstate);
 

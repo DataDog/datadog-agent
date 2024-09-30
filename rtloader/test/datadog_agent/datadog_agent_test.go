@@ -700,6 +700,9 @@ func TestObfuscateMongoDBString(t *testing.T) {
 }
 
 func TestEmitAgentTelemetry(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
 	cases := []string{"counter", "histogram", "gauge"}
 	for _, tc := range cases {
 		code := fmt.Sprintf(`
@@ -710,4 +713,7 @@ func TestEmitAgentTelemetry(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
 }
