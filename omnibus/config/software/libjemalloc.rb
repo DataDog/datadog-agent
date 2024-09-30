@@ -15,7 +15,7 @@ ship_source_offer true
 source url:"https://github.com/jemalloc/jemalloc/archive/refs/tags/#{version}.tar.gz",
        extract: :seven_zip
 
-relative_path "libjemalloc"
+relative_path "jemalloc-#{version}"
 
 build do
     license "BSD-2-Clause"
@@ -27,7 +27,7 @@ build do
     # OS to reclaim pages lazily.
     # This can result in misleading metrics, so we need to disable it here.
     # https://github.com/jemalloc/jemalloc/blob/dev/INSTALL.md#advanced-configuration
-    command "echo \"je_cv_madv_free=no\" > config.cache"
+    env["je_cv_madv_free"] = "no"
 
     # This builds libjemalloc.so.2
     configure_options = [
