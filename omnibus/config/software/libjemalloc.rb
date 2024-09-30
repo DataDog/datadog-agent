@@ -40,5 +40,5 @@ build do
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
-    command "make install"
+    command "make install_lib_shared"
 end
