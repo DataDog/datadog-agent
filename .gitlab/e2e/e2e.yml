@@ -396,7 +396,6 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
-  timeout: 35m
 
 new-e2e-windows-systemprobe:
   extends: .new_e2e_template
