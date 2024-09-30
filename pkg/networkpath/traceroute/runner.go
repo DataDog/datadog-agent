@@ -15,9 +15,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/probes/probev4"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/results"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
-	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
