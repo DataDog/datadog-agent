@@ -1181,12 +1181,10 @@ struct trace_event_tcp_destroy_sock_args {
 // tracepoint for tcp_destroy_sock
 SEC("tracepoint/tcp/tcp_destroy_sock")
 int tracepoint__tcp_destroy_sock(struct trace_event_tcp_destroy_sock_args *ctx) {
-    log_debug("adamk tracepoint__tcp_destroy_sock");
     struct sock *sk = (struct sock *)ctx->skaddr;
     conn_tuple_t t = {};
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
-        // increment_telemetry_count(tcp_destroy_sock_failed_tuple);
         log_debug("adamk error: failed to read conn tuple");
         return 0;
     }
