@@ -190,7 +190,7 @@ func (m *Check) Run() error {
 	for _, processor := range m.statProcessors {
 		if usedProcessors[processor.key.Pid] {
 			processor.setGPUUtilizationNormalizationFactor(normFactor)
-			err := processor.markInterval(now)
+			err := processor.markInterval()
 			if err != nil {
 				return fmt.Errorf("mark interval: %s", err)
 			}

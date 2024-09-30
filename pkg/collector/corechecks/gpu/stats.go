@@ -144,7 +144,7 @@ func (sp *StatsProcessor) setGPUUtilizationNormalizationFactor(factor float64) {
 	sp.utilizationNormFactor = factor
 }
 
-func (sp *StatsProcessor) markInterval(now time.Time) error {
+func (sp *StatsProcessor) markInterval() error {
 	intervalSecs := sp.measuredInterval.Seconds()
 	if intervalSecs > 0 {
 		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor

@@ -5,7 +5,6 @@
 
 // Package gpu defines the agent corecheck for
 // the GPU integration
-
 package gpu
 
 import (
