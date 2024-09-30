@@ -30,30 +30,30 @@ type EntityID interface {
 type defaultEntityID string
 
 // GetID implements EntityID#GetID
-func (de defaultEntityID) GetID() string {
-	separatorIndex := strings.Index(string(de), separator)
+func (de *defaultEntityID) GetID() string {
+	separatorIndex := strings.Index(string(*de), separator)
 
 	if separatorIndex == -1 {
 		return ""
 	}
 
-	return string(de[separatorIndex+len(separator):])
+	return string((*de)[separatorIndex+len(separator):])
 }
 
 // GetPrefix implements EntityID#GetPrefix
-func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	separatorIndex := strings.Index(string(de), separator)
+func (de *defaultEntityID) GetPrefix() EntityIDPrefix {
+	separatorIndex := strings.Index(string(*de), separator)
 
 	if separatorIndex == -1 {
 		return ""
 	}
 
-	return EntityIDPrefix(de[:separatorIndex])
+	return EntityIDPrefix((*de)[:separatorIndex])
 }
 
 // String implements EntityID#String
-func (de defaultEntityID) String() string {
-	return string(de)
+func (de *defaultEntityID) String() string {
+	return string(*de)
 }
 
 // compositeEntityID implements EntityID as a struct of prefix and id
@@ -63,23 +63,23 @@ type compositeEntityID struct {
 }
 
 // GetPrefix implements EntityID#GetPrefix
-func (eid compositeEntityID) GetPrefix() EntityIDPrefix {
+func (eid *compositeEntityID) GetPrefix() EntityIDPrefix {
 	return eid.Prefix
 }
 
 // GetID implements EntityID#GetID
-func (eid compositeEntityID) GetID() string {
+func (eid *compositeEntityID) GetID() string {
 	return eid.ID
 }
 
 // String implements EntityID#String
-func (eid compositeEntityID) String() string {
+func (eid *compositeEntityID) String() string {
 	return eid.Prefix.ToUID(eid.ID)
 }
 
 // newcompositeEntityID returns a new EntityID based on a prefix and an id
 func newCompositeEntityID(prefix EntityIDPrefix, id string) EntityID {
-	return compositeEntityID{
+	return &compositeEntityID{
 		Prefix: prefix,
 		ID:     id,
 	}
@@ -92,7 +92,8 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 	if taggerutils.ShouldUseCompositeStore() {
 		return newCompositeEntityID(prefix, id)
 	}
-	return defaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
+	de := defaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
+	return &de
 }
 
 // NewEntityIDFromString constructs EntityID from a plain string id
