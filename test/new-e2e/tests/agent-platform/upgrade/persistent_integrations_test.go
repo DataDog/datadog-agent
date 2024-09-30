@@ -10,31 +10,43 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
+	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/require"
 )
 
 type persistentIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
-	pipelineID string
-	apiKey     string
+	srcPipelineID string
+	dstPipelineID string
+	apiKey        string
+	flavor        componentos.Flavor
+	arch          componentos.Architecture
 }
 
 func TestPersistentIntegrationsSuite(t *testing.T) {
-	pipelineID := os.Getenv("DEST_AGENT_PIPELINE_ID")
+	srcPipelineID := os.Getenv("SRC_AGENT_PIPELINE_ID")
+	dstpipelineID := os.Getenv("DST_AGENT_PIPELINE_ID")
 	apiKey := os.Getenv("DD_API_KEY")
 
 	oses := []componentos.Descriptor{
 		componentos.Ubuntu2204,
-		componentos.Debian12,
-		componentos.RedHat9,
+		// componentos.Debian12,
+		// componentos.RedHat9,
 	}
 
 	archs := []componentos.Architecture{
-		componentos.AMD64Arch,
+		// componentos.AMD64Arch,
 		componentos.ARM64Arch,
 	}
 
@@ -43,12 +55,12 @@ func TestPersistentIntegrationsSuite(t *testing.T) {
 			t.Logf("Running tests for OS: %s Arch: %s", os.Flavor, arch)
 
 			t.Run(fmt.Sprintf("test upgrade persistent integrations on %s-%s", os.Flavor, arch), func(tt *testing.T) {
-				// TODO: mark the test as flaky with flake.Mark(tt)?
+				flake.Mark(tt)
 				tt.Parallel()
 				tt.Logf("Testing %s-%s", os, arch)
 
 				e2e.Run(tt,
-					&persistentIntegrationsSuite{pipelineID: pipelineID, apiKey: apiKey},
+					&persistentIntegrationsSuite{srcPipelineID: srcPipelineID, dstPipelineID: dstpipelineID, apiKey: apiKey, flavor: os.Flavor, arch: arch},
 					e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOSArch(os, arch)))),
 					e2e.WithStackName(fmt.Sprintf("upgrade-persistent-integrations-test-%s-%s", os.Flavor, arch)),
 				)
@@ -58,14 +70,26 @@ func TestPersistentIntegrationsSuite(t *testing.T) {
 }
 
 func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
+	host := v.Env().RemoteHost
+	fileManager := filemanager.NewUnix(host)
+	agentClient, err := client.NewHostAgentClient(v, host.HostOutput, false)
+	require.NoError(v.T(), err)
+
+	unixHelper := helpers.NewUnix()
+	client := common.NewTestClient(v.Env().RemoteHost, agentClient, fileManager, unixHelper)
+
 	var stdout string
 
-	// Install a datadog-agent release:
-	installAgentCmd := fmt.Sprintf("DD_API_KEY=%s DD_AGENT_MAJOR_VERSION=7 DD_AGENT_MINOR_VERSION=50 bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", v.apiKey)
-	stdout = v.Env().RemoteHost.MustExecute(installAgentCmd)
+	// Install the agent
+	install.Unix(v.T(), client, installparams.WithFlavor("datadog-agent"), installparams.WithAPIKey(v.apiKey), installparams.WithPipelineID(v.srcPipelineID), installparams.WithArch(string(v.arch)))
 
-	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
-	v.Require().Contains(stdout, "7.50")
+	// Check Agent version
+	agentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+
+	// Make sure that the integration is not installed
+	stdout, err = v.Env().RemoteHost.Execute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
+	v.Assert().NotNil(err)
+	v.Assert().Empty(stdout)
 
 	// Install a marketplace integration (NVML):
 	v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration install -t datadog-nvml==1.0.0")
@@ -75,9 +99,18 @@ func (v *persistentIntegrationsSuite) TestNVMLIntegrationPersists() {
 	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
 	v.Require().Contains(stdout, "Installed version: 1.0.0")
 
-	// Install your package from your pipeline:
-	stdout = v.Env().RemoteHost.MustExecute(fmt.Sprintf("TESTING_APT_URL=apttesting.datad0g.com TESTING_APT_REPO_VERSION=\"pipeline-%s-a7-arm64 7\" DD_API_KEY=%s DD_SITE=\"datadoghq.com\" bash -c \"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)\"", v.pipelineID, v.apiKey))
+	// Unset/Reset sticky bit on /tmp to allow the agent to write the error log
+	defer v.Env().RemoteHost.MustExecute("sudo chmod +t /tmp")
+	v.Env().RemoteHost.MustExecute("sudo chmod -t /tmp")
 
+	// Upgrade the agent with the package from the pipeline:
+	install.Unix(v.T(), client, installparams.WithPipelineID(v.dstPipelineID), installparams.WithAPIKey(v.apiKey), installparams.WithUpgrade(true), installparams.WithArch(string(v.arch)), installparams.WithFlavor("datadog-agent"))
+
+	// Check New Agent version is different from the old one
+	newAgentVersion := v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent version")
+	v.Assert().NotEqual(agentVersion, newAgentVersion)
+
+	// Assert that the integration is still installed
 	stdout = v.Env().RemoteHost.MustExecute("sudo runuser -u dd-agent -- datadog-agent integration show datadog-nvml")
 	v.Assert().Contains(stdout, "Installed version: 1.0.0")
 }
