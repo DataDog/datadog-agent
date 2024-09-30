@@ -621,6 +621,8 @@ var (
 func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
 	histogram, ok := telemetryMap[key]
 	if !ok {
 		histogram = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
@@ -633,13 +635,14 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 		)
 		telemetryMap[key] = histogram
 	}
-	telemetryLock.Unlock()
 	return histogram.(telemetry.Histogram)
 }
 
 func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
 	counter, ok := telemetryMap[key]
 	if !ok {
 		counter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
@@ -651,13 +654,14 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 		)
 		telemetryMap[key] = counter
 	}
-	telemetryLock.Unlock()
 	return counter.(telemetry.Counter)
 }
 
 func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
 	var key = checkName + "." + metricName
 	telemetryLock.Lock()
+	defer telemetryLock.Unlock()
+
 	gauge, ok := telemetryMap[key]
 	if !ok {
 		gauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
@@ -669,7 +673,6 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 		)
 		telemetryMap[key] = gauge
 	}
-	telemetryLock.Unlock()
 	return gauge.(telemetry.Gauge)
 }
 
