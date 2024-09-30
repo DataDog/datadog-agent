@@ -7,7 +7,7 @@ name "libjemalloc"
 default_version "5.3.0"
 
 version "5.3.0" do
-    source sha256: "9e936811f9fad11dbca33ca19bd97c55c52eb3ca15901f27ade046cc79e69e87"
+  source sha256: "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179" 
 end
 
 ship_source_offer true
@@ -23,6 +23,11 @@ build do
 
     env = with_standard_compiler_flags
 
+    # By default jemalloc releases pages using madvise with MADV_FREE which tells the
+    # OS to reclaim pages lazily.
+    # This can result in misleading metrics, so we need to disable it here.
+    command "echo \"je_cv_madv_free=no\" > config.cache"
+
     # This builds libjemalloc.so.2
     configure_options = [
       "--disable-debug",
@@ -32,9 +37,5 @@ build do
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
-
-    # Remove the debug information
-    command "strip lib/libjemalloc.so.2"
-
-    command "make -j #{workers} install"
+    command "make install"
 end
