@@ -10,17 +10,22 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -398,4 +403,72 @@ func (s *VMFakeintakeSuite) logJournal() {
 		return
 	}
 	s.T().Log(journal)
+}
+
+func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
+	apiKey1 := strings.Repeat("1", 32)
+	apiKey2 := strings.Repeat("2", 32)
+
+	rootDir := "/tmp/" + s.T().Name()
+	s.Env().RemoteHost.MkdirAll(rootDir)
+
+	secretResolverPath := filepath.Join(rootDir, "secret-resolver.py")
+
+	s.T().Log("Setting up the secret resolver and the initial api key file")
+
+	secretClient := secretsutils.NewSecretClient(s.T(), s.Env().RemoteHost, rootDir)
+	secretClient.SetSecret("api_key", apiKey1)
+
+	extraconfig := fmt.Sprintf(`
+api_key: ENC[api_key]
+
+secret_backend_command: %s
+secret_backend_arguments:
+  - %s
+secret_backend_remove_trailing_line_break: true
+secret_backend_command_allow_group_exec_perm: true
+
+`, secretResolverPath, rootDir)
+
+	s.UpdateEnv(awshost.Provisioner(
+		vmProvisionerOpts(
+			awshost.WithAgentOptions(
+				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
+				secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			),
+		)...),
+	)
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apikey-refresh-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces (apiKey1)")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+
+	// update api_key
+	s.T().Log("Updating the api key")
+	secretClient.SetSecret("api_key", apiKey2)
+
+	// trigger a refresh of the core-agent secrets
+	s.T().Log("Refreshing core-agent secrets")
+	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	// ensure the api_key was refreshed, fail directly otherwise
+	require.Contains(s.T(), secretRefreshOutput, "api_key")
+	s.logJournal()
+
+	s.T().Log("Waiting for traces (apiKey2)")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }

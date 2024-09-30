@@ -350,12 +350,12 @@ func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(t, err)
-	t.Log("Got apm stats", stats)
+	//t.Log("Got apm stats", stats)
 	if !hasStatsForResource(stats, "poison_pill") { // tracegen sends this resource as the last trace before shutting down.
 		return false
 	}
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(t, err)
-	t.Log("Got traces", traces)
+	// t.Log("Got traces", traces)
 	return hasTraceForResource(traces, "poison_pill")
 }
