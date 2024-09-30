@@ -23,7 +23,7 @@ type StreamHandler struct {
 	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*model.KernelSpan
 	allocations    []*model.MemoryAllocation
-	processEnded   bool
+	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 }
 
 func newStreamHandler() *StreamHandler {
@@ -48,8 +48,6 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		log.Warnf("Invalid free event: %v", event)
 		return
 	}
-
-	log.Debugf("corresponding alloc event: %+v", alloc)
 
 	data := model.MemoryAllocation{
 		StartKtime: alloc.Header.Ktime_ns,
@@ -109,7 +107,6 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 	}
 
 	span.AvgThreadCount /= uint64(span.NumKernels)
-	log.Debugf("Current kernel span: %+v", span)
 
 	return &span
 }
