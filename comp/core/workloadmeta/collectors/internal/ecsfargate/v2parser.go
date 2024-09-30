@@ -50,12 +50,13 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: taskID,
 		},
-		ClusterName: parseClusterName(task.ClusterName),
-		Region:      parseRegion(task.ClusterName),
-		Family:      task.Family,
-		Version:     task.Version,
-		LaunchType:  workloadmeta.ECSLaunchTypeFargate,
-		Containers:  taskContainers,
+		ClusterName:  parseClusterName(task.ClusterName),
+		Region:       parseRegion(task.ClusterName),
+		AWSAccountID: parseAWSAccountID(task.ClusterName),
+		Family:       task.Family,
+		Version:      task.Version,
+		LaunchType:   workloadmeta.ECSLaunchTypeFargate,
+		Containers:   taskContainers,
 
 		// the AvailabilityZone metadata is only available for
 		// Fargate tasks using platform version 1.4 or later
