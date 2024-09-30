@@ -176,13 +176,13 @@ func (sp *StatsProcessor) markInterval() error {
 	}
 
 	for _, alloc := range sp.currentAllocs {
-		startTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
-		getBuilder(alloc.Type).AddEventStart(startTime, int64(alloc.Size))
+		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		getBuilder(alloc.Type).AddEventStart(startEpoch, int64(alloc.Size))
 	}
 	for _, alloc := range sp.pastAllocs {
-		startTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
-		endTime := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
-		getBuilder(alloc.Type).AddEvent(startTime, endTime, int64(alloc.Size))
+		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		endEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
+		getBuilder(alloc.Type).AddEvent(startEpoch, endEpoch, int64(alloc.Size))
 	}
 
 	lastCheckEpoch := sp.lastCheck.Unix()
