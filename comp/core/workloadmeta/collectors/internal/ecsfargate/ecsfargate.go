@@ -10,7 +10,6 @@ package ecsfargate
 
 import (
 	"context"
-	"strconv"
 	"strings"
 
 	"go.uber.org/fx"
@@ -132,50 +131,6 @@ func parseClusterName(value string) string {
 	}
 
 	return value
-}
-
-// parseRegion tries to parse the region out of a cluster ARN. returns empty if
-// it's a malformed ARN.
-func parseRegion(clusterARN string) string {
-	arnParts := strings.Split(clusterARN, ":")
-	if len(arnParts) < 4 {
-		return ""
-	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return ""
-	}
-	region := arnParts[3]
-
-	// Sanity check
-	if strings.Count(region, "-") < 2 {
-		return ""
-	}
-
-	return region
-}
-
-// parseAWSAccountID tries to parse the accountID out of a cluster ARN. returns empty if
-// it's a malformed ARN.
-func parseAWSAccountID(clusterARN string) int {
-	arnParts := strings.Split(clusterARN, ":")
-	if len(arnParts) < 5 {
-		return 0
-	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return 0
-	}
-	id := arnParts[4]
-
-	// Sanity check
-	if len(id) != 12 {
-		return 0
-	}
-
-	awsAccountID, err := strconv.Atoi(id)
-	if err != nil {
-		return 0
-	}
-	return awsAccountID
 }
 
 func parseStatus(status string) workloadmeta.ContainerStatus {
