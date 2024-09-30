@@ -994,6 +994,132 @@ func (x *TaggerStateResponse) GetLoaded() bool {
 	return false
 }
 
+type GaugeRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name  string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value float64  `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	Tags  []string `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+}
+
+func (x *GaugeRequest) Reset() {
+	*x = GaugeRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_datadog_model_v1_model_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GaugeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GaugeRequest) ProtoMessage() {}
+
+func (x *GaugeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GaugeRequest.ProtoReflect.Descriptor instead.
+func (*GaugeRequest) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GaugeRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GaugeRequest) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *GaugeRequest) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+type GaugeResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Name  string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value float64  `protobuf:"fixed64,2,opt,name=value,proto3" json:"value,omitempty"`
+	Tags  []string `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+}
+
+func (x *GaugeResponse) Reset() {
+	*x = GaugeResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_datadog_model_v1_model_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GaugeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GaugeResponse) ProtoMessage() {}
+
+func (x *GaugeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_model_v1_model_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GaugeResponse.ProtoReflect.Descriptor instead.
+func (*GaugeResponse) Descriptor() ([]byte, []int) {
+	return file_datadog_model_v1_model_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GaugeResponse) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *GaugeResponse) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *GaugeResponse) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
 var File_datadog_model_v1_model_proto protoreflect.FileDescriptor
 
 var file_datadog_model_v1_model_proto_rawDesc = []byte{
@@ -1118,15 +1244,25 @@ var file_datadog_model_v1_model_proto_rawDesc = []byte{
 	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x2d, 0x0a, 0x13, 0x54, 0x61, 0x67, 0x67, 0x65,
 	0x72, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16,
 	0x0a, 0x06, 0x6c, 0x6f, 0x61, 0x64, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06,
-	0x6c, 0x6f, 0x61, 0x64, 0x65, 0x64, 0x2a, 0x31, 0x0a, 0x09, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x54,
-	0x79, 0x70, 0x65, 0x12, 0x09, 0x0a, 0x05, 0x41, 0x44, 0x44, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c,
-	0x0a, 0x08, 0x4d, 0x4f, 0x44, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07,
-	0x44, 0x45, 0x4c, 0x45, 0x54, 0x45, 0x44, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x0e, 0x54, 0x61, 0x67,
-	0x43, 0x61, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x07, 0x0a, 0x03, 0x4c,
-	0x4f, 0x57, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x0c, 0x4f, 0x52, 0x43, 0x48, 0x45, 0x53, 0x54, 0x52,
-	0x41, 0x54, 0x4f, 0x52, 0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x48, 0x49, 0x47, 0x48, 0x10, 0x02,
-	0x42, 0x15, 0x5a, 0x13, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62,
-	0x67, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6c, 0x6f, 0x61, 0x64, 0x65, 0x64, 0x22, 0x4c, 0x0a, 0x0c, 0x47, 0x61, 0x75, 0x67, 0x65, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x12, 0x12, 0x0a, 0x04, 0x74, 0x61, 0x67, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04,
+	0x74, 0x61, 0x67, 0x73, 0x22, 0x4d, 0x0a, 0x0d, 0x47, 0x61, 0x75, 0x67, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x12,
+	0x12, 0x0a, 0x04, 0x74, 0x61, 0x67, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x74,
+	0x61, 0x67, 0x73, 0x2a, 0x31, 0x0a, 0x09, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x54, 0x79, 0x70, 0x65,
+	0x12, 0x09, 0x0a, 0x05, 0x41, 0x44, 0x44, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x4d,
+	0x4f, 0x44, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x44, 0x45, 0x4c,
+	0x45, 0x54, 0x45, 0x44, 0x10, 0x02, 0x2a, 0x35, 0x0a, 0x0e, 0x54, 0x61, 0x67, 0x43, 0x61, 0x72,
+	0x64, 0x69, 0x6e, 0x61, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x07, 0x0a, 0x03, 0x4c, 0x4f, 0x57, 0x10,
+	0x00, 0x12, 0x10, 0x0a, 0x0c, 0x4f, 0x52, 0x43, 0x48, 0x45, 0x53, 0x54, 0x52, 0x41, 0x54, 0x4f,
+	0x52, 0x10, 0x01, 0x12, 0x08, 0x0a, 0x04, 0x48, 0x49, 0x47, 0x48, 0x10, 0x02, 0x42, 0x15, 0x5a,
+	0x13, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62, 0x67, 0x6f, 0x2f,
+	0x63, 0x6f, 0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1142,7 +1278,7 @@ func file_datadog_model_v1_model_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_model_v1_model_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_model_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_datadog_model_v1_model_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_datadog_model_v1_model_proto_goTypes = []interface{}{
 	(EventType)(0),                 // 0: datadog.model.v1.EventType
 	(TagCardinality)(0),            // 1: datadog.model.v1.TagCardinality
@@ -1161,8 +1297,10 @@ var file_datadog_model_v1_model_proto_goTypes = []interface{}{
 	(*UnixDogstatsdMsg)(nil),       // 14: datadog.model.v1.UnixDogstatsdMsg
 	(*TaggerState)(nil),            // 15: datadog.model.v1.TaggerState
 	(*TaggerStateResponse)(nil),    // 16: datadog.model.v1.TaggerStateResponse
-	nil,                            // 17: datadog.model.v1.TaggerState.StateEntry
-	nil,                            // 18: datadog.model.v1.TaggerState.PidMapEntry
+	(*GaugeRequest)(nil),           // 17: datadog.model.v1.GaugeRequest
+	(*GaugeResponse)(nil),          // 18: datadog.model.v1.GaugeResponse
+	nil,                            // 19: datadog.model.v1.TaggerState.StateEntry
+	nil,                            // 20: datadog.model.v1.TaggerState.PidMapEntry
 }
 var file_datadog_model_v1_model_proto_depIdxs = []int32{
 	1,  // 0: datadog.model.v1.StreamTagsRequest.cardinality:type_name -> datadog.model.v1.TagCardinality
@@ -1176,8 +1314,8 @@ var file_datadog_model_v1_model_proto_depIdxs = []int32{
 	1,  // 8: datadog.model.v1.FetchEntityRequest.cardinality:type_name -> datadog.model.v1.TagCardinality
 	13, // 9: datadog.model.v1.FetchEntityResponse.id:type_name -> datadog.model.v1.EntityId
 	1,  // 10: datadog.model.v1.FetchEntityResponse.cardinality:type_name -> datadog.model.v1.TagCardinality
-	17, // 11: datadog.model.v1.TaggerState.state:type_name -> datadog.model.v1.TaggerState.StateEntry
-	18, // 12: datadog.model.v1.TaggerState.pidMap:type_name -> datadog.model.v1.TaggerState.PidMapEntry
+	19, // 11: datadog.model.v1.TaggerState.state:type_name -> datadog.model.v1.TaggerState.StateEntry
+	20, // 12: datadog.model.v1.TaggerState.pidMap:type_name -> datadog.model.v1.TaggerState.PidMapEntry
 	10, // 13: datadog.model.v1.TaggerState.StateEntry.value:type_name -> datadog.model.v1.Entity
 	14, // [14:14] is the sub-list for method output_type
 	14, // [14:14] is the sub-list for method input_type
@@ -1372,6 +1510,30 @@ func file_datadog_model_v1_model_proto_init() {
 				return nil
 			}
 		}
+		file_datadog_model_v1_model_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GaugeRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_datadog_model_v1_model_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GaugeResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1379,7 +1541,7 @@ func file_datadog_model_v1_model_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_datadog_model_v1_model_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
