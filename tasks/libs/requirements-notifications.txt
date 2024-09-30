@@ -6,4 +6,3 @@ codeowners==0.6.0; python_version >= '3.7'
 requests==2.31.0
 PyYAML==6.0.1
 slack-sdk~=3.27.1
-atlassian-python-api==3.41.3
