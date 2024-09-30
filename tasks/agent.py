@@ -576,27 +576,28 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
     """
     Run integration tests for the Agent
     """
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, timeout=timeout)
     else:
         # TODO: See if these will function on Windows
         return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout="10m"):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     tests = [
         {

@@ -15,7 +15,6 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
-from tasks.go import deps
 from tasks.libs.releasing.version import load_release_versions
 
 # constants
@@ -88,15 +87,12 @@ def clean(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
     """
     Run integration tests for cluster-agent
     """
     if sys.platform == 'win32':
         raise Exit(message='cluster-agent integration tests are not supported on Windows', code=0)
-
-    if install_deps:
-        deps(ctx)
 
     # We need docker for the kubeapiserver integration tests
     tags = get_default_build_tags(build="cluster-agent") + ["docker", "test"]
@@ -104,6 +100,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     go_build_tags = " ".join(get_build_tags(tags, []))
     race_opt = "-race" if race else ""
     exec_opts = ""
+    timeout_opt = f"-timeout {timeout}" if timeout else ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
@@ -112,7 +109,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/util/kube_apiserver",

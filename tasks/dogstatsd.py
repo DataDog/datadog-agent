@@ -11,7 +11,6 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -171,19 +170,17 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
     """
     Run integration tests for dogstatsd
     """
     if sys.platform == 'win32':
         raise Exit(message='dogstatsd integration tests are not supported on Windows', code=0)
 
-    if install_deps:
-        deps(ctx)
-
     go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
     exec_opts = ""
+    timeout_opt = f"-timeout {timeout}" if timeout else ""
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
     # to the call, we don't want them because while calling invoke below, invoke
@@ -192,7 +189,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if remote_docker:
         exec_opts = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = f'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
+    go_cmd = f'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'
 
     prefixes = [
         "./test/integration/dogstatsd/...",
