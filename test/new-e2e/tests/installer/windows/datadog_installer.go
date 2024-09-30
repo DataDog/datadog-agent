@@ -194,7 +194,7 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
