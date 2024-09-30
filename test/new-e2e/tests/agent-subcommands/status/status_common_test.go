@@ -67,22 +67,29 @@ type expectedSection struct {
 }
 
 // verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
-func verifySectionContent(t require.TestingT, statusOutput string, section expectedSection) {
-	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
+func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection) {
+	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		statusOutput := v.Env().Agent.Client.Status()
 
-	if section.shouldBePresent {
-		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
-			for _, expectedContent := range section.shouldContain {
-				assert.Contains(t, sectionContent.content, expectedContent)
-			}
+		for _, section := range expectedSections {
+			sectionContent, err := getStatusComponentContent(statusOutput.Content, section.name)
 
-			for _, unexpectedContent := range section.shouldNotContain {
-				assert.NotContains(t, sectionContent.content, unexpectedContent)
+			if section.shouldBePresent {
+				if assert.NoError(t, err, "Section %v was expected in the status output, but was not found. \n Here is the status output %s", section.name, statusOutput) {
+					for _, expectedContent := range section.shouldContain {
+						assert.Contains(v.T(), sectionContent.content, expectedContent)
+					}
+
+					for _, unexpectedContent := range section.shouldNotContain {
+						assert.NotContains(v.T(), sectionContent.content, unexpectedContent)
+					}
+				}
+			} else {
+				assert.Error(v.T(), err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
 			}
 		}
-	} else {
-		assert.Error(t, err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
-	}
+	}, 2*time.Minute, 20*time.Second)
 }
 
 func (v *baseStatusSuite) TestDefaultInstallStatus() {
@@ -105,6 +112,12 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:            "Autodiscovery",
 			shouldBePresent: false,
+		},
+		{
+			name:             "Collector",
+			shouldBePresent:  true,
+			shouldContain:    []string{"Instance ID:", "[OK]"},
+			shouldNotContain: []string{"Errors"},
 		},
 		{
 			name:            "Compliance",
@@ -182,12 +195,5 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 	}
 
-	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
-	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		status := v.Env().Agent.Client.Status()
-
-		for _, section := range expectedSections {
-			verifySectionContent(t, status.Content, section)
-		}
-	}, 2*time.Minute, 20*time.Second)
+	fetchAndCheckStatus(v, expectedSections)
 }
