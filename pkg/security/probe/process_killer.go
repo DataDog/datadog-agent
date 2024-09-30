@@ -53,7 +53,6 @@ type ProcessKiller struct {
 }
 
 type processKillerStats struct {
-	actionPerformed int64
 	processesKilled int64
 }
 
@@ -241,7 +240,6 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		stats = &processKillerStats{}
 		p.perRuleStats[rule.ID] = stats
 	}
-	stats.actionPerformed++
 	stats.processesKilled += processesKilled
 	p.perRuleStatsLock.Unlock()
 
@@ -279,11 +277,6 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 	for ruleID, stats := range p.perRuleStats {
 		ruleIDTag := []string{
 			"rule_id:" + string(ruleID),
-		}
-
-		if stats.actionPerformed > 0 {
-			_ = statsd.Count(metrics.MetricEnforcementKillActionPerformed, stats.actionPerformed, ruleIDTag, 1)
-			stats.actionPerformed = 0
 		}
 
 		if stats.processesKilled > 0 {
