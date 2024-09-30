@@ -326,7 +326,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	envs, err := getServiceEnvs(proc, defSizeReadBuf, true)
+	envs, err := getEnvsUsingScan(proc, true)
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,8 +27,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"net/http/httptest"
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -499,7 +498,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 			commandline: []string{"dotnet", "foo.dll"},
 			language:    language.DotNet,
 			env: []string{
-				"CORECLR_ENABLE_PROFILING=1",
+				apm.EnvCoreClrEnableProfiling + "=1",
 			},
 		},
 		"java": {

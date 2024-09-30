@@ -8,6 +8,7 @@
 package module
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"hash/fnv"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v3/process"
@@ -34,14 +36,10 @@ const (
 )
 
 const (
-	// maxSizeEnvsMap - maximum number of returned environment variables
-	maxSizeEnvsMap = 400
 	// defSizeEnvsMap - default size for environment variables map
 	defSizeEnvsMap = 200
-	// defSizeReadBuf - default buffer size for reading from proc/pid/environ
-	defSizeReadBuf = 2048
-	// defSizeEnvBuf - default buffer size for storing processed environment variable
-	defSizeEnvBuf = 100
+	// maxSizeEnvsMap - maximum number of returned environment variables
+	maxSizeEnvsMap = 400
 	// envVarDdService - name of target environment variable DD_SERVICE
 	envVarDdService = "DD_SERVICE"
 	// envVarDdTags - name of target environment variable DD_TAGS
@@ -187,50 +185,14 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 	return envs, nil
 }
 
-// EnvScanner reads the environment variables file in chunks.
-// Collects only those variables that match the target map if the map is not empty,
+// EnvScanner reads the environment variables from /ptoc file.
+// It collects only those variables that match the target map if the map is not empty,
 // otherwise collect all environment variables.
 type EnvScanner struct {
 	file    *os.File          // open pointer to environment variables file
+	scanner *bufio.Scanner    // scanner to read file data
 	targets map[uint64]string // map of environment variables of interest
-	buffer  []byte            // buffer for reading a fragment from a file
-	end     int               // last index of data read
-	err     error             // last detected error
 	envs    map[string]string // collected environment variables
-	env     []byte            // the last processed environment variable
-}
-
-// NewEnvScanner returns a new [EnvScanner] to read from path.
-func NewEnvScanner(path string, bufSize int, targets []string) *EnvScanner {
-
-	targetsMap := make(map[uint64]string)
-	targetsNum := len(targets)
-
-	if targetsNum == 0 {
-		targetsNum = defSizeEnvsMap
-	} else {
-		for _, target := range targets {
-			targetsMap[hashBytes([]byte(target))] = target
-		}
-	}
-
-	file, err := os.Open(path)
-	return &EnvScanner{
-		file:    file,
-		targets: targetsMap,
-		buffer:  make([]byte, bufSize),
-		end:     bufSize,
-		err:     err,
-		envs:    make(map[string]string, targetsNum),
-		env:     make([]byte, 0, defSizeEnvBuf),
-	}
-}
-
-// Finish closes an open file
-func (es *EnvScanner) Finish() {
-	if es.file != nil {
-		es.file.Close()
-	}
 }
 
 // hashBytes return hash value of a bytes array using FNV-1a hash function
@@ -240,75 +202,90 @@ func hashBytes(b []byte) uint64 {
 	return h.Sum64()
 }
 
-// addEnvToMapIfTarget add env. variable to map if it matches target or target map is empty.
-func (es *EnvScanner) addEnvToMapIfTarget() {
-	if len(es.envs) == maxSizeEnvsMap {
-		es.err = fmt.Errorf("proc environment scanner can't add more than max (%d)", maxSizeEnvsMap)
-		return
+func buildTargetsMap() map[uint64]string {
+	targetsMap := make(map[uint64]string)
+
+	for _, target := range targetEnvs {
+		targetsMap[hashBytes([]byte(target))] = target
 	}
-	eq := bytes.IndexByte(es.env, '=')
-	if eq == -1 {
-		return
+	for _, target := range apm.JavaDetectorEnvs {
+		targetsMap[hashBytes([]byte(target))] = target
 	}
-	if len(es.targets) > 0 {
-		h := hashBytes(es.env[:eq])
-		_, exists := es.targets[h]
-		if exists {
-			name := string(es.env[:eq])
-			es.envs[name] = string(es.env[eq+1:])
-		}
-	} else {
-		name := string(es.env[:eq])
-		es.envs[name] = string(es.env[eq+1:])
+	for _, target := range apm.DotNetDetectorEnvs {
+		targetsMap[hashBytes([]byte(target))] = target
+	}
+	return targetsMap
+}
+
+// nullTerminatedString used to tokenize the scanner data
+func nullTerminatedString(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexByte(data, 0); i >= 0 {
+		return i + 1, data[0:i], nil
+	}
+	if atEOF && len(data) > 0 {
+		// end of the file, return the remaining data
+		return len(data), data, nil
+	}
+
+	return 0, nil, nil
+}
+
+// newEnvScanner returns a new [EnvScanner] to read from path.
+func newEnvScanner(path string, onlyTargets bool) (*EnvScanner, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	var targetsMap map[uint64]string
+	if onlyTargets {
+		targetsMap = buildTargetsMap()
+	}
+
+	envsNum := len(targetsMap)
+	if envsNum == 0 {
+		envsNum = defSizeEnvsMap
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(nullTerminatedString)
+
+	return &EnvScanner{
+		file:    file,
+		scanner: scanner,
+		targets: targetsMap,
+		envs:    make(map[string]string, envsNum),
+	}, nil
+}
+
+// Finish closes an open file
+func (es *EnvScanner) finish() {
+	if es.file != nil {
+		es.file.Close()
 	}
 }
 
-// ScanFile reads a text file in chunks and extracts null-terminated strings,
-// extracts the name and value of environment variables and stores them in a map.
-// +-------------------------------+---------------+------------+-------------------+
-// | read fragment may include     | end of string | equal sign | action to do      |
-// |-------------------------------|---------------|------------|-------------------|
-// | ^^^^^^[NULL]^^^^=^^^^^[NULL]  |     v         |     v      | save env.var      |
-// | ^^^^^^[NULL]^^^^^^^^^^^^^^^^  |     v         |     -      | save env.var      |
-// | ^^^^^^^^^^^^^^^^=^^^^^^^^^^^  |     -         |     v      | append to env.var |
-// | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  |     -         |     -      | append to env.var |
-// +-------------------------------+---------------+------------+-------------------+
-func (es *EnvScanner) ScanFile() error {
+// addTargetEnvToMap add env. variable to the map of environment variables.
+func (es *EnvScanner) addTargetEnvToMap() error {
 	if len(es.envs) == maxSizeEnvsMap {
-		es.err = fmt.Errorf("proc environment scanner reached maximum entries (%d)", maxSizeEnvsMap)
-		return es.err
+		return fmt.Errorf("proc scanner can't add more than max (%d) environment variables", maxSizeEnvsMap)
 	}
-	es.end, es.err = es.file.Read(es.buffer)
-	if es.end <= 0 {
-		return io.EOF
+	b := es.scanner.Bytes()
+	eq := bytes.IndexByte(b, '=')
+	if eq == -1 {
+		// ignore invalid env. variable
+		return nil
 	}
-	if es.err != nil {
-		return es.err
-	}
-	cursor := 0 // indicates the beginning of the next string
-
-	for cursor < es.end {
-		strLen := bytes.IndexByte(es.buffer[cursor:], 0)
-		strLen = min(strLen, es.end-cursor) // consider only bytes up to the end of the data end
-
-		if strLen >= 0 {
-			// zero length means NULL was encountered immediately.
-			if strLen > 0 {
-				es.env = append(es.env, es.buffer[cursor:cursor+strLen]...)
-			}
-			es.addEnvToMapIfTarget()
-			if es.err != nil {
-				return es.err
-			}
-			// reset processed env. var.
-			es.env = es.env[:0]
-			cursor += strLen + 1
-		} else {
-			es.env = append(es.env, es.buffer[cursor:es.end]...)
-			break
+	if len(es.targets) > 0 {
+		h := hashBytes(b[:eq])
+		_, exists := es.targets[h]
+		if exists {
+			name := string(b[:eq])
+			es.envs[name] = string(b[eq+1:])
 		}
+	} else {
+		name := string(b[:eq])
+		es.envs[name] = string(b[eq+1:])
 	}
-
 	return nil
 }
 
@@ -321,26 +298,22 @@ func getEnvironPath(proc *process.Process) string {
 	return filepath.Join(hostProc, strconv.Itoa(int(proc.Pid)), "environ")
 }
 
-// getServiceEnvs searches the environment variables of interest in the proc file by reading the file in chunks.
-func getServiceEnvs(proc *process.Process, buffSize int, onlyTargets bool) (map[string]string, error) {
-	targets := targetEnvs
-	if !onlyTargets {
-		targets = nil
+// getEnvsUsingScan searches the environment variables of interest in the proc file by reading the proc file
+func getEnvsUsingScan(proc *process.Process, onlyTargets bool) (map[string]string, error) {
+	es, err := newEnvScanner(getEnvironPath(proc), onlyTargets)
+	if err != nil {
+		return nil, err
 	}
-	es := NewEnvScanner(getEnvironPath(proc), buffSize, targets)
-	if es.err != nil {
-		return nil, es.err
-	}
-	defer es.Finish()
+	defer es.finish()
 
-	for {
-		err := es.ScanFile()
+	for es.scanner.Scan() {
+		err := es.addTargetEnvToMap()
 		if err != nil {
-			break
+			return es.envs, err
 		}
 	}
-	if es.err != nil && es.err != io.EOF {
-		return nil, es.err
+	if err := es.scanner.Err(); err != nil {
+		return es.envs, err
 	}
 	injectionMeta, ok := getInjectionMeta(proc)
 	if !ok {

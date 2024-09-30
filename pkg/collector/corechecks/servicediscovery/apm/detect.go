@@ -51,6 +51,26 @@ var (
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
+var JavaDetectorEnvs = []string{
+	// These are the environment variables that are used to pass options to the JVM
+	"JAVA_TOOL_OPTIONS",
+	"_JAVA_OPTIONS",
+	"JDK_JAVA_OPTIONS",
+	// I'm pretty sure these won't be necessary, as they should be parsed before the JVM sees them
+	// but there's no harm in including them
+	"JAVA_OPTIONS",
+	"CATALINA_OPTS",
+	"JDPA_OPTS",
+}
+
+const (
+	EnvCoreClrEnableProfiling = "CORECLR_ENABLE_PROFILING"
+)
+
+var DotNetDetectorEnvs = []string{
+	EnvCoreClrEnableProfiling,
+}
+
 // Detect attempts to detect the type of APM instrumentation for the given service.
 func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
@@ -217,18 +237,7 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 		}
 	}
 	// also don't instrument if the javaagent is there in the environment variable JAVA_TOOL_OPTIONS and friends
-	toolOptionEnvs := []string{
-		// These are the environment variables that are used to pass options to the JVM
-		"JAVA_TOOL_OPTIONS",
-		"_JAVA_OPTIONS",
-		"JDK_JAVA_OPTIONS",
-		// I'm pretty sure these won't be necessary, as they should be parsed before the JVM sees them
-		// but there's no harm in including them
-		"JAVA_OPTIONS",
-		"CATALINA_OPTS",
-		"JDPA_OPTS",
-	}
-	for _, name := range toolOptionEnvs {
+	for _, name := range JavaDetectorEnvs {
 		if val, ok := envs[name]; ok {
 			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
 				return Provided
@@ -266,8 +275,10 @@ func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
 //
 // 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
 func dotNetDetector(pid int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
-		return Provided
+	for _, name := range DotNetDetectorEnvs {
+		if val, ok := envs[name]; ok && val == "1" {
+			return Provided
+		}
 	}
 
 	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")

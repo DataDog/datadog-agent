@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -113,23 +114,19 @@ func TestEnvScanner(t *testing.T) {
 	envMapGood, err := getEnvs(proc)
 	require.NoError(t, err)
 
-	// extract environment variables using a small read buffer
-	envMapCurr, err := getServiceEnvs(proc, 40, false)
-	require.NoError(t, err)
-	require.Equal(t, envMapGood, envMapCurr)
-
-	// extract environment variables using a large read buffer
-	envMapCurr, err = getServiceEnvs(proc, defSizeReadBuf, false)
+	// extract environment variables using scanner
+	envMapCurr, err := getEnvsUsingScan(proc, false)
 	require.NoError(t, err)
 	require.Equal(t, envMapGood, envMapCurr)
 
 	// test extraction of target variables
 	expectedMap := map[string]string{
-		envVarDdService:          "service1",
-		envVarDdTags:             "tag1,tag2,tag3",
-		envVarDdInjectionEnabled: "true",
-		envVarDiscoveryEnabled:   "true",
-		envVarOtelServiceName:    "service2",
+		envVarDdService:               "service1",
+		envVarDdTags:                  "tag1,tag2,tag3",
+		envVarDdInjectionEnabled:      "true",
+		envVarDiscoveryEnabled:        "true",
+		envVarOtelServiceName:         "service2",
+		apm.EnvCoreClrEnableProfiling: "1",
 	}
 	var expectedEnvs []string
 	for k, v := range expectedMap {
@@ -138,12 +135,12 @@ func TestEnvScanner(t *testing.T) {
 
 	createEnvsMemfd(t, expectedEnvs)
 
-	envMapCurr, err = getServiceEnvs(proc, 48, true)
+	envMapCurr, err = getEnvsUsingScan(proc, true)
 	require.NoError(t, err)
 	require.Equal(t, envMapCurr, expectedMap)
 }
 
-func BenchmarkOldGetEnvs(b *testing.B) {
+func BenchmarkGetEnvs(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -158,7 +155,7 @@ func BenchmarkOldGetEnvs(b *testing.B) {
 	}
 }
 
-func BenchmarkNewGetEnvs(b *testing.B) {
+func BenchmarkGetEnvsScan(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -166,7 +163,7 @@ func BenchmarkNewGetEnvs(b *testing.B) {
 		if err != nil {
 			return
 		}
-		_, err = getServiceEnvs(proc, defSizeReadBuf, true)
+		_, err = getEnvsUsingScan(proc, true)
 		if err != nil {
 			return
 		}
