@@ -42,6 +42,7 @@ iot-agent-*                          @DataDog/agent-delivery
 agent_suse*                          @DataDog/agent-delivery
 windows-installer*                   @DataDog/windows-agent
 windows_*                            @DataDog/windows-agent
+powershell_script_signing            @DataDog/windows-agent
 
 # Packaging
 agent_deb*                           @DataDog/agent-delivery
@@ -105,6 +106,8 @@ deploy_installer*                      @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-agent
+powershell_script_deploy               @DataDog/windows-agent
+windows_bootstrapper_deploy             @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
 
 # Deploy containers
