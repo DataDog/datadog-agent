@@ -1,4 +1,7 @@
+import os
+
 try:
+    from atlassian import Jira
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
     from datadog_api_client.v2.model.ci_app_aggregate_sort import CIAppAggregateSort
@@ -12,6 +15,28 @@ try:
     from datadog_api_client.v2.model.ci_app_tests_query_filter import CIAppTestsQueryFilter
 except ImportError:
     pass
+
+
+def get_jira():
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+
+    return jira
+
+
+def close_issue(jira, issue_key: str, verbose_test: str, dry_run: bool = False):
+    print('Closing the issue', issue_key, 'for test', verbose_test)
+
+    if dry_run:
+        return
+
+    jira.issue_add_comment(issue_key, 'Closing this issue since the test is not failing anymore')
+    try:
+        jira.issue_transition(issue_key, "Won't Do")
+    except Exception:
+        # There is no `won't do` column
+        jira.issue_transition(issue_key, "Done")
 
 
 def get_failing_tests_names() -> set[str]:

@@ -187,4 +187,4 @@ close_failing_tests_stale_issues:
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com; export ATLASSIAN_USERNAME
     - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt # For Atlassian / Jira dependencies
-    - inv -e jira.close-failing-tests-stale-issues --dry-run # TODO
+    - inv -e notify.close-failing-tests-stale-issues --dry-run # TODO
