@@ -232,11 +232,11 @@ func setupCommand() *cobra.Command {
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i, err := newInstallerCmd("setup")
-			defer func() { i.Stop(err) }()
-			ctx, cancel := context.WithTimeout(i.ctx, timeout)
+			cmd := newCmd("setup")
+			defer func() { cmd.Stop(err) }()
+			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
 			defer cancel()
-			return installer.Setup(ctx, i.env)
+			return installer.Setup(ctx, cmd.env)
 		},
 	}
 	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
