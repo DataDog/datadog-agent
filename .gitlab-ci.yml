@@ -1,7 +1,6 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/linters.yml
   - .gitlab/.pre/test_gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
@@ -23,7 +22,6 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_k8s/e2e_k8s.yml
   - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
@@ -36,6 +34,7 @@ include:
   - .gitlab/kitchen_cleanup/include.yml
   - .gitlab/kitchen_deploy/kitchen_deploy.yml
   - .gitlab/kitchen_testing/include.yml
+  - .gitlab/lint/include.yml
   - .gitlab/maintenance_jobs/include.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
@@ -66,6 +65,7 @@ stages:
   - maintenance_jobs
   - deps_build
   - deps_fetch
+  - lint
   - source_test
   - source_test_stats
   - software_composition_analysis
@@ -170,15 +170,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v44534774-f5cc3e24
+  DATADOG_AGENT_BUILDIMAGES: v45186095-84d9d5f2
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v44534774-f5cc3e24
+  DATADOG_AGENT_WINBUILDIMAGES: v45186095-84d9d5f2
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v44534774-f5cc3e24
+  DATADOG_AGENT_ARMBUILDIMAGES: v45186095-84d9d5f2
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v44534774-f5cc3e24
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45186095-84d9d5f2
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v44534774-f5cc3e24
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45186095-84d9d5f2
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -252,6 +252,11 @@ variables:
   SSH_PUBLIC_KEY_RSA: ci.datadog-agent.ssh_public_key_rsa  # agent-devx-loops
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
+
+  ATLASSIAN_WRITE: atlassian-write
+  AGENT_GITHUB_APP: agent-github-app
+  MACOS_GITHUB_APP_1: macos-github-app-one
+  MACOS_GITHUB_APP_2: macos-github-app-two
 
   DD_PKG_VERSION: "latest"
 
@@ -795,6 +800,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
+        - flakes.yaml
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_e2e_or_windows_installer_changes:
@@ -1032,6 +1038,15 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_cspm_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - test/new-e2e/tests/cspm/**/* #TODO: Add other paths that should trigger the execution of CSPM e2e tests
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_windows_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]

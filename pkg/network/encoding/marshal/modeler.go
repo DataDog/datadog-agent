@@ -67,6 +67,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 			NpmEnabled: pkgconfigsetup.SystemProbe().GetBool("network_config.enabled"),
 			UsmEnabled: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enabled"),
 			CcmEnabled: pkgconfigsetup.SystemProbe().GetBool("ccm_network_config.enabled"),
+			CsmEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
 		}
 	})
 
@@ -86,6 +87,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		w.SetNpmEnabled(agentCfg.NpmEnabled)
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
 		w.SetCcmEnabled(agentCfg.CcmEnabled)
+		w.SetCsmEnabled(agentCfg.CsmEnabled)
 	})
 	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)

@@ -134,6 +134,7 @@ DEFAULT_MODULES = {
     ),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True, used_by_otel=True),
     "comp/api/api/def": GoModule("comp/api/api/def", independent=True, used_by_otel=True),
+    "comp/api/authtoken": GoModule("comp/api/authtoken", independent=True, used_by_otel=True),
     "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
     "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True, used_by_otel=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True, used_by_otel=True),
@@ -163,8 +164,6 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
-    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/otelcol/ddflareextension/def": GoModule(
@@ -213,13 +212,16 @@ DEFAULT_MODULES = {
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True, used_by_otel=True),
-    "pkg/api": GoModule("pkg/api", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True, used_by_otel=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
     "pkg/config/mock": GoModule("pkg/config/mock", independent=True, used_by_otel=True),
+    "pkg/config/nodetreemodel": GoModule("pkg/config/nodetreemodel", independent=True, used_by_otel=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
+    "pkg/config/teeconfig": GoModule("pkg/config/teeconfig", independent=True, used_by_otel=True),
+    "pkg/config/structure": GoModule("pkg/config/structure", independent=True, used_by_otel=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
@@ -284,9 +286,6 @@ DEFAULT_MODULES = {
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),
     "pkg/version": GoModule("pkg/version", independent=True, used_by_otel=True),
-    "test/e2e/containers/otlp_sender": GoModule(
-        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
-    ),
     "test/fakeintake": GoModule("test/fakeintake", independent=True),
     "test/new-e2e": GoModule(
         "test/new-e2e",
