@@ -8,6 +8,7 @@ package gpu
 import (
 	"debug/elf"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -27,8 +28,13 @@ type systemContext struct {
 
 // fileData holds the symbol table and Fatbin data for a given file.
 type fileData struct {
-	symbolTable map[uint64]string
-	fatbin      *cuda.Fatbin
+	symbolTable  map[uint64]string
+	fatbin       *cuda.Fatbin
+	lastAccessed time.Time
+}
+
+func (fd *fileData) updateAccessTime() {
+	fd.lastAccessed = time.Now()
 }
 
 func getSystemContext() (*systemContext, error) {
@@ -63,6 +69,7 @@ func (ctx *systemContext) queryDevices() error {
 
 func (ctx *systemContext) getFileData(path string) (*fileData, error) {
 	if fd, ok := ctx.fileData[path]; ok {
+		fd.updateAccessTime()
 		return fd, nil
 	}
 
@@ -90,6 +97,7 @@ func (ctx *systemContext) getFileData(path string) (*fileData, error) {
 		fd.symbolTable[sym.Value] = sym.Name
 	}
 
+	fd.updateAccessTime()
 	ctx.fileData[path] = fd
 	return ctx.fileData[path], nil
 }
@@ -106,4 +114,19 @@ func (ctx *systemContext) getProcessMemoryMaps(pid int) (*kernel.ProcMapEntries,
 
 	ctx.pidMaps[pid] = &maps
 	return &maps, nil
+}
+
+func (ctx *systemContext) cleanupDataForProcess(pid int) {
+	delete(ctx.pidMaps, pid)
+}
+
+func (ctx *systemContext) cleanupOldEntries() {
+	maxFatbinAge := 5 * time.Minute
+	fatbinExpirationTime := time.Now().Add(-maxFatbinAge)
+
+	for path, fd := range ctx.fileData {
+		if fd.lastAccessed.Before(fatbinExpirationTime) {
+			delete(ctx.fileData, path)
+		}
+	}
 }
