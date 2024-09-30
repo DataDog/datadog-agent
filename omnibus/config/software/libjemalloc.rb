@@ -26,6 +26,7 @@ build do
     # By default jemalloc releases pages using madvise with MADV_FREE which tells the
     # OS to reclaim pages lazily.
     # This can result in misleading metrics, so we need to disable it here.
+    # https://github.com/jemalloc/jemalloc/blob/dev/INSTALL.md#advanced-configuration
     command "echo \"je_cv_madv_free=no\" > config.cache"
 
     # This builds libjemalloc.so.2
