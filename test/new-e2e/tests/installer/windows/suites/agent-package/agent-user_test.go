@@ -13,7 +13,7 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -25,7 +25,7 @@ type testAgentInstallWithAgentUserSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstallsWithAgentUser(t *testing.T) {
 	agentUser := "customuser"
-	assert.NotEqual(t, windowsAgent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	require.NotEqual(t, windowsAgent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 
 	e2e.Run(t, &testAgentInstallWithAgentUserSuite{
 		agentUser: agentUser,
