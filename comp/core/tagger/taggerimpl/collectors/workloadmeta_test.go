@@ -1448,7 +1448,6 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"ecs_service:datadog-agent-service",
 						"aws_account:1234567891234",
-						"account:1234567891234",
 					},
 					StandardTags: []string{},
 				},
