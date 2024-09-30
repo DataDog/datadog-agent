@@ -11,14 +11,11 @@
 name "openssl-fips"
 default_version "0.0.1"
 
-resources_path="#{Omnibus::Config.project_root}/resources/fips"
-
 OPENSSL_VERSION="3.0.15"
 OPENSSL_SHA256_SUM="23c666d0edf20f14249b3d8f0368acaee9ab585b09e1de82107c66e1f3ec9533"
 OPENSSL_FILENAME="openssl-#{OPENSSL_VERSION}"
 
 DIST_DIR="#{install_dir}/embedded"
-
 
 source url: "https://github.com/openssl/openssl/releases/download/#{OPENSSL_FILENAME}/#{OPENSSL_FILENAME}.tar.gz",
            sha256: "#{OPENSSL_SHA256_SUM}",
@@ -45,7 +42,10 @@ build do
     mkdir "#{install_dir}/embedded/lib/ossl-modules"
     copy "/usr/local/lib*/ossl-modules/fips.so", "#{install_dir}/embedded/lib/ossl-modules/fips.so"
 
-    copy "#{resources_path}/openssl.cnf", "#{install_dir}/embedded/ssl/openssl.cnf.tmp"
+    erb source: "openssl.cnf.erb",
+        dest: "#{install_dir}/embedded/ssl/openssl.cnf.tmp",
+        mode: 0644,
+        vars: { install_dir: install_dir }
     erb source: "fipsinstall.sh.erb",
         dest: "#{install_dir}/embedded/bin/fipsinstall.sh",
         mode: 0755,

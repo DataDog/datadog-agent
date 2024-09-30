@@ -1,8 +1,7 @@
 config_diagnostics = 1
 openssl_conf = openssl_init
 
-# TODO: template install path
-.include /opt/datadog-agent/embedded/ssl/fipsmodule.cnf
+.include <%= install_dir %>/embedded/ssl/fipsmodule.cnf
 
 [openssl_init]
 providers = provider_sect
