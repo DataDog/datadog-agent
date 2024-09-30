@@ -2136,7 +2136,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		keepPositionalParameter       bool
 		keepTrailingSemicolon         bool
 		keepIdentifierQuotation       bool
-		keepJsonPath                  bool
+		KeepJSONPath                  bool
 		metadata                      SQLMetadata
 	}{
 		{
@@ -2436,7 +2436,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			name:         "select with json path ->",
 			query:        "SELECT * FROM users WHERE id = 1 AND name->'first' = 'test'",
 			expected:     "SELECT * FROM users WHERE id = ? AND name -> 'first' = ?",
-			keepJsonPath: true,
+			KeepJSONPath: true,
 			metadata: SQLMetadata{
 				Size:      11,
 				TablesCSV: "users",
@@ -2451,7 +2451,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			name:         "select with json path ->>",
 			query:        "SELECT * FROM users WHERE id = 1 AND name->>2 = 'test'",
 			expected:     "SELECT * FROM users WHERE id = ? AND name ->> 2 = ?",
-			keepJsonPath: true,
+			KeepJSONPath: true,
 			metadata: SQLMetadata{
 				Size:      11,
 				TablesCSV: "users",
@@ -2482,7 +2482,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
-					KeepJsonPath:                  tt.keepJsonPath,
+					KeepJSONPath:                  tt.KeepJSONPath,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

@@ -321,10 +321,10 @@ type sqlConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepIdentifierQuotation bool `json:"keep_identifier_quotation"`
 
-	// KeepJsonPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
 	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
-	KeepJsonPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -359,7 +359,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
 		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
-		KeepJsonPath:                  sqlOpts.KeepJsonPath,
+		KeepJSONPath:                  sqlOpts.KeepJSONPath,
 	})
 	if err != nil {
 		// memory will be freed by caller
