@@ -366,7 +366,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("spanenv", out.Env)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv", out.Env)
+				}
 			},
 		},
 		{
@@ -381,7 +383,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("spanenv2", out.Env)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv2", out.Env)
+				}
 			},
 		},
 		{
@@ -461,7 +465,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("123cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("123cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -476,7 +482,9 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("23cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("23cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -780,7 +788,7 @@ func TestOTLPHostname(t *testing.T) {
 }
 
 func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
-	for _, tt := range []struct {
+	testcases := []struct {
 		config, resource, span string
 		out                    string
 	}{
@@ -794,12 +802,19 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			config: "config-hostname",
 			out:    "config-hostname",
 		},
-		{
+	}
+
+	if !enableReceiveResourceSpansV2 {
+		testcases = append(testcases, struct {
+			config, resource, span string
+			out                    string
+		}{
 			config: "config-hostname",
 			span:   "span-hostname",
 			out:    "span-hostname",
-		},
-	} {
+		})
+	}
+	for _, tt := range testcases {
 		cfg := NewTestConfig(t)
 		if enableReceiveResourceSpansV2 {
 			cfg.Features["enable_receive_resource_spans_v2"] = struct{}{}

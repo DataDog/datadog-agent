@@ -201,22 +201,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
 	otelres := rspans.Resource()
-	resourceAttributes := otelres.Attributes()
-	resourceAttributesMap := make(map[string]string, resourceAttributes.Len())
-	resourceAttributes.Range(func(k string, v pcommon.Value) bool {
-		resourceAttributesMap[k] = v.AsString()
-		return true
-	})
 
-	// 1. First, attempt to get metadata from resource attributes
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
-
-	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
-	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
-	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
-
-	// 2. Transform OTLP spans to DD spans. If metadata was missing in resource attributes, attempt to get it from spans
 	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
@@ -235,20 +220,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 				tracesByID[traceID] = pb.Trace{}
 			}
 			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), topLevelByKind, o.conf, nil)
-			if !srcok {
-				src, srcok = traceutil.GetOtelSource(otelspan, otelres, o.conf.OTLPReceiver.AttributesTranslator)
-			}
-			if env == "" {
-				// no env at resource level, try the first span
-				// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-				if spanEnv := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); spanEnv != "" {
-					env = spanEnv
-				}
-			}
-			if containerID == "" {
-				// no cid at resource level, grab what we can
-				_, containerID = transform.GetFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
-			}
 
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -257,10 +228,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		}
 	}
 
+	resourceAttributes := otelres.Attributes()
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
-			Lang:            lang,
-			TracerVersion:   fmt.Sprintf("otlp-%s", resourceAttributesMap[semconv.AttributeTelemetrySDKVersion]),
+			Lang:            traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage),
+			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKVersion)),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -271,11 +243,12 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    resourceAttributesMap[keyStatsComputed] != "" || clientComputedStats,
+		ClientComputedStats:    traceutil.GetOTelAttrVal(resourceAttributes, true, keyStatsComputed) != "" || clientComputedStats,
 		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
 	}
 	// Get the hostname or set to empty if source is empty
 	var hostname string
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
@@ -289,10 +262,13 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
+	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+
 	p.TracerPayload = &pb.TracerPayload{
-		Hostname:      hostname,
-		Chunks:        o.createChunks(tracesByID, priorityByID),
-		Env:           env,
+		Hostname: hostname,
+		Chunks:   o.createChunks(tracesByID, priorityByID),
+		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+		Env:           traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment),
 		ContainerID:   containerID,
 		LanguageName:  tagstats.Lang,
 		TracerVersion: tagstats.TracerVersion,
