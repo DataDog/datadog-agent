@@ -110,9 +110,20 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 // sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
 func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
+	// Check if this is a normal SQS message
 	if attr, ok := event.MessageAttributes[datadogTraceHeader]; ok {
 		return sqsMessageAttrCarrier(attr)
 	}
+
+	// Check if this is an EventBridge event sent through SQS
+	var eventBridgeEvent events.EventBridgeEvent
+	if err := json.Unmarshal([]byte(event.Body), &eventBridgeEvent); err == nil {
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
+			return eventBridgeCarrier(eventBridgeEvent)
+		}
+	}
+
+	// Check if this is an SNS event sent through SQS
 	return snsSqsMessageCarrier(event)
 }
 

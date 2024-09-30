@@ -701,6 +701,18 @@ func TestSqsMessageCarrier(t *testing.T) {
 			expMap: headersMapAll,
 			expErr: nil,
 		},
+		{
+			name: "eventbridge-through-sqs",
+			event: events.SQSMessage{
+				Body: `{"detail":{"_datadog":{"x-datadog-trace-id":"123456789","x-datadog-parent-id":"987654321","x-datadog-sampling-priority":"1"}}}`,
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
+			expErr: nil,
+		},
 	}
 
 	for _, tc := range testcases {
