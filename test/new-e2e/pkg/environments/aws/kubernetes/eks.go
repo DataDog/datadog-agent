@@ -175,7 +175,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		if params.eksInitOnly {
+		if awsEnv.InitOnly() {
 			return nil
 		}
 

@@ -59,13 +59,13 @@ func NewCIProfile() (Profile, error) {
 		return nil, err
 	}
 
-	preinitialized, err := store.GetBoolWithDefault(parameters.PreInitialized, false)
+	preInitialized, err := store.GetBoolWithDefault(parameters.PreInitialized, false)
 	if err != nil {
 		return nil, err
 	}
 
-	if initOnly || preinitialized {
-		uniqueID = os.Getenv("CI_PIPELINE_ID") // We use pipeline ID for init only and pre-initialized jobs, to be able to share state
+	if initOnly || preInitialized {
+		uniqueID = fmt.Sprintf("init-%s", os.Getenv("CI_PIPELINE_ID")) // We use pipeline ID for init only and pre-initialized jobs, to be able to share state
 	}
 
 	// get environments from store

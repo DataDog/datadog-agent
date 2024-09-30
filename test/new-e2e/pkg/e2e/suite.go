@@ -149,11 +149,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/test-infra-definitions/components"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -213,7 +214,6 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
 		uniqueIDs[provisioner.ID()] = struct{}{}
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
-
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
 		panic(err)
 	}
@@ -228,6 +228,11 @@ func (bs *BaseSuite[Env]) IsDevMode() bool {
 func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	for _, o := range options {
 		o(&bs.params)
+	}
+
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		bs.initOnly = initOnly
 	}
 
 	if !runner.GetProfile().AllowDevMode() {
@@ -307,6 +312,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		resources.Merge(provisionerResources)
 	}
 
+	// When INIT_ONLY is set, we only partially provision the environment so we do not want initialize the environment
 	if bs.initOnly {
 		return nil
 	}
@@ -333,10 +339,6 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
 	var env Env
-	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
-	if err == nil {
-		bs.initOnly = initOnly
-	}
 
 	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
 	envValue := reflect.ValueOf(&env)
@@ -477,6 +479,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
 		panic(err)
 	}
+
 	if bs.initOnly {
 		bs.T().Skip("INIT_ONLY is set, skipping tests")
 	}
