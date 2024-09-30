@@ -419,7 +419,7 @@ func buildFakeServer(t *testing.T) string {
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	for _, alias := range []string{"java", "node", "sshd"} {
+	for _, alias := range []string{"java", "node", "sshd", "dotnet"} {
 		makeAlias(t, alias, serverBin)
 	}
 
@@ -493,7 +493,15 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	testCases := map[string]struct {
 		commandline []string // The command line of the fake server
 		language    language.Language
+		env         []string
 	}{
+		"dotnet": {
+			commandline: []string{"dotnet", "foo.dll"},
+			language:    language.DotNet,
+			env: []string{
+				"CORECLR_ENABLE_PROFILING=1",
+			},
+		},
 		"java": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
@@ -514,6 +522,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 
 			bin := filepath.Join(serverDir, test.commandline[0])
 			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Env = append(cmd.Env, test.env...)
 			err := cmd.Start()
 			require.NoError(t, err)
 
@@ -666,40 +675,60 @@ func TestNodeDocker(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
-func TestAPMInstrumentationProvidedPython(t *testing.T) {
+func TestAPMInstrumentationProvidedWithMaps(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	fmapper := fileopener.BuildFmapper(t)
-	fakePython := makeAlias(t, "python", fmapper)
+	for _, test := range []struct {
+		alias    string
+		lib      string
+		language language.Language
+	}{
+		{
+			alias: "python",
+			// We need the process to map something in a directory called
+			// "site-packages/ddtrace". The actual mapped file does not matter.
+			lib: filepath.Join(curDir,
+				"..", "..", "..", "..",
+				"network", "usm", "testdata",
+				"site-packages", "ddtrace",
+				fmt.Sprintf("libssl.so.%s", runtime.GOARCH)),
+			language: language.Python,
+		},
+		{
+			alias:    "dotnet",
+			lib:      filepath.Join(curDir, "testdata", "Datadog.Trace.dll"),
+			language: language.DotNet,
+		},
+	} {
+		t.Run(test.alias, func(t *testing.T) {
+			fmapper := fileopener.BuildFmapper(t)
+			fake := makeAlias(t, test.alias, fmapper)
 
-	// We need the process to map something in a directory called
-	// "site-packages/ddtrace". The actual mapped file does not matter.
-	ddtrace := filepath.Join(curDir, "..", "..", "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(ddtrace, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+			// Give the process a listening socket
+			listener, err := net.Listen("tcp", "")
+			require.NoError(t, err)
+			f, err := listener.(*net.TCPListener).File()
+			listener.Close()
+			require.NoError(t, err)
+			t.Cleanup(func() { f.Close() })
+			disableCloseOnExec(t, f)
 
-	// Give the process a listening socket
-	listener, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	f, err := listener.(*net.TCPListener).File()
-	listener.Close()
-	require.NoError(t, err)
-	t.Cleanup(func() { f.Close() })
-	disableCloseOnExec(t, f)
+			cmd, err := fileopener.OpenFromProcess(t, fake, test.lib)
+			require.NoError(t, err)
 
-	cmd, err := fileopener.OpenFromProcess(t, fakePython, lib)
-	require.NoError(t, err)
+			url := setupDiscoveryModule(t)
 
-	url := setupDiscoveryModule(t)
-
-	pid := cmd.Process.Pid
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(t, url)
-		assert.Contains(collect, portMap, pid)
-		assert.Equal(collect, string(language.Python), portMap[pid].Language)
-		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-		assertStat(collect, portMap[pid])
-	}, 30*time.Second, 100*time.Millisecond)
+			pid := cmd.Process.Pid
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(test.language), portMap[pid].Language)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertStat(collect, portMap[pid])
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 // Check that we can get listening processes in other namespaces.

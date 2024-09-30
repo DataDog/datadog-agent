@@ -220,6 +220,7 @@ func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[b
 		offset, ok := fieldLocations[fieldID]
 		if !ok {
 			log.Infof("no field location available for %s.%s\n", fieldID.StructName, fieldID.FieldName)
+			structParam.ParameterPieces[i].NotCaptureReason = ditypes.NoFieldLocation
 			continue
 		}
 

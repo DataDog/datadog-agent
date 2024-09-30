@@ -92,6 +92,14 @@ func isRateLimitError(err error) bool {
 	return strings.Contains(err.Error(), "429 Too Many Requests")
 }
 
+// isUnprocessableEntityError is a helper function that checks if the received error is an unprocessable entity error
+func isUnprocessableEntityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "422 Unprocessable Entity")
+}
+
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
@@ -108,6 +116,8 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	if err != nil {
 		if isRateLimitError(err) {
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
+		} else if isUnprocessableEntityError(err) {
+			ddRequests.Inc("unprocessable_entity_error", le.JoinLeaderValue)
 		} else {
 			ddRequests.Inc("error", le.JoinLeaderValue)
 		}

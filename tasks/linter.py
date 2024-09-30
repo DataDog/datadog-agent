@@ -301,21 +301,33 @@ def lint_flavor(
 
 
 @task
-def list_ssm_parameters(_):
+def list_parameters(_, type):
     """
     List all SSM parameters used in the datadog-agent repository.
     """
-
-    ssm_owner = re.compile(r"^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
-    ssm_params = defaultdict(list)
+    if type == "ssm":
+        section_pattern = re.compile(r"aws ssm variables")
+    elif type == "vault":
+        section_pattern = re.compile(r"vault variables")
+    else:
+        raise Exit(f"{color_message('Error', Color.RED)}: pattern must be in [ssm, vault], not |{type}|")
+    in_param_section = False
+    param_owner = re.compile(r"^[^:]+: (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    params = defaultdict(list)
     with open(".gitlab-ci.yml") as f:
         for line in f:
-            m = ssm_owner.match(line.strip())
-            if m:
-                ssm_params[m.group("owner")].append(m.group("param"))
-    for owner in ssm_params.keys():
+            section = section_pattern.search(line)
+            if section:
+                in_param_section = not in_param_section
+            if in_param_section:
+                if len(line.strip()) == 0:
+                    break
+                m = param_owner.match(line.strip())
+                if m:
+                    params[m.group("owner")].append(m.group("param"))
+    for owner in params.keys():
         print(f"Owner:{owner}")
-        for param in ssm_params[owner]:
+        for param in params[owner]:
             print(f"  - {param}")
 
 
@@ -383,7 +395,7 @@ class SSMParameterCall:
 def list_get_parameter_calls(file):
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
     # remove the first letter of the script name because '\f' is badly interpreted for windows paths
-    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? (-parameterName )?+(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:
@@ -613,7 +625,9 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+        if "rules" in config[test] and not any(
+            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+        ):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
             else:
