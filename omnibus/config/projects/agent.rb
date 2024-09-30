@@ -243,7 +243,9 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
-    dependency 'openssl-fips'
+    if fips_mode?
+      dependency 'openssl-fips'
+    end
   end
 
 
@@ -347,8 +349,10 @@ if windows_target?
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
 
-    # Check that CNG symbols are present
-    inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    if fips_mode?
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    end
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
