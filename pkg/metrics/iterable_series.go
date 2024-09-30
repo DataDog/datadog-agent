@@ -29,7 +29,7 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *Ite
 			localProvider := tag.NewLocalProvider(tags)
 			serie.Tags = tagset.CompositeTagsFromSlice(localProvider.GetTags())
 			fmt.Println("raymond7", serie.Tags)
-			callback(value.(*Serie))
+			callback(serie)
 		}, chanSize, bufferSize),
 	}
 }
