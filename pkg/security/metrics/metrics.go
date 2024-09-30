@@ -39,6 +39,12 @@ var (
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
+	// Rule action metrics
+
+	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched
+	// Tags: rule_id, action_name
+	MetricRuleActionPerformed = newRuntimeMetric(".rules.action_performed")
+
 	// Syscall monitoring metrics
 
 	// MetricSyscalls is the name of the metric used to count each syscall executed on the host

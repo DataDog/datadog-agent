@@ -552,6 +552,11 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 					}
 				}
 			}
+
+			if rs.opts.ruleActionPerformedCb != nil {
+				rs.opts.ruleActionPerformedCb(rule, action.Def)
+			}
+
 		}
 	}
 
