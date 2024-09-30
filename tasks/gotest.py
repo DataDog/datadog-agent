@@ -400,10 +400,10 @@ def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout
     Run all the available integration tests
     """
     tests = [
-        lambda: agent_integration_tests(ctx, race, remote_docker, timeout),
-        lambda: dsd_integration_tests(ctx, race, remote_docker, timeout),
-        lambda: dca_integration_tests(ctx, race, remote_docker, timeout),
-        lambda: trace_integration_tests(ctx, race, timeout),
+        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     ]
     for t in tests:
         try:
