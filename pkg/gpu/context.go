@@ -13,12 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+// systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
+	// deviceSmVersions maps each device index to its SM (Compute architecture) version
 	deviceSmVersions map[int]int
-	fileData         map[string]*fileData
-	pidMaps          map[int]*kernel.ProcMapEntries
+
+	// fileData maps each file path to its Fatbin file data
+	fileData map[string]*fileData
+
+	// pidMaps maps each process ID to its memory maps
+	pidMaps map[int]*kernel.ProcMapEntries
 }
 
+// fileData holds the symbol table and Fatbin data for a given file.
 type fileData struct {
 	symbolTable map[uint64]string
 	fatbin      *cuda.Fatbin
