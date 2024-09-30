@@ -299,9 +299,9 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 
 	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npCollector.workers)
-	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
-	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 10000, npCollector.collectorConfigs.pathtestContextsLimit)
+	assert.Equal(t, 100000, cap(npCollector.pathtestInputChan))
+	assert.Equal(t, 100000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 100000, npCollector.collectorConfigs.pathtestContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
