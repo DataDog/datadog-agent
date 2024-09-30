@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from datetime import timedelta
 
@@ -18,6 +19,7 @@ from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
+from tasks.libs.notify.jira_failing_tests import close_issue, get_failing_tests_names, get_jira
 from tasks.libs.notify.utils import PROJECT_NAME
 from tasks.libs.pipeline.notifications import (
     check_for_missing_owners_slack_and_jira,
@@ -227,3 +229,51 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
             )
 
         raise
+
+
+@task
+def close_failing_tests_stale_issues(_, dry_run=False):
+    """
+    Will mark as done all issues created by the [failed parent tests workflow](https://app.datadoghq.com/workflow/62670e82-8416-459b-bf74-9367b8a69277) that are stale.
+    Stale is an issue:
+    - In the "To Do" section of a project
+    - Where the test has not failed since 28 days
+    - That has no comment other than the bot's comments
+
+    This task is executed periodically.
+    """
+
+    re_test_name = re.compile('Test name: (.*)\n')
+
+    still_failing = get_failing_tests_names()
+    jira = get_jira()
+
+    print('Getting potential issues to close')
+    issues = jira.jql('status = "To Do" AND summary ~ "Failed agent CI test"')['issues']
+
+    print(f'{len(issues)} failing test cards found')
+
+    n_closed = 0
+    for issue in issues:
+        # No comment other than the bot's comments
+        comments = issue['fields']['comment']['comments']
+        has_no_comments = True
+        test_name = None
+        for comment in comments:
+            # This is not a bot message
+            if 'robot' not in comment['author']['displayName'].casefold():
+                has_no_comments = False
+                break
+
+            test_name_match = re_test_name.findall(comment['body'])
+            if test_name_match:
+                test_name = test_name_match[0]
+
+        if has_no_comments and test_name and test_name not in still_failing:
+            try:
+                close_issue(jira, issue['key'], test_name, dry_run)
+                n_closed += 1
+            except Exception as e:
+                print(f'Error closing issue {issue["key"]}: {e}', file=sys.stderr)
+
+    print(f'Closed {n_closed} issues without failing tests')
