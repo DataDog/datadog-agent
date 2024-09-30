@@ -32,6 +32,10 @@ done
 
 # Start all agents in the background
 for agent in agent process-agent security-agent system-probe trace-agent otel-agent; do
+    if [[ ! -x "$DIR/$agent" ]]; then
+        printf "===== AGENT %s NOT FOUND =====\n" "$agent"
+        continue
+    fi
     (
         printf "===== STARTING %s =====\n" "$agent"
         exec "$DIR/$agent"
