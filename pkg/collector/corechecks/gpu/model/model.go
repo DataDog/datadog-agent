@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// This package contains the model for the GPU check, with types shared between the system-probe GPU probe and
+// Package model contains the model for the GPU check, with types shared between the system-probe GPU probe and
 // the gpu core agent check
 package model
 
