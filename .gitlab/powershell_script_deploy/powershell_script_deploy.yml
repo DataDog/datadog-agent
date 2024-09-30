@@ -9,9 +9,8 @@ powershell_script_deploy:
   rules:
     !reference [.manual]
   needs: ["powershell_script_signing"]
-  before_script:
-    - ls $WINDOWS_POWERSHELL_DIR
   script:
+    - ls $WINDOWS_POWERSHELL_DIR
     - $S3_CP_CMD $WINDOWS_POWERSHELL_DIR/Install-Datadog.ps1 s3://dd-agent-mstesting/Install-Datadog.ps1 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # Technically deploy_installer_packages_windows-x64 also uploads the bootstrapper to $S3_RELEASE_INSTALLER_ARTIFACTS_URI
@@ -24,7 +23,6 @@ windows_bootsrapper_deploy:
   rules:
     !reference [.manual]
   needs: ["windows-installer-amd64"]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
   script:
+    - ls $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer-*-1-x86_64.exe s3://dd-agent-mstesting/datadog-installer-x86_64.exe --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
