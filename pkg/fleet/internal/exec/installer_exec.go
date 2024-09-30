@@ -165,6 +165,19 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 	return defaultPackages, nil
 }
 
+// Setup runs the setup command.
+func (i *InstallerExec) Setup(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error running setup: %w\n%s", err, stderr.String())
+	}
+	return nil
+}
+
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
 	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
