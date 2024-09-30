@@ -531,9 +531,9 @@ func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
 	}
 }
 
-// updateServicesCPUStats updates the CPU stats of the service, as well as the
+// updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates.
-func (s *discovery) updateServicesCPUStats() error {
+func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -546,8 +546,12 @@ func (s *discovery) updateServicesCPUStats() error {
 		return fmt.Errorf("could not get global CPU time: %w", err)
 	}
 
-	for pid, serviceInfo := range s.cache {
-		_ = updateCPUCoresStats(pid, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
+	for i := range services {
+		service := &services[i]
+		serviceInfo := s.cache[int32(service.PID)]
+
+		_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
+		service.CPUCores = serviceInfo.cpuUsage
 	}
 
 	s.lastGlobalCPUTime = globalCPUTime
@@ -585,7 +589,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 	s.cleanCache(alivePids)
 
-	if err = s.updateServicesCPUStats(); err != nil {
+	if err = s.updateServicesCPUStats(services); err != nil {
 		return nil, err
 	}
 
