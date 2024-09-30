@@ -9,12 +9,29 @@ package kprobe
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+// After kernel 6.5.0, tcp_sendpage and udp_sendpage are removed.
+// We used to only check for kv < 6.5.0 here - however, OpenSUSE 15.6 backported
+// this change into 6.4.0 to pick up a CVE so the version number is not reliable.
+// Instead, we directly check if the function exists.
+func getHasSendPage(kv kernel.Version) bool {
+	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
+	if err == nil {
+		return len(missing) == 0
+	}
+
+	log.Errorf("error verifying tcp_sendpage presence, falling back to v6.5 check: %s", err)
+
+	kv650 := kernel.VersionCode(6, 5, 0)
+	return kv < kv650
+}
 
 func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
 	enabled[name] = struct{}{}
@@ -30,11 +47,13 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 	kv4180 := kernel.VersionCode(4, 18, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
-	kv650 := kernel.VersionCode(6, 5, 0)
+
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, err
 	}
+
+	hasSendPage := getHasSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {
@@ -47,7 +66,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)
-		if kv < kv650 {
+		if hasSendPage {
 			enableProbe(enabled, probes.TCPSendPage)
 			enableProbe(enabled, probes.TCPSendPageReturn)
 		}
@@ -79,7 +98,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
-		if kv < kv650 {
+		if hasSendPage {
 			enableProbe(enabled, probes.UDPSendPage)
 			enableProbe(enabled, probes.UDPSendPageReturn)
 		}
@@ -112,7 +131,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.IP6MakeSkbReturn)
 		enableProbe(enabled, probes.Inet6Bind)
 		enableProbe(enabled, probes.Inet6BindRet)
-		if kv < kv650 {
+		if hasSendPage {
 			enableProbe(enabled, probes.UDPSendPage)
 			enableProbe(enabled, probes.UDPSendPageReturn)
 		}
