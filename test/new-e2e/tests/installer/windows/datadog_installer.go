@@ -234,7 +234,7 @@ func (d *DatadogInstaller) Uninstall(opts ...Option) error {
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
