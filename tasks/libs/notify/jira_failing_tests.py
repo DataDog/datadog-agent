@@ -1,14 +1,17 @@
-from datadog_api_client import ApiClient, Configuration
-from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
-from datadog_api_client.v2.model.ci_app_aggregate_sort import CIAppAggregateSort
-from datadog_api_client.v2.model.ci_app_aggregation_function import CIAppAggregationFunction
-from datadog_api_client.v2.model.ci_app_compute import CIAppCompute
-from datadog_api_client.v2.model.ci_app_compute_type import CIAppComputeType
-from datadog_api_client.v2.model.ci_app_query_options import CIAppQueryOptions
-from datadog_api_client.v2.model.ci_app_sort_order import CIAppSortOrder
-from datadog_api_client.v2.model.ci_app_tests_aggregate_request import CIAppTestsAggregateRequest
-from datadog_api_client.v2.model.ci_app_tests_group_by import CIAppTestsGroupBy
-from datadog_api_client.v2.model.ci_app_tests_query_filter import CIAppTestsQueryFilter
+try:
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+    from datadog_api_client.v2.model.ci_app_aggregate_sort import CIAppAggregateSort
+    from datadog_api_client.v2.model.ci_app_aggregation_function import CIAppAggregationFunction
+    from datadog_api_client.v2.model.ci_app_compute import CIAppCompute
+    from datadog_api_client.v2.model.ci_app_compute_type import CIAppComputeType
+    from datadog_api_client.v2.model.ci_app_query_options import CIAppQueryOptions
+    from datadog_api_client.v2.model.ci_app_sort_order import CIAppSortOrder
+    from datadog_api_client.v2.model.ci_app_tests_aggregate_request import CIAppTestsAggregateRequest
+    from datadog_api_client.v2.model.ci_app_tests_group_by import CIAppTestsGroupBy
+    from datadog_api_client.v2.model.ci_app_tests_query_filter import CIAppTestsQueryFilter
+except ImportError:
+    pass
 
 
 def get_failing_tests_names() -> set[str]:

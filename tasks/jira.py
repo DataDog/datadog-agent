@@ -20,10 +20,14 @@ def get_jira():
 
 
 def close_issue(jira, issue_key: str, verbose_test: str):
-    print('Marking as done issue', issue_key, 'for test', verbose_test)
+    print('Closing the issue', issue_key, 'for test', verbose_test)
 
-    jira.issue_add_comment(issue_key, 'Marking this issue as done since the test is not failing anymore')
-    jira.issue_transition(issue_key, 'Wont Do')
+    jira.issue_add_comment(issue_key, 'Closing this issue since the test is not failing anymore')
+    try:
+        jira.issue_transition(issue_key, "Won't Do")
+    except Exception:
+        # There is no `won't do` column
+        jira.issue_transition(issue_key, "Done")
 
 
 @task
