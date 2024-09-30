@@ -15,14 +15,15 @@ import (
 
 	"go.uber.org/multierr"
 
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/tinylib/msgp/msgp"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
-	"github.com/tinylib/msgp/msgp"
 )
 
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
@@ -34,6 +35,7 @@ type serializerConsumer struct {
 	sketches        metrics.SketchSeriesList
 	apmstats        []io.Reader
 	apmReceiverAddr string
+	hostTagProvider *metrics.HostTagProvider
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
@@ -113,7 +115,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error
 	metrics.Serialize(
-		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
+		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000, metrics.NewHostTagProvider()),
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {

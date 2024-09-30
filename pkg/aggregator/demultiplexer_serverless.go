@@ -37,6 +37,8 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
+	hostTagProvider *metrics.HostTagProvider
+
 	*senders
 }
 
@@ -55,14 +57,14 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		log:              logger,
-		forwarder:        forwarder,
-		statsdSampler:    statsdSampler,
-		statsdWorker:     statsdWorker,
-		serializer:       serializer,
-		metricSamplePool: metricSamplePool,
-		flushLock:        &sync.Mutex{},
-
+		log:                         logger,
+		forwarder:                   forwarder,
+		statsdSampler:               statsdSampler,
+		statsdWorker:                statsdWorker,
+		serializer:                  serializer,
+		metricSamplePool:            metricSamplePool,
+		flushLock:                   &sync.Mutex{},
+		hostTagProvider:             metrics.NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 
@@ -105,7 +107,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	defer d.flushLock.Unlock()
 
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true, d.hostTagProvider)
 
 	metrics.Serialize(
 		series,

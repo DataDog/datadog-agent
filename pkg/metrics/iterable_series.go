@@ -6,9 +6,6 @@
 package metrics
 
 import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -20,15 +17,13 @@ type IterableSeries struct {
 // NewIterableSeries creates a new instance of *IterableSeries
 //
 // `callback` is called in the context of the sender's goroutine each time `Append` is called.
-func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
+func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int, hostTagProvider *HostTagProvider) *IterableSeries {
 
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
 			serie := value.(*Serie)
-			tags := serie.Tags.UnsafeToReadOnlySliceString()
-			localProvider := tag.NewLocalProvider(tags)
-			serie.Tags = tagset.CompositeTagsFromSlice(localProvider.GetTags())
-			fmt.Println("raymond7", serie.Tags)
+			// tags := serie.Tags.UnsafeToReadOnlySliceString()
+			serie.Tags = tagset.CombineCompositeTagsAndSlice(serie.Tags, hostTagProvider.GetHostTags())
 			callback(serie)
 		}, chanSize, bufferSize),
 	}

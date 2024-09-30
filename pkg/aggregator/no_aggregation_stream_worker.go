@@ -49,6 +49,8 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
+	hostTagProvider *metrics.HostTagProvider
+
 	logThrottling util.SimpleThrottler
 }
 
@@ -95,6 +97,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		stopChan:    make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
 
+		hostTagProvider: metrics.NewHostTagProvider(),
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
@@ -145,7 +148,7 @@ func (w *noAggregationStreamWorker) run() {
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
-	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, w.hostTagProvider)
 
 	stopped := false
 	var stopBlockChan chan struct{}
@@ -246,7 +249,7 @@ func (w *noAggregationStreamWorker) run() {
 			break
 		}
 
-		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
+		w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false, w.hostTagProvider)
 	}
 
 	if stopBlockChan != nil {

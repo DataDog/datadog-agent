@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive
-package tag
+package metrics
 
 import (
 	"context"
@@ -19,26 +19,26 @@ import (
 // NOTE: to avoid races, do not modify the contents of the `expectedTags`
 // slice, as those contents are referenced without holding the lock.
 
-type localProvider struct {
-	tags         []string
-	expectedTags []string
+type HostTagProvider struct {
+	hosttags []string
+	empty    []string
 	sync.RWMutex
 }
 
 // NewLocalProvider returns a new local Provider.
-func NewLocalProvider(t []string) *localProvider {
-	return newLocalProviderWithClock(t, clock.New())
+func NewHostTagProvider() *HostTagProvider {
+	return newHostTagProviderWithClock(clock.New())
 }
 
 // newLocalProviderWithClock returns a provider using the given clock.
-func newLocalProviderWithClock(t []string, clock clock.Clock) *localProvider {
-	p := &localProvider{
-		tags:         t,
-		expectedTags: t,
+func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
+	p := &HostTagProvider{
+		hosttags: []string{},
+		empty:    []string{},
 	}
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
+	p.hosttags = append(p.hosttags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
-		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
@@ -46,22 +46,19 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) *localProvider {
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()
 			defer p.Unlock()
-			p.expectedTags = nil
+			p.hosttags = nil
 		})
 	}
 
 	return p
 }
 
-// GetTags returns the list of locally-configured tags.  This will include the
-// expected tags until the expected-tags deadline, if those are configured.  The
-// returned slice is shared and must not be mutated.
-func (p *localProvider) GetTags() []string {
+func (p *HostTagProvider) GetHostTags() []string {
 	p.RLock()
 	defer p.RUnlock()
 
-	if p.expectedTags != nil {
-		return p.expectedTags
+	if p.hosttags != nil {
+		return p.hosttags
 	}
-	return p.tags
+	return p.empty
 }
