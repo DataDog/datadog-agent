@@ -41,7 +41,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		commandLine += fmt.Sprintf(" DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
 	}
 
-	if params.InstallPython3rdParty {
+	if params.InstallPythonThirdPartyDeps {
 		commandLine += " INSTALL_PYTHON_THIRD_PARTY_DEPS=true"
 	}
 

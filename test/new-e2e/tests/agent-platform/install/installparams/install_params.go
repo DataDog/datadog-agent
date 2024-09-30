@@ -16,9 +16,9 @@ import "os"
 
 // Params struct containing install params
 type Params struct {
-	PipelineID            string
-	MajorVersion          string
-	InstallPython3rdParty bool
+	PipelineID                  string
+	MajorVersion                string
+	InstallPythonThirdPartyDeps bool
 
 	Arch    string
 	Flavor  string
@@ -53,9 +53,10 @@ func WithMajorVersion(majorVersion string) Option {
 	}
 }
 
-func WithInstallPython3rdParty(installPython3rdParty bool) Option {
+// WithInstallPythonThirdPartyDeps set the INSTALL_PYTHON_THIRD_PARTY_DEPS environment variable
+func WithInstallPythonThirdPartyDeps(InstallPythonThirdPartyDeps bool) Option {
 	return func(p *Params) {
-		p.InstallPython3rdParty = installPython3rdParty
+		p.InstallPythonThirdPartyDeps = InstallPythonThirdPartyDeps
 	}
 }
 
