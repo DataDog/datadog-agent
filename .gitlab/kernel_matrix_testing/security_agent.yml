@@ -20,6 +20,7 @@ upload_dependencies_secagent_arm64:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
     TEST_COMPONENT: security-agent
+  timeout: 35m
 
 kmt_setup_env_secagent_arm64:
   extends:
@@ -92,6 +93,7 @@ upload_secagent_tests_x64:
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
+  timeout: 30m
 
 upload_secagent_tests_arm64:
   extends:
@@ -102,6 +104,7 @@ upload_secagent_tests_arm64:
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
+  timeout: 40m
 
 .kmt_run_secagent_tests:
   extends: .kmt_run_tests
