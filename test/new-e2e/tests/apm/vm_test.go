@@ -427,7 +427,9 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 
 	extraconfig := fmt.Sprintf(`
 api_key: ENC[api_key]
+log_level: debug
 
+secret_refresh_interval: 5
 secret_backend_command: %s
 secret_backend_arguments:
   - %s
@@ -471,6 +473,12 @@ secret_backend_command_allow_group_exec_perm: true
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	// ensure the api_key was refreshed, fail directly otherwise
 	require.Contains(s.T(), secretRefreshOutput, "api_key")
+
+	// wait enough time for API Key refresh on trace-agent
+	time.Sleep(15 * time.Second)
+
+	err = s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
 
 	s.T().Log("Waiting for traces (apiKey2)")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
