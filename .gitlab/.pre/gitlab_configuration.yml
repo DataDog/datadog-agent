@@ -25,10 +25,10 @@ test_gitlab_compare_to:
 
 # Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: .pre
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   rules:
     - if: $CI_PIPELINE_SOURCE != "push"
       when: never

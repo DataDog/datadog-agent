@@ -159,14 +159,14 @@ notify_failure_summary_daily:
 
 close_failing_tests_stale_issues:
   stage: notify
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules:
     # Daily
     - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
       when: never
     - !reference [.on_deploy_nightly_repo_branch_always]
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:arm64"]
   script:
     - weekday="$(date --utc '+%A')"
     # Weekly on Friday
