@@ -242,5 +242,4 @@ var usmTaggingTests = []usmTaggingTest{
 			"'http.iis.sitename:TestSite1'",
 		},
 	},
-	
 }

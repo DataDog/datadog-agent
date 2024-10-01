@@ -59,8 +59,8 @@ type usmTaggingTest struct {
 	clientJSONFile  string
 	clientAppConfig string
 
-	defaultFiles usmTaggingFiles
-	siteFiles    map[string]usmTaggingFiles
+	defaultFiles  usmTaggingFiles
+	siteFiles     map[string]usmTaggingFiles
 	clientEnvVars map[string]string
 
 	appFiles map[string]usmTaggingFiles
