@@ -383,14 +383,15 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
 	var replicas int32 = 1
 
+	name := fmt.Sprintf("calendar-java-otel-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	serviceSpec := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "calendar-java-otel",
+			Name: name,
 			Labels: map[string]string{
 				"helm.sh/chart":                "calendar-java-otel-0.1.0",
-				"app.kubernetes.io/name":       "calendar-java-otel",
-				"app.kubernetes.io/instance":   "calendar-java-otel",
+				"app.kubernetes.io/name":       name,
+				"app.kubernetes.io/instance":   name,
 				"app.kubernetes.io/version":    "1.16.0",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
@@ -411,18 +412,18 @@ func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
 				},
 			},
 			Selector: map[string]string{
-				"app.kubernetes.io/name":     "calendar-java-otel",
-				"app.kubernetes.io/instance": "calendar-java-otel",
+				"app.kubernetes.io/name":     name,
+				"app.kubernetes.io/instance": name,
 			},
 		},
 	}
 	deploymentSpec := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "calendar-java-otel",
+			Name: name,
 			Labels: map[string]string{
 				"helm.sh/chart":                "calendar-java-otel-0.1.0",
-				"app.kubernetes.io/name":       "calendar-java-otel",
-				"app.kubernetes.io/instance":   "calendar-java-otel",
+				"app.kubernetes.io/name":       name,
+				"app.kubernetes.io/instance":   name,
 				"app.kubernetes.io/version":    "1.16.0",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
@@ -434,20 +435,20 @@ func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app.kubernetes.io/name":     "calendar-java-otel",
-					"app.kubernetes.io/instance": "calendar-java-otel",
+					"app.kubernetes.io/name":     name,
+					"app.kubernetes.io/instance": name,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app.kubernetes.io/name":     "calendar-java-otel",
-						"app.kubernetes.io/instance": "calendar-java-otel",
+						"app.kubernetes.io/name":     name,
+						"app.kubernetes.io/instance": name,
 					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "calendar-java-otel",
+						Name:            name,
 						Image:           "datadog/opentelemetry-examples:calendar-java-20240826",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
@@ -476,7 +477,7 @@ func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
 							Value: "calendar-java-otel",
 						}, {
 							Name:  "OTEL_CONTAINER_NAME",
-							Value: "calendar-java-otel",
+							Value: name,
 						}, {
 							Name:      "OTEL_K8S_NAMESPACE",
 							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
@@ -521,6 +522,7 @@ func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
 
 func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 	var replicas int32 = 1
+	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 
 	if s.Env().Agent == nil {
 		s.T().Log("AGENT NIL")
@@ -533,11 +535,11 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	serviceSpec := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "calendar-rest-go",
+			Name: name,
 			Labels: map[string]string{
 				"helm.sh/chart":                "calendar-rest-go-0.1.0",
-				"app.kubernetes.io/name":       "calendar-rest-go",
-				"app.kubernetes.io/instance":   "calendar-rest-go",
+				"app.kubernetes.io/name":       name,
+				"app.kubernetes.io/instance":   name,
 				"app.kubernetes.io/version":    "1.16.0",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
@@ -558,8 +560,8 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 				},
 			},
 			Selector: map[string]string{
-				"app.kubernetes.io/name":     "calendar-rest-go",
-				"app.kubernetes.io/instance": "calendar-rest-go",
+				"app.kubernetes.io/name":     name,
+				"app.kubernetes.io/instance": name,
 			},
 		},
 	}
@@ -568,8 +570,8 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 			Name: "calendar-rest-go",
 			Labels: map[string]string{
 				"helm.sh/chart":                "calendar-rest-go-0.1.0",
-				"app.kubernetes.io/name":       "calendar-rest-go",
-				"app.kubernetes.io/instance":   "calendar-rest-go",
+				"app.kubernetes.io/name":       name,
+				"app.kubernetes.io/instance":   name,
 				"app.kubernetes.io/version":    "1.16.0",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
@@ -581,20 +583,20 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"app.kubernetes.io/name":     "calendar-rest-go",
-					"app.kubernetes.io/instance": "calendar-rest-go",
+					"app.kubernetes.io/name":     name,
+					"app.kubernetes.io/instance": name,
 				},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app.kubernetes.io/name":     "calendar-rest-go",
-						"app.kubernetes.io/instance": "calendar-rest-go",
+						"app.kubernetes.io/name":     name,
+						"app.kubernetes.io/instance": name,
 					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name:            "calendar-rest-go",
+						Name:            name,
 						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.14",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
@@ -623,7 +625,7 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 							Value: "calendar-rest-go",
 						}, {
 							Name:  "OTEL_CONTAINER_NAME",
-							Value: "calendar-rest-go",
+							Value: name,
 						}, {
 							Name:      "OTEL_K8S_NAMESPACE",
 							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
