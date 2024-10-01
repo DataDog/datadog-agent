@@ -22,3 +22,21 @@ test_gitlab_compare_to:
     - !reference [.setup_agent_github_app]
     - pip install -r tasks/requirements.txt
     - inv pipeline.compare-to-itself
+
+# TODO: Rename the source file to gitlab_config.yml
+gitlab_ci_changes:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: notify
+  needs: []
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push"
+      when: never
+  before_script:
+    # Get main history
+    - git fetch origin main
+    - git checkout main
+    - git checkout -
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - inv -e gitlab.compute-gitlab-ci-config
