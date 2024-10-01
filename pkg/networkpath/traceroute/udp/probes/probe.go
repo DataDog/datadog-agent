@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package probes provides the interfaces for probes and probe responses
 package probes
 
 // Probe represents a sent probe. Every protocol-specific probe has to implement

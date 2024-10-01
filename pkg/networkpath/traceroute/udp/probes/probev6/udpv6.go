@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package probev6 provides a probe type based on IPv6 and UDP
 package probev6
 
 import (

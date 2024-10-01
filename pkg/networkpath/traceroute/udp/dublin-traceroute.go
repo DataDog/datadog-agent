@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package dublintraceroute provides the common interface for Dublin Traceroute
 package dublintraceroute
 
 import (

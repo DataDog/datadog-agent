@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package results provides the data structures to represent the results of a
+// traceroute run
 package results
 
 import (

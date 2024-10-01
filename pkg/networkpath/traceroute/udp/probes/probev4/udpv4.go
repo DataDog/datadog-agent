@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package probev4 provides a probe type based on IPv4 and UDP
 package probev4
 
 import (

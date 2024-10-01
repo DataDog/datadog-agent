@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
+// Package net provides utilities to work with UDP traceroutes
 package net
 
 import (
