@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 
 from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
+    MultiGitlabCIDiff,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
@@ -27,6 +28,7 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.utils import experimental
 
 
@@ -283,24 +285,10 @@ def print_entry_points(ctx):
         print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')
 
 
-# TODO: Format
-from tasks.libs.ciproviders.gitlab_api import (
-    MultiGitlabCIDiff,
-)
-from tasks.libs.common.constants import DEFAULT_BRANCH
-
-
-@task
-def compute_gitlab_ci_config(
-    ctx,
-    before: str | None = None,
-    after: str | None = None,
-    before_file: str = 'before.gitlab-ci.yml',
-    after_file: str = 'after.gitlab-ci.yml',
-    diff_file: str = 'diff.gitlab-ci.yml',
-):
+def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     """
-    Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+    Computes the full configs and the diff between two git references.
+    The base commit where after is compared to is the LCA commit between before and after.
     """
 
     before_name = before or "merge base"
@@ -316,13 +304,25 @@ def compute_gitlab_ci_config(
     print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
     before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
-    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
-
-    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
-
     diff = MultiGitlabCIDiff(before_config, after_config)
+
+    return before_config, after_config, diff
+
+
+@task
+def compute_gitlab_ci_config(
+    ctx,
+    before: str | None = None,
+    after: str | None = None,
+    before_file: str = 'before.gitlab-ci.yml',
+    after_file: str = 'after.gitlab-ci.yml',
+    diff_file: str = 'diff.gitlab-ci.yml',
+):
+    """
+    Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+    """
+
+    before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)
 
     print('Writing', before_file)
     with open(before_file, 'w') as f:
@@ -335,14 +335,3 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
-
-
-@task
-def print_gitlab_ci_diff(ctx):
-    """
-    Print the diff of the Gitlab CI configuration between the current commit and the base commit.
-    """
-    with open('artifacts/diff.gitlab-ci.yml') as f:
-        diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
-
-    print(diff.display(cli=True))

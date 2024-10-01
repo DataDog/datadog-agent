@@ -406,7 +406,7 @@ class MultiGitlabCIDiff:
         else:
             self.before = dict(before)
             self.after = dict(after)
-            self.diffs: list[MultiGitlabCIDiff.MultiDiff] = []
+            self.diffs = []
             self.make_diff()
 
     def __bool__(self) -> bool:
