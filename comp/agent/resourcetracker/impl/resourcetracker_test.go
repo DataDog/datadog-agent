@@ -23,8 +23,9 @@ type submitterMock struct {
 	mock.Mock
 }
 
-func (m *submitterMock) Gauge(name string, value float64, tags []string) {
-	m.Called(name, value, tags)
+func (m *submitterMock) Gauge(name string, value float64, tags []string) error {
+	args := m.Called(name, value, tags)
+	return args.Error(0)
 }
 
 func TestResourceTracker(t *testing.T) {
@@ -48,8 +49,8 @@ func TestResourceTracker(t *testing.T) {
 		fmt.Sprintf("pid:%d", pid),
 		fmt.Sprintf("process:%s", process),
 	}
-	submitter.On("Gauge", "datadog.agent.process.cpu", mock.Anything, tags).Return()
-	submitter.On("Gauge", "datadog.agent.process.rss", mock.Anything, tags).Return()
+	submitter.On("Gauge", "datadog.agent.process.cpu", mock.Anything, tags).Return(nil)
+	submitter.On("Gauge", "datadog.agent.process.rss", mock.Anything, tags).Return(nil)
 
 	err = lc.Start(context.Background())
 	assert.NoError(t, err)

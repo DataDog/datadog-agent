@@ -15,6 +15,6 @@ import (
 )
 
 // Mock returns a mock for resourcetracker component.
-func Mock(t *testing.T) resourcetracker.Component {
+func Mock(_ *testing.T) resourcetracker.Component {
 	return struct{}{}
 }

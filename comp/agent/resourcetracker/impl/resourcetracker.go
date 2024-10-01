@@ -54,13 +54,13 @@ type resourceTracker struct {
 
 // Start starts the resource tracker
 func (r *resourceTracker) Start(_ context.Context) error {
-	go t.run()
+	go r.run()
 	return nil
 }
 
 // Stop stops the resource tracker
 func (r *resourceTracker) Stop(_ context.Context) error {
-	close(t.stop)
+	close(r.stop)
 	return nil
 }
 
@@ -103,8 +103,14 @@ func (r *resourceTracker) submitResourceUsage() {
 		fmt.Sprintf("pid:%d", proc.Pid),
 		fmt.Sprintf("process:%s", exe),
 	}
-	r.submitter.Gauge("datadog.agent.process.cpu", cpu, tags)
-	r.submitter.Gauge("datadog.agent.process.rss", float64(rss), tags)
+	err = r.submitter.Gauge("datadog.agent.process.cpu", cpu, tags)
+	if err != nil {
+		r.log.Debugf("failed to submit cpu: %v", err)
+	}
+	err = r.submitter.Gauge("datadog.agent.process.rss", float64(rss), tags)
+	if err != nil {
+		r.log.Debugf("failed to submit rss: %v", err)
+	}
 }
 
 func getRSS(proc *process.Process) (uint64, error) {

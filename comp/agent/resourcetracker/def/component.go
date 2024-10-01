@@ -7,7 +7,12 @@
 // It submits resource usage metrics for use in Fleet Automation.
 package resourcetracker
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import (
+	"context"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
 
 // team: fleet-automation
 
@@ -17,16 +22,35 @@ type Component interface {
 
 // Submitter is the interface to submit gauge metrics.
 type Submitter interface {
-	Gauge(name string, value float64, tags []string)
+	Gauge(name string, value float64, tags []string) error
 }
 
 type telemetrySubmitter struct{}
 
-func (t *telemetrySubmitter) Gauge(name string, value float64, tags []string) {
+func (t *telemetrySubmitter) Gauge(name string, value float64, tags []string) error {
 	telemetry.GetStatsTelemetryProvider().Gauge(name, value, tags)
+	return nil
 }
 
 // NewTelemetryGaugeSubmitter returns a new Submitter that submits gauge metrics to the telemetry provider.
 func NewTelemetryGaugeSubmitter() Submitter {
 	return &telemetrySubmitter{}
+}
+
+type apiSubmitter struct {
+	api pb.AgentSecureClient
+}
+
+func (a *apiSubmitter) Gauge(name string, value float64, tags []string) error {
+	_, err := a.api.Gauge(context.Background(), &pb.GaugeRequest{
+		Name:  name,
+		Value: value,
+		Tags:  tags,
+	})
+	return err
+}
+
+// NewAPISubmitter returns a new Submitter that submits gauge metrics to the API.
+func NewAPISubmitter(api pb.AgentSecureClient) Submitter {
+	return &apiSubmitter{api: api}
 }
