@@ -4,7 +4,7 @@
     "last_stable": {
         "7": "7.57.0"
     },
-    "nightly-a7": {
+    "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "5d4f6995c19b604d7fc876446e4350ce52b235fb",
         "OMNIBUS_RUBY_VERSION": "f3fc847e03ba7081e266b2d333210ba129128a14",
@@ -23,7 +23,7 @@
         "WINDOWS_APMINJECT_VERSION": "1.1.3",
         "WINDOWS_APMINJECT_SHASUM": "5fdd62a84e640204386b9c28dc2e3ac5d9b8adde6427cb9f5914619f94d7b5bd"
     },
-    "release-a7": {
+    "release": {
         "INTEGRATIONS_CORE_VERSION": "7.56.0-rc.2",
         "OMNIBUS_SOFTWARE_VERSION": "7.56.0-rc.3",
         "OMNIBUS_RUBY_VERSION": "7.56.0-rc.1",
