@@ -146,6 +146,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -190,7 +191,8 @@ type BaseSuite[Env any] struct {
 
 	firstFailTest string
 
-	testSessionOutputDir string
+	testSessionOutputDir     string
+	onceTestSessionOutputDir sync.Once
 }
 
 //
@@ -538,15 +540,12 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 //
 // See GetRootOutputDir() for details on the root directory creation.
 func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
-	if bs.testSessionOutputDir == "" {
-		outputRoot, err := GetRootOutputDir()
-		if err != nil {
-			return "", err
-		}
+	var err error
+	bs.onceTestSessionOutputDir.Do(func() {
 		// Store the timestamped directory to be used by all tests in the suite
-		bs.testSessionOutputDir = outputRoot
-	}
-	return bs.testSessionOutputDir, nil
+		bs.testSessionOutputDir, err = GetRootOutputDir()
+	})
+	return bs.testSessionOutputDir, err
 }
 
 // GetTestOutputDir returns an output directory for the current test.
