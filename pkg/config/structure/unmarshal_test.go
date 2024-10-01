@@ -83,11 +83,6 @@ network_devices:
 	assert.Equal(t, trapsCfg.Namespace, "abc")
 }
 
-type ServiceDescription struct {
-	Host     string
-	Endpoint Endpoint `mapstructure:",squash"`
-}
-
 type Endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
@@ -117,31 +112,6 @@ endpoints:
 	assert.Equal(t, endpoints[1].APIKey, "abc2")
 	assert.Equal(t, endpoints[2].Name, "health")
 	assert.Equal(t, endpoints[2].APIKey, "abc3")
-}
-
-func TestUnmarshalKeyWithSquash(t *testing.T) {
-	confYaml := `
-service:
-  host: datad0g.com
-  name: intake
-  apikey: abc1
-`
-	mockConfig := mock.NewFromYAML(t, confYaml)
-	mockConfig.SetKnown("service")
-
-	var svc = ServiceDescription{}
-	// fails without EnableSquash being given
-	err := UnmarshalKey(mockConfig, "service", &svc)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "EnableSquash")
-
-	// succeeds
-	err = UnmarshalKey(mockConfig, "service", &svc, EnableSquash)
-	assert.NoError(t, err)
-
-	assert.Equal(t, svc.Host, "datad0g.com")
-	assert.Equal(t, svc.Endpoint.Name, "intake")
-	assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 }
 
 type FeatureConfig struct {
@@ -203,6 +173,107 @@ feature:
 	assert.NoError(t, err)
 }
 
+// TODO:
+// Tests should exist for the errors that UnmarshalKey can return. For example
+// copyAny can return an error if passed a scalar target but the source is
+// non-scalar. This can be triggered by calling UnmarshalKey with a struct that
+// does not match the same of the data that is being assigned to it. It would be
+// great to have all of the possible errors covered by tests.
+func TestUnmarshalKeyErrorsExpectingScalar(t *testing.T) {
+	t.Skip()
+}
+
+func TestUnmarshalKeyErrorsNonStringMap(t *testing.T) {
+	t.Skip()
+}
+
+func TestUnmarshalKeyConversionErrors(t *testing.T) {
+	t.Skip()
+}
+
+// TODO:
+// We should test that struct tag fields work correctly when the tag has
+// specifiers like “omitempty”. This should be tested at 2 levels: 1) directly by
+// passing reflect.StructField values to fieldNameToKey and 2) by declaring
+// testdata structs that use “omitempty” and using them with UnmarshalKey.
+type omitConfig struct {
+	Enabled string `yaml:"enabled,omitempty"`
+}
+
+// A flag is provided as a struct tag after a field name separated by a comma that
+// alters the decoding behavior, eg. struct { Foo string `json:"field1,omitempty"` }
+//
+// List of common package flags we take into consideration:
+// * yaml.v2 flags:  omitempty, flow, inline
+// * json flags: omitempty
+// * mapstructure flags: squash, remain, omitempty
+type squashConfig struct {
+	Host     string
+	Endpoint Endpoint `mapstructure:",squash"`
+}
+
+func TestUnmarshalKeyWithSquash(t *testing.T) {
+	confYaml := `
+service:
+  host: datad0g.com
+  name: intake
+  apikey: abc1
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("service")
+	var svc = squashConfig{}
+
+	t.Run("squash flag errors without option", func(t *testing.T) {
+		err := UnmarshalKey(mockConfig, "service", &svc)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "EnableSquash")
+	})
+
+	t.Run("squash flag succeeds with option", func(t *testing.T) {
+		err := UnmarshalKey(mockConfig, "service", &svc, EnableSquash)
+		assert.NoError(t, err)
+
+		assert.Equal(t, svc.Host, "datad0g.com")
+		assert.Equal(t, svc.Endpoint.Name, "intake")
+		assert.Equal(t, svc.Endpoint.APIKey, "abc1")
+	})
+}
+
+func TestFieldNameToKey(t *testing.T) {
+	t.Skip()
+}
+
+func TestUnmarshalMapstructureFieldNameToKey(t *testing.T) {
+	t.Skip()
+}
+
+func TestUnmarshalSkipsOmitEmpty(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: "true"
+`
+	mockConfig := mock.NewFromYAML(t, confYaml)
+	mockConfig.SetKnown("feature")
+
+	// If the data from the config is missing, UnmarshalKey is a no-op, does
+	// nothing, and returns no error
+	var endpoints = []Endpoint{}
+	err := UnmarshalKey(mockConfig, "config_providers", &endpoints)
+	assert.NoError(t, err)
+}
+
+// TODO:
+// Test that UnmarshalKey can be used to assign to a map[K]V. Right now only
+// structs are assigned to, but map should also work.
+func TestUnmarshalKeysToMap(t *testing.T) {
+	t.Skip()
+}
+
+// TODO:
+// The test TestMapGetChildNotFound validates the behavior of a innerMapNodeImpl
+// directly, but the other node types don’t have similar tests. For example, we
+// should have a test for innerNodeImpl that constructs a node using newNode(someStruct)
+// and checks how its methods behave. Same for arrayNodeImpl and leafNodeImpl.
 func TestMapGetChildNotFound(t *testing.T) {
 	m := map[string]string{"a": "apple", "b": "banana"}
 	n, err := newNode(reflect.ValueOf(m))
