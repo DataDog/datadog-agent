@@ -1213,7 +1213,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
-			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+			datadogConfig := fxutil.Test[configComp.Component](t, core.MockBundle())
 
 			conf := configmock.New(t)
 			if tt.cpu != "" {

@@ -110,6 +110,7 @@ type Webhook struct {
 	mode            string
 	wmeta           workloadmeta.Component
 	injectionFilter common.InjectionFilter
+	datadogConfig   config.Component
 }
 
 // NewWebhook returns a new Webhook
@@ -123,6 +124,7 @@ func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFi
 		mode:            datadogConfig.GetString("admission_controller.inject_config.mode"),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
+		datadogConfig:   datadogConfig,
 	}
 }
 
@@ -191,7 +193,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		injectedVolumes := injectSocketVolumes(pod)
+		injectedVolumes := injectSocketVolumes(pod, w.datadogConfig)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumes || injectedEnv
@@ -280,16 +282,16 @@ func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, read
 // wait if the agent has issues that prevent it from creating the sockets.
 //
 // This function returns true if at least one volume was injected.
-func injectSocketVolumes(pod *corev1.Pod) bool {
+func injectSocketVolumes(pod *corev1.Pod, datadogConfig config.Component) bool {
 	var injectedVolNames []string
 
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
+	if datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes") {
 		volumes := map[string]string{
 			DogstatsdSocketVolumeName: strings.TrimPrefix(
-				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
+				datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
 			),
 			TraceAgentSocketVolumeName: strings.TrimPrefix(
-				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
+				datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
 			),
 		}
 
@@ -303,7 +305,7 @@ func injectSocketVolumes(pod *corev1.Pod) bool {
 	} else {
 		volume, volumeMount := buildVolume(
 			DatadogVolumeName,
-			pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.socket_path"),
+			datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 			corev1.HostPathDirectoryOrCreate,
 			true,
 		)
