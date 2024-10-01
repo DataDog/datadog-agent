@@ -47,16 +47,3 @@ compute_gitlab_ci_config:
     paths:
       - artifacts/
     expire_in: 1 day
-
-test_compute_gitlab_ci_config:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  stage: .pre
-  needs: [compute_gitlab_ci_config]
-  dependencies: [compute_gitlab_ci_config]
-  tags: ["arch:amd64"]
-  rules:
-    - if: $CI_PIPELINE_SOURCE != "push"
-      when: never
-    - when: on_success
-  script:
-    - inv -e gitlab.print-gitlab-ci-diff
