@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-/opt/datadog-agent/embedded/bin/fipsinstall.sh
 exec /init
