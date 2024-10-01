@@ -15,7 +15,7 @@ OT_AGENT_TAG = "main-ot"
 
 
 @task
-def build(ctx, goarch="amd64"):
+def build(ctx):
     """
     Build the otel agent
     """
@@ -23,10 +23,10 @@ def build(ctx, goarch="amd64"):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    env = {"GO111MODULE": "on", "GOOS": "linux", "GOARCH": goarch}
+    env = {"GO111MODULE": "on"}
     build_tags = ["otlp"]
     ldflags = get_version_ldflags(ctx)
-    print(ldflags)
+
     cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
@@ -40,7 +40,7 @@ def build(ctx, goarch="amd64"):
 
 
 @task
-def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push=False, no_cache=False, hide=False):
+def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push=False, no_cache=False):
     """
     Build the otel agent container image
     """
@@ -63,9 +63,9 @@ def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push
     )
     if no_cache:
         common_build_opts = f"{common_build_opts} --no-cache"
-    ctx.run(f"docker build {common_build_opts} --platform linux/{arch} {build_context}", hide=hide)
+    ctx.run(f"docker build {common_build_opts} --platform linux/{arch} {build_context}")
     if push:
-        ctx.run(f"docker push {tag}", hide=hide)
+        ctx.run(f"docker push {tag}")
 
     os.remove(os.path.join(build_context, BIN_NAME))
     os.remove(os.path.join(build_context, CFG_NAME))
