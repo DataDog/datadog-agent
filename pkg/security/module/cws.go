@@ -61,8 +61,6 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	var selfTester *selftests.SelfTester
 	if cfg.SelfTestEnabled {
 		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
@@ -77,6 +75,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	c := &CWSConsumer{
 		config:       cfg,
