@@ -35,7 +35,7 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     shared_mem = PT_REGS_USER_PARM7(ctx);
     stream = PT_REGS_USER_PARM8(ctx);
 
-    __builtin_memset(&launch_data, 0, sizeof(launch_data));
+    bpf_memset(&launch_data, 0, sizeof(launch_data));
 
     load_dim3(grid_xy, grid_z, &launch_data.grid_size);
     load_dim3(block_xy, block_z, &launch_data.block_size);
@@ -79,7 +79,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
         return 0;
     }
 
-    __builtin_memset(&mem_data, 0, sizeof(mem_data));
+    bpf_memset(&mem_data, 0, sizeof(mem_data));
 
     mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
     mem_data.header.stream_id = (uint64_t)0;
@@ -106,7 +106,7 @@ SEC("uprobe/cudaFree")
 int BPF_UPROBE(uprobe__cudaFree, void *mem) {
     cuda_memory_event_t mem_data;
 
-    __builtin_memset(&mem_data, 0, sizeof(mem_data));
+    bpf_memset(&mem_data, 0, sizeof(mem_data));
 
     mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
     mem_data.header.stream_id = (uint64_t)0;
@@ -126,7 +126,7 @@ int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
     // TODO: Send this on return, not on entry
     cuda_sync_t event;
 
-    __builtin_memset(&event, 0, sizeof(event));
+    bpf_memset(&event, 0, sizeof(event));
 
     event.header.pid_tgid = bpf_get_current_pid_tgid();
     event.header.stream_id = stream;
