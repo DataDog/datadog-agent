@@ -132,8 +132,10 @@ build do
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
-    # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
+    # On windows, `ridk enable` puts Ruby's bin on the PATH first, which contains `aws.rb`, but we want the Python one
+    # So include the `aws.cmd` extension on Windows to ensure we select the Python one.
+    # If AWSCLIV2 is installed, we could use `aws.exe` isntead.
+    awscli = if windows_target? then 'aws.cmd' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \
