@@ -251,8 +251,7 @@ func (n *leafNodeImpl) GetBool() (bool, error) {
 	if n.val.Kind() == reflect.Bool {
 		return n.val.Bool(), nil
 	} else if n.val.Kind() == reflect.Int {
-		stringVal := strconv.FormatInt(n.val.Int(), 10)
-		return convertToBool(stringVal)
+		return n.val.Int() != 0, nil
 	} else if n.val.Kind() == reflect.String {
 		return convertToBool(n.val.String())
 	}
