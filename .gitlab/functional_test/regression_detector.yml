@@ -143,7 +143,7 @@ single-machine-performance-regression_detector-commenter:
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2"
     entrypoint: [""]  # disable entrypoint script for the pr-commenter image
-  tags: ["arch:amd64", "runner:docker"]
+  tags: ["runner:docker"]
   needs:
     - job: single-machine-performance-regression_detector
       artifacts: true  # overrides default behavior that does not download artifacts
