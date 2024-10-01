@@ -234,6 +234,7 @@ func (a *Agent) FlushSync() {
 // - Trace Writer senders
 // - Stats Writer senders
 func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
+	log.Infof("API Key changed. Updating trace-agent config...")
 	a.Receiver.UpdateAPIKey()
 	a.TraceWriter.UpdateAPIKey(oldKey, newKey)
 	a.StatsWriter.UpdateAPIKey(oldKey, newKey)
