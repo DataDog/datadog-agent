@@ -263,6 +263,7 @@ variables:
   AGENT_GITHUB_APP: agent-github-app
   MACOS_GITHUB_APP_1: macos-github-app-one
   MACOS_GITHUB_APP_2: macos-github-app-two
+  DOCKER_REGISTRY_RO: dockerhub-readonly
 
   DD_PKG_VERSION: "latest"
 
