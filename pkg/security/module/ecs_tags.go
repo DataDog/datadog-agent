@@ -29,16 +29,10 @@ func getCurrentECSTaskTags() (map[string]string, error) {
 		return nil, err
 	}
 
-	ctr, err := client.GetContainer(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return map[string]string{
 		"task_name":    task.Family,
+		"task_family":  task.Family,
 		"task_arn":     task.TaskARN,
 		"task_version": task.Version,
-		"container_id": ctr.DockerID,
-		"image_id":     ctr.ImageID,
 	}, nil
 }

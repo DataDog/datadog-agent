@@ -11,7 +11,6 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -220,11 +219,6 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 }
 
 func (a *APIServer) updateMsgTags(msg *api.SecurityEventMessage) {
-	// fallback to DD_SERVICE
-	if len(msg.Service) == 0 {
-		msg.Service = os.Getenv("DD_SERVICE")
-	}
-
 	// apply ecs tag if possible
 	if a.ecsTags != nil {
 		for key, value := range a.ecsTags {
