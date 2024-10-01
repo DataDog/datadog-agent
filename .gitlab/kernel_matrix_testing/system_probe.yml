@@ -88,7 +88,6 @@ pull_test_dockers_arm64:
     DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
     BTF_DIR: opt/kmt-ramfs/system-probe-tests/pkg/ebpf/bytecode/build/${ARCH}/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-  timeout: 35m
 
 upload_minimized_btfs_sysprobe_x64:
   extends:
@@ -141,7 +140,6 @@ kmt_setup_env_sysprobe_x64:
 .upload_sysprobe_tests:
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
-  timeout: 30m
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
