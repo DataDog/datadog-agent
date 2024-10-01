@@ -167,24 +167,24 @@ notify_failure_summary_daily:
 close_failing_tests_stale_issues:
   stage: notify
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  rules:
-    # Daily
-    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
-      when: never
-    - !reference [.on_deploy_nightly_repo_branch_always]
+  # rules:
+  #   # Daily
+  #   - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+  #     when: never
+  #   - !reference [.on_deploy_nightly_repo_branch_always]
   needs: []
   tags: ["arch:amd64"]
   script:
-    - weekday="$(date --utc '+%A')"
-    # Weekly on Friday
-    - |
-      if [ "$weekday" != "Friday" ]; then
-        echo "This script is run weekly on Fridays"
-        exit
-      fi
+    # - weekday="$(date --utc '+%A')"
+    # # Weekly on Friday
+    # - |
+    #   if [ "$weekday" != "Friday" ]; then
+    #     echo "This script is run weekly on Fridays"
+    #     exit
+    #   fi
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY
-    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $JIRA_READ_API_TOKEN) || exit $?; export ATLASSIAN_PASSWORD
-    - ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com; export ATLASSIAN_USERNAME
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
     - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt # For Atlassian / Jira dependencies
-    - inv -e notify.close-failing-tests-stale-issues
+    - inv -e notify.close-failing-tests-stale-issues --dry-run
