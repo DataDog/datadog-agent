@@ -5,6 +5,7 @@ import re
 import sys
 from datetime import timedelta
 
+import yaml
 from invoke import Context, task
 from invoke.exceptions import Exit
 
@@ -170,7 +171,9 @@ def gitlab_ci_diff(
 
     try:
         if from_diff:
-            diff = MultiGitlabCIDiff.from_dict(from_diff)
+            with open(from_diff) as f:
+                diff_data = yaml.safe_load(f)
+            diff = MultiGitlabCIDiff.from_dict(diff_data)
         else:
             _, _, diff = compute_gitlab_ci_config_diff(ctx, before, after)
 
