@@ -22,7 +22,10 @@ func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int, host
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
 			serie := value.(*Serie)
-			serie.Tags = tagset.CombineCompositeTagsAndSlice(serie.Tags, hostTagProvider.GetHostTags())
+			hostTags := hostTagProvider.GetHostTags()
+			if hostTags != nil {
+				serie.Tags = tagset.CombineCompositeTagsAndSlice(serie.Tags, hostTagProvider.GetHostTags())
+			}
 			callback(serie)
 		}, chanSize, bufferSize),
 	}

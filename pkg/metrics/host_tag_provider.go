@@ -20,8 +20,7 @@ import (
 // slice, as those contents are referenced without holding the lock.
 
 type HostTagProvider struct {
-	hosttags []string
-	empty    []string
+	hostTags []string
 	sync.RWMutex
 }
 
@@ -33,11 +32,10 @@ func NewHostTagProvider() *HostTagProvider {
 // newLocalProviderWithClock returns a provider using the given clock.
 func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 	p := &HostTagProvider{
-		hosttags: []string{},
-		empty:    []string{},
+		hostTags: []string{},
 	}
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
-	p.hosttags = append(p.hosttags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
+	p.hostTags = append(p.hostTags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.
@@ -46,7 +44,7 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()
 			defer p.Unlock()
-			p.hosttags = nil
+			p.hostTags = nil
 		})
 	}
 
@@ -57,8 +55,8 @@ func (p *HostTagProvider) GetHostTags() []string {
 	p.RLock()
 	defer p.RUnlock()
 
-	if p.hosttags != nil {
-		return p.hosttags
+	if p.hostTags != nil && len(p.hostTags) > 0 {
+		return p.hostTags
 	}
-	return p.empty
+	return nil
 }
