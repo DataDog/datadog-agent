@@ -24,9 +24,9 @@ test_gitlab_compare_to:
     - inv pipeline.compare-to-itself
 
 # TODO: Rename the source file to gitlab_config.yml
-gitlab_ci_changes:
+compute_gitlab_ci_config:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  stage: notify
+  stage: .pre
   needs: []
   tags: ["arch:amd64"]
   rules:
@@ -39,4 +39,21 @@ gitlab_ci_changes:
     - git checkout -
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
-    - inv -e gitlab.compute-gitlab-ci-config
+    - mkdir -p artifacts
+    - inv -e gitlab.compute-gitlab-ci-config --before-file before.gitlab-ci.yml --after-file after.gitlab-ci.yml --diff-file diff.gitlab-ci.yml
+  artifacts:
+    when: always
+    paths:
+      - artifacts/
+    expire_in: 1 day
+
+test_compute_gitlab_ci_config:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: .pre
+  needs: [compute_gitlab_ci_config]
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push"
+      when: never
+  script:
+    - inv -e gitlab.print-gitlab-ci-diff

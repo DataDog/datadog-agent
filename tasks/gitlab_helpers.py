@@ -283,6 +283,7 @@ def print_entry_points(ctx):
         print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')
 
 
+# TODO: Format
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
 )
@@ -301,11 +302,6 @@ def compute_gitlab_ci_config(
     """
     Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
     """
-
-    with open('/tmp/diff.yml') as f:
-        diff = MultiGitlabCIDiff.fromdict(yaml.safe_load(f))
-    print(diff.display(cli=True))
-    exit()
 
     before_name = before or "merge base"
     after_name = after or "local files"
@@ -341,94 +337,12 @@ def compute_gitlab_ci_config(
         f.write(yaml.safe_dump(diff.todict()))
 
 
-def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False):
+@task
+def print_gitlab_ci_diff(ctx):
     """
-    Creates a diff from two gitlab-ci configurations.
-
-    - before: Git ref without new changes, None for default branch
-    - after: Git ref with new changes, None for current local configuration
-    - pr_comment: If True, post the diff as a comment in the PR
-    - NOTE: This requires a full api token access level to the repository
+    Print the diff of the Gitlab CI configuration between the current commit and the base commit.
     """
+    with open('artifacts/diff.gitlab-ci.yml') as f:
+        diff = MultiGitlabCIDiff(yaml.safe_load(f))
 
-    from tasks.libs.ciproviders.github_api import GithubAPI
-
-    pr_comment_head = 'Gitlab CI Configuration Changes'
-    if pr_comment:
-        github = GithubAPI()
-
-        if (
-            "CI_COMMIT_BRANCH" not in os.environ
-            or len(list(github.get_pr_for_branch(os.environ["CI_COMMIT_BRANCH"]))) != 1
-        ):
-            print(
-                color_message("Warning: No PR found for current branch, skipping message", Color.ORANGE),
-                file=sys.stderr,
-            )
-            pr_comment = False
-
-    if pr_comment:
-        job_url = os.environ['CI_JOB_URL']
-
-    try:
-        before_name = before or "merge base"
-        after_name = after or "local files"
-
-        # The before commit is the LCA commit between before and after
-        before = before or DEFAULT_BRANCH
-        before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
-
-        print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
-
-        print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
-
-        diff = MultiGitlabCIDiff(before_config, after_config)
-
-        if not diff:
-            print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
-
-            # Remove comment if no changes
-            if pr_comment:
-                pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
-
-            return
-
-        # Display diff
-        print('\nGitlab CI configuration diff:')
-        with gitlab_section('Gitlab CI configuration diff'):
-            print(diff.display(cli=True))
-
-        if pr_comment:
-            print('\nSending / updating PR comment')
-            comment = diff.display(cli=False, job_url=job_url)
-            try:
-                pr_commenter(ctx, pr_comment_head, comment)
-            except Exception:
-                # Comment too large
-                print(color_message('Warning: Failed to send full diff, sending only changes summary', Color.ORANGE))
-
-                comment_summary = diff.display(cli=False, job_url=job_url, only_summary=True)
-                try:
-                    pr_commenter(ctx, pr_comment_head, comment_summary)
-                except Exception:
-                    print(color_message('Warning: Failed to send summary diff, sending only job link', Color.ORANGE))
-
-                    pr_commenter(
-                        ctx,
-                        pr_comment_head,
-                        f'Cannot send only summary message, see the [job log]({job_url}) for details',
-                    )
-
-            print(color_message('Sent / updated PR comment', Color.GREEN))
-    except Exception:
-        if pr_comment:
-            # Send message
-            pr_commenter(
-                ctx,
-                pr_comment_head,
-                f':warning: *Failed to display Gitlab CI configuration changes, see the [job log]({job_url}) for details.*',
-            )
-
-        raise
+    print(diff.display(cli=True))
