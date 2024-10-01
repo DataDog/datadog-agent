@@ -21,9 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// CudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
+// cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
-type CudaEventConsumer struct {
+type cudaEventConsumer struct {
 	eventHandler   ddebpf.EventHandler
 	once           sync.Once
 	closed         chan struct{}
@@ -32,8 +32,8 @@ type CudaEventConsumer struct {
 }
 
 // NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
-	return &CudaEventConsumer{
+func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *cudaEventConsumer {
+	return &cudaEventConsumer{
 		eventHandler:   eventHandler,
 		closed:         make(chan struct{}),
 		streamHandlers: make(map[model.StreamKey]*StreamHandler),
@@ -41,7 +41,7 @@ func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
 }
 
 // Stop stops the CUDA event consumer.
-func (c *CudaEventConsumer) Stop() {
+func (c *cudaEventConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -53,7 +53,7 @@ func (c *CudaEventConsumer) Stop() {
 }
 
 // Start starts the CUDA event consumer.
-func (c *CudaEventConsumer) Start() {
+func (c *cudaEventConsumer) Start() {
 	if c == nil {
 		return
 	}
@@ -139,7 +139,7 @@ func (c *CudaEventConsumer) Start() {
 	log.Debugf("CUDA event consumer started")
 }
 
-func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
+func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
 		if key.Pid == pid {
 			log.Debugf("Process %d ended, marking stream as ended", pid)
@@ -149,7 +149,7 @@ func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
 	}
 }
 
-func (c *CudaEventConsumer) checkClosedProcesses() {
+func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
 	_ = kernel.WithAllProcs("/proc", func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}

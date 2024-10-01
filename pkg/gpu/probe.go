@@ -37,7 +37,7 @@ const (
 type Probe struct {
 	mgr      *ddebpf.Manager
 	cfg      *Config
-	consumer *CudaEventConsumer
+	consumer *cudaEventConsumer
 	attacher *uprobes.UprobeAttacher
 }
 
