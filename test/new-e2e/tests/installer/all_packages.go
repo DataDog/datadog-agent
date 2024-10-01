@@ -7,7 +7,6 @@
 package installer
 
 import (
-	"fmt"
 	"os"
 	"testing"
 )
