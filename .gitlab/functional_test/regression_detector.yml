@@ -140,12 +140,13 @@ single-machine-performance-regression_detector-commenter:
   stage: functional_test
   rules:
     - !reference [.except_main_or_release_branch]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
-  tags: ["arch:amd64"]
-  needs: ["single-machine-performance-regression_detector"]
-  variables:
-    # Not using the entrypoint script for the pr-commenter image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2"
+    entrypoint: [""]  # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64", "runner:docker"]
+  needs:
+    - job: single-machine-performance-regression_detector
+      artifacts: true  # overrides default behavior that does not download artifacts
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     - echo "${CI_COMMIT_REF_NAME}"
     - |
