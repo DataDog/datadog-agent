@@ -33,6 +33,8 @@ const (
 	gpuAttacherName   = "gpu"
 )
 
+const consumerChannelSize = 4096
+
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	mgr      *ddebpf.Manager
@@ -190,7 +192,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 }
 
 func (p *Probe) startEventConsumer() {
-	handler := ddebpf.NewRingBufferHandler(4096)
+	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventMap},
 		RingBufferOptions: manager.RingBufferOptions{
