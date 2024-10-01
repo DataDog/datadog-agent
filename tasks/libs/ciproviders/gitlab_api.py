@@ -364,6 +364,27 @@ class GitlabCIDiff:
 
         return '\n'.join(res)
 
+    def iter_jobs(self, added=True, modified=True, removed=False):
+        """
+        Will iterate over all jobs in all files for the given states
+
+        Returns a tuple of (job_name, contents, state)
+
+        Note that the contents is the contents after modification or before removal
+        """
+
+        if added:
+            for job in self.added:
+                yield job, self.after[job], 'added'
+
+        if modified:
+            for job in self.modified:
+                yield job, self.after[job], 'modified'
+
+        if removed:
+            for job in self.removed:
+                yield job, self.before[job], 'removed'
+
 
 class MultiGitlabCIDiff:
     @dataclass
@@ -484,6 +505,19 @@ class MultiGitlabCIDiff:
             res.append(self.diffs[-1].diff.footnote(job_url))
 
         return '\n'.join(res)
+
+    def iter_jobs(self, added=True, modified=True, removed=False):
+        """
+        Will iterate over all jobs in all files for the given states
+
+        Returns a tuple of (entry_point, job_name, contents, state)
+
+        Note that the contents is the contents after modification or before removal
+        """
+
+        for diff in self.diffs:
+            for job, contents, state in diff.diff.iter_jobs(added=added, modified=modified, removed=removed):
+                yield diff.entry_point, job, contents, state
 
 
 class ReferenceTag(yaml.YAMLObject):
