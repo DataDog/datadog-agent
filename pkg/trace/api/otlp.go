@@ -229,9 +229,10 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 
 	resourceAttributes := otelres.Attributes()
+	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
-			Lang:            traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage),
+			Lang:            lang,
 			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKVersion)),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
@@ -264,11 +265,12 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	}
 	containerID := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
 
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	env := traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	p.TracerPayload = &pb.TracerPayload{
-		Hostname: hostname,
-		Chunks:   o.createChunks(tracesByID, priorityByID),
-		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-		Env:           traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment),
+		Hostname:      hostname,
+		Chunks:        o.createChunks(tracesByID, priorityByID),
+		Env:           env,
 		ContainerID:   containerID,
 		LanguageName:  tagstats.Lang,
 		TracerVersion: tagstats.TracerVersion,
