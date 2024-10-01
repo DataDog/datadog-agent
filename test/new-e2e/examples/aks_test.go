@@ -15,8 +15,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/fakeintake"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	azurekubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/kubernetes"
@@ -27,7 +25,7 @@ type aksSuite struct {
 }
 
 func TestAKSSuite(t *testing.T) {
-	e2e.Run(t, &aksSuite{}, e2e.WithProvisioner(azurekubernetes.AKSProvisioner(azurekubernetes.WithFakeIntakeOptions(fakeintake.WithDDDevForwarding()))))
+	e2e.Run(t, &aksSuite{}, e2e.WithProvisioner(azurekubernetes.AKSProvisioner()))
 }
 
 func (v *aksSuite) TestAKS() {

@@ -901,7 +901,6 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 
 func TestGetTagsFromTagger(t *testing.T) {
 	taggerInstance := taggerimpl.SetupFakeTagger(t)
-	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
 	tests := []struct {
@@ -910,7 +909,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 		expectedTags *tagset.HashlessTagsAccumulator
 	}{
 		{
-			name: "accumulates basic pod tags",
+			name: "accumulates global tags",
 			obj: v1.ObjectReference{
 				UID:       "redis",
 				Kind:      "Pod",
@@ -918,16 +917,6 @@ func TestGetTagsFromTagger(t *testing.T) {
 				Name:      "redis",
 			},
 			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
-		},
-		{
-			name: "add tagger pod tags",
-			obj: v1.ObjectReference{
-				UID:       "nginx",
-				Kind:      "Pod",
-				Namespace: "default",
-				Name:      "nginx",
-			},
-			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "pod_name:nginx"}),
 		},
 	}
 
@@ -938,7 +927,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 			}
 			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false, false)
 			accumulator := tagset.NewHashlessTagsAccumulator()
-			transformer.(*unbundledTransformer).getTagsFromTagger(tt.obj, accumulator)
+			transformer.(*unbundledTransformer).getTagsFromTagger(accumulator)
 			assert.Equal(t, tt.expectedTags, accumulator)
 		})
 	}

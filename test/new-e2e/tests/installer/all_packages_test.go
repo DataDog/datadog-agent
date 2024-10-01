@@ -24,12 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite
+type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
 type packageTestsWithSkipedFlavors struct {
 	t                          packageTests
 	skippedFlavors             []e2eos.Descriptor
-	skippedInstallationMethods []installMethodOption
+	skippedInstallationMethods []InstallMethodOption
 }
 
 var (
@@ -50,7 +50,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
@@ -64,26 +64,13 @@ func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool 
 	return false
 }
 
-func shouldSkipInstallMethod(methods []installMethodOption, method installMethodOption) bool {
+func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethodOption) bool {
 	for _, m := range methods {
 		if m == method {
 			return true
 		}
 	}
 	return false
-}
-
-func getInstallMethodFromEnv() installMethodOption {
-	supportedValues := []string{string(installMethodAnsible), string(installMethodInstallScript)}
-	envValue := os.Getenv("FLEET_INSTALL_METHOD")
-	switch envValue {
-	case "install_script":
-		return installMethodInstallScript
-	case "ansible":
-		return installMethodAnsible
-	default:
-		panic(fmt.Sprintf("unsupported install method: %s. Supported values are: %v", envValue, supportedValues))
-	}
 }
 
 func TestPackages(t *testing.T) {
@@ -93,7 +80,10 @@ func TestPackages(t *testing.T) {
 		t.FailNow()
 	}
 
-	method := getInstallMethodFromEnv()
+	method := GetInstallMethodFromEnv()
+	if method == InstallMethodWindows {
+		t.Skip("Windows install method - skipping")
+	}
 
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
@@ -114,7 +104,7 @@ func TestPackages(t *testing.T) {
 				continue
 			}
 			// TODO: remove once ansible+suse is fully supported
-			if flavor.Flavor == e2eos.Suse && method == installMethodAnsible {
+			if flavor.Flavor == e2eos.Suse && method == InstallMethodAnsible {
 				continue
 			}
 
@@ -126,10 +116,6 @@ func TestPackages(t *testing.T) {
 					flake.Mark(t)
 				}
 
-				// FIXME: Ansible tests are flaky on multiple tests/os
-				if method == installMethodAnsible {
-					flake.Mark(t)
-				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -159,17 +145,10 @@ type packageBaseSuite struct {
 	pkg           string
 	arch          e2eos.Architecture
 	os            e2eos.Descriptor
-	installMethod installMethodOption
+	installMethod InstallMethodOption
 }
 
-type installMethodOption string
-
-const (
-	installMethodInstallScript installMethodOption = "install_script"
-	installMethodAnsible       installMethodOption = "ansible"
-)
-
-func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
+func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
 	return packageBaseSuite{
 		os:            os,
 		arch:          arch,
@@ -214,14 +193,14 @@ func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 
 func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	switch s.installMethod {
-	case installMethodInstallScript:
+	case InstallMethodInstallScript:
 		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
 		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 		}
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
-	case installMethodAnsible:
+	case InstallMethodAnsible:
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 

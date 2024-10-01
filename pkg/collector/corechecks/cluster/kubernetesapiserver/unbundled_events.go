@@ -151,15 +151,14 @@ func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.Ob
 	tagsAccumulator.Append(getInvolvedObjectTags(involvedObject, c.taggerInstance)...)
 
 	// Finally tags from the tagger
-	c.getTagsFromTagger(involvedObject, tagsAccumulator)
+	c.getTagsFromTagger(tagsAccumulator)
 
 	tagsAccumulator.SortUniq()
 	return tagsAccumulator.Get()
 }
 
-// getTagsFromTagger add to the TagsAccumulator associated object tags from the tagger.
-// For now only Pod object kind is supported.
-func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc tagset.TagsAccumulator) {
+// getTagsFromTagger add to the TagsAccumulator global tags from the tagger
+func (c *unbundledTransformer) getTagsFromTagger(tagsAcc tagset.TagsAccumulator) {
 	if c.taggerInstance == nil {
 		return
 	}
@@ -169,20 +168,6 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 		log.Debugf("error getting global tags: %s", err)
 	}
 	tagsAcc.Append(globalTags...)
-
-	switch obj.Kind {
-	case podKind:
-		entityID := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
-		entity, err := c.taggerInstance.GetEntity(entityID)
-		if err == nil {
-			// we can get high Cardinality because tags on events is seemless.
-			tagsAcc.Append(entity.GetTags(types.HighCardinality)...)
-		} else {
-			log.Debugf("error getting pod entity for entity ID: %s, pod tags may be missing", err)
-		}
-
-	default:
-	}
 }
 
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {

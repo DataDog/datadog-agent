@@ -8,7 +8,7 @@ package decoder
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -26,22 +26,22 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
 
-	heuristics = append(heuristics, automultilinedetection.NewTokenizer(config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")))
+	heuristics = append(heuristics, automultilinedetection.NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")))
 
-	if config.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection") {
 		heuristics = append(heuristics, automultilinedetection.NewJSONDetector())
 	}
 
-	heuristics = append(heuristics, automultilinedetection.NewUserSamples(config.Datadog()))
+	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog()))
 
-	if config.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection") {
+	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection") {
 		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(
-			config.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")))
+			pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")))
 	}
 
 	analyticsHeuristics := []automultilinedetection.Heuristic{automultilinedetection.NewPatternTable(
-		config.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size"),
-		config.Datadog().GetFloat64("logs_config.auto_multi_line.pattern_table_match_threshold"),
+		pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size"),
+		pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.pattern_table_match_threshold"),
 		tailerInfo),
 	}
 
@@ -51,8 +51,8 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 			outputFn,
 			maxContentSize,
 			flushTimeout,
-			config.Datadog().GetBool("logs_config.tag_truncated_logs"),
-			config.Datadog().GetBool("logs_config.tag_auto_multi_line_logs"),
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_auto_multi_line_logs"),
 			tailerInfo),
 	}
 }

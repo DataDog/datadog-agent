@@ -14,23 +14,26 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
+	dimod "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// DynamicInstrumentation is the dynamic instrumentation module factory
+// DynamicInstrumentation is a system probe module which allows you to add instrumentation into
+// running Go services without restarts.
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		config, err := dynamicinstrumentation.NewConfig(agentConfiguration)
+		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-
-		m, err := dynamicinstrumentation.NewModule(config)
-		if errors.Is(err, ebpf.ErrNotImplemented) {
-			return nil, module.ErrNotEnabled
+		m, err := dimod.NewModule(config)
+		if err != nil {
+			if errors.Is(err, ebpf.ErrNotImplemented) {
+				return nil, module.ErrNotEnabled
+			}
+			return nil, err
 		}
 
 		return m, nil

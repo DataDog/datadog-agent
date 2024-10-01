@@ -9,12 +9,13 @@ package agentsidecar
 
 import (
 	"fmt"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -33,6 +34,12 @@ const dogstatsdSocket = socketDir + "/dsd.socket"
 // webhook to distinguish them easily.
 const ddSocketsVolumeName = "ddsockets"
 
+var volumeNamesInjectedByConfigWebhook = []string{
+	configWebhook.DatadogVolumeName,
+	configWebhook.DogstatsdSocketVolumeName,
+	configWebhook.TraceAgentSocketVolumeName,
+}
+
 // providerIsSupported indicates whether the provider is supported by agent sidecar injection
 func providerIsSupported(provider string) bool {
 	switch provider {
@@ -49,7 +56,7 @@ func providerIsSupported(provider string) bool {
 // applyProviderOverrides applies the necessary overrides for the provider
 // configured. It returns a boolean that indicates if the pod was mutated.
 func applyProviderOverrides(pod *corev1.Pod) (bool, error) {
-	provider := config.Datadog().GetString("admission_controller.agent_sidecar.provider")
+	provider := pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.provider")
 
 	if !providerIsSupported(provider) {
 		return false, fmt.Errorf("unsupported provider: %v", provider)
@@ -85,10 +92,7 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 		return false, fmt.Errorf("can't apply profile overrides to nil pod")
 	}
 
-	mutated := false
-
-	deleted := deleteConfigWebhookVolumeAndMounts(pod)
-	mutated = mutated || deleted
+	mutated := deleteConfigWebhookVolumesAndMounts(pod)
 
 	volume, volumeMount := socketsVolume()
 	injected := common.InjectVolume(pod, volume, volumeMount)
@@ -174,20 +178,19 @@ func socketsVolume() (corev1.Volume, corev1.VolumeMount) {
 	return volume, volumeMount
 }
 
-// deleteConfigWebhookVolumeAndMounts deletes the volume and volumeMounts added
+// deleteConfigWebhookVolumesAndMounts deletes the volume and volumeMounts added
 // by the config webhook. Returns a boolean that indicates if the pod was
 // mutated.
-func deleteConfigWebhookVolumeAndMounts(pod *corev1.Pod) bool {
-	mutated := false
-
+func deleteConfigWebhookVolumesAndMounts(pod *corev1.Pod) bool {
+	originalNumberOfVolumes := len(pod.Spec.Volumes)
 	// Delete the volume added by the config webhook
-	for i, vol := range pod.Spec.Volumes {
-		if vol.Name == configWebhook.DatadogVolumeName {
-			pod.Spec.Volumes = append(pod.Spec.Volumes[:i], pod.Spec.Volumes[i+1:]...)
-			mutated = true
-			break
-		}
-	}
+	pod.Spec.Volumes = slices.DeleteFunc(
+		pod.Spec.Volumes,
+		func(volume corev1.Volume) bool {
+			return slices.Contains(volumeNamesInjectedByConfigWebhook, volume.Name)
+		},
+	)
+	mutated := len(pod.Spec.Volumes) != originalNumberOfVolumes
 
 	deleted := deleteConfigWebhookVolumeMounts(pod.Spec.Containers)
 	mutated = mutated || deleted
@@ -204,16 +207,11 @@ func deleteConfigWebhookVolumeMounts(containers []corev1.Container) bool {
 	mutated := false
 
 	for i, container := range containers {
-		for j, volMount := range container.VolumeMounts {
-			if volMount.Name == configWebhook.DatadogVolumeName {
-				containers[i].VolumeMounts = append(
-					containers[i].VolumeMounts[:j],
-					containers[i].VolumeMounts[j+1:]...,
-				)
-				mutated = true
-				break
-			}
-		}
+		originalNumberOfVolMounts := len(container.VolumeMounts)
+		containers[i].VolumeMounts = slices.DeleteFunc(container.VolumeMounts, func(volMount corev1.VolumeMount) bool {
+			return slices.Contains(volumeNamesInjectedByConfigWebhook, volMount.Name)
+		})
+		mutated = mutated || len(container.VolumeMounts) != originalNumberOfVolMounts
 	}
 
 	return mutated

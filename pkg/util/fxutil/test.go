@@ -35,7 +35,7 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 
 	app := fxtest.New(
 		t,
-		FxAgentBase(),
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		fx.Options(opts...),
@@ -64,7 +64,7 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 	})
 
 	app := fx.New(
-		FxAgentBase(),
+		FxAgentBase(false),
 		delayed.option(),
 		fx.Options(opts...),
 	)
@@ -97,7 +97,7 @@ type appAssertFn func(testing.TB, *fx.App)
 func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface{}) {
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
-		FxAgentBase(),
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		opts,
@@ -116,7 +116,7 @@ func TestRun(t *testing.T, f func() error) {
 	var fxFakeAppRan bool
 	fxAppTestOverride = func(_ interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
-		opts = append(opts, FxAgentBase())
+		opts = append(opts, FxAgentBase(false))
 		require.NoError(t, fx.ValidateApp(opts...))
 		return nil
 	}
@@ -163,13 +163,13 @@ func TestOneShotSubcommand(
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
-					FxAgentBase(),
+					FxAgentBase(false),
 					fx.Invoke(oneShotFunc))...))
 
 		// build an app without the oneShotFunc, and with verifyFn
 		app := fxtest.New(t,
 			append(opts,
-				FxAgentBase(),
+				FxAgentBase(false),
 				fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 				fx.Invoke(verifyFn))...)
 		defer app.RequireStart().RequireStop()
@@ -201,7 +201,7 @@ func TestOneShot(t *testing.T, fct func()) {
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
-					FxAgentBase(),
+					FxAgentBase(false),
 					fx.Invoke(oneShotFunc))...))
 		return nil
 	}
@@ -234,7 +234,7 @@ func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
 		invoke,
 		bundle,
 		fx.Options(extraOptions...),
-		FxAgentBase(),
+		FxAgentBase(false),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 	))
 }

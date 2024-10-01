@@ -33,7 +33,10 @@ func (s *testInstallerRollbackSuite) installRollback() {
 	// Arrange
 
 	// Act
-	msiErr := s.Installer().Install(installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"))
+	msiErr := s.Installer().Install(
+		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		installerwindows.WithMSILogFile("install-rollback.log"),
+	)
 	s.Require().Error(msiErr)
 
 	// Assert
@@ -45,7 +48,10 @@ func (s *testInstallerRollbackSuite) uninstallRollback() {
 	// Arrange
 
 	// Act
-	msiErr := s.Installer().Uninstall(installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"))
+	msiErr := s.Installer().Uninstall(
+		installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"),
+		installerwindows.WithMSILogFile("uninstall-rollback.log"),
+	)
 	s.Require().Error(msiErr)
 
 	// Assert

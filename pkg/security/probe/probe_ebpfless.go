@@ -77,8 +77,13 @@ type EBPFLessProbe struct {
 	cancelFnc     context.CancelFunc
 	fieldHandlers *EBPFLessFieldHandlers
 	clients       map[net.Conn]*client
-	processKiller *ProcessKiller
 	wg            sync.WaitGroup
+
+	// kill action
+	processKiller *ProcessKiller
+
+	// hash action
+	fileHasher *FileHasher
 }
 
 // GetProfileManager returns the Profile Managers
@@ -325,14 +330,16 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	}
 
 	p.DispatchEvent(event)
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -351,6 +358,8 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 
 // Init the probe
 func (p *EBPFLessProbe) Init() error {
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
@@ -556,6 +565,7 @@ func (p *EBPFLessProbe) NewModel() *model.Model {
 
 // SendStats send the stats
 func (p *EBPFLessProbe) SendStats() error {
+	p.processKiller.SendStats(p.statsdClient)
 	return nil
 }
 
@@ -571,6 +581,7 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 
 // ApplyRuleSet applies the new ruleset
 func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.processKiller.Reset()
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
@@ -590,12 +601,15 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		case action.Def.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+			if p.fileHasher.HashAndReport(rule, ev) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
 }
@@ -628,6 +642,11 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
 	return p.event
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *EBPFLessProbe) EnableEnforcement(state bool) {
+	p.processKiller.SetState(state)
 }
 
 // NewEBPFLessProbe returns a new eBPF less probe
@@ -663,6 +682,8 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {

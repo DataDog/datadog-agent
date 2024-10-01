@@ -49,16 +49,20 @@ var (
 type DatadogInstaller struct {
 	binaryPath string
 	env        *environments.WindowsHost
-	logPath    string
+	outputDir  string
 }
 
 // NewDatadogInstaller instantiates a new instance of the Datadog Installer running
 // on a remote Windows host.
-func NewDatadogInstaller(env *environments.WindowsHost, logPath string) *DatadogInstaller {
+func NewDatadogInstaller(env *environments.WindowsHost, outputDir string) *DatadogInstaller {
+	if outputDir == "" {
+		outputDir = os.TempDir()
+	}
+
 	return &DatadogInstaller{
 		binaryPath: path.Join(Path, BinaryName),
 		env:        env,
-		logPath:    logPath,
+		outputDir:  outputDir,
 	}
 }
 
@@ -130,8 +134,9 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 
 // Params contains the optional parameters for the Datadog Installer Install command
 type Params struct {
-	installerURL string
-	msiArgs      []string
+	installerURL   string
+	msiArgs        []string
+	msiLogFilename string
 }
 
 // Option is an optional function parameter type for the Datadog Installer Install command
@@ -153,18 +158,25 @@ func WithMSIArg(arg string) Option {
 	}
 }
 
+// WithMSILogFile sets the filename for the MSI log file, to be stored in the output directory.
+func WithMSILogFile(filename string) Option {
+	return func(params *Params) error {
+		params.msiLogFilename = filename
+		return nil
+	}
+}
+
 // WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
-// bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
-// channel: The channel in the bucket, i.e. "stable"
+// jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
 //
-// Example: WithInstallerURLFromInstallersJSON("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
-// will look into "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json" for the Datadog Installer
+// Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
+// will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(bucket, channel, version string) Option {
+func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
 	return func(params *Params) error {
-		url, err := installers.GetProductURL(fmt.Sprintf("https://s3.amazonaws.com/%s/builds/%s/installers_v2.json", bucket, channel), "datadog-installer", version, "x86_64")
+		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
 		if err != nil {
 			return err
 		}
@@ -176,10 +188,12 @@ func WithInstallerURLFromInstallersJSON(bucket, channel, version string) Option 
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
 func (d *DatadogInstaller) Install(opts ...Option) error {
-	params := Params{}
+	params := Params{
+		msiLogFilename: "install.log",
+	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
@@ -201,9 +215,9 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 		params.installerURL = artifactURL
 		msiPath = params.installerURL
 	}
-	logPath := d.logPath
-	if logPath == "" {
-		logPath = filepath.Join(os.TempDir(), "install.log")
+	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
+	if _, err := os.Stat(logPath); err == nil {
+		return fmt.Errorf("log file %s already exists", logPath)
 	}
 	msiArgs := ""
 	if params.msiArgs != nil {
@@ -214,10 +228,12 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
 func (d *DatadogInstaller) Uninstall(opts ...Option) error {
-	params := Params{}
+	params := Params{
+		msiLogFilename: "uninstall.log",
+	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
@@ -225,9 +241,9 @@ func (d *DatadogInstaller) Uninstall(opts ...Option) error {
 		return err
 	}
 
-	logPath := d.logPath
-	if logPath == "" {
-		logPath = filepath.Join(os.TempDir(), "uninstall.log")
+	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
+	if _, err := os.Stat(logPath); err == nil {
+		return fmt.Errorf("log file %s already exists", logPath)
 	}
 	msiArgs := ""
 	if params.msiArgs != nil {

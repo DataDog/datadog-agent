@@ -9,8 +9,6 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -26,26 +24,29 @@ var mprotectCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func mprotectKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
-	var mprotectKFilters []activeKFilter
+func mprotectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	var (
+		kfilters     []activeKFilter
+		fieldHandled []eval.Field
+	)
 
 	for field, values := range approvers {
 		switch field {
 		case "mprotect.vm_protection":
-			kfilter, err := getFlagsKFilters("mprotect_vm_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_vm_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			mprotectKFilters = append(mprotectKFilters, kfilter)
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		case "mprotect.req_protection":
-			kfilter, err := getFlagsKFilters("mprotect_req_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilter("mprotect_req_protection_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			mprotectKFilters = append(mprotectKFilters, kfilter)
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(mprotectKFilters...), nil
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }

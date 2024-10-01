@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // newListener creates a listening connection
 func newListener() (net.Listener, error) {
-	address, err := config.GetIPCAddress()
+	address, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, config.Datadog().GetInt("security_agent.cmd_port")))
+	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port")))
 }

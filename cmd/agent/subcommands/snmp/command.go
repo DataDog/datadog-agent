@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -184,6 +186,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(scanDevice,
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
+				compressionimpl.Module(),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
@@ -193,10 +196,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-				),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 			)
 			if err != nil {
 				var ue configErr

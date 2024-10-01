@@ -8,8 +8,12 @@
 package net
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
@@ -18,6 +22,7 @@ const (
 	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
 	tracerouteURL        = "http://unix/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	networkIDURL         = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/network_id"
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
@@ -38,4 +43,40 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// newSystemProbe creates a group of clients to interact with system-probe.
+func newSystemProbe(path string) *RemoteSysProbeUtil {
+	return &RemoteSysProbeUtil{
+		path: path,
+		httpClient: http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:    2,
+				IdleConnTimeout: 30 * time.Second,
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: 5 * time.Second,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		},
+		pprofClient: http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+			},
+		},
+		tracerouteClient: http.Client{
+			// no timeout set here, the expected usage of this client
+			// is that the caller will set a timeout on each request
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial(netType, path)
+				},
+			},
+		},
+	}
 }
