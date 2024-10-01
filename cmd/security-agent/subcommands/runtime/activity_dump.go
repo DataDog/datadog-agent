@@ -9,6 +9,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -60,6 +61,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
 	activityDumpCmd.AddCommand(activityDumpToWorkloadPolicyCommands(globalParams)...)
+	activityDumpCmd.AddCommand(activityDumpToSeccompProfileCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -758,6 +760,92 @@ func activityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets
 	}
 
 	b, err := yaml.Marshal(policy)
+	if err != nil {
+		return err
+	}
+
+	output := os.Stdout
+	if args.output != "" && args.output != "-" {
+		output, err = os.Create(args.output)
+		if err != nil {
+			return err
+		}
+		defer output.Close()
+	}
+
+	fmt.Fprint(output, string(b))
+
+	return nil
+}
+
+type activityDumpToSeccompProfileCliParams struct {
+	*command.GlobalParams
+
+	input  string
+	output string
+	format string
+}
+
+func activityDumpToSeccompProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &activityDumpToSeccompProfileCliParams{
+		GlobalParams: globalParams,
+	}
+
+	ActivityDumpToSeccompProfileCmd := &cobra.Command{
+		Use:    "workload-seccomp",
+		Hidden: true,
+		Short:  "convert an activity dump to a seccomp profile",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(activityDumpToSeccompProfile,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.input,
+		"input",
+		"",
+		"path to the activity-dump file",
+	)
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.output,
+		"output",
+		"",
+		"path to the generated seccomp profile file",
+	)
+
+	ActivityDumpToSeccompProfileCmd.Flags().StringVar(
+		&cliParams.format,
+		"format",
+		"json",
+		"format of the generated seccomp profile file",
+	)
+
+	return []*cobra.Command{ActivityDumpToSeccompProfileCmd}
+}
+func activityDumpToSeccompProfile(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpToSeccompProfileCliParams) error {
+
+	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
+	if err != nil {
+		return err
+	}
+
+	seccompProfile := dump.GenerateSeccompProfile(ads)
+
+	var b []byte
+	if args.format == "yaml" {
+		b, err = yaml.Marshal(seccompProfile)
+	} else {
+		b, err = json.Marshal(seccompProfile)
+	}
+
 	if err != nil {
 		return err
 	}

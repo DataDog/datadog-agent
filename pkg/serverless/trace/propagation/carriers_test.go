@@ -251,6 +251,18 @@ func TestSnsEntityCarrier(t *testing.T) {
 		expErr string
 	}{
 		{
+			name: "eventbridge-through-sns",
+			event: events.SNSEntity{
+				Message: `{"detail":{"_datadog":{"x-datadog-trace-id":"123456789","x-datadog-parent-id":"987654321","x-datadog-sampling-priority":"1"}}}`,
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
+			expErr: "",
+		},
+		{
 			name:   "no-msg-attrs",
 			event:  events.SNSEntity{},
 			expMap: nil,
@@ -687,6 +699,18 @@ func TestSqsMessageCarrier(t *testing.T) {
 			name:   "datadog-map",
 			event:  eventSqsMessage(headersAll, headersNone, headersNone),
 			expMap: headersMapAll,
+			expErr: nil,
+		},
+		{
+			name: "eventbridge-through-sqs",
+			event: events.SQSMessage{
+				Body: `{"detail":{"_datadog":{"x-datadog-trace-id":"123456789","x-datadog-parent-id":"987654321","x-datadog-sampling-priority":"1"}}}`,
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
 			expErr: nil,
 		},
 	}

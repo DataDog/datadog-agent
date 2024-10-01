@@ -12,6 +12,7 @@ import (
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
 	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
+	infragcp "github.com/DataDog/test-infra-definitions/resources/gcp"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
@@ -49,6 +50,13 @@ const (
 	AzurePrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPath
 	// AzurePrivateKeyPassword pulumi config paramater name
 	AzurePrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPassword
+
+	// GCPPublicKeyPath pulumi config paramater name
+	GCPPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPublicKeyPath
+	// GCPPrivateKeyPath pulumi config paramater name
+	GCPPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPath
+	// GCPPrivateKeyPassword pulumi config paramater name
+	GCPPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infragcp.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -111,8 +119,8 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
 	params := map[parameters.StoreKey][]string{
 		parameters.KeyPairName:        {AWSKeyPairName},
-		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath},
-		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath},
+		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath, GCPPublicKeyPath},
+		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath, GCPPrivateKeyPath},
 		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
 		parameters.PipelineID:         {AgentPipelineID},
 		parameters.CommitSHA:          {AgentCommitSHA},
@@ -132,7 +140,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	secretParams := map[parameters.StoreKey][]string{
 		parameters.APIKey:             {AgentAPIKey},
 		parameters.APPKey:             {AgentAPPKey},
-		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword},
+		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword, GCPPrivateKeyPassword},
 	}
 
 	for storeKey, configMapKeys := range secretParams {

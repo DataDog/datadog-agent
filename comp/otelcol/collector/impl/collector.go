@@ -10,6 +10,8 @@ package collectorimpl
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -143,7 +145,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "v0.104.0",
-			Command:     "otel-agent",
+			Command:     filepath.Base(os.Args[0]),
 			Description: "Datadog Agent OpenTelemetry Collector",
 		},
 		LoggingOptions: options,
