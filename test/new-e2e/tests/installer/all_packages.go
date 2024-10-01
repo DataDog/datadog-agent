@@ -36,7 +36,7 @@ func GetInstallMethodFromEnv(t *testing.T) InstallMethodOption {
 	case "windows":
 		return InstallMethodWindows
 	default:
-		t.Log(fmt.Sprintf("FLEET_INSTALL_METHOD is not set or has an unsupported value. Supported values are: %v", supportedValues))
+		t.Logf("FLEET_INSTALL_METHOD is not set or has an unsupported value. Supported values are: %v", supportedValues)
 		t.Log("Using default install method: install_script")
 		return InstallMethodInstallScript
 	}
