@@ -45,6 +45,16 @@ BUNDLED_AGENTS = {
     AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
 }
 
+if sys.platform == "win32":
+    # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
+    # This dir contains `aws.rb` which will execute if we just call `aws`,
+    # so we need to be explicit about the executable extension/path
+    # awscli v1 from Python env
+    AWS_CMD = "aws.cmd"
+    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+else:
+    AWS_CMD = "aws"
+
 AGENT_CORECHECKS = [
     "container",
     "containerd",
@@ -816,7 +826,7 @@ def version(
 
 
 @task
-def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli="aws"):
+def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli=None):
     """
     Get cached integration wheels for given integrations.
     python: Python version to retrieve integrations for
@@ -827,6 +837,8 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     integrations: comma-separated names of the integrations to try to retrieve from cache
     awscli: AWS CLI executable to call
     """
+    if awscli is None:
+        awscli = AWS_CMD
     integrations_hashes = {}
     for integration in integrations.strip().split(","):
         integration_path = os.path.join(integrations_dir, integration)
@@ -897,7 +909,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
 
 
 @task
-def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli="aws"):
+def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli=None):
     """
     Upload a built integration wheel for given integration.
     python: Python version the integration is built for
@@ -908,6 +920,8 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     integration: name of the integration being cached
     awscli: AWS CLI executable to call
     """
+    if awscli is None:
+        awscli = AWS_CMD
     matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
     files_matched = glob.glob(matching_glob)
     if len(files_matched) == 0:
