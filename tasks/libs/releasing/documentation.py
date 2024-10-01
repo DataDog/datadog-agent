@@ -22,8 +22,6 @@ def _stringify_config(config_dict):
 
 
 def nightly_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "nightly"
     return f"nightly-a{agent_major_version}"
 
 

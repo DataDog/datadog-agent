@@ -187,37 +187,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
         self.maxDiff = None
         initial_release_json = OrderedDict(
             {
-                nightly_entry_for(6): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
                 nightly_entry_for(7): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -284,37 +254,7 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
         expected_release_json = OrderedDict(
             {
-                nightly_entry_for(6): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
                 nightly_entry_for(7): {
-                    "INTEGRATIONS_CORE_VERSION": "master",
-                    "OMNIBUS_SOFTWARE_VERSION": "master",
-                    "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
-                    "JMXFETCH_VERSION": "0.44.1",
-                    "JMXFETCH_HASH": "fd369da4fd24d18dabd7b33abcaac825d386b9558e70f1c621d797faec2a657c",
-                    "MACOS_BUILD_VERSION": "master",
-                    "WINDOWS_DDNPM_DRIVER": "release-signed",
-                    "WINDOWS_DDNPM_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDNPM_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                    "SECURITY_AGENT_POLICIES_VERSION": "master",
-                    "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-                    "WINDOWS_DDPROCMON_VERSION": "0.98.2.git.86.53d1ee4",
-                    "WINDOWS_DDPROCMON_SHASUM": "5d31cbf7aea921edd5ba34baf074e496749265a80468b65a034d3796558a909e",
-                },
-                release_entry_for(6): {
                     "INTEGRATIONS_CORE_VERSION": "master",
                     "OMNIBUS_SOFTWARE_VERSION": "master",
                     "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
@@ -352,37 +292,19 @@ class TestUpdateReleaseJsonEntry(unittest.TestCase):
 
 class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
         nightly_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "master"},
-        release_entry_for(6): {"JMXFETCH_VERSION": "0.43.0", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
         release_entry_for(7): {"JMXFETCH_VERSION": "0.44.1", "SECURITY_AGENT_POLICIES_VERSION": "v0.10"},
     }
-
-    def test_release_version_6(self):
-        version = _get_release_version_from_release_json(self.test_release_json, 6, release.VERSION_RE)
-        self.assertEqual(version, release_entry_for(6))
 
     def test_release_version_7(self):
         version = _get_release_version_from_release_json(self.test_release_json, 7, release.VERSION_RE)
         self.assertEqual(version, release_entry_for(7))
-
-    def test_release_jmxfetch_version_6(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, 6, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
-        )
-        self.assertEqual(version, Version(major=0, minor=43, patch=0))
 
     def test_release_jmxfetch_version_7(self):
         version = _get_release_version_from_release_json(
             self.test_release_json, 7, release.VERSION_RE, release_json_key="JMXFETCH_VERSION"
         )
         self.assertEqual(version, Version(major=0, minor=44, patch=1))
-
-    def test_release_security_version_6(self):
-        version = _get_release_version_from_release_json(
-            self.test_release_json, 6, release.VERSION_RE, release_json_key="SECURITY_AGENT_POLICIES_VERSION"
-        )
-        self.assertEqual(version, Version(prefix="v", major=0, minor=10))
 
     def test_release_security_version_7(self):
         version = _get_release_version_from_release_json(
@@ -393,14 +315,6 @@ class TestGetReleaseVersionFromReleaseJson(unittest.TestCase):
 
 class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
-            "WINDOWS_DDNPM_DRIVER": "attestation-signed",
-            "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
-            "WINDOWS_DDNPM_SHASUM": "nightly-ddnpm-sha",
-            "WINDOWS_DDPROCMON_DRIVER": "attestation-signed",
-            "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
-            "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
-        },
         nightly_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "attestation-signed",
             "WINDOWS_DDNPM_VERSION": "nightly-ddnpm-version",
@@ -408,14 +322,6 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
             "WINDOWS_DDPROCMON_DRIVER": "attestation-signed",
             "WINDOWS_DDPROCMON_VERSION": "nightly-ddprocmon-version",
             "WINDOWS_DDPROCMON_SHASUM": "nightly-ddprocmon-sha",
-        },
-        release_entry_for(6): {
-            "WINDOWS_DDNPM_DRIVER": "release-signed",
-            "WINDOWS_DDNPM_VERSION": "rc3-ddnpm-version",
-            "WINDOWS_DDNPM_SHASUM": "rc3-ddnpm-sha",
-            "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-            "WINDOWS_DDPROCMON_VERSION": "rc3-ddprocmon-version",
-            "WINDOWS_DDPROCMON_SHASUM": "rc3-ddprocmon-sha",
         },
         release_entry_for(7): {
             "WINDOWS_DDNPM_DRIVER": "release-signed",
@@ -464,17 +370,9 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
 
 class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
-            "VERSION": "ver6_nightly",
-            "HASH": "hash6_nightly",
-        },
         nightly_entry_for(7): {
             "VERSION": "ver7_nightly",
             "HASH": "hash7_nightly",
-        },
-        release_entry_for(6): {
-            "VERSION": "ver6_release",
-            "HASH": "hash6_release",
         },
         release_entry_for(7): {
             "VERSION": "ver7_release",
@@ -507,17 +405,9 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
 
 class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
     test_release_json = {
-        nightly_entry_for(6): {
-            "JMXFETCH_VERSION": "ver6_nightly",
-            "JMXFETCH_HASH": "hash6_nightly",
-        },
         nightly_entry_for(7): {
             "JMXFETCH_VERSION": "ver7_nightly",
             "JMXFETCH_HASH": "hash7_nightly",
-        },
-        release_entry_for(6): {
-            "JMXFETCH_VERSION": "ver6_release",
-            "JMXFETCH_HASH": "hash6_release",
         },
         release_entry_for(7): {
             "JMXFETCH_VERSION": "ver7_release",

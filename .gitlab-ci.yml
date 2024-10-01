@@ -161,7 +161,6 @@ variables:
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
 
   # Build images versions

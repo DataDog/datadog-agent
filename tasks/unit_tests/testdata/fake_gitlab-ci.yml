@@ -125,7 +125,6 @@ variables:
   BUCKET_BRANCH: dev  # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
-  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
@@ -146,7 +145,6 @@ variables:
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
 
   # Build images versions
@@ -200,12 +198,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
@@ -312,14 +304,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_a6:
-  - <<: *if_version_6
-
-.on_a6_manual:
-  - <<: *if_version_6
-    when: manual
-    allow_failure: true
-
 .on_a7:
   - <<: *if_version_7
 
@@ -344,11 +328,6 @@ workflow:
     when: manual
     allow_failure: true
 
-.on_main_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_main_branch
-
 .on_main_a7:
   - <<: *if_not_version_7
     when: never
@@ -370,95 +349,6 @@ workflow:
 .on_deploy_failure:
   - <<: *if_deploy
     when: on_failure
-
-.on_deploy_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a6_failure:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a6_rc:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# Same as on_deploy_a6_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
-.on_deploy_a6_manual_final:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# This rule is a variation of on_deploy_a6_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_a6_manual_auto_on_rc:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -605,13 +495,6 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_nightly_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_nightly_repo_branch
-    when: never
-  - <<: *if_deploy
-
 .on_deploy_nightly_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
@@ -623,22 +506,6 @@ workflow:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
 
 .on_deploy_stable_or_beta_repo_branch_a7:
   - <<: *if_not_version_7
@@ -721,13 +588,6 @@ workflow:
   - <<: *if_deploy
     when: never
 
-.on_a6_except_deploy:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: never
-  - when: on_success
-
 .on_a7_except_deploy:
   - <<: *if_not_version_7
     when: never
@@ -756,18 +616,6 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
 .on_all_builds_a7:
   - <<: *if_not_version_7
     when: never
@@ -779,24 +627,6 @@ workflow:
   - <<: *if_run_all_builds
     when: manual
     allow_failure: true
-
-.on_kitchen_tests_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_kitchen
-
-.on_kitchen_tests_a6_always:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_kitchen
-    when: always
-
-.on_all_kitchen_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_kitchen
 
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
@@ -896,8 +726,6 @@ workflow:
 
 .on_install_script_release_manual:
   - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_version_6
     when: never
   - <<: *if_not_main_branch
     when: never
