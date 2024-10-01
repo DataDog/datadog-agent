@@ -334,7 +334,7 @@ def compute_gitlab_ci_config(
 
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
-        f.write(yaml.safe_dump(diff.todict()))
+        f.write(yaml.safe_dump(diff.to_dict()))
 
 
 @task
@@ -342,7 +342,7 @@ def print_gitlab_ci_diff(ctx):
     """
     Print the diff of the Gitlab CI configuration between the current commit and the base commit.
     """
-    with open('artifacts/diff.gitlab-ci.yml') as f:
-        diff = MultiGitlabCIDiff(yaml.safe_load(f))
+    with open('/tmp/diff.gitlab-ci.yml') as f:
+        diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
     print(diff.display(cli=True))

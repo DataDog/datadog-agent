@@ -6,6 +6,7 @@ from invoke import MockContext, Result
 
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
+    MultiGitlabCIDiff,
     clean_gitlab_ci_configuration,
     expand_matrix_jobs,
     filter_gitlab_ci_configuration,
@@ -176,6 +177,49 @@ class TestGitlabCiDiff(unittest.TestCase):
         self.assertSetEqual(diff.removed, {'job4'})
         self.assertSetEqual(diff.added, {'job5'})
         self.assertSetEqual(diff.renamed, {('job2', 'job2_renamed')})
+
+    def test_serialization(self):
+        before = {
+            'job1': {
+                'script': [
+                    'echo "hello"',
+                    'echo "hello?"',
+                    'echo "hello!"',
+                ]
+            },
+            'job2': {
+                'script': 'echo "world"',
+            },
+            'job3': {
+                'script': 'echo "!"',
+            },
+            'job4': {
+                'script': 'echo "?"',
+            },
+        }
+        after = {
+            'job1': {
+                'script': [
+                    'echo "hello"',
+                    'echo "bonjour?"',
+                    'echo "hello!"',
+                ]
+            },
+            'job2_renamed': {
+                'script': 'echo "world"',
+            },
+            'job3': {
+                'script': 'echo "!"',
+            },
+            'job5': {
+                'script': 'echo "???"',
+            },
+        }
+        diff = MultiGitlabCIDiff({'file': before}, {'file': after})
+        dict_diff = diff.to_dict()
+        diff_from_dict = MultiGitlabCIDiff.from_dict(dict_diff)
+
+        self.assertDictEqual(diff_from_dict.before, diff.before)
 
 
 class TestRetrieveAllPaths(unittest.TestCase):

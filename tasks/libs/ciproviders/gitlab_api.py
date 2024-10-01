@@ -142,7 +142,7 @@ class GitlabCIDiff:
     def __bool__(self) -> bool:
         return bool(self.added or self.removed or self.modified or self.renamed)
 
-    def todict(self) -> dict:
+    def to_dict(self) -> dict:
         return {
             'before': self.before,
             'after': self.after,
@@ -155,7 +155,7 @@ class GitlabCIDiff:
         }
 
     @staticmethod
-    def fromdict(data: dict) -> GitlabCIDiff:
+    def from_dict(data: dict) -> GitlabCIDiff:
         return GitlabCIDiff(dict_initialization=data)
 
     def make_diff(self):
@@ -374,18 +374,18 @@ class MultiGitlabCIDiff:
         is_added: bool
         is_removed: bool
 
-        def todict(self) -> dict:
+        def to_dict(self) -> dict:
             return {
                 'entry_point': self.entry_point,
-                'diff': self.diff.todict(),
+                'diff': self.diff.to_dict(),
                 'is_added': self.is_added,
                 'is_removed': self.is_removed,
             }
 
         @staticmethod
-        def fromdict(data: dict) -> MultiGitlabCIDiff.MultiDiff:
+        def from_dict(data: dict) -> MultiGitlabCIDiff.MultiDiff:
             return MultiGitlabCIDiff.MultiDiff(
-                data['entry_point'], GitlabCIDiff.fromdict(data['diff']), data['is_added'], data['is_removed']
+                data['entry_point'], GitlabCIDiff.from_dict(data['diff']), data['is_added'], data['is_removed']
             )
 
     def __init__(
@@ -402,7 +402,7 @@ class MultiGitlabCIDiff:
         if dict_initialization:
             self.before = dict_initialization['before']
             self.after = dict_initialization['after']
-            self.diffs = [MultiGitlabCIDiff.MultiDiff.fromdict(d) for d in dict_initialization['diffs']]
+            self.diffs = [MultiGitlabCIDiff.MultiDiff.from_dict(d) for d in dict_initialization['diffs']]
         else:
             self.before = dict(before)
             self.after = dict(after)
@@ -412,11 +412,11 @@ class MultiGitlabCIDiff:
     def __bool__(self) -> bool:
         return bool(self.diffs)
 
-    def todict(self) -> dict:
-        return {'before': self.before, 'after': self.after, 'diffs': [diff.todict() for diff in self.diffs]}
+    def to_dict(self) -> dict:
+        return {'before': self.before, 'after': self.after, 'diffs': [diff.to_dict() for diff in self.diffs]}
 
     @staticmethod
-    def fromdict(data: dict) -> MultiGitlabCIDiff:
+    def from_dict(data: dict) -> MultiGitlabCIDiff:
         return MultiGitlabCIDiff(dict_initialization=data)
 
     def make_diff(self):
