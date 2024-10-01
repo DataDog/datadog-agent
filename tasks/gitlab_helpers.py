@@ -320,6 +320,8 @@ def compute_gitlab_ci_config(
 ):
     """
     Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+
+    The diff can be loaded using `MultiGitlabCIDiff.from_dict`.
     """
 
     before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)

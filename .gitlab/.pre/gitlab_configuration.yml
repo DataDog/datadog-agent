@@ -23,7 +23,7 @@ test_gitlab_compare_to:
     - pip install -r tasks/requirements.txt
     - inv pipeline.compare-to-itself
 
-# TODO: Rename the source file to gitlab_config.yml
+# Computes and uploads the GitLab CI configuration diff as an artifact
 compute_gitlab_ci_config:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: .pre
