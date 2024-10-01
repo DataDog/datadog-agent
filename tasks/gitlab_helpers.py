@@ -342,7 +342,7 @@ def print_gitlab_ci_diff(ctx):
     """
     Print the diff of the Gitlab CI configuration between the current commit and the base commit.
     """
-    with open('/tmp/diff.gitlab-ci.yml') as f:
+    with open('artifacts/diff.gitlab-ci.yml') as f:
         diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
     print(diff.display(cli=True))
