@@ -52,13 +52,14 @@ type resourceTracker struct {
 	submitter resourcetracker.Submitter
 }
 
-func (t *resourceTracker) Start(_ context.Context) error {
+// Start starts the resource tracker
+func (r *resourceTracker) Start(_ context.Context) error {
 	go t.run()
 	return nil
 }
 
 // Stop stops the resource tracker
-func (t *resourceTracker) Stop(_ context.Context) error {
+func (r *resourceTracker) Stop(_ context.Context) error {
 	close(t.stop)
 	return nil
 }
