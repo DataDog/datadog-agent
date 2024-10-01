@@ -88,7 +88,7 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
-	if instlr.GetInstallMethodFromEnv() != instlr.InstallMethodWindows {
+	if instlr.GetInstallMethodFromEnv(s.T()) != instlr.InstallMethodWindows {
 		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
 	}
 
