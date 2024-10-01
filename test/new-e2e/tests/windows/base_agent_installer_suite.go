@@ -44,7 +44,7 @@ func (b *BaseAgentInstallerSuite[Env]) BeforeTest(suiteName, testName string) {
 	b.BaseSuite.BeforeTest(suiteName, testName)
 
 	var err error
-	b.OutputDir, err = b.GetTestOutputDir()
+	b.OutputDir, err = b.CreateTestOutputDir()
 	if err != nil {
 		b.T().Fatalf("should get output dir")
 	}

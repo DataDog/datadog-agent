@@ -359,7 +359,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	outputDir, err := s.GetTestOutputDir()
+	outputDir, err := s.CreateTestOutputDir()
 	if err != nil {
 		s.T().Fatalf("should get output dir")
 	}
@@ -397,7 +397,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
-	outputDir, err := s.GetTestOutputDir()
+	outputDir, err := s.CreateTestOutputDir()
 	if err != nil {
 		s.T().Fatalf("should get output dir")
 	}

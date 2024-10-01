@@ -31,17 +31,17 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// GetRootOutputDir creates and returns a directory for tests to store output files and artifacts.
+// CreateRootOutputDir creates and returns a directory for tests to store output files and artifacts.
 // A timestamp is included in the path to distinguish between multiple runs, and os.MkdirTemp() is
 // used to avoid name collisions between parallel runs.
 //
 // A new directory is created on each call to this function, it is recommended to save this result
-// and use it for all tests in a run. For example see BaseSuite.GetTestOutputDir().
+// and use it for all tests in a run. For example see BaseSuite.CreateTestOutputDir().
 //
 // See runner.GetProfile().GetOutputDir() for the root output directory selection logic.
 //
 // See GetTestOutputDir for a function that returns a subdirectory for a specific test.
-func GetRootOutputDir() (string, error) {
+func CreateRootOutputDir() (string, error) {
 	outputRoot, err := runner.GetProfile().GetOutputDir()
 	if err != nil {
 		return "", err
@@ -82,13 +82,13 @@ func GetRootOutputDir() (string, error) {
 	return outputRoot, nil
 }
 
-// GetTestOutputDir creates a directory for a specific test that can be used to store output files and artifacts.
+// CreateTestOutputDir creates a directory for a specific test that can be used to store output files and artifacts.
 // The test name is used in the directory name, and invalid characters are replaced with underscores.
 //
 // Example:
 //   - test name: TestInstallSuite/TestInstall/install_version=7.50.0
 //   - output directory: <root>/TestInstallSuite/TestInstall/install_version_7_50_0
-func GetTestOutputDir(root string, t *testing.T) (string, error) {
+func CreateTestOutputDir(root string, t *testing.T) (string, error) {
 	// https://en.wikipedia.org/wiki/Filename#Reserved_characters_and_words
 	invalidPathChars := strings.Join([]string{"?", "%", "*", ":", "|", "\"", "<", ">", ".", ",", ";", "="}, "")
 

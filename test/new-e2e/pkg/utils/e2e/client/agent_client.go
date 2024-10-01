@@ -196,11 +196,11 @@ func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRu
 }
 
 func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
-	root, err := e2e.GetRootOutputDir()
+	root, err := e2e.CreateRootOutputDir()
 	if err != nil {
 		return fmt.Errorf("could not get root output directory: %w", err)
 	}
-	outputDir, err := e2e.GetTestOutputDir(root, t)
+	outputDir, err := e2e.CreateTestOutputDir(root, t)
 	if err != nil {
 		return fmt.Errorf("could not get output directory: %w", err)
 	}
