@@ -648,6 +648,33 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false)
+		if pce != nil {
+			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
+			if err == nil && path != "" {
+				path = filepath.Dir(string(path))
+				pce.CGroup.CGroupID = containerutils.CGroupID(path)
+				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
+				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
+				if cgroupFlags.IsContainer() {
+					containerID, _ := containerutils.GetContainerFromCgroup(path)
+					pce.ContainerID = containerutils.ContainerID(containerID)
+					pce.Process.ContainerID = containerutils.ContainerID(containerID)
+				}
+				pce.CGroup.CGroupFlags = cgroupFlags
+				pce.Process.CGroup = pce.CGroup
+			} else {
+				seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+			}
+		} else {
+			seclog.Debugf("failed to resolve process of cgroup write event: %s", err)
+		}
+		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -720,24 +747,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	switch eventType {
-	case model.CgroupWriteEventType:
-		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-		path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
-		if err == nil && path != "" {
-			path = filepath.Dir(string(path))
-			event.ProcessCacheEntry.CGroup.CGroupID = containerutils.CGroupID(path)
-			event.ProcessCacheEntry.Process.CGroup.CGroupID = containerutils.CGroupID(path)
-			containerID, cgroupFlags := containerutils.GetContainerFromCgroup(path)
-			event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(containerID)
-			event.ProcessCacheEntry.Process.ContainerID = containerutils.ContainerID(containerID)
-			event.ProcessCacheEntry.CGroup.CGroupFlags = cgroupFlags
-			event.ProcessCacheEntry.Process.CGroup = event.ProcessCacheEntry.CGroup
-		} else {
-			seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
-		}
 
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
