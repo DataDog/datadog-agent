@@ -97,8 +97,7 @@ func (c *CudaEventConsumer) Start() {
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
 
 				pid := uint32(header.Pid_tgid >> 32)
-				tid := uint32(header.Pid_tgid)
-				streamKey := model.StreamKey{Pid: pid, Tid: tid, Stream: header.Stream_id}
+				streamKey := model.StreamKey{Pid: pid, Stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
 					c.streamHandlers[streamKey] = newStreamHandler()
