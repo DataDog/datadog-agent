@@ -7,7 +7,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -15,9 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
 const (
@@ -25,7 +22,6 @@ const (
 	defaultArch                   = "x86_64"
 	agentInstallerListProductName = "datadog-agent"
 	agentS3BucketRelease          = "ddagent-windows-stable"
-	agentS3BucketTesting          = "dd-agent-mstesting"
 	betaChannel                   = "beta"
 	betaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
 	stableChannel                 = "stable"
@@ -108,53 +104,34 @@ func GetLatestMSIURL(majorVersion string, arch string) string {
 // majorVersion: 6, 7
 // arch: x86_64
 func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (string, error) {
-	// dd-agent-mstesting is a public bucket so we can use anonymous credentials
-	config, err := awsConfig.LoadDefaultConfig(context.Background(), awsConfig.WithCredentialsProvider(aws.AnonymousCredentials{}))
-	if err != nil {
-		return "", err
-	}
-
-	s3Client := s3.NewFromConfig(config)
-
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
 	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
-	result, err := s3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
-		Bucket: aws.String(agentS3BucketTesting),
-		Prefix: aws.String(fmt.Sprintf("pipelines/A%s/%s", majorVersion, pipelineID)),
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	if len(result.Contents) <= 0 {
-		return "", fmt.Errorf("no agent MSI found for pipeline %v", pipelineID)
-	}
-
-	// In case there are multiple artifacts, try to match the right one
-	// This is only here as a workaround for a CI issue that can cause artifacts
-	// from different pipelines to be mixed together. This should be removed once
-	// the issue is resolved.
-	// TODO: CIREL-1970
-	for _, obj := range result.Contents {
+	artifactURL, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, majorVersion, func(artifact string) bool {
+		// In case there are multiple artifacts, try to match the right one
+		// This is only here as a workaround for a CI issue that can cause artifacts
+		// from different pipelines to be mixed together. This should be removed once
+		// the issue is resolved.
+		// TODO: CIREL-1970
 		// Example: datadog-agent-7.52.0-1-x86_64.msi
 		// Example: datadog-agent-7.53.0-devel.git.512.41b1225.pipeline.30353507-1-x86_64.msi
-		if !strings.Contains(*obj.Key, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
-			continue
+		if !strings.Contains(artifact, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
+			return false
 		}
 		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
-		if strings.Contains(*obj.Key, "pipeline.") &&
-			!strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
-			continue
+		if strings.Contains(artifact, "pipeline.") &&
+			!strings.Contains(artifact, fmt.Sprintf("pipeline.%s", pipelineID)) {
+			return false
 		}
-		if !strings.Contains(*obj.Key, fmt.Sprintf("-%s.msi", arch)) {
-			continue
+		if !strings.Contains(artifact, fmt.Sprintf("-%s.msi", arch)) {
+			return false
 		}
-
-		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
+		// match!
+		return true
+	})
+	if err != nil {
+		return "", fmt.Errorf("no agent MSI found for pipeline %v and arch %v: %w", pipelineID, arch, err)
 	}
-
-	return "", fmt.Errorf("no agent MSI found for pipeline %v and arch %v", pipelineID, arch)
+	return artifactURL, nil
 }
 
 // LookupChannelFromEnv looks at environment variabes to select the agent channel, if the value

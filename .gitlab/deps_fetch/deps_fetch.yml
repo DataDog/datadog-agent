@@ -60,6 +60,7 @@ go_deps:
         prefix: "go_deps_modcache"
       paths:
         - modcache.tar.xz
+  timeout: 35m
 
 go_tools_deps:
   extends: .cache

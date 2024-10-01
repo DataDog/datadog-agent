@@ -139,7 +139,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure)HostnameSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
@@ -288,6 +288,7 @@ new-e2e-orchestrator:
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
+  timeout: 55m
 
 new-e2e-apm:
   extends: .new_e2e_template
@@ -475,6 +476,7 @@ new-e2e-cspm:
   variables:
     TARGETS: ./tests/cspm
     TEAM: cspm
+  timeout: 35m
 
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

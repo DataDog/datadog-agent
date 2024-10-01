@@ -1,5 +1,6 @@
 single-machine-performance-regression_detector:
   stage: functional_test
+  timeout: 1h10
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
@@ -57,8 +58,38 @@ single-machine-performance-regression_detector:
     - chmod +x smp
     - BASELINE_SHA="${SMP_MERGE_BASE}"
     - echo "Computing baseline..."
+    - echo "Checking if commit ${BASELINE_SHA} is recent enough..."
+    # Compute four days before now as UNIX timestamp in order to test against SMP ECR expiration policy;
+    # add an hour as a small correction factor to overestimate time needed for SMP to query and pull the
+    # image so we don't end up with a hard-to-diagnose bug in which the image expires after checking its
+    # age in CI, but before SMP pulls the image.
+    - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
+    # Compute UNIX timestamp of potential baseline SHA
+    - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+    # If baseline SHA is older than expiration policy, exit with an error
+    - | # Only 1st line of multiline command echoes, which reduces debuggability, so multiline commands are a maintenance tradeoff
+      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+      then
+          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+          exit 1
+      fi
+    - echo "Commit ${BASELINE_SHA} is recent enough"
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
-    - while [[ ! $(aws ecr describe-images --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]; do echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"; BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^); echo "Checking if image exists for commit ${BASELINE_SHA}..."; done
+    - |
+      while [[ ! $(aws ecr describe-images --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-amd64") ]]
+      do
+          echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
+          BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
+          echo "Checking if commit ${BASELINE_SHA} is recent enough..."
+          BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
+          if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
+          then
+              echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
+              exit 1
+          fi
+          echo "Commit ${BASELINE_SHA} is recent enough"
+          echo "Checking if image exists for commit ${BASELINE_SHA}..."
+      done
     - echo "Image exists for commit ${BASELINE_SHA}"
     - echo "Baseline SHA is ${BASELINE_SHA}"
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
