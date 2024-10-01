@@ -91,6 +91,8 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *model.KernelSpan 
 	}
 
 	for _, launch := range sh.kernelLaunches {
+		// Skip launches that happened after the max time we are interested in
+		// For example, do not include launches that happened after the synchronization event
 		if launch.Header.Ktime_ns >= maxTime {
 			continue
 		}
