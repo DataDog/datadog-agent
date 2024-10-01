@@ -471,10 +471,11 @@ secret_backend_command_allow_group_exec_perm: true
 	secretRefreshOutput := s.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	// ensure the api_key was refreshed, fail directly otherwise
 	require.Contains(s.T(), secretRefreshOutput, "api_key")
-	s.logJournal()
 
 	s.T().Log("Waiting for traces (apiKey2)")
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
+
+	s.logJournal()
 }
