@@ -201,6 +201,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool) source.Source {
 	otelres := rspans.Resource()
+	resourceAttributes := otelres.Attributes()
 
 	topLevelByKind := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	tracesByID := make(map[uint64]pb.Trace)
@@ -228,7 +229,6 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		}
 	}
 
-	resourceAttributes := otelres.Attributes()
 	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
