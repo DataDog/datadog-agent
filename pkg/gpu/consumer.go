@@ -24,19 +24,21 @@ import (
 // cudaEventConsumer is responsible for consuming CUDA events from the eBPF probe, and delivering them
 // to the appropriate stream handler.
 type cudaEventConsumer struct {
-	eventHandler   ddebpf.EventHandler
-	once           sync.Once
-	closed         chan struct{}
-	streamHandlers map[model.StreamKey]*StreamHandler
-	wg             sync.WaitGroup
+	eventHandler                    ddebpf.EventHandler
+	once                            sync.Once
+	closed                          chan struct{}
+	streamHandlers                  map[model.StreamKey]*StreamHandler
+	wg                              sync.WaitGroup
+	scanTerminatedProcessesInterval time.Duration
 }
 
 // NewCudaEventConsumer creates a new CUDA event consumer.
-func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *cudaEventConsumer {
+func NewCudaEventConsumer(eventHandler ddebpf.EventHandler, scanTerminatedProcessesInterval time.Duration) *cudaEventConsumer {
 	return &cudaEventConsumer{
-		eventHandler:   eventHandler,
-		closed:         make(chan struct{}),
-		streamHandlers: make(map[model.StreamKey]*StreamHandler),
+		eventHandler:                    eventHandler,
+		closed:                          make(chan struct{}),
+		streamHandlers:                  make(map[model.StreamKey]*StreamHandler),
+		scanTerminatedProcessesInterval: scanTerminatedProcessesInterval,
 	}
 }
 
@@ -63,7 +65,7 @@ func (c *cudaEventConsumer) Start() {
 
 	c.wg.Add(1)
 	go func() {
-		processSync := time.NewTicker(5 * time.Second)
+		processSync := time.NewTicker(c.scanTerminatedProcessesInterval)
 
 		defer func() {
 			cleanupExit()

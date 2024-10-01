@@ -199,6 +199,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = NewCudaEventConsumer(handler)
+	p.consumer = NewCudaEventConsumer(handler, p.cfg.ScanTerminatedProcessesInterval)
 	p.consumer.Start()
 }
