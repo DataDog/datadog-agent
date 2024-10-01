@@ -13,9 +13,10 @@ package model
 import (
 	"time"
 
+	"modernc.org/mathutil"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"modernc.org/mathutil"
 )
 
 // Event represents an event sent from the kernel
@@ -603,7 +604,9 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File FileEvent `field:"file"` // Path to the cgroup
+	File        FileEvent `field:"file"` // Path to the cgroup
+	Pid         uint32    `field:"-"`    // PID of the process added to the cgroup
+	CGroupFlags uint32    `field:"-"`    // CGroup flags
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

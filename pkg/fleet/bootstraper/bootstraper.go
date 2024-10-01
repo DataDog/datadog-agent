@@ -9,13 +9,12 @@ package bootstraper
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 )
 
 // Bootstrap bootstraps the installer and uses it to install the default packages.
@@ -29,21 +28,5 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	if err != nil {
 		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}
-	return InstallDefaultPackages(ctx, env)
-}
-
-// InstallDefaultPackages installs the default packages.
-func InstallDefaultPackages(ctx context.Context, env *env.Env) error {
-	cmd := exec.NewInstallerExec(env, paths.StableInstallerPath)
-	defaultPackages, err := cmd.DefaultPackages(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get default packages: %w", err)
-	}
-	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
-		}
-	}
-	return nil
+	return exec.NewInstallerExec(env, paths.StableInstallerPath).Setup(ctx)
 }
