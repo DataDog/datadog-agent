@@ -8,4 +8,4 @@
 ---
 security:
   - |
-    Update OpenSSL to 3.3.2 (on Linux & macOS) in order to mitigate CVE-2024-6119.
+    Update OpenSSL to 3.3.2 on Linux and macOS in order to mitigate CVE-2024-6119.
