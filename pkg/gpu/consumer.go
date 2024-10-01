@@ -72,7 +72,7 @@ func (c *CudaEventConsumer) Start() {
 				log.Warnf("error de-registering health check: %s", err)
 			}
 			c.wg.Done()
-			log.Debugf("CUDA event consumer stopped")
+			log.Trace("CUDA event consumer stopped")
 		}()
 
 		dataChannel := c.eventHandler.DataChannel()
