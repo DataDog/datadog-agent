@@ -59,26 +59,28 @@ tests_macos:
     - pyenv rehash
     - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.install
-    - inv -e install-tools
-    - inv -e deps
 
 .lint_macos_gitlab:
   stage: source_test
   extends: .macos_gitlab
-  needs: ["setup_agent_version"]
+  needs: ["go_deps", "go_tools_deps"]
   script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e linter.go --cpus 12 --timeout 60
 
 .tests_macos_gitlab:
   stage: source_test
-  allow_failure: true
   rules:
-    !reference [.manual]
+    - !reference [.except_mergequeue]
+  allow_failure: true
   extends: .macos_gitlab
-  needs: ["setup_agent_version"]
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
@@ -125,6 +127,8 @@ tests_macos_gitlab_amd64:
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
+  rules:
+    !reference [.manual]
   tags: ["macos:monterey-arm64", "specific:true"]
   after_script:
     - !reference [.upload_junit_source]
