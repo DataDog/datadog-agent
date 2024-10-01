@@ -5,6 +5,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.releasing.version import get_version
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -25,8 +26,8 @@ def build(ctx, goarch="amd64"):
 
     env = {"GO111MODULE": "on", "GOOS": "linux", "GOARCH": goarch}
     build_tags = ["otlp"]
-    ldflags = get_version_ldflags(ctx, major_version='7')
-
+    ldflags = get_version_ldflags(ctx)
+    print(ldflags)
     cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
@@ -76,19 +77,24 @@ def test_image_build(ctx, python_command="python3", arch="amd64"):
     """run image_build task and perform follow-on tests to ensure image builds correctly"""
     try:
         build(ctx, goarch=arch)
-        print("testing if otel agent built successfully")
+        print("testing if otel agent build command ran successfully")
     except Exception as e:
-        print(f"Error occurred during otel agent build: {e}")
+        print(f"Error occurred during otel agent build command: {e}")
         raise
     try:
         image_build(ctx, arch=arch, hide=True)
         print("testing if image built successfully")
     except Exception as e:
-        print(f"Error occurred during image build: {e}")
+        print(f"Error occurred during image build command: {e}")
         raise
-    env = {"OT_AGENT_IMAGE_NAME": OT_AGENT_IMAGE_NAME, "tag": OT_AGENT_TAG}
+    env = {
+        "OT_AGENT_IMAGE_NAME": OT_AGENT_IMAGE_NAME,
+        "OT_AGENT_TAG": OT_AGENT_TAG,
+        "EXPECTED_VERSION": get_version(ctx),
+    }
     result = ctx.run(f"docker image inspect {OT_AGENT_IMAGE_NAME}:{OT_AGENT_TAG}", env=env, hide=True)
     if "Error" in result.stdout and "No such image" in result.stdout:
         raise Exit(message=f"Build failed; docker build stdout below:\n{result.stdout}", code=1)
+
     print("Image build complete, running OtelAgentBuildTest")
-    ctx.run(f"{python_command} ./test/integration/docker/otel_agent_build.py", env=env)
+    ctx.run(f"{python_command} ./tasks/unit_tests/otel_agent_build_tests.py", env=env)
