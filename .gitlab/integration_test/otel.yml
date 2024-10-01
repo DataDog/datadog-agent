@@ -11,6 +11,22 @@ integration_tests_otel:
     - !reference [.retrieve_linux_go_deps]
     - inv check-otel-build
     - inv check-otel-module-versions
+  rules:
+    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - when: always
+
+docker_image_build_otel:  
+  stage: otel_docker_image_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10
+  needs: ["integration_tests_otel"]
+  script:
     - inv check-otel-image-build
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
