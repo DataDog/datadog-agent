@@ -12,12 +12,13 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     get_all_gitlab_ci_configurations,
-    get_full_gitlab_ci_configuration,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
     print_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
@@ -66,7 +67,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
 
 
 def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
-    return {
+    links = {
         "CI Visibility": [
             {
                 "external_link": {
@@ -94,6 +95,12 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
             },
         ]
     }
+
+    kmt_links = get_kmt_dashboard_links()
+    if kmt_links:
+        links["KMT Dashboard"] = kmt_links
+
+    return links
 
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
@@ -166,7 +173,7 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
         raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
 
-    config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
+    config = resolve_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
 
     jobs = [j for j in jobs.split(',') if j] + jobs_to_keep
     required = set()
@@ -235,7 +242,7 @@ def print_ci(
     keep_special_objects: bool = False,
     expand_matrix: bool = False,
     git_ref: str | None = None,
-    ignore_errors: bool = False,
+    with_lint: bool = True,
 ):
     """
     Prints the full gitlab ci configuration.
@@ -244,7 +251,7 @@ def print_ci(
     - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
     - keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
     - expand_matrix: Will expand matrix jobs into multiple jobs
-    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - with_lint: If False, do not lint the configuration
     - git_ref: If provided, use this git reference to fetch the configuration
     - NOTE: This requires a full api token access level to the repository
     """
@@ -255,7 +262,7 @@ def print_ci(
         clean=clean,
         expand_matrix=expand_matrix,
         git_ref=git_ref,
-        ignore_errors=ignore_errors,
+        with_lint=with_lint,
         keep_special_objects=keep_special_objects,
     )
 

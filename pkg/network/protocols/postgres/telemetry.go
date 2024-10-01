@@ -156,7 +156,7 @@ func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 		t.failedOperationExtraction.Add(1)
 		state = operationNotFound
 	}
-	if eventWrapper.TableName() == "UNKNOWN" {
+	if eventWrapper.Parameters() == "UNKNOWN" {
 		t.failedTableNameExtraction.Add(1)
 		if state == operationNotFound {
 			state = tableAndOpNotFound

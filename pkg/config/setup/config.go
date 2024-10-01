@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -240,8 +242,23 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 
 func init() {
 	osinit()
+
 	// Configure Datadog global configuration
-	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	// Possible values for DD_CONF_NODETREEMODEL:
+	// - "enable": Use the nodetreemodel for the config, instead of viper
+	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - other:    Use viper for the config
+	if found && envvar == "enable" {
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	} else if found && envvar == "tee" {
+		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	}
+
 	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
@@ -443,9 +460,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
-	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
+	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
@@ -975,6 +992,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
+	config.BindEnvAndSetDefault("installer.registry.username", "")
+	config.BindEnvAndSetDefault("installer.registry.password", "")
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
 
@@ -1547,12 +1566,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// Max size in MB an integration logs file can use
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	// Max disk usage in MB all integrations logs files are allowed to use in total
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
+	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
+
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -1854,6 +1877,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
+		// this variable is used by tracers
+		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

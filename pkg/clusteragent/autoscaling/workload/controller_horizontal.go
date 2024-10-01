@@ -79,9 +79,6 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		return autoscaling.Requeue, err
 	}
 
-	// Update current replicas
-	autoscalerInternal.SetCurrentReplicas(scale.Status.Replicas)
-
 	return hr.performScaling(ctx, podAutoscaler, autoscalerInternal, gr, scale)
 }
 

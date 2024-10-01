@@ -90,6 +90,7 @@ def get_omnibus_env(
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
+    custom_config_dir=None,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -132,6 +133,9 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
+
+    if custom_config_dir:
+        env["OUTPUT_CONFIG_DIR"] = custom_config_dir
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -177,6 +181,7 @@ def build(
     pip_config_file="pip.conf",
     host_distribution=None,
     install_directory=None,
+    config_directory=None,
     target_project=None,
 ):
     """
@@ -208,6 +213,7 @@ def build(
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
+        custom_config_dir=config_directory,
     )
 
     if not target_project:
@@ -246,7 +252,7 @@ def build(
         # For instance if git_cache_dir is set to "/git/cache/dir" and install_dir is
         # set to /a/b/c, the cache git repository will be located in
         # /git/cache/dir/a/b/c/.git
-        if install_directory is None:
+        if not install_directory:
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
@@ -379,3 +385,41 @@ def manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
+    # Collect mime types for all files inside the Agent installation
+    files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
+    for line in files.splitlines():
+        if not line:
+            continue
+        file, file_type = line.split(":")
+        file_type = file_type.strip()
+
+        if platform == "linux":
+            if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
+                continue
+            binary_rpath = ctx.run(f'objdump -x {file} | grep "RPATH"', warn=True, hide=True).stdout
+        else:
+            if file_type != "application/x-mach-binary":
+                continue
+            binary_rpath = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+
+        if install_path in binary_rpath:
+            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
+            if platform == "linux":
+                ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+            else:
+                # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
+                # but just in case we're replacing them all.
+                # We're also avoiding unnecessary `install_name_tool` call as much as possible.
+                number_of_rpaths = binary_rpath.count('\n') // 3
+                for _ in range(number_of_rpaths):
+                    exit_code = ctx.run(
+                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                        warn=True,
+                        hide=True,
+                    ).exited
+                    if exit_code != 0:
+                        break

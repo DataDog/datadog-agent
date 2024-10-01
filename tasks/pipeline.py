@@ -593,11 +593,13 @@ def changelog(ctx, new_commit_sha):
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
-    ctx.run(
+    res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
         "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
+    if "unable to locate credentials" in res.stderr.casefold():
+        raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
 
 
 @task
@@ -1027,7 +1029,7 @@ def compare_to_itself(ctx):
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
     # The branch must exist in gitlab to be able to "compare_to"
     # Push an empty commit to prevent linking this pipeline to the actual PR
-    ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
+    ctx.run("git commit -m 'Initial push of the compare/to branch' --allow-empty", hide=True)
     ctx.run(f"git push origin {new_branch}")
 
     from tasks.libs.releasing.json import load_release_json
@@ -1040,7 +1042,7 @@ def compare_to_itself(ctx):
         with open(file, 'w') as f:
             f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
 
-    ctx.run("git commit -am 'Compare to itself'", hide=True)
+    ctx.run("git commit -am 'Commit to compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6
     compare_to_pipeline = None
