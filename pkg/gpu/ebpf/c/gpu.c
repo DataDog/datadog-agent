@@ -90,13 +90,15 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
 
     if (bpf_probe_read_user(&mem_data.addr, sizeof(void *), args->devPtr)) {
         log_debug("cudaMalloc[ret]: failed to read devPtr from cudaMalloc at 0x%llx", (__u64)args->devPtr);
-        return 0;
+        goto out;
     }
 
     log_debug("cudaMalloc[ret]: EMIT size=%llu, addr=0x%llx, ts=%llu", mem_data.size, (__u64)mem_data.addr, mem_data.header.ktime_ns);
 
     bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
 
+out:
+    bpf_map_delete_elem(&cuda_alloc_cache, &pid_tgid);
     return 0;
 }
 
