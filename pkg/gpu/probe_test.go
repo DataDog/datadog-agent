@@ -22,7 +22,7 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
 
-	probe, err := NewProbe(&Config{}, nil)
+	probe, err := NewProbe(NewConfig(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
