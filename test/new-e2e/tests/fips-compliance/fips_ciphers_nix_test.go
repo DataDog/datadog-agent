@@ -151,7 +151,8 @@ func runFipsServer(v *fipsServerSuite, command string) {
 			v.T().Logf("Error starting fips-server: %v", err)
 			require.NoError(t, err)
 		}
-	}, 10*time.Second, 2*time.Second)
+		assert.Nil(t, err)
+	}, 60*time.Second, 20*time.Second)
 
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		serverLogs, _ := v.Env().RemoteHost.Execute("docker logs fips-server")

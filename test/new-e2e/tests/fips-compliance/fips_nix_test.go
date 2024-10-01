@@ -7,6 +7,7 @@ package fipscompliance
 
 import (
 	_ "embed"
+	"fmt"
 
 	"testing"
 
@@ -45,8 +46,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 
 func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp")
-	_, err := v.Env().RemoteHost.WriteFile("/opt/datadog-agent/embedded/ssl/openssl.cnf", defaultOpenSSLConfig)
-	assert.Nil(v.T(), err)
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo sh -c "echo '%s' > /opt/datadog-agent/embedded/ssl/openssl.cnf"`, defaultOpenSSLConfig))
 
 	status, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
 	assert.Nil(v.T(), err)
