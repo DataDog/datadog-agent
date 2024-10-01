@@ -105,7 +105,8 @@ func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 		parts := strings.Split(plainStringID, separator)
 		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
 	}
-	return defaultEntityID(plainStringID), nil
+	de := defaultEntityID(plainStringID)
+	return &de, nil
 }
 
 const (
