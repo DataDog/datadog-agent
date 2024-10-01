@@ -23,12 +23,10 @@ integration_tests_otel:
     - when: always
 
 docker_image_build_otel:  
-  stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10
-  tags: ["arch:amd64"]
+  extends: .docker_build_job_definition_amd64
   needs: ["integration_tests_otel"]
   script:
-    - python3 -m pip install requirements.txt
+    # - python -m pip install requirements.txt
     - inv check-otel-image-build
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
