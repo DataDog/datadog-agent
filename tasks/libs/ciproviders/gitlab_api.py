@@ -607,78 +607,102 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
+def test_gitlab_configuration(ctx, entry_point, input_config, context=None):
+    agent = get_gitlab_repo()
+    # Update config and lint it
+    config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
+    res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
+    status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
+
+    print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
+    if len(res.warnings) > 0:
+        print(
+            f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
+            file=sys.stderr,
+        )
+    if not res.valid:
+        print(
+            f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
+            file=sys.stderr,
+        )
+        raise Exit(code=1)
+
+
 def get_all_gitlab_ci_configurations(
     ctx,
     input_file: str = '.gitlab-ci.yml',
     filter_configs: bool = False,
     clean_configs: bool = False,
-    ignore_errors: bool = False,
+    with_lint: bool = True,
     git_ref: str | None = None,
 ) -> dict[str, dict]:
     """
-    Returns all gitlab-ci configurations from each entry points (.gitlab-ci.yml and files that are triggered)
+    Returns all gitlab-ci configurations from each configuration file (.gitlab-ci.yml and files called with the `trigger` keyword)
 
     - filter_configs: Whether to apply post process filtering to the configurations (get only jobs...)
     - clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...)
     - ignore_errors: Ignore gitlab lint errors
     - git_ref: If provided, use this git reference to fetch the configuration
     """
-    # entry_points[input_file] -> parsed config
-    entry_points: dict[str, dict] = {}
+    # configurations[input_file] -> parsed config
+    configurations: dict[str, dict] = {}
 
-    def get_triggers(node):
-        """
-        Get all trigger local files
-        """
-        if isinstance(node, str):
-            return [node]
-        elif isinstance(node, dict):
-            return [node['local']] if 'local' in node else []
-        elif isinstance(node, list):
-            res = []
-            for n in node:
-                res.extend(get_triggers(n))
-
-            return res
-
-    def get_entry_points(input_file):
-        """
-        DFS to get all entry points from the input file
-        """
-        if input_file in entry_points:
-            return
-
-        # Read and parse the configuration from this entry point
-        config = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
-        entry_points[input_file] = config
-
-        # Add entry points from triggers
-        for job in config.values():
-            if 'trigger' in job and 'include' in job['trigger']:
-                for trigger in get_triggers(job['trigger']['include']):
-                    get_entry_points(trigger)
-
-    # Find all entry points
-    get_entry_points(input_file)
-
+    # Traverse all gitlab-ci configurations
+    get_ci_configurations(input_file, configurations=configurations, ctx=ctx, with_lint=with_lint, git_ref=git_ref)
     # Post process
-    for entry_point, config in entry_points.items():
+    for file_name, config in configurations.items():
         if filter_configs:
             config = filter_gitlab_ci_configuration(config)
 
         if clean_configs:
             config = clean_gitlab_ci_configuration(config)
 
-        entry_points[entry_point] = config
+        configurations[file_name] = config
 
-    return entry_points
+    return configurations
 
 
-def get_full_gitlab_ci_configuration(
+def get_ci_configurations(input_file, configurations, ctx, with_lint, git_ref):
+    """
+    DFS to get all distinct configurations from input files
+    """
+    if input_file in configurations:
+        return
+
+    # Read and parse the configuration from this input_file
+    config = resolve_gitlab_ci_configuration(ctx, input_file, with_lint=with_lint, git_ref=git_ref)
+    configurations[input_file] = config
+
+    # Search and add configurations called by the trigger keyword
+    for job in config.values():
+        if 'trigger' in job and 'include' in job['trigger']:
+            for trigger in get_trigger_filenames(job['trigger']['include']):
+                get_ci_configurations(
+                    trigger, configurations=configurations, ctx=ctx, with_lint=with_lint, git_ref=git_ref
+                )
+
+
+def get_trigger_filenames(node):
+    """
+    Get all trigger downstream pipelines defined by the `trigger` key in the gitlab-ci configuration
+    """
+    if isinstance(node, str):
+        return [node]
+    elif isinstance(node, dict):
+        return [node['local']] if 'local' in node else []
+    elif isinstance(node, list):
+        res = []
+        for n in node:
+            res.extend(get_trigger_filenames(n))
+
+        return res
+
+
+def resolve_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
     return_dict: bool = True,
-    ignore_errors: bool = False,
+    with_lint: bool = True,
     git_ref: str | None = None,
     input_config: dict | None = None,
 ) -> str | dict:
@@ -695,23 +719,26 @@ def get_full_gitlab_ci_configuration(
     else:
         concat_config = input_config
 
-    agent = get_gitlab_repo()
-    res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
+    if with_lint:
+        agent = get_gitlab_repo()
+        res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
 
-    if not ignore_errors and not res.valid:
-        errors = '; '.join(res.errors)
-        raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
+        if not res.valid:
+            errors = '; '.join(res.errors)
+            raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
 
-    if return_dict:
-        return yaml.safe_load(res.merged_yaml)
+        if return_dict:
+            return yaml.safe_load(res.merged_yaml)
+        else:
+            return res.merged_yaml
     else:
-        return res.merged_yaml
+        return concat_config
 
 
 def get_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
-    ignore_errors: bool = False,
+    with_lint: bool = True,
     job: str | None = None,
     keep_special_objects: bool = False,
     clean: bool = True,
@@ -726,7 +753,7 @@ def get_gitlab_ci_configuration(
     """
 
     # Make full configuration
-    yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+    yml = resolve_gitlab_ci_configuration(ctx, input_file, with_lint=with_lint, git_ref=git_ref)
 
     # Filter
     yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
@@ -756,7 +783,7 @@ def generate_gitlab_full_configuration(
     - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
     """
     if apply_postprocessing:
-        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
+        full_configuration = resolve_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
     elif input_config:
         full_configuration = deepcopy(input_config)
     else:
