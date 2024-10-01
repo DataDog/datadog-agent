@@ -147,6 +147,7 @@ single-machine-performance-regression_detector-commenter:
   needs:
     - job: single-machine-performance-regression_detector
       artifacts: true  # overrides default behavior that does not download artifacts
+  allow_failure: true  # allow_failure here should have same setting as in job above
   script: # ignore error message about no PR, because it happens for dev branches without PRs
     - echo "${CI_COMMIT_REF_NAME}"
     - |
