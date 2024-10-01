@@ -78,6 +78,6 @@ class GoSymbolsInspector
 
   def inspect()
     log.info(self.class.name) { "Inspecting binary #{@binary}" }
-    @block.call(`go tool nm #{@binary}`)
+    @block.call(`nm #{@binary}`)
   end
 end
