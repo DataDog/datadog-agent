@@ -9,6 +9,7 @@ package installer
 import (
 	"fmt"
 	"os"
+	"testing"
 )
 
 // InstallMethodOption is the type for the install method to use for the tests
