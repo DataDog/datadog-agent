@@ -239,7 +239,6 @@ func (c *collector) parsePodContainers(
 		}
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
-
 		if containerSpec != nil {
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec)
@@ -399,15 +398,20 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
-func extractSimpleGPUName(gpuName string) string {
+func extractSimpleGPUName(gpuName kubelet.ResourceName) string {
 
-	// e.g. "nvidia.com/gpu"   -> "nvidia"
-	//		"gpu.intel.com/xe" -> "intel"
-	parts := strings.Split(gpuName, ".")
-	if len(parts) == 1 {
-		return parts[0]
+	simpleName := ""
+	if gpuName == kubelet.ResourceNvidiaGPU {
+		simpleName = "nvidia"
+	} else if gpuName == kubelet.ResourceAMDGPU {
+		simpleName = "amd"
+	} else if gpuName == kubelet.ResourceIntelGPUxe || gpuName == kubelet.ResourceIntelGPUi915 {
+		simpleName = "intel"
+	} else {
+		simpleName = string(gpuName)
 	}
-	return parts[len(parts)-2]
+
+	return simpleName
 }
 
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
@@ -424,7 +428,7 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 	for _, gpuResource := range kubelet.GetGPUResourceNames() {
 		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
 			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
-			resources.GPUType = extractSimpleGPUName(string(gpuResource))
+			resources.GPUType = extractSimpleGPUName(gpuResource)
 			break
 		}
 	}
