@@ -406,6 +406,12 @@ func (s *VMFakeintakeSuite) logJournal() {
 }
 
 func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
+	extraLogging := s.extraLogging
+	s.extraLogging = true
+	defer func() {
+		s.extraLogging = extraLogging
+	}()
+
 	apiKey1 := strings.Repeat("1", 32)
 	apiKey2 := strings.Repeat("2", 32)
 
