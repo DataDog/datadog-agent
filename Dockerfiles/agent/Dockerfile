@@ -221,7 +221,7 @@ RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 RUN date +%Y%m%dT000000Z > .debian_repo_snapshot_date
 
 # Enable FIPS if needed
-RUN if [ -f /opt/datadog-agent/embedded/bin/fipsinstall.sh ]; then \
+RUN if [[ -x /opt/datadog-agent/embedded/bin/fipsinstall.sh ]]; then \
       /opt/datadog-agent/embedded/bin/fipsinstall.sh; \
     fi
 
