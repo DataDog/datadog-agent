@@ -380,7 +380,7 @@ func (s *upgradeScenarioSuite) TestConfigUpgradeSuccessful() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -405,7 +405,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
@@ -439,7 +439,7 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
 	s.RunInstallScript(
 		"DD_REMOTE_UPDATES=true",
 		"DD_REMOTE_POLICIES=true",
-		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+		fmt.Sprintf("DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
 	)
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")

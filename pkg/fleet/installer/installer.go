@@ -340,11 +340,11 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.configs.Get(pkg)
 	err := i.stopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
+	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
