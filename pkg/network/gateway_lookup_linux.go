@@ -18,7 +18,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -73,7 +73,7 @@ func init() {
 
 func gwLookupEnabled() bool {
 	// only enabled on AWS currently
-	return Cloud.IsAWS() && ddconfig.IsCloudProviderEnabled(ec2.CloudProviderName)
+	return Cloud.IsAWS() && pkgconfigsetup.IsCloudProviderEnabled(ec2.CloudProviderName, pkgconfigsetup.Datadog())
 }
 
 // NewGatewayLookup creates a new instance of a gateway lookup using
@@ -131,7 +131,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if r.Gateway.IsZero() || r.Gateway.IsUnspecified() {
+	if !r.Gateway.IsValid() || r.Gateway.IsUnspecified() {
 		return nil
 	}
 

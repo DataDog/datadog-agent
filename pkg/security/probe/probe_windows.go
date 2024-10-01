@@ -20,7 +20,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -1363,9 +1362,11 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
 }
@@ -1395,7 +1396,7 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)

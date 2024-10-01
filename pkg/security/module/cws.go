@@ -320,3 +320,11 @@ func (c *CWSConsumer) statsSender() {
 func (c *CWSConsumer) GetRuleEngine() *rulesmodule.RuleEngine {
 	return c.ruleEngine
 }
+
+// PrepareForFunctionalTests tweaks the module to be ready for functional tests
+// currently it:
+// - disables the container running telemetry
+func (c *CWSConsumer) PrepareForFunctionalTests() {
+	// no need for container running telemetry in functional tests
+	c.crtelemetry = nil
+}

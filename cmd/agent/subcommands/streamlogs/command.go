@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -84,7 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) error {
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func streamRequest(url string, body []byte, duration time.Duration, onChunk func
 		c.Timeout = duration
 	}
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog())
+	e = util.SetAuthToken(pkgconfigsetup.Datadog())
 	if e != nil {
 		return e
 	}

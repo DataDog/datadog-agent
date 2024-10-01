@@ -29,7 +29,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Server implements security agent API server
@@ -61,7 +62,7 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken(config.Datadog())
+	err := util.CreateAndSetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
 	}
@@ -89,13 +90,13 @@ func (s *Server) Start() error {
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := config.NewLogWriter(4, seelog.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.ErrorLvl)
 
 	srv := &http.Server{
 		Handler:      r,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
-		WriteTimeout: config.Datadog().GetDuration("server_timeout") * time.Second,
+		WriteTimeout: pkgconfigsetup.Datadog().GetDuration("server_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(s.listener, &tlsConfig)
 

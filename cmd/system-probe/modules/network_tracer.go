@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"runtime"
@@ -106,6 +107,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 		count := runCounter.Inc()
 		logRequests(id, count, len(cs.Conns), start)
+	}))
+
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id, err := nt.tracer.GetNetworkID(req.Context())
+		if err != nil {
+			log.Errorf("unable to retrieve network_id: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		io.WriteString(w, id)
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {

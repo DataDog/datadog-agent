@@ -18,9 +18,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -31,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,49 +35,6 @@ var (
 	testActivityDumpDuration             = time.Second * 30
 	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
-
-const testPolicy = `---
-version: 1.2.3
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
-{{end}}
-`
 
 const testConfig = `---
 log_level: DEBUG
@@ -279,12 +232,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient: statsdClient,
 		},
 	}
-	fxDeps := fxutil.Test[testModuleFxDeps](
-		t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -292,10 +240,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 

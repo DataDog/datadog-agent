@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "abc123")
-	util.InitDCAAuthToken(config.Datadog())
+	util.InitDCAAuthToken(pkgconfigsetup.Datadog())
 
 	tests := []struct {
 		path, authToken    string

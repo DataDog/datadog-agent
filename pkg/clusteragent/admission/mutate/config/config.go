@@ -24,7 +24,7 @@ import (
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,7 +75,7 @@ var (
 
 	agentHostServiceEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
 	defaultDdEntityIDEnvVar = corev1.EnvVar{
@@ -90,12 +90,12 @@ var (
 
 	traceURLSocketEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
 
 	dogstatsdURLSocketEnvVar = corev1.EnvVar{
 		Name:  dogstatsdURLEnvVarName,
-		Value: config.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
+		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
 	}
 )
 
@@ -115,11 +115,11 @@ type Webhook struct {
 func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       config.Datadog().GetBool("admission_controller.inject_config.enabled"),
-		endpoint:        config.Datadog().GetString("admission_controller.inject_config.endpoint"),
+		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled"),
+		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:       []string{"pods"},
 		operations:      []admiv1.OperationType{admiv1.Create},
-		mode:            config.Datadog().GetString("admission_controller.inject_config.mode"),
+		mode:            pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.mode"),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
 	}
@@ -282,13 +282,13 @@ func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, read
 func injectSocketVolumes(pod *corev1.Pod) bool {
 	var injectedVolNames []string
 
-	if config.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
 		volumes := map[string]string{
 			DogstatsdSocketVolumeName: strings.TrimPrefix(
-				config.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
+				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
 			),
 			TraceAgentSocketVolumeName: strings.TrimPrefix(
-				config.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
+				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
 			),
 		}
 
@@ -302,7 +302,7 @@ func injectSocketVolumes(pod *corev1.Pod) bool {
 	} else {
 		volume, volumeMount := buildVolume(
 			DatadogVolumeName,
-			config.Datadog().GetString("admission_controller.inject_config.socket_path"),
+			pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.socket_path"),
 			corev1.HostPathDirectoryOrCreate,
 			true,
 		)

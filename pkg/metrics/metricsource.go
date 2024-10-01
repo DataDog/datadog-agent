@@ -215,7 +215,6 @@ const (
 	MetricSourceKubeAPIserverMetrics
 	MetricSourceKubeControllerManager
 	MetricSourceKubeDNS
-	MetricSourceKubeflow
 	MetricSourceKubeMetricsServer
 	MetricSourceKubeProxy
 	MetricSourceKubeScheduler
@@ -292,6 +291,12 @@ const (
 	MetricSourceYarn
 	MetricSourceZk
 	MetricSourceAwsNeuron
+	MetricSourceTibcoEMS
+	MetricSourceSlurm
+	MetricSourceKyverno
+	MetricSourceKubeflow
+	MetricSourceAppgateSDP
+	MetricSourceAnyscale
 )
 
 // String returns a string representation of MetricSource
@@ -1051,8 +1056,6 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
-	case "kubeflow":
-		return MetricSourceKubeflow
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
@@ -1371,6 +1374,16 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceZenohRouter
 	case "aws_neuron":
 		return MetricSourceAwsNeuron
+	case "kyverno":
+		return MetricSourceKyverno
+	case "anyscale":
+		return MetricSourceAnyscale
+	case "appgate_sdp":
+		return MetricSourceAppgateSDP
+	case "slurm":
+		return MetricSourceSlurm
+	case "tibco_ems":
+		return MetricSourceTibcoEMS
 	default:
 		return MetricSourceUnknown
 	}

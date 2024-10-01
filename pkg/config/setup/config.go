@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -78,8 +80,10 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
-	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
-	DefaultZstdCompressionLevel = 5
+	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
+	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
+	// in situations where we have a high value for `GOMAXPROCS`.
+	DefaultZstdCompressionLevel = 1
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -105,7 +109,10 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 10000
+	DefaultNetworkPathTimeout = 1000
+
+	// DefaultNetworkPathMaxTTL defines the default maximum TTL for traceroute tests
+	DefaultNetworkPathMaxTTL = 30
 )
 
 // datadog is the global configuration object
@@ -235,8 +242,23 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 
 func init() {
 	osinit()
+
 	// Configure Datadog global configuration
-	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	envvar, found := os.LookupEnv("DD_CONF_NODETREEMODEL")
+	// Possible values for DD_CONF_NODETREEMODEL:
+	// - "enable": Use the nodetreemodel for the config, instead of viper
+	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
+	// - other:    Use viper for the config
+	if found && envvar == "enable" {
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	} else if found && envvar == "tee" {
+		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
+	} else {
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	}
+
 	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
@@ -437,10 +459,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.timeout", DefaultNetworkPathTimeout)
-	config.BindEnvAndSetDefault("network_path.collector.max_ttl", 30)
-	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
+	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 100000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
@@ -970,6 +992,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_policies", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
+	config.BindEnvAndSetDefault("installer.registry.username", "")
+	config.BindEnvAndSetDefault("installer.registry.password", "")
 	config.BindEnv("fleet_policies_dir")
 	config.SetDefault("fleet_layers", []string{})
 
@@ -1849,6 +1873,8 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
+		// this variable is used by tracers
+		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

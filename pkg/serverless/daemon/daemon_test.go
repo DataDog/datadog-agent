@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -169,6 +170,7 @@ func TestSetTraceTagOk(t *testing.T) {
 		"key0": "value0",
 	}
 	t.Setenv("DD_API_KEY", "x")
+	t.Setenv("DD_RECEIVER_PORT", strconv.Itoa(testutil.FreeTCPPort(t)))
 	agent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
 	defer agent.Stop()
 	d := Daemon{

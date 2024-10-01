@@ -17,11 +17,11 @@ from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
-    get_gitlab_repo,
     get_preset_contexts,
     load_context,
     read_includes,
     retrieve_all_paths,
+    test_gitlab_configuration,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
@@ -301,21 +301,33 @@ def lint_flavor(
 
 
 @task
-def list_ssm_parameters(_):
+def list_parameters(_, type):
     """
     List all SSM parameters used in the datadog-agent repository.
     """
-
-    ssm_owner = re.compile(r"^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
-    ssm_params = defaultdict(list)
+    if type == "ssm":
+        section_pattern = re.compile(r"aws ssm variables")
+    elif type == "vault":
+        section_pattern = re.compile(r"vault variables")
+    else:
+        raise Exit(f"{color_message('Error', Color.RED)}: pattern must be in [ssm, vault], not |{type}|")
+    in_param_section = False
+    param_owner = re.compile(r"^[^:]+: (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    params = defaultdict(list)
     with open(".gitlab-ci.yml") as f:
         for line in f:
-            m = ssm_owner.match(line.strip())
-            if m:
-                ssm_params[m.group("owner")].append(m.group("param"))
-    for owner in ssm_params.keys():
+            section = section_pattern.search(line)
+            if section:
+                in_param_section = not in_param_section
+            if in_param_section:
+                if len(line.strip()) == 0:
+                    break
+                m = param_owner.match(line.strip())
+                if m:
+                    params[m.group("owner")].append(m.group("param"))
+    for owner in params.keys():
         print(f"Owner:{owner}")
-        for param in ssm_params[owner]:
+        for param in params[owner]:
             print(f"  - {param}")
 
 
@@ -349,11 +361,11 @@ def ssm_parameters(ctx, mode="all", folders=None):
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
-    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for secret parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
         """
         Initialize an SSMParameterCall instance.
 
@@ -362,18 +374,16 @@ class SSMParameterCall:
             line_nb (int): The line number in the file where the SSM parameter call is located.
             with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
             with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
-            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
         """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
-        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper or not self.standard:
-            message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
+        if not self.with_wrapper:
+            message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
         return f"{self.file}:{self.line_nb + 1}. {message}"
@@ -383,29 +393,24 @@ class SSMParameterCall:
 
 
 def list_get_parameter_calls(file):
-    ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
-    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    # remove the first letter of the script name because '\f' is badly interpreted for windows paths
+    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? (-parameterName )?+(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
-                is_ssm_get = ssm_get.match(line.strip())
-                if is_ssm_get:
-                    m = aws_ssm_call.match(line.strip())
-                    if m:
-                        # Remove possible quotes
-                        param = m["param"].replace('"', '').replace("'", "")
-                        calls.append(
-                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
-                        )
-                    m = ssm_wrapper_call.match(line.strip())
-                    param = m["param"].replace('"', '').replace("'", "") if m else None
-                    if m and not (param.startswith("$") or "os.environ" in param):
-                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
-                    if not m:
-                        calls.append(SSMParameterCall(file, nb, standard=False))
+                m = aws_ssm_call.match(line.strip())
+                if m:
+                    # Remove possible quotes
+                    param = m["param"].replace('"', '').replace("'", "")
+                    calls.append(
+                        SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
+                    )
+                m = wrapper_call.match(line.strip())
+                param = m["param"].replace('"', '').replace("'", "") if m else None
+                if m and not (param.startswith("$") or "os.environ" in param):
+                    calls.append(SSMParameterCall(file, nb, with_wrapper=True))
         except UnicodeDecodeError:
             pass
     return calls
@@ -419,33 +424,8 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
     """
-
-    agent = get_gitlab_repo()
-    has_errors = False
-
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx)
-
-    def test_gitlab_configuration(entry_point, input_config, context=None):
-        nonlocal has_errors
-
-        # Update config and lint it
-        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
-        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
-        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
-        if len(res.warnings) > 0:
-            print(
-                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-                file=sys.stderr,
-            )
-        if not res.valid:
-            print(
-                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-                file=sys.stderr,
-            )
-            has_errors = True
+    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
@@ -460,12 +440,9 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(entry_point, input_config, dict(context))
+                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
             else:
-                test_gitlab_configuration(entry_point, input_config)
-
-    if has_errors:
-        raise Exit(code=1)
+                test_gitlab_configuration(ctx, entry_point, input_config)
 
 
 @task
@@ -620,7 +597,9 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+        if "rules" in config[test] and not any(
+            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+        ):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
             else:

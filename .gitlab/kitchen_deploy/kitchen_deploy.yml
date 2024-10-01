@@ -3,15 +3,14 @@
 # Contains jobs which deploy Agent package to testing repsoitories that are used in kitchen tests.
 
 .setup_rpm_signing_key: &setup_rpm_signing_key
-  - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
-  - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-  - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
+  - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+  - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?
 
 .setup_apt_signing_key: &setup_apt_signing_key
-  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
-
-  - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
+  - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY)" | gpg --import --batch
+  - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
+  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE) || exit $?
 
 .setup_signing_keys_package:
   &setup_signing_keys_package # Set up prod apt repo to get the datadog-signing-keys package

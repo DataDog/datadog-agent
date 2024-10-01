@@ -6,13 +6,15 @@
 package installer
 
 import (
+	"os"
+	"strings"
+
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
-	"os"
-	"strings"
+	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
+	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
 // PackageVersion is a helper type to store both the version and the package version of a binary.
@@ -59,6 +61,7 @@ type BaseInstallerSuite struct {
 	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
+	outputDir              string
 }
 
 // Installer the Datadog Installer for testing.
@@ -85,6 +88,10 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
+	if instlr.GetInstallMethodFromEnv() != instlr.InstallMethodWindows {
+		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
+	}
+
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
@@ -109,10 +116,11 @@ func (s *BaseInstallerSuite) SetupSuite() {
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	var err error
+	s.outputDir, err = runner.GetTestOutputDir(runner.GetProfile(), s.T())
 	s.Require().NoError(err, "should get output dir")
-	s.T().Logf("Output dir: %s", outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), outputDir)
+	s.T().Logf("Output dir: %s", s.outputDir)
+	s.installer = NewDatadogInstaller(s.Env(), s.outputDir)
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -125,4 +133,9 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 // on the Windows Datadog installer `BaseInstallerSuite` object.
 func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
+}
+
+// OutputDir returns the output directory for the test
+func (s *BaseInstallerSuite) OutputDir() string {
+	return s.outputDir
 }

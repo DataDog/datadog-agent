@@ -7,13 +7,12 @@ package common
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func SetupInternalProfiling(settings settings.Component, cfg config.Reader, configPrefix string) {
+func SetupInternalProfiling(settings settings.Component, cfg model.Reader, configPrefix string) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
 		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)

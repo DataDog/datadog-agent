@@ -29,8 +29,8 @@
       -e SIGN_WINDOWS_DD_WCS=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e DOCKER_REGISTRY_LOGIN_SSM_KEY=${DOCKER_REGISTRY_LOGIN_SSM_KEY}
-      -e DOCKER_REGISTRY_PWD_SSM_KEY=${DOCKER_REGISTRY_PWD_SSM_KEY}
+      -e DOCKER_REGISTRY_LOGIN=${DOCKER_REGISTRY_LOGIN}
+      -e DOCKER_REGISTRY_PWD=${DOCKER_REGISTRY_PWD}
       -v "$(Get-Location):C:\mnt"
       -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
