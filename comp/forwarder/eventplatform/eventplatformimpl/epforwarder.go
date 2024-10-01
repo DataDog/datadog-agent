@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -235,8 +236,10 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
+	metrics.TlmChanLength.Set(float64(len(p.in)/cap(p.in)), "epforwarder")
+
 	select {
-	case p.in <- e:
+	case p.in <- message.NewTimedMessage(e):
 		return nil
 	default:
 		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
@@ -296,18 +299,20 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
-	p.in <- e
+	metrics.TlmChanLength.Set(float64(len(p.in)/cap(p.in)), "epforwarder")
+
+	p.in <- message.NewTimedMessage(e)
 	return nil
 }
 
-func purgeChan(in chan *message.Message) (result []*message.Message) {
+func purgeChan(in chan message.TimedMessage[*message.Message]) (result []*message.Message) {
 	for {
 		select {
 		case m, isOpen := <-in:
 			if !isOpen {
 				return
 			}
-			result = append(result, m)
+			result = append(result, m.Inner)
 		default:
 			return
 		}
@@ -351,7 +356,7 @@ func (s *defaultEventPlatformForwarder) Stop() {
 type passthroughPipeline struct {
 	sender                *sender.Sender
 	strategy              sender.Strategy
-	in                    chan *message.Message
+	in                    chan message.TimedMessage[*message.Message]
 	auditor               auditor.Auditor
 	eventPlatformReceiver eventplatformreceiver.Component
 }
@@ -405,7 +410,7 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfigsetup.Datadog()))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
-	inputChan := make(chan *message.Message, endpoints.InputChanSize)
+	inputChan := make(chan message.TimedMessage[*message.Message], endpoints.InputChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
 	var encoder compression.Component

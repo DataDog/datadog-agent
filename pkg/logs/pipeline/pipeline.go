@@ -28,7 +28,7 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan  chan *message.Message
+	InputChan  chan message.TimedMessage[*message.Message]
 	flushChan  chan struct{}
 	processor  *processor.Processor
 	strategy   sender.Strategy
@@ -60,7 +60,7 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, senderDoneChan, status, cfg)
 
-	strategyInput := make(chan *message.Message, config.ChanSize)
+	strategyInput := make(chan message.TimedMessage[*message.Message], config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 	flushChan := make(chan struct{})
 
@@ -80,7 +80,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID, compressionFactory)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
-	inputChan := make(chan *message.Message, config.ChanSize)
+	inputChan := make(chan message.TimedMessage[*message.Message], config.ChanSize)
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineID)
@@ -155,7 +155,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message,
+func getStrategy(inputChan chan message.TimedMessage[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	endpoints *config.Endpoints,

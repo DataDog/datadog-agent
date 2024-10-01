@@ -43,6 +43,22 @@ type Payload struct {
 	UnencodedSize int
 }
 
+type TimedMessage[T any] struct {
+	Inner T
+	time  time.Time
+}
+
+// Creates a new TimedMessage with the given inner message and the current timestamp
+func NewTimedMessage[T any](inner T) TimedMessage[T] {
+	return TimedMessage[T]{Inner: inner, time: time.Now()}
+}
+
+// The amount of time that has elapsed since the message was created, this should
+// give a good approximation of the time it took to send the message.
+func (tm *TimedMessage[T]) SendDuration() time.Duration {
+	return time.Since(tm.time)
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	MessageContent

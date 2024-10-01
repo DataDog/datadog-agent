@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -70,7 +71,7 @@ type Tailer struct {
 	tagProvider tag.Provider
 
 	// outputChan is the channel to which fully-decoded messages are written.
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
 	decoder *decoder.Decoder
@@ -122,7 +123,7 @@ type Tailer struct {
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan    chan *message.Message // Required
+	OutputChan    chan message.TimedMessage[*message.Message] // Required
 	File          *File                 // Required
 	SleepDuration time.Duration         // Required
 	Decoder       *decoder.Decoder      // Required
@@ -356,13 +357,17 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) == 0 {
 			continue
 		}
+
+		metrics.TlmChanLength.Set(float64(len(t.outputChan)/cap(t.outputChan)), "tailer")
+
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
 		// normal case.
 		select {
 		// XXX(remy): is it ok recreating a message like this here?
-		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- message.NewTimedMessage(
+			message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)):
 		case <-t.forwardContext.Done():
 		}
 	}

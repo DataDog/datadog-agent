@@ -73,6 +73,29 @@ var (
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
+	TlmLogsInput = telemetry.NewCounter("logs", "input", nil, "Total number of log messages read.")
+	// For output see `TlmLogsSent`.
+	TlmFileRead = telemetry.NewGauge("processing", "file_read", []string{"file_name"}, "File read progress.")
+	TlmChanTime = telemetry.NewHistogram("processing",
+		"channel_time",
+		[]string{"channel"},
+		"Time to send on the processing channel",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
+	TlmChanTimeSkew = telemetry.NewGauge("processing", "channel_time_skew", []string{"channel"}, "Skew of the processing channel")
+
+	TlmChanLength = telemetry.NewGauge("processing", "channel_length", []string{"channel"}, "Length of the processing channel")
+
+	TlmProcessTime = telemetry.NewHistogram("processing", "time",
+		[]string{},
+		"Time spent processing a message",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
+	TlmMessageLatency = telemetry.NewHistogram("log",
+		"latency",
+		[]string{},
+		"Time between message creation and processing",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
 )
 
 func init() {

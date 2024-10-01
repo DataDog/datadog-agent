@@ -8,6 +8,7 @@ package processor
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,8 +29,8 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // in an outputChan.
 type Processor struct {
 	pipelineID int
-	inputChan  chan *message.Message
-	outputChan chan *message.Message // strategy input
+	inputChan  chan message.TimedMessage[*message.Message]
+	outputChan chan message.TimedMessage[*message.Message] // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
 	// the processing rules of the SDS Scanner.
 	ReconfigChan              chan sds.ReconfigureOrder
@@ -56,7 +58,7 @@ type sdsProcessor struct {
 }
 
 // New returns an initialized Processor.
-func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan message.TimedMessage[*message.Message], processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineID int) *Processor {
 
@@ -115,18 +117,28 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
-			p.processMessage(msg)
+
+			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
+			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
+
+			p.processMessage(msg.Inner)
 		}
 	}
 }
+
+var (
+	tlmInUse = telemetry.NewCounter("processing", "in_use_ms", nil, "Time spent processing payloads in ms")
+	tlmIdle  = telemetry.NewCounter("processing", "idle_ms", nil, "Time spent idle while not processing payloads in ms")
+)
 
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
-
 	for {
+		startIdle := time.Now()
+
 		select {
 		// Processing, usual main loop
 		// ---------------------------
@@ -146,13 +158,25 @@ func (p *Processor) run() {
 				p.processMessage(msg)
 			}
 
+			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
+			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
+
+			idle := float64(time.Since(startIdle) / time.Millisecond)
+			tlmIdle.Add(idle)
+
+			startProcess := time.Now()
+			startInUse := time.Now()
+
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
 
-		// SDS reconfiguration
-		// -------------------
+			processTime := float64(time.Since(startProcess) / time.Millisecond)
+			metrics.TlmProcessTime.Observe(processTime)
 
+			inUse := float64(time.Since(startInUse) / time.Millisecond)
+			tlmInUse.Add(inUse)
+			startIdle = time.Now()
 		case order := <-p.ReconfigChan:
 			p.mu.Lock()
 			p.applySDSReconfiguration(order)
@@ -241,7 +265,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
-		p.outputChan <- msg
+		metrics.TlmChanLength.Set(float64(len(p.outputChan)/cap(p.outputChan)), "processing")
+
+		p.outputChan <- message.NewTimedMessage(msg)
 	}
 }
 

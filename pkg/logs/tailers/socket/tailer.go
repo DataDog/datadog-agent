@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +27,7 @@ import (
 type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 	read       func(*Tailer) ([]byte, string, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
@@ -34,7 +35,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, string, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan message.TimedMessage[*message.Message], read func(*Tailer) ([]byte, string, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
@@ -69,9 +70,10 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
+			metrics.TlmChanLength.Set(float64(len(t.outputChan)/cap(t.outputChan)), "tailer")
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
-			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+			t.outputChan <- message.NewTimedMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }

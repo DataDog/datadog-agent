@@ -83,7 +83,7 @@ func NewTestTailer(reader io.ReadCloser, dockerClient *fakeDockerClient, cancelF
 	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
 		ContainerID:        containerID,
-		outputChan:         make(chan *message.Message, 100),
+		outputChan:         make(chan message.TimedMessage[*message.Message], 100),
 		decoder:            NewTestDecoder(),
 		Source:             source,
 		tagProvider:        tag.NewLocalProvider([]string{}),

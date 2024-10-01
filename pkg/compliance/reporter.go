@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -33,7 +34,7 @@ type LogReporter struct {
 	pipelineProvider pipeline.Provider
 	auditor          auditor.Auditor
 	logSource        *sources.LogSource
-	logChan          chan *message.Message
+	logChan          chan message.TimedMessage[*message.Message]
 	endpoints        *config.Endpoints
 	tags             []string
 }
@@ -103,5 +104,8 @@ func (r *LogReporter) ReportEvent(event interface{}) {
 	origin.SetTags(r.tags)
 	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	msg.Hostname = r.hostname
-	r.logChan <- msg
+
+	metrics.TlmChanLength.Set(float64(len(r.logChan)/cap(r.logChan)), "reporter")
+
+	r.logChan <- message.NewTimedMessage(msg)
 }

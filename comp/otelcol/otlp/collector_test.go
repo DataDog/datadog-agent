@@ -27,7 +27,7 @@ import (
 func TestGetComponents(t *testing.T) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan message.TimedMessage[*message.Message]), fakeTagger)
 	// No duplicate component
 	require.NoError(t, err)
 }
@@ -35,7 +35,7 @@ func TestGetComponents(t *testing.T) {
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan message.TimedMessage[*message.Message]), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,7 +62,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan message.TimedMessage[*message.Message]), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

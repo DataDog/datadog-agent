@@ -261,7 +261,7 @@ func TestLogsExporter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testChannel := make(chan *message.Message, 10)
+			testChannel := make(chan message.TimedMessage[*message.Message], 10)
 
 			params := exportertest.NewNopSettings()
 			f := NewFactory(testChannel)

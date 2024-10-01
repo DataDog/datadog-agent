@@ -1129,7 +1129,7 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan message.TimedMessage[*message.Message]), fakeTagger)
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

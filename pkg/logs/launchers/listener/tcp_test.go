@@ -30,11 +30,11 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
 	assert.Nil(t, err)
 	defer conn.Close()
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	fmt.Fprint(conn, "hello world\n")
 	msg = <-msgChan
-	assert.Equal(t, "hello world", string(msg.GetContent()))
+	assert.Equal(t, "hello world", string(msg.Inner.GetContent()))
 	assert.Equal(t, 1, len(listener.tailers))
 
 	listener.Stop()
@@ -49,18 +49,18 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
 	assert.Nil(t, err)
 
-	var msg *message.Message
-	fmt.Fprint(conn, strings.Repeat("a", 80)+"\n")
+	var msg message.TimedMessage[*message.Message]
+	fmt.Fprintf(conn, strings.Repeat("a", 80)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 80), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 80), string(msg.Inner.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", 200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 200), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 200), string(msg.Inner.GetContent()))
 
 	fmt.Fprint(conn, strings.Repeat("a", 70)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 70), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 70), string(msg.Inner.GetContent()))
 
 	listener.Stop()
 }

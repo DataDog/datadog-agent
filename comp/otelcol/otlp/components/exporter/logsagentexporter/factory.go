@@ -36,11 +36,11 @@ type Config struct {
 }
 
 type factory struct {
-	logsAgentChannel chan *message.Message
+	logsAgentChannel chan message.TimedMessage[*message.Message]
 }
 
 // NewFactory creates a new logsagentexporter factory.
-func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
+func NewFactory(logsAgentChannel chan message.TimedMessage[*message.Message]) exp.Factory {
 	f := &factory{logsAgentChannel: logsAgentChannel}
 	cfgType, _ := component.NewType(TypeStr)
 

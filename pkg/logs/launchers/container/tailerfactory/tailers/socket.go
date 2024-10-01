@@ -41,7 +41,7 @@ type DockerSocketTailer struct {
 	dockerutil  *dockerutilPkg.DockerUtil
 	ContainerID string
 	source      *sources.LogSource
-	pipeline    chan *message.Message
+	pipeline    chan message.TimedMessage[*message.Message]
 	readTimeout time.Duration
 	tagger      tagger.Component
 
@@ -59,7 +59,7 @@ type DockerSocketTailer struct {
 }
 
 // NewDockerSocketTailer Creates a new docker socket tailer
-func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
+func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan message.TimedMessage[*message.Message], readTimeout time.Duration, registry auditor.Registry, tagger tagger.Component) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil:  dockerutil,
 		ContainerID: containerID,

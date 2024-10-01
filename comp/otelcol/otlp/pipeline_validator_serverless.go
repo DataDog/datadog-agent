@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func checkAndUpdateCfg(cfg config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {
+func checkAndUpdateCfg(cfg config.Component, pcfg PipelineConfig, logsAgentChannel chan message.TimedMessage[*message.Message]) error {
 	if HasLogsSectionEnabled(cfg) {
 		pipelineError.Store(fmt.Errorf("Cannot enable OTLP log ingestion for serverless"))
 		return pipelineError.Load()

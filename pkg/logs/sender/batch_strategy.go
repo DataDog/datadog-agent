@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,7 +25,7 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
+	inputChan  chan message.TimedMessage[*message.Message]
 	outputChan chan *message.Payload
 	flushChan  chan struct{}
 	serverless bool
@@ -40,7 +41,7 @@ type batchStrategy struct {
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-func NewBatchStrategy(inputChan chan *message.Message,
+func NewBatchStrategy(inputChan chan message.TimedMessage[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serverless bool,
@@ -54,7 +55,7 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression)
 }
 
-func newBatchStrategyWithClock(inputChan chan *message.Message,
+func newBatchStrategyWithClock(inputChan chan message.TimedMessage[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serverless bool,
@@ -104,12 +105,15 @@ func (s *batchStrategy) Start() {
 		for {
 			select {
 			case m, isOpen := <-s.inputChan:
-
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-				s.processMessage(m, s.outputChan)
+
+				metrics.TlmChanTime.Observe(float64(m.SendDuration().Nanoseconds()), "strategy")
+				metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "strategy"), "strategy")
+
+				s.processMessage(m.Inner, s.outputChan)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushBuffer(s.outputChan)
@@ -125,6 +129,8 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
+	metrics.TlmMessageLatency.Observe(float64(m.GetLatency()))
+
 	added := s.buffer.AddMessage(m)
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)
