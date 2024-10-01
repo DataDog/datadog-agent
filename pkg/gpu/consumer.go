@@ -138,7 +138,7 @@ func (c *cudaEventConsumer) Start() {
 			}
 		}
 	}()
-	log.Debugf("CUDA event consumer started")
+	log.Trace("CUDA event consumer started")
 }
 
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
