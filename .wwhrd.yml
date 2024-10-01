@@ -42,6 +42,7 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  - "github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/..."
 
 additional:
   # list here paths to additional licenses
