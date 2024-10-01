@@ -248,7 +248,13 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
-	return i.startExperiment(ctx, pkg.Name)
+
+	switch runtime.GOOS {
+	case "windows":
+		return nil // TODO: start config experiment for Windows
+	default:
+		return i.startExperiment(ctx, pkg.Name)
+	}
 }
 
 // RemoveExperiment removes an experiment.
