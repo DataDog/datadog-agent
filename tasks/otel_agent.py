@@ -15,7 +15,7 @@ OT_AGENT_TAG = "main-ot"
 
 
 @task
-def build(ctx):
+def build(ctx, goarch="amd64"):
     """
     Build the otel agent
     """
@@ -23,8 +23,8 @@ def build(ctx):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    env = {"GO111MODULE": "on"}
-    build_tags = ['otlp']
+    env = {"GO111MODULE": "on", "GOOS": "linux", "GOARCH": goarch}
+    build_tags = ["otlp"]
 
     cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
@@ -39,7 +39,7 @@ def build(ctx):
 
 
 @task
-def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False, no_cache=False, hide=False):
+def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push=False, no_cache=False, hide=False):
     """
     Build the otel agent container image
     """
@@ -71,20 +71,23 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
 
 
 @task
-def test_image_build(ctx, python_command="python3"):
+def test_image_build(ctx, python_command="python3", arch="amd64"):
+    """run image_build task and perform follow-on tests to ensure image builds correctly"""
     try:
-        image_build(ctx, hide=True)
+        build(ctx, goarch=arch)
+        print("testing if otel agent built successfully")
+    except Exception as e:
+        print(f"Error occurred during otel agent build: {e}")
+        raise
+    try:
+        image_build(ctx, arch=arch, hide=True)
         print("testing if image built successfully")
     except Exception as e:
         print(f"Error occurred during image build: {e}")
         raise
     env = {"OT_AGENT_IMAGE_NAME": OT_AGENT_IMAGE_NAME, "tag": OT_AGENT_TAG}
     result = ctx.run(f"docker image inspect {OT_AGENT_IMAGE_NAME}:{OT_AGENT_TAG}", env=env, hide=True)
-    print(f"error: '{result.stderr}'")
-    print(f"output: '{result.stdout}'")
-
+    if "Error" in result.stdout and "No such image" in result.stdout:
+        raise Exit(message=f"Build failed; docker build stdout below:\n{result.stdout}", code=1)
+    print("Image build complete, running OtelAgentBuildTest")
     ctx.run(f"{python_command} ./test/integration/docker/otel_agent_build.py", env=env)
-
-    # Check if the output contains "Error" or "No such image"
-    # self.assertNotIn("Error", result.stdout)
-    # self.assertNotIn("No such image", result.stdout)

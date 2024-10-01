@@ -10,11 +10,15 @@ import unittest
 
 
 class OtelAgentBuildTest(unittest.TestCase):
+    """contains setup and tests for otel agent build. Must be invoked directly
+    by 'inv otel-agent.test-image-build' so that necessary image is built and
+    environment variables are set"""
+
     def setUp(self):
         self.assertIsNotNone(os.environ.get('OT_AGENT_IMAGE_NAME'), "OT_AGENT_IMAGE_NAME envvar needed")
         self.assertIsNotNone(os.environ.get('tag'), "tag envvar needed")
 
-    def test_build(self):
+    def test_otel_agent_docker_image(self):
         self.assertTrue(True)
 
 
