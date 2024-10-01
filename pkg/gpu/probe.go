@@ -25,7 +25,7 @@ import (
 )
 
 // TODO: Set a minimum kernel version
-var minimumKernelVersion = kernel.VersionCode(5, 0, 0)
+var minimumKernelVersion = kernel.VersionCode(5, 8, 0)
 
 const (
 	cudaEventMap      = "cuda_events"
