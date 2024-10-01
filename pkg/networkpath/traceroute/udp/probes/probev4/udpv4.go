@@ -7,13 +7,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
 	inet "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/net"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/probes"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/results"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/net/ipv4"
 )
 
@@ -151,7 +151,7 @@ func (d UDPv4) packets(src, dst net.IP) <-chan pkt {
 				}
 				iph, payload, err := d.packet(ttl, src, dst, srcPort, dstPort)
 				if err != nil {
-					log.Printf("Warning: cannot generate packet for ttl=%d srcport=%d dstport=%d: %v",
+					log.Errorf("Warning: cannot generate packet for ttl=%d srcport=%d dstport=%d: %v",
 						ttl, srcPort, dstPort, err,
 					)
 				} else {
@@ -270,7 +270,7 @@ func (d UDPv4) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 	for _, sp := range sent {
 		spu := sp.(*ProbeUDPv4)
 		if err := spu.Validate(); err != nil {
-			log.Printf("Skipping invalid probe: %v", err)
+			log.Debugf("Skipping invalid probe: %v", err)
 			continue
 		}
 		sentIP := spu.IP()
@@ -298,7 +298,6 @@ func (d UDPv4) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 		for _, rp := range received {
 			rpu := rp.(*ProbeResponseUDPv4)
 			if err := rpu.Validate(); err != nil {
-				log.Printf("Invalid probe response: %v", err)
 				continue
 			}
 			if !rpu.Matches(spu) {
@@ -312,7 +311,7 @@ func (d UDPv4) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 			//      source port too
 			flowhash, err := computeFlowhash(rpu)
 			if err != nil {
-				log.Print(err)
+				log.Debugf("Failed to compute flowhash: %s", err.Error())
 				continue
 			}
 			description := "Unknown"

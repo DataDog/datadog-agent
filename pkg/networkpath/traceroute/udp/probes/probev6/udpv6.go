@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	inet "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/net"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/probes"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/udp/results"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // UDPv6 is a probe type based on IPv6 and UDP
@@ -122,7 +122,7 @@ func (d UDPv6) packets(src, dst net.IP) <-chan pkt {
 				}
 				udpb, payload, err := d.packet(hl, src, dst, srcPort, dstPort)
 				if err != nil {
-					log.Printf("Warning: cannot generate packet for hop limit=%d srcport=%d dstport=%d: %v", hl, srcPort, dstPort, err)
+					log.Errorf("Warning: cannot generate packet for hop limit=%d srcport=%d dstport=%d: %v", hl, srcPort, dstPort, err)
 				} else {
 					ret <- pkt{UDPHeader: udpb, Payload: payload, Src: src, SrcPort: int(srcPort), DstPort: int(dstPort), HopLimit: int(hl)}
 				}
@@ -249,7 +249,7 @@ func (d UDPv6) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 	for _, sp := range sent {
 		spu := sp.(*ProbeUDPv6)
 		if err := spu.Validate(); err != nil {
-			log.Printf("Invalid probe: %w", err)
+			log.Debugf("Invalid probe: %w", err)
 			continue
 		}
 		sentUDP := spu.UDP()
@@ -276,7 +276,6 @@ func (d UDPv6) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 		for _, rp := range received {
 			rpu := rp.(*ProbeResponseUDPv6)
 			if err := rpu.Validate(); err != nil {
-				log.Printf("Invalid probe response: %v", err)
 				continue
 			}
 			if !rpu.Matches(spu) {
