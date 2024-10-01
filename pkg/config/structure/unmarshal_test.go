@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -815,13 +816,13 @@ feature:
 }
 
 func TestMapGetChildNotFound(t *testing.T) {
-	m := map[string]string{"a": "apple", "b": "banana"}
-	n, err := newNode(reflect.ValueOf(m))
+	m := map[string]interface{}{"a": "apple", "b": "banana"}
+	n, err := nodetreemodel.NewNode(m)
 	assert.NoError(t, err)
 
 	val, err := n.GetChild("a")
 	assert.NoError(t, err)
-	str, err := val.(leafNode).GetString()
+	str, err := val.(nodetreemodel.LeafNode).GetString()
 	assert.NoError(t, err)
 	assert.Equal(t, str, "apple")
 
