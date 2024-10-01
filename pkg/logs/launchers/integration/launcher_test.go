@@ -128,8 +128,8 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 	assert.Equal(suite.T(), expectedContent, string(fileContents))
 }
 
-// TestEnsureFileSize tests that ensureFileSize enforces the correct file sizes for launcher files
-func (suite *LauncherTestSuite) TestEnsureFileSize() {
+// TestDeleteFile tests that deleteFile properly deletes the correct file
+func (suite *LauncherTestSuite) TestDeleteFile() {
 	filename := "testfile.log"
 	filepath := filepath.Join(suite.s.runPath, filename)
 	file, err := os.Create(filepath)
@@ -151,14 +151,9 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 
 	err = suite.s.deleteFile(fileinfo)
 	assert.Nil(suite.T(), err)
-	newFile, err := os.Create(filename)
-	assert.Nil(suite.T(), err)
-	assert.Nil(suite.T(), newFile.Close())
-	assert.Nil(suite.T(), err)
 
-	info, err = os.Stat(filename)
-	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), int64(0), info.Size())
+	_, err = os.Stat(filepath)
+	assert.True(suite.T(), os.IsNotExist(err))
 }
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
@@ -202,7 +197,8 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	suite.s.fileSizeMax = oneMB
 
 	filename := "sample_integration_123.log"
-	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
 	assert.Nil(suite.T(), err)
 
 	file.Write(make([]byte, oneMB))
