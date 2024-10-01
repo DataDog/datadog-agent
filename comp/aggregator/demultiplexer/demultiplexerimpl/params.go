@@ -17,6 +17,8 @@ type Params struct {
 
 	// This is an optional field to override the default flush interval only if it is set
 	flushInterval optional.Option[time.Duration]
+
+	useDogstatsdNoAggregationPipelineConfig bool
 }
 
 // Option is a function that sets a parameter in the Params struct
@@ -42,5 +44,12 @@ func WithContinueOnMissingHostname() Option {
 func WithFlushInterval(duration time.Duration) Option {
 	return func(p *Params) {
 		p.flushInterval = optional.NewOption(duration)
+	}
+}
+
+// WithDogstatsdNoAggregationPipelineConfig uses the config dogstatsd_no_aggregation_pipeline
+func WithDogstatsdNoAggregationPipelineConfig() Option {
+	return func(p *Params) {
+		p.useDogstatsdNoAggregationPipelineConfig = true
 	}
 }

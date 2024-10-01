@@ -151,6 +151,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
+			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),
 		)),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDisabledParams()),

@@ -376,7 +376,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		commonendpoints.Module(),
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
