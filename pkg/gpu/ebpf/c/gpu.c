@@ -9,6 +9,7 @@
 #include "compiler.h"
 #include "map-defs.h"
 #include "bpf_telemetry.h"
+#include "bpf_builtins.h"
 
 #include "types.h"
 
