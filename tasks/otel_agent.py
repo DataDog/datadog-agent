@@ -5,7 +5,6 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
-from tasks.libs.releasing.version import get_version
 
 BIN_NAME = "otel-agent"
 CFG_NAME = "otel-config.yaml"
@@ -70,31 +69,3 @@ def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push
 
     os.remove(os.path.join(build_context, BIN_NAME))
     os.remove(os.path.join(build_context, CFG_NAME))
-
-
-@task
-def test_image_build(ctx, python_command="python3", arch="amd64"):
-    """run image_build task and perform follow-on tests to ensure image builds correctly"""
-    try:
-        build(ctx, goarch=arch)
-        print("testing if otel agent build command ran successfully")
-    except Exception as e:
-        print(f"Error occurred during otel agent build command: {e}")
-        raise
-    try:
-        image_build(ctx, arch=arch, hide=True)
-        print("testing if image built successfully")
-    except Exception as e:
-        print(f"Error occurred during image build command: {e}")
-        raise
-    env = {
-        "OT_AGENT_IMAGE_NAME": OT_AGENT_IMAGE_NAME,
-        "OT_AGENT_TAG": OT_AGENT_TAG,
-        "EXPECTED_VERSION": get_version(ctx),
-    }
-    result = ctx.run(f"docker image inspect {OT_AGENT_IMAGE_NAME}:{OT_AGENT_TAG}", env=env, hide=True)
-    if "Error" in result.stdout and "No such image" in result.stdout:
-        raise Exit(message=f"Build failed; docker build stdout below:\n{result.stdout}", code=1)
-
-    print("Image build complete, running OtelAgentBuildTest")
-    ctx.run(f"{python_command} ./tasks/unit_tests/otel_agent_build_tests.py", env=env)

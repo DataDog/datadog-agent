@@ -11,6 +11,7 @@ integration_tests_otel:
     - !reference [.retrieve_linux_go_deps]
     - inv check-otel-build
     - inv check-otel-module-versions
+    - inv check-otel-image-build
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never

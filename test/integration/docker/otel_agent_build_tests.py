@@ -1,9 +1,5 @@
-import sys, os
+import os
 import unittest
-import argparse
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-from tasks.libs.releasing.version import get_version
 
 import docker
 
