@@ -404,7 +404,21 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         else:
             if file_type != "application/x-mach-binary":
                 continue
-            binary_rpath = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+            errors = ctx.run(f'otool -l {file} > tmpotoolfile', warn=True, hide=True).stderr
+            if errors:
+                continue
+            binary_rpath = ctx.run('cat tmpotoolfile | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+            dylib_paths = ctx.run('cat tmpotoolfile | grep -A 2 "LC_LOAD_DYLIB"', warn=True, hide=True).stdout
+            if install_path in dylib_paths:
+                for otool_line in dylib_paths.splitlines():
+                    if "name" not in otool_line:
+                        continue
+                    dylib_path = otool_line.strip().split(" ")[1]
+                    if install_path not in dylib_path:
+                        continue
+                    new_dylib_path = dylib_path.replace(install_path, "@rpath")
+                    # Edit LC_LOAD_DYLIB paths relative to rpath
+                    ctx.run(f"install_name_tool -change {dylib_path} {new_dylib_path} {file}")
 
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
