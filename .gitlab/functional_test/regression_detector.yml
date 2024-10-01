@@ -21,6 +21,7 @@ single-machine-performance-regression_detector:
     when: always
   variables:
     SMP_VERSION: 0.16.0
+    VAULT_ADDR: "https://vault.us1.ddbuild.io"
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -124,16 +125,15 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Download auth tool; see
-    # https://github.com/DataDog/dd-source/tree/8f80b7ef031839b0b11b4a70b9067d6142f3dd5b/domains/devex/ci/authanywhere
-    - curl -Lo authanywhere binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-    - chmod u+x authanywhere
+    # In conjunction with setting VAULT_ADDR, a wild guess at Vault setup based on
+    # https://github.com/DataDog/dd-sdk-flutter/blob/e744cca56783b70d847592c08c5b8c342a38eb1f/.gitlab-ci.yml
+    - vault login -method=aws -no-print
     # Craft an HTTPS request to pr-commenter service to post Markdown report to
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
     - |
       curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
-          -H "Authorization: $(./authanywhere)" \
+          -H "Authorization: $(vault read -field=token identity/oidc/token/rapid-eee-ci-interfaces)" \
           -H "X-DdOrigin: curl" \
           -X PATCH \
           -d '{"org":"DataDog", "repo":"datadog-agent", "commit":'"${CI_COMMIT_SHA}"', "header":"Regression Detector", "message":'"$(cat outputs/report.md)"'}'
