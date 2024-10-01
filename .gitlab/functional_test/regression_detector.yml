@@ -125,8 +125,6 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # In conjunction with setting VAULT_ADDR, a wild guess at Vault setup
-    - vault login -method=oidc -no-print
     # Craft an HTTPS request to pr-commenter service to post Markdown report to
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
