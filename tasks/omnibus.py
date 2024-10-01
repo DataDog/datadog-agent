@@ -408,7 +408,9 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
             if errors:
                 continue
             binary_rpath = ctx.run('cat tmpotoolfile | grep -A 2 "RPATH"', warn=True, hide=True).stdout
-            dylib_paths = ctx.run('cat tmpotoolfile | grep -A 2 "LC_LOAD_DYLIB"', warn=True, hide=True).stdout
+            dylib_paths = ctx.run(
+                r'cat tmpotoolfile | grep -A 2 "LC_LOAD_DYLIB\|LC_ID_DYLIB"', warn=True, hide=True
+            ).stdout
             if install_path in dylib_paths:
                 for otool_line in dylib_paths.splitlines():
                     if "name" not in otool_line:
