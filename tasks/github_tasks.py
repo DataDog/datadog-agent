@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import time
 from collections import Counter
 from functools import lru_cache
@@ -18,6 +19,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
@@ -168,6 +170,68 @@ def _get_code_owners(root_folder):
                 # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
                 owners[path] = parts[1:]
     return owners
+
+
+def _find_orphans_in_codeowner(owners):
+    error = False
+
+    for rule in owners.paths:
+        # Get the static part of the rule path, removing matching subpath (such as '*')
+        static_root = _get_static_root(rule[1])
+        if not _is_pattern_in_fs(static_root, rule[0]):
+            if not error:
+                print(
+                    color_message(
+                        "The following rules are outdated: they don't point to existing file/directory", "red"
+                    ),
+                    file=sys.stderr,
+                )
+                error = True
+            print(color_message(f"\t- {rule[1]}\t{rule[2]}", "orange"), file=sys.stderr)
+
+    return error
+
+
+def _get_static_root(pattern):
+    result = "./"
+
+    if not pattern.startswith("/"):
+        # TODO
+        return result
+
+    # We remove the '\' anchor character from the path
+    pattern = pattern[1:]
+
+    for elem in pattern.split("/"):
+        if '*' in elem:
+            return result
+        result = os.path.join(result, elem)
+    return result
+
+
+def _is_pattern_in_fs(path, pattern):
+    """
+    Checks if a given pattern matches any file within the specified path.
+
+    Args:
+        path (str): The file or directory path to search within.
+        pattern (re.Pattern): The compiled regular expression pattern to match against file paths.
+
+    Returns:
+        bool: True if the pattern matches any file path within the specified path, False otherwise.
+    """
+    if os.path.isfile(path):
+        return True
+    elif os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for name in files:
+                # file_path is the relative path from the root of the repo, without "./" at the begining
+                file_path = os.path.join(root, name)[2:]
+
+                # Check if the file path matches any of the regex patterns
+                if pattern.match(file_path):
+                    return True
+    return False
 
 
 @task
