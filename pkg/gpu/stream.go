@@ -43,6 +43,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		return
 	}
 
+	// We only support alloc and free events for now, so if it's not alloc it's free.
 	alloc, ok := sh.memAllocEvents[event.Addr]
 	if !ok {
 		log.Warnf("Invalid free event: %v", event)
