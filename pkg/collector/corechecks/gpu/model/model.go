@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 // Package model contains the model for the GPU check, with types shared between the system-probe GPU probe and
 // the gpu core agent check

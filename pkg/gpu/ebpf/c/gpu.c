@@ -8,6 +8,7 @@
 #include "bpf_tracing.h"
 #include "compiler.h"
 #include "map-defs.h"
+#include "bpf_telemetry.h"
 
 #include "types.h"
 
@@ -88,7 +89,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
     mem_data.type = cudaMalloc;
     mem_data.size = args->size;
 
-    if (bpf_probe_read_user(&mem_data.addr, sizeof(void *), args->devPtr)) {
+    if (bpf_probe_read_user_with_telemetry(&mem_data.addr, sizeof(void *), args->devPtr)) {
         log_debug("cudaMalloc[ret]: failed to read devPtr from cudaMalloc at 0x%llx", (__u64)args->devPtr);
         goto out;
     }
