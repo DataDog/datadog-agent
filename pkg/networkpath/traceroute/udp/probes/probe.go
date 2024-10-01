@@ -1,4 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Contains BSD-2-Clause code (c) 2015-present Andrea Barberio
 
 // Package probes provides the interfaces for probes and probe responses
 package probes

@@ -207,10 +207,12 @@ core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
 core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
-core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/net,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
-core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
-core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
-core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/results,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/net,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes/probev4,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes/probev6,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/results,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/Intevation/gval,BSD-3-Clause,"Copyright (c) 2017, Paessler AG <support@paessler.com>"
