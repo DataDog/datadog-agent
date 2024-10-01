@@ -322,15 +322,6 @@ feature:
 			want: false,
 			skip: false,
 		},
-		{
-			name: "yaml empty string value false",
-			conf: `
-feature:
-  enabled: ""
-`,
-			want: false,
-			skip: true, // TODO: should this include falsey ? (nil, zero values like empty string, etc.)
-		},
 	}
 
 	for _, tc := range testcases {
@@ -413,7 +404,7 @@ feature:
 				Fielduint32: 1234,
 				Fielduint64: 1234,
 				Fieldint8:   12,
-				Fieldint16:  12, // TODO: truncates the float and does not round, expected?
+				Fieldint16:  12, // expected truncation of the decimal, no rounding
 				Fieldint32:  12,
 				Fieldint64:  -12,
 			},
