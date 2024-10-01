@@ -477,6 +477,7 @@ func start(log log.Component,
 			Client:              apiCl.Cl,
 			StopCh:              stopCh,
 			ValidatingStopCh:    validatingStopCh,
+			Demultiplexer:       demultiplexer,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

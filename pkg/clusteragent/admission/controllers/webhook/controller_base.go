@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -32,6 +33,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,11 +56,12 @@ func NewController(
 	wmeta workloadmeta.Component,
 	pa workload.PodPatcher,
 	datadogConfig config.Component,
+	demultiplexer demultiplexer.Component,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, datadogConfig, demultiplexer)
 }
 
 // Webhook represents an admission webhook
@@ -73,13 +76,16 @@ type Webhook interface {
 	Endpoint() string
 	// Resources returns the kubernetes resources for which the webhook should
 	// be invoked
-	Resources() []string
+	Resources() map[string][]string
 	// Operations returns the operations on the resources specified for which
 	// the webhook should be invoked
 	Operations() []admiv1.OperationType
 	// LabelSelectors returns the label selectors that specify when the webhook
 	// should be invoked
 	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
+	// MatchConditions returns the Match Conditions used for fine-grained
+	// request filtering
+	MatchConditions() []admiv1.MatchCondition
 	// WebhookFunc runs the logic of the webhook and returns the admission response
 	WebhookFunc() admission.WebhookFunc
 }
@@ -90,7 +96,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) []Webhook {
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component, demultiplexer demultiplexer.Component) []Webhook {
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
@@ -105,7 +111,9 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// Add Validating webhooks.
 	if c.config.isValidationEnabled() {
 		// Future validating webhooks can be added here.
-		validatingWebhooks = []Webhook{}
+		validatingWebhooks = []Webhook{
+			kubernetesadmissionevents.NewWebhook(datadogConfig, demultiplexer, c.config.supportsMatchConditions()),
+		}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
 

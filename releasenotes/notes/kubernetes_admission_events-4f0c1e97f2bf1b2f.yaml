@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Implements the Kubernetes Admission Events webhooks. This new webhooks will emit Datadog Events
+    when receving Validation Admission requests. It will track deployments operations made by non-system
+    users.
+    The webhook is controlled by using the `admission_controller.kubernetes_admission_events.enabled` setting.
+

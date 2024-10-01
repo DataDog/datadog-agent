@@ -12,13 +12,29 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/mod/semver"
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
 )
+
+// supportsMatchConditions returns whether Kubernetes server version supports match conditions.
+// Returns true if Kubernetes version is 1.28+. Otherwise, returns false.
+// Match conditions are in alpha in 1.27 but require a feature gate to be enabled. They are not supported in 1.26.
+func supportsMatchConditions(discoveryCl discovery.DiscoveryInterface) (bool, error) {
+	serverVersion, err := common.KubeServerVersion(discoveryCl, 10*time.Second)
+	if err != nil {
+		return false, fmt.Errorf("cannot get Kubernetes version: %w", err)
+	}
+	if semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.28.0") < 0 {
+		log.Debugf("Match conditions are not supported in Kubernetes version %s", serverVersion.String())
+		return false, nil
+	}
+	return true, nil
+}
 
 // useNamespaceSelector returns whether we need to fallback to using namespace selector instead of object selector.
 // Returns true if `namespace_selector_fallback` is enabled and k8s version is between 1.10 and 1.14 (included).
