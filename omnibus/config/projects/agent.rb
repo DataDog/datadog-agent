@@ -330,8 +330,6 @@ if windows_target?
       count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
       if count == 0
         raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
-      else
-        puts("Symbol 'github.com/microsoft/go-crypto-winnative' found #{count} times in binary.")
       end
   }
 
