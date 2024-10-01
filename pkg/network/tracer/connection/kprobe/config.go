@@ -27,7 +27,7 @@ func hasTCPSendPage(kv kernel.Version) bool {
 		return len(missing) == 0
 	}
 
-	log.Warnf("error verifying tcp_sendpage presence, falling back to v6.5 check: %s", err)
+	log.Debugf("unable to determine whether tcp_sendpage exists, using kernel version instead: %s", err)
 
 	kv650 := kernel.VersionCode(6, 5, 0)
 	return kv < kv650
