@@ -433,6 +433,46 @@ func (s *upgradeScenarioSuite) TestUpgradeConfigFromExistingExperiment() {
 	s.executeConfigGoldenPath("0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
 }
 
+func (s *upgradeScenarioSuite) TestUpgradeConfigFailure() {
+	localCDN := host.NewLocalCDN(s.host)
+	localCDN.AddLayer("debug_logs", "\"log_level\": \"debug\"")
+	s.RunInstallScript(
+		"DD_REMOTE_UPDATES=true",
+		"DD_REMOTE_POLICIES=true",
+		fmt.Sprintf("DD_INSTALLER_CDN_LOCAL_DIR_PATH=%s", localCDN.DirPath),
+	)
+	defer s.Purge()
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+
+	localCDN.UpdateLayer("debug_logs", "\"api_key\": \"\"") // No API key means the experiment will crash
+	_, err := s.startConfigExperiment(datadogAgent, "0ba862c7dded9cc7c3b9be6b1a9e47f55a38eec7c7ab54fbbceb1aa9d54e8283")
+	require.Error(s.T(), err)
+
+	// Assert experiment is stopped as the agent should've crashed
+	timestamp := s.host.LastJournaldTimestamp()
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Stopped(agentUnitXP).
+			Stopped(processUnitXP).
+			Stopped(traceUnitXP),
+		).
+		Started(agentUnit).
+		Unordered(host.SystemdEvents().
+			Started(traceUnit).
+			Started(processUnit),
+		),
+	)
+
+	s.mustStopExperiment(datadogAgent)
+}
+
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
 	s.T().Logf("Running start command: %s", cmd)
