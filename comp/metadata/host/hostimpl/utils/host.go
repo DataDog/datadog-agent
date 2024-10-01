@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -118,14 +118,14 @@ func getNetworkMeta(ctx context.Context) *NetworkMeta {
 	return networkMeta
 }
 
-func getLogsMeta(conf config.Reader) *LogsMeta {
+func getLogsMeta(conf model.Reader) *LogsMeta {
 	return &LogsMeta{
 		Transport:            string(status.GetCurrentTransport()),
 		AutoMultilineEnabled: conf.GetBool("logs_config.auto_multi_line_detection"),
 	}
 }
 
-func getInstallMethod(conf config.Reader) *InstallMethod {
+func getInstallMethod(conf model.Reader) *InstallMethod {
 	install, err := installinfoGet(conf)
 	if err != nil {
 		return &InstallMethod{
@@ -145,7 +145,7 @@ func getInstallMethod(conf config.Reader) *InstallMethod {
 // metadata payload. The NoProxy maps contain any errors or warnings due to the behavior changing when
 // no_proxy_nonexact_match is enabled. ProxyBehaviorChanged is true in the metadata if there would be any errors or
 // warnings indicating that there would a behavior change if 'no_proxy_nonexact_match' was enabled.
-func getProxyMeta(conf config.Reader) *ProxyMeta {
+func getProxyMeta(conf model.Reader) *ProxyMeta {
 	NoProxyNonexactMatchExplicitlySetState := false
 	NoProxyNonexactMatch := false
 	if conf.IsSet("no_proxy_nonexact_match") {
@@ -168,7 +168,7 @@ func GetOSVersion() string {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, conf config.Reader) *Payload {
+func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 	hostnameData, err := hostname.GetWithProvider(ctx)
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
@@ -200,7 +200,7 @@ func GetPayload(ctx context.Context, conf config.Reader) *Payload {
 
 // GetFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetFromCache(ctx context.Context, conf config.Reader) *Payload {
+func GetFromCache(ctx context.Context, conf model.Reader) *Payload {
 	data, found := cache.Cache.Get(hostCacheKey)
 	if !found {
 		return GetPayload(ctx, conf)
@@ -211,9 +211,4 @@ func GetFromCache(ctx context.Context, conf config.Reader) *Payload {
 // GetPlatformName returns the name of the current platform
 func GetPlatformName() string {
 	return GetInformation().Platform
-}
-
-// GetKernelVersion returns the kernel version
-func GetKernelVersion() string {
-	return GetInformation().KernelVersion
 }

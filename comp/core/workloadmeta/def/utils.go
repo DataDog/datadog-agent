@@ -37,16 +37,3 @@ func mapToScrubbedJSONString(m map[string]string) string {
 func sliceToString(s []string) string {
 	return strings.Join(s, " ")
 }
-
-// filterAndFormatEnvVars extracts and formats a subset of allowed environment variables.
-func filterAndFormatEnvVars(envs map[string]string) string {
-	allowedEnvVariables := []string{"DD_SERVICE", "DD_ENV", "DD_VERSION"}
-	var sb strings.Builder
-	for _, allowed := range allowedEnvVariables {
-		if val, found := envs[allowed]; found {
-			fmt.Fprintf(&sb, "%s:%s ", allowed, val)
-		}
-	}
-
-	return sb.String()
-}

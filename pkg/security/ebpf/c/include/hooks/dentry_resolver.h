@@ -20,7 +20,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_ERROR;
     }
     *params = (struct is_discarded_by_inode_t){
-        .discarder_type = input->discarder_type,
+        .event_type = input->discarder_event_type,
         .now = bpf_ktime_get_ns(),
     };
 
@@ -40,7 +40,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             next_key.mount_id = 0;
         }
 
-        if (input->discarder_type && input->iteration == 1 && i <= 3) {
+        if (input->discarder_event_type && input->iteration == 1 && i <= 3) {
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
             params->discarder.is_leaf = i == 0;
@@ -92,32 +92,60 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
+void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, int dr_type, struct dentry_resolver_input_t* resolver) {
+    resolver->iteration++;
+    resolver->ret = resolve_dentry_tail_call(ctx, resolver);
+
+    if (resolver->ret > 0) {
+        if (resolver->iteration < DR_MAX_TAIL_CALL && resolver->key.ino != 0) {
+            tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_KEY);
+        }
+
+        resolver->ret += DR_MAX_ITERATION_DEPTH * (resolver->iteration - 1);
+    }
+
+    if (resolver->callback >= 0) {
+        switch (dr_type) {
+        case DR_KPROBE_OR_FENTRY:
+            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, resolver->callback);
+            break;
+        case DR_TRACEPOINT:
+            bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, resolver->callback);
+            break;
+        }
+    }
+}
+
 void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, int dr_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return;
 
-    syscall->resolver.iteration++;
-    syscall->resolver.ret = resolve_dentry_tail_call(ctx, &syscall->resolver);
+   dentry_resolver_kern_recursive(ctx, dr_type, &syscall->resolver);
+}
 
-    if (syscall->resolver.ret > 0) {
-        if (syscall->resolver.iteration < DR_MAX_TAIL_CALL && syscall->resolver.key.ino != 0) {
-            tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_KEY);
-        }
-
-        syscall->resolver.ret += DR_MAX_ITERATION_DEPTH * (syscall->resolver.iteration - 1);
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 type) {
+    struct dentry_resolver_input_t *inputs = (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
+    if (!inputs) {
+        return NULL;
     }
-
-    if (syscall->resolver.callback >= 0) {
-        switch (dr_type) {
-        case DR_KPROBE_OR_FENTRY:
-            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, syscall->resolver.callback);
-            break;
-        case DR_TRACEPOINT:
-            bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, syscall->resolver.callback);
-            break;
-        }
+    if (!type || inputs->type == type) {
+        return inputs;
     }
+    return NULL;
+}
+
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return peek_task_resolver_inputs(key, type);
+}
+
+void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, int dr_type) {
+    struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
+    if (!inputs)
+        return;
+
+    dentry_resolver_kern_recursive(ctx, dr_type, inputs);
 }
 
 SEC("tracepoint/dentry_resolver_kern")
@@ -129,6 +157,18 @@ int tracepoint_dentry_resolver_kern(void *ctx) {
 TAIL_CALL_TARGET("dentry_resolver_kern")
 int tail_call_target_dentry_resolver_kern(ctx_t *ctx) {
     dentry_resolver_kern(ctx, DR_KPROBE_OR_FENTRY);
+    return 0;
+}
+
+SEC("tracepoint/dentry_resolver_kern_no_syscall")
+int tracepoint_dentry_resolver_kern_no_syscall(void *ctx) {
+    dentry_resolver_kern_no_syscall(ctx, DR_TRACEPOINT);
+    return 0;
+}
+
+TAIL_CALL_TARGET("dentry_resolver_kern_no_syscall")
+int tail_call_target_dentry_resolver_kern_no_syscall(ctx_t *ctx) {
+    dentry_resolver_kern_no_syscall(ctx, DR_KPROBE_OR_FENTRY);
     return 0;
 }
 

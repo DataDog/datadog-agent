@@ -14,7 +14,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -42,7 +47,9 @@ func init() {
 }
 
 func BenchmarkTagStoreThroughput(b *testing.B) {
-	store := tagstore.NewTagStore()
+	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := tagstore.NewTagStore(configmock.New(b), telemetryStore)
 
 	doneCh := make(chan struct{})
 	pruneTicker := time.NewTicker(time.Second)
@@ -69,7 +76,7 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 
 		go func() {
 			for i := 0; i < 1000; i++ {
-				id := ids[rand.Intn(nEntities)]
+				id := types.NewEntityID("", ids[rand.Intn(nEntities)])
 				store.Lookup(id, types.HighCardinality)
 			}
 			wg.Done()
@@ -86,7 +93,10 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 // store is thread-safe, processTagInfo is always used synchronously by the
 // tagger at the moment.
 func BenchmarkTagStore_processTagInfo(b *testing.B) {
-	store := tagstore.NewTagStore()
+	tel := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+
+	store := tagstore.NewTagStore(configmock.New(b), telemetryStore)
 
 	for i := 0; i < b.N; i++ {
 		processRandomTagInfoBatch(store)
@@ -97,7 +107,7 @@ func generateRandomTagInfo() *types.TagInfo {
 	id := ids[rand.Intn(nEntities)]
 	source := sources[rand.Intn(nSources)]
 	return &types.TagInfo{
-		Entity:               id,
+		EntityID:             types.NewEntityID("", id),
 		Source:               source,
 		LowCardTags:          generateRandomTags(),
 		OrchestratorCardTags: generateRandomTags(),

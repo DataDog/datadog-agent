@@ -10,6 +10,8 @@ package collectorimpl
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -21,25 +23,32 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type collectorImpl struct {
-	log corelog.Component
+	log log.Component
 	set otelcol.CollectorSettings
 	col *otelcol.Collector
 }
@@ -51,14 +60,17 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log              corelog.Component
-	Provider         confmap.Converter
-	CollectorContrib collectorcontrib.Component
-	Serializer       serializer.MetricSerializer
-	LogsAgent        optional.Option[logsagentpipeline.Component]
-	SourceProvider   serializerexporter.SourceProviderFunc
-	Tagger           tagger.Component
-	URIs             []string
+	Log                 log.Component
+	Provider            confmap.Converter
+	Config              config.Component
+	CollectorContrib    collectorcontrib.Component
+	Serializer          serializer.MetricSerializer
+	TraceAgent          traceagent.Component
+	LogsAgent           optional.Option[logsagentpipeline.Component]
+	SourceProvider      serializerexporter.SourceProviderFunc
+	Tagger              tagger.Component
+	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	URIs                []string
 }
 
 // Provides declares the output types from the constructor
@@ -76,8 +88,54 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 	return c.converter
 }
 
+func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProviderSettings {
+	converterFactories := []confmap.ConverterFactory{
+		expandconverter.NewFactory(),
+	}
+
+	if enhanced {
+		converterFactories = append(converterFactories, &converterFactory{converter: reqs.Provider})
+	}
+
+	return otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: reqs.URIs,
+			ProviderFactories: []confmap.ProviderFactory{
+				fileprovider.NewFactory(),
+				envprovider.NewFactory(),
+				yamlprovider.NewFactory(),
+				httpprovider.NewFactory(),
+				httpsprovider.NewFactory(),
+			},
+			ConverterFactories: converterFactories,
+		},
+	}
+}
+
+func generateID(group, resource, namespace, name string) string {
+	return string(util.GenerateKubeMetadataEntityID(group, resource, namespace, name))
+}
+
+func addFactories(reqs Requires, factories otelcol.Factories) {
+	if v, ok := reqs.LogsAgent.Get(); ok {
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
+	} else {
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
+	}
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
+	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs, false))
+}
+
 // NewComponent returns a new instance of the collector component.
 func NewComponent(reqs Requires) (Provides, error) {
+	factories, err := reqs.CollectorContrib.OTelComponentFactories()
+	if err != nil {
+		return Provides{}, err
+	}
+	addFactories(reqs, factories)
+
+	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
@@ -86,40 +144,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version:     "v0.102.0",
-			Command:     "otel-agent",
-			Description: "Datadog Agent OpenTelemetry Collector Distribution",
+			Version:     "v0.104.0",
+			Command:     filepath.Base(os.Args[0]),
+			Description: "Datadog Agent OpenTelemetry Collector",
 		},
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
-			factories, err := reqs.CollectorContrib.OTelComponentFactories()
-			if err != nil {
-				return otelcol.Factories{}, err
-			}
-			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.SourceProvider)
-			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
-			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
-		ConfigProviderSettings: otelcol.ConfigProviderSettings{
-			ResolverSettings: confmap.ResolverSettings{
-				URIs: reqs.URIs,
-				ProviderFactories: []confmap.ProviderFactory{
-					fileprovider.NewFactory(),
-					envprovider.NewFactory(),
-					yamlprovider.NewFactory(),
-					httpprovider.NewFactory(),
-					httpsprovider.NewFactory(),
-				},
-				ConverterFactories: []confmap.ConverterFactory{
-					expandconverter.NewFactory(),
-					&converterFactory{converter: reqs.Provider},
-				},
-			},
-		},
+		ConfigProviderSettings: newConfigProviderSettings(reqs, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

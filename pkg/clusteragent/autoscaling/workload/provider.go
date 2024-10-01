@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -24,7 +25,14 @@ import (
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
-func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient, wlm workloadmeta.Component) (PodPatcher, error) {
+func StartWorkloadAutoscaling(
+	ctx context.Context,
+	clusterID string,
+	apiCl *apiserver.APIClient,
+	rcClient rcClient,
+	wlm workloadmeta.Component,
+	senderManager sender.SenderManager,
+) (PodPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
 	}
@@ -47,7 +55,14 @@ func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, r
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
 
-	controller, err := newController(eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher)
+	// We could consider the sender to be optional, but it's actually required for backend information
+	sender, err := senderManager.GetSender("workload_autoscaling")
+	sender.DisableDefaultHostname(true)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
+	}
+
+	controller, err := newController(clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher, sender)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}

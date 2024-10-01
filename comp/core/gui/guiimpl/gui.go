@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/json"
+	"html/template"
 	"io"
 	"mime"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"text/template"
 	"time"
 
 	"go.uber.org/fx"
@@ -32,12 +32,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // Module defines the fx options for this component.
@@ -50,7 +51,7 @@ func Module() fxutil.Module {
 type gui struct {
 	logger log.Component
 
-	port     string
+	address  string
 	listener net.Listener
 	router   *mux.Router
 
@@ -105,14 +106,20 @@ func newGui(deps dependencies) provides {
 		return p
 	}
 
+	guiHost, err := system.IsLocalAddress(deps.Config.GetString("GUI_host"))
+	if err != nil {
+		deps.Log.Errorf("GUI server host is not a local address: %s", err)
+		return p
+	}
+
 	g := gui{
-		port:         guiPort,
+		address:      net.JoinHostPort(guiHost, guiPort),
 		logger:       deps.Log,
 		intentTokens: make(map[string]bool),
 	}
 
-	// Instantiate the gorilla/mux router
-	router := mux.NewRouter()
+	// Instantiate the gorilla/mux publicRouter
+	publicRouter := mux.NewRouter()
 
 	// Fetch the authentication token (persists across sessions)
 	authToken, e := security.FetchAuthToken(deps.Config)
@@ -124,14 +131,14 @@ func newGui(deps dependencies) provides {
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
 	g.auth = newAuthenticator(authToken, sessionExpiration)
 
-	router.HandleFunc("/auth", g.getAccessToken).Methods("GET")
-	// Serve the (secured) index page on the default endpoint
-	securedRouter := router.PathPrefix("/").Subrouter()
-	securedRouter.HandleFunc("/", generateIndex).Methods("GET")
+	// register the public routes
+	publicRouter.HandleFunc("/", renderIndexPage).Methods("GET")
+	publicRouter.HandleFunc("/auth", g.getAccessToken).Methods("GET")
+	// Mount our filesystem at the view/{path} route
+	publicRouter.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
-	// Mount our (secured) filesystem at the view/{path} route
-	securedRouter.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
-
+	// Create a subrouter to handle routes that needs authentication
+	securedRouter := publicRouter.PathPrefix("/").Subrouter()
 	// Set up handlers for the API
 	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
 	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
@@ -141,7 +148,7 @@ func newGui(deps dependencies) provides {
 	// Check token on every securedRouter endpoints
 	securedRouter.Use(g.authMiddleware)
 
-	g.router = router
+	g.router = publicRouter
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: g.start,
@@ -160,13 +167,13 @@ func (g *gui) start(_ context.Context) error {
 	// Set start time...
 	g.startTimestamp = time.Now().Unix()
 
-	g.listener, e = net.Listen("tcp", "127.0.0.1:"+g.port)
+	g.listener, e = net.Listen("tcp", g.address)
 	if e != nil {
 		g.logger.Errorf("GUI server didn't achieved to start: ", e)
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
-	g.logger.Infof("GUI server is listening at 127.0.0.1:" + g.port)
+	g.logger.Info("GUI server is listening at " + g.address)
 	return nil
 }
 
@@ -190,7 +197,7 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(token))
 }
 
-func generateIndex(w http.ResponseWriter, _ *http.Request) {
+func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -202,7 +209,19 @@ func generateIndex(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	e = t.Execute(w, map[string]bool{"restartEnabled": restartEnabled()})
+	t, e = t.Parse(instructionTemplate)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	e = t.Execute(w, struct {
+		RestartEnabled bool
+		DocURL         template.URL
+	}{
+		RestartEnabled: restartEnabled(),
+		DocURL:         docURL,
+	})
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return

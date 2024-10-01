@@ -8,6 +8,10 @@ package diagnosis
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"encoding/json"
+
+	"github.com/fatih/color"
 )
 
 // --------------------------------
@@ -44,10 +48,11 @@ type Suite struct {
 
 // Config contains the Diagnose configuration
 type Config struct {
-	Verbose  bool
-	RunLocal bool
-	Include  []string
-	Exclude  []string
+	Verbose    bool
+	RunLocal   bool
+	JSONOutput bool
+	Include    []string
+	Exclude    []string
 }
 
 // Result contains the result of the diagnosis
@@ -69,35 +74,93 @@ const (
 	DiagnosisResultMAX              = DiagnosisUnexpectedError
 )
 
+// ToString returns the string representation of the Result
+func (r Result) ToString(colors bool) string {
+	switch colors {
+	case true:
+		switch r {
+		case DiagnosisSuccess:
+			return color.GreenString("PASS")
+		case DiagnosisFail:
+			return color.RedString("FAIL")
+		case DiagnosisWarning:
+			return color.YellowString("WARNING")
+		default:
+			return color.HiRedString("UNEXPECTED ERROR")
+		}
+	default:
+		switch r {
+		case DiagnosisSuccess:
+			return "PASS"
+		case DiagnosisFail:
+			return "FAIL"
+		case DiagnosisWarning:
+			return "WARNING"
+		default:
+			return "UNEXPECTED ERROR"
+		}
+	}
+}
+
 // Diagnosis contains the results of the diagnosis
 type Diagnosis struct {
 	// --------------------------
 	// required fields
 
 	// run-time (pass, fail etc)
-	Result Result
+	Result Result `json:"result"`
 	// static-time (meta typically)
-	Name string
+	Name string `json:"name"`
 	// run-time (actual diagnosis consumable by a user)
-	Diagnosis string
+	Diagnosis string `json:"diagnosis"`
 
 	// --------------------------
 	// optional fields
 
 	// static-time (meta typically)
-	Category string `json:",omitempty"`
+	Category string `json:"category,omitempty"`
 	// static-time (meta typically, description of what being tested)
-	Description string
+	Description string `json:"description,omitempty"`
 	// run-time (what can be done of what docs need to be consulted to address the issue)
-	Remediation string
+	Remediation string `json:"remediation,omitempty"`
 	// run-time
-	RawError string
+	RawError string `json:"rawerror,omitempty"`
+}
+
+// DiagnoseResult contains the results of the diagnose command
+type DiagnoseResult struct {
+	Diagnoses []Diagnoses `json:"runs"`
+	Summary   Counters    `json:"summary"`
 }
 
 // Diagnoses is a collection of Diagnosis
 type Diagnoses struct {
-	SuiteName      string
-	SuiteDiagnoses []Diagnosis
+	SuiteName      string      `json:"suite_name"`
+	SuiteDiagnoses []Diagnosis `json:"diagnoses"`
+}
+
+// Counters contains the count of the diagnosis results
+type Counters struct {
+	Total         int `json:"total,omitempty"`
+	Success       int `json:"success,omitempty"`
+	Fail          int `json:"fail,omitempty"`
+	Warnings      int `json:"warnings,omitempty"`
+	UnexpectedErr int `json:"unexpected_error,omitempty"`
+}
+
+// Increment increments the count of the diagnosis results
+func (c *Counters) Increment(r Result) {
+	c.Total++
+
+	if r == DiagnosisSuccess {
+		c.Success++
+	} else if r == DiagnosisFail {
+		c.Fail++
+	} else if r == DiagnosisWarning {
+		c.Warnings++
+	} else {
+		c.UnexpectedErr++
+	}
 }
 
 // Catalog stores the list of registered Diagnose functions
@@ -121,4 +184,16 @@ func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
 // GetSuites returns the list of registered Diagnose functions
 func (c *Catalog) GetSuites() []Suite {
 	return c.suites
+}
+
+// MarshalJSON marshals the Diagnose struct to JSON
+func (d Diagnosis) MarshalJSON() ([]byte, error) {
+	type Alias Diagnosis
+	return json.Marshal(&struct {
+		Alias
+		ResultString string `json:"connectivity_result"`
+	}{
+		Alias:        (Alias)(d),
+		ResultString: d.Result.ToString(false),
+	})
 }

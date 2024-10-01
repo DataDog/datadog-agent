@@ -16,24 +16,30 @@ import (
 	"github.com/DataDog/go-sqllexer"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// EmptyParameters represents the case where the non-empty query has no parameters
+	EmptyParameters = "EMPTY_PARAMETERS"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (operation and table name) multiple times.
 type EventWrapper struct {
-	*EbpfEvent
+	*ebpf.EbpfEvent
 
-	operationSet bool
-	operation    Operation
-	tableNameSet bool
-	tableName    string
-	normalizer   *sqllexer.Normalizer
+	operationSet  bool
+	operation     Operation
+	parametersSet bool
+	parameters    string
+	normalizer    *sqllexer.Normalizer
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *EbpfEvent) *EventWrapper {
+func NewEventWrapper(e *ebpf.EbpfEvent) *EventWrapper {
 	return &EventWrapper{
 		EbpfEvent:  e,
 		normalizer: sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
@@ -53,7 +59,7 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 }
 
 // getFragment returns the actual query fragment from the event.
-func (e *EbpfTx) getFragment() []byte {
+func getFragment(e *ebpf.EbpfTx) []byte {
 	if e.Original_query_size == 0 {
 		return nil
 	}
@@ -66,17 +72,36 @@ func (e *EbpfTx) getFragment() []byte {
 // Operation returns the operation of the query (SELECT, INSERT, UPDATE, DROP, etc.)
 func (e *EventWrapper) Operation() Operation {
 	if !e.operationSet {
-		e.operation = FromString(string(bytes.SplitN(e.Tx.getFragment(), []byte(" "), 2)[0]))
+		e.operation = FromString(string(bytes.SplitN(getFragment(&e.Tx), []byte(" "), 2)[0]))
 		e.operationSet = true
 	}
 	return e.operation
+}
+
+// extractParameters returns the string following the command
+func (e *EventWrapper) extractParameters() string {
+	b := getFragment(&e.Tx)
+	idxParam := bytes.IndexByte(b, ' ') // trim the string to a space, it will give the parameter
+	if idxParam == -1 {
+		return EmptyParameters
+	}
+	idxParam++
+
+	idxEnd := bytes.IndexByte(b[idxParam:], '\x00') // trim trailing nulls
+	if idxEnd == 0 {
+		return EmptyParameters
+	}
+	if idxEnd != -1 {
+		return string(b[idxParam : idxParam+idxEnd])
+	}
+	return string(b[idxParam:])
 }
 
 var re = regexp.MustCompile(`(?i)if\s+exists`)
 
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	fragment := string(e.Tx.getFragment())
+	fragment := string(getFragment(&e.Tx))
 	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
 	// it from the fragment if found.
 	fragment = re.ReplaceAllString(fragment, "")
@@ -96,14 +121,18 @@ func (e *EventWrapper) extractTableName() string {
 
 }
 
-// TableName returns the name of the table the query is operating on.
-func (e *EventWrapper) TableName() string {
-	if !e.tableNameSet {
-		e.tableName = e.extractTableName()
-		e.tableNameSet = true
+// Parameters returns the table name or run-time parameter.
+func (e *EventWrapper) Parameters() string {
+	if !e.parametersSet {
+		if e.operation == ShowOP {
+			e.parameters = e.extractParameters()
+		} else {
+			e.parameters = e.extractTableName()
+		}
+		e.parametersSet = true
 	}
 
-	return e.tableName
+	return e.parameters
 }
 
 // RequestLatency returns the latency of the request in nanoseconds
@@ -124,6 +153,6 @@ ebpfTx{
 // String returns a string representation of the underlying event
 func (e *EventWrapper) String() string {
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf(template, e.Operation(), e.TableName(), e.RequestLatency()))
+	output.WriteString(fmt.Sprintf(template, e.Operation(), e.Parameters(), e.RequestLatency()))
 	return output.String()
 }

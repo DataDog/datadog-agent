@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -70,25 +71,30 @@ func (ws WorkloadSelector) ToTags() []string {
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
+	model.CGroupContext
 	model.ContainerContext
 	sync.RWMutex
 	Deleted          *atomic.Bool
 	WorkloadSelector WorkloadSelector
-	PIDs             map[uint32]int8
+	PIDs             map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID string, cgroupFlags uint64, pids ...uint32) (*CacheEntry, error) {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
-		ContainerContext: model.ContainerContext{
-			ID: id,
+		CGroupContext: model.CGroupContext{
+			CGroupID:    containerutils.GetCgroupFromContainer(containerutils.ContainerID(containerID), containerutils.CGroupFlags(cgroupFlags)),
+			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
 		},
-		PIDs: make(map[uint32]int8, 10),
+		ContainerContext: model.ContainerContext{
+			ContainerID: containerutils.ContainerID(containerID),
+		},
+		PIDs: make(map[uint32]bool, 10),
 	}
 
 	for _, pid := range pids {
-		newCGroup.PIDs[pid] = 1
+		newCGroup.PIDs[pid] = true
 	}
 	return &newCGroup, nil
 }
@@ -121,7 +127,7 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs[pid] = 1
+	cgce.PIDs[pid] = true
 }
 
 // SetTags sets the tags for the provided workload
@@ -150,5 +156,5 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
+	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

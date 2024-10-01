@@ -40,7 +40,7 @@ func Command() []*cobra.Command {
 	selftestsCmd := &cobra.Command{
 		Use:   "selftests",
 		Short: "run selftests against the tracer",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			var err error
 			if params.exec.enabled {
 				err = errors.Join(err, selftestExec(&params.exec))

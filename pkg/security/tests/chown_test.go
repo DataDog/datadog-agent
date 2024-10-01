@@ -82,7 +82,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(200), event.Chown.GID, "wrong user")
@@ -97,6 +97,8 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	})
 
@@ -126,6 +128,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.path")
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	})
 
@@ -165,6 +170,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.path")
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	}))
 
@@ -191,6 +199,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.path")
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	}))
 
@@ -213,6 +224,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.path")
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	}))
 
@@ -235,6 +249,9 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chown.path")
+			validateSyscallContext(t, event, "$.syscall.chown.uid")
+			validateSyscallContext(t, event, "$.syscall.chown.gid")
 		})
 	}))
 
@@ -250,7 +267,7 @@ func TestChown(t *testing.T) {
 				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, _ *rules.Rule) {
 			t.Error("Event received")
 		})
 	})

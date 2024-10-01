@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -236,6 +237,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsVersion:      osVersion,
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
+		Integration:    common.SnmpIntegrationName,
 	}
 }
 
@@ -414,7 +416,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 }
 
 //nolint:revive // TODO(NDM) Fix revive linter
-func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, _ []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no cdp_remote indexes found")

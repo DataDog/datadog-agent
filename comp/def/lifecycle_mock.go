@@ -10,16 +10,20 @@ package compdef
 
 import (
 	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestLifecycle is a testing spy for fx.Lifecycle
 type TestLifecycle struct {
 	hooks []Hook
+	t     *testing.T
 }
 
 // NewTestLifecycle returns a lifecycle for testing
-func NewTestLifecycle() *TestLifecycle {
-	return &TestLifecycle{}
+func NewTestLifecycle(t *testing.T) *TestLifecycle {
+	return &TestLifecycle{t: t}
 }
 
 // Append adds a hook to the lifecycle
@@ -49,4 +53,9 @@ func (t *TestLifecycle) Stop(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// AssertHooksNumber asserts that the TestLifecycle contains the given number of hooks
+func (t *TestLifecycle) AssertHooksNumber(expectedNumber int) {
+	assert.Len(t.t, t.hooks, expectedNumber, "Wrong number of expected hooks")
 }

@@ -209,7 +209,6 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	expected := map[string]struct{}{
-		"datadog.trace_agent.started":                          {},
 		"datadog.trace_agent.heartbeat":                        {},
 		"datadog.trace_agent.heap_alloc":                       {},
 		"datadog.trace_agent.cpu_percent":                      {},

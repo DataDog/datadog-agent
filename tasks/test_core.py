@@ -4,9 +4,12 @@ import abc
 import json
 import os
 from collections import defaultdict
+from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import running_in_ci
 from tasks.modules import DEFAULT_MODULES, GoModule
 
 
@@ -113,6 +116,9 @@ class ModuleTestResult(ModuleResult):
                     else:
                         for name in sorted(tests):
                             failure_string += f"- {package} {name}\n"
+
+                            if running_in_ci():
+                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
             else:
                 failure_string += "The test command failed, but no test failures detected in the result json."
 
@@ -120,7 +126,7 @@ class ModuleTestResult(ModuleResult):
 
 
 def test_core(
-    modules: list[GoModule],
+    modules: Iterable[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
@@ -160,7 +166,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:
@@ -191,7 +197,7 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results: dict[str, dict[str, list[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """

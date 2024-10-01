@@ -10,18 +10,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetIPCServerAddressPort(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
-		config.Mock(t)
+		configmock.New(t)
 		_, _, enabled := getIPCServerAddressPort()
 		require.False(t, enabled)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 1234)
 
 		host, hostPort, enabled := getIPCServerAddressPort()
@@ -31,7 +31,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 0)
 
 		_, _, enabled := getIPCServerAddressPort()

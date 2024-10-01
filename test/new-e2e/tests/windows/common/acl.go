@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"slices"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
@@ -338,7 +337,7 @@ func GetSecurityInfoForPath(host *components.RemoteHost, path string) (ObjectSec
 	}
 
 	// Get the ACL information
-	cmd := fmt.Sprintf(`$ErrorActionPreference = 'Stop'; . %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
+	cmd := fmt.Sprintf(`. %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return s, err
@@ -362,7 +361,7 @@ func GetServiceSecurityInfo(host *components.RemoteHost, serviceName string) (Ob
 	}
 
 	// Get the ACL information
-	cmd := fmt.Sprintf(`$ErrorActionPreference = 'Stop'; . %s; GetServiceSDDL('%s') | ConvertTo-ServiceSecurityDTO`, aclHelpersPath, serviceName)
+	cmd := fmt.Sprintf(`. %s; GetServiceSDDL('%s') | ConvertTo-ServiceSecurityDTO`, aclHelpersPath, serviceName)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return s, err
@@ -396,9 +395,9 @@ func NewInheritSecurityInfo(owner Identity, group Identity, access []AccessRule)
 	}
 }
 
-// ContainsRuleForIdentity returns true if the list contains a rule for the given identity
-func ContainsRuleForIdentity[T AuthorizationRuleWithRights](acl []T, identity Identity) bool {
-	return slices.ContainsFunc(acl, func(rule T) bool {
+// FilterRulesForIdentity returns the rules that match the given identity
+func FilterRulesForIdentity[T AuthorizationRuleWithRights](acl []T, identity Identity) []T {
+	return Filter(acl, func(rule T) bool {
 		return rule.GetAuthorizationRule().Identity.Equal(identity)
 	})
 }

@@ -13,15 +13,15 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -38,8 +38,8 @@ func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error)
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
 		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
-		fxutil.Test[log.Component](t, logimpl.MockModule()),
-		&serializer.MockSerializer{},
+		logmock.New(t),
+		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
 	)
@@ -126,7 +126,7 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	// check that no Payload was send since LastCollect is recent
-	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
+	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 }
 
 func TestCollectStartupTime(t *testing.T) {
@@ -136,7 +136,7 @@ func TestCollectStartupTime(t *testing.T) {
 	createdAt := time.Now().Add(2 * time.Minute)
 	i.createdAt = createdAt
 
-	serializerMock := i.serializer.(*serializer.MockSerializer)
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	duration := 1 * time.Minute
 
 	interval := i.collect(context.Background())
@@ -149,7 +149,7 @@ func TestCollectStartupTime(t *testing.T) {
 	})
 
 	// reset serializer mock
-	serializerMock = &serializer.MockSerializer{}
+	serializerMock = serializermock.NewMetricSerializer(t)
 
 	serializerMock.On(
 		"SendMetadata",
@@ -172,7 +172,7 @@ func TestCollect(t *testing.T) {
 	// Ensure calls to collect do not fail the check for createdAt
 	i.createdAt = time.Now().Add(-2 * time.Minute)
 
-	serializerMock := i.serializer.(*serializer.MockSerializer)
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 
 	// testing collect with LastCollect > MaxInterval
 
@@ -192,17 +192,17 @@ func TestCollect(t *testing.T) {
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	assert.False(t, i.LastCollect.Before(now))
-	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
+	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 
 	// testing collect with LastCollect between MinInterval and MaxInterval
 
 	// reset serializer mock and test that a new call to Collect doesn't trigger a new payload
-	serializerMock = &serializer.MockSerializer{}
+	serializerMock = serializermock.NewMetricSerializer(t)
 	i.serializer = serializerMock
 
 	i.LastCollect = time.Now().Add(-i.MinInterval + 1*time.Second)
 	i.collect(context.Background())
-	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
+	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 
 	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
 
@@ -219,6 +219,6 @@ func TestCollect(t *testing.T) {
 		})).Return(nil)
 
 	i.collect(context.Background())
-	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
+	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 	assert.False(t, i.forceRefresh.Load())
 }

@@ -1,0 +1,73 @@
+# To limit exposure to denial of service attacks, change the host in endpoints below from 0.0.0.0 to a specific network interface.
+# See https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/security-best-practices.md#safeguards-against-denial-of-service-attacks
+
+extensions:
+  health_check:
+    endpoint: localhost:13133
+  pprof:
+    endpoint: localhost:1777
+  zpages:
+    endpoint: localhost:55679
+  ddflare:
+    endpoint: localhost:7777
+
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+    # Collect own metrics
+  prometheus:
+    config:
+      scrape_configs:
+      - job_name: 'otel-collector'
+        scrape_interval: 10s
+        static_configs:
+        - targets: ['0.0.0.0:8888']
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: ".*grpc_io.*"
+          action: drop
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${DD_API_KEY}
+      site: ${DD_SITE}
+processors:
+  infraattributes:
+  batch:
+  # using the sampler
+  probabilistic_sampler:
+    sampling_percentage: 30
+connectors:
+  # Use datadog connector to compute stats for pre-sampled traces
+  datadog/connector:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      peer_tags_aggregation: true
+service:
+  extensions: [health_check, pprof, zpages, ddflare]
+  pipelines:
+    traces: # this pipeline computes APM stats
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog/connector]
+    traces/sampling: # this pipeline uses sampling and sends traces
+      receivers: [otlp]
+      processors: [probabilistic_sampler, infraattributes,batch]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, datadog/connector, prometheus]
+      processors: [infraattributes,batch]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes, batch]
+      exporters: [datadog]

@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes, `out.host` and `dns.hostname`. This will improve coverage of inferred services because some tracer integrations only place the peer hostname in one of those attributes. 

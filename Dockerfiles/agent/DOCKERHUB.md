@@ -4,7 +4,7 @@
 
 ## Supported versions
 
-#### Agent 7
+#### Agent
 
 The Datadog agent, including a Python 3 interpreter for Python checks.
 
@@ -13,16 +13,6 @@ Relevant tags are:
 - `7` , `7-jmx` : use these if you want to track the latest `7` minor release, without breaking change.
 - `7.X.X` , `7.X.X-jmx` : use these if you want to pin the agent to a precise version (don't forget to upgrade regularly for the latest features).
 - `latest` , `latest-jmx` : use these for following the latest agent release, but keep in mind that it will update automatically to the next major release, which will have breaking changes. Major releases are very infrequent (less than one per year).
-
-#### Agent 6
-
-The Datadog agent, including a Python 2 interpreter for Python checks. Note that Python 2 EOL is set for January 1, 2020.
-
-Relevant tags are:
-
-- `6` , `6-jmx`
-- `6.X.X` , `6.X.X-jmx`
-- `latest-py2` , `latest-py2-jmx`
 
 ## Image variants
 

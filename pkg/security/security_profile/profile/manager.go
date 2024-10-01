@@ -28,10 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -181,15 +181,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
 	}
 
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		m.providers = append(m.providers, rcProvider)
-	}
-
 	m.initMetricsMap()
 
 	// register the manager to the provider(s)
@@ -321,7 +312,7 @@ func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload 
 
 	// check if this instance of this workload is already tracked
 	for _, w := range profile.Instances {
-		if w.ID == workload.ID {
+		if w.ContainerID == workload.ContainerID {
 			// nothing to do, leave
 			return
 		}
@@ -343,7 +334,7 @@ func (m *SecurityProfileManager) UnlinkProfile(profile *SecurityProfile, workloa
 
 	// remove the workload from the list of instances of the Security Profile
 	for key, val := range profile.Instances {
-		if workload.ID == val.ID {
+		if workload.ContainerID == val.ContainerID {
 			profile.Instances = append(profile.Instances[0:key], profile.Instances[key+1:]...)
 			break
 		}
@@ -371,7 +362,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		profile.Lock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
-			if instance.ID == id {
+			if instance.ContainerID == containerutils.ContainerID(id) {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.versionContexts[imageTag]
 				if ok { // should always be the case
@@ -649,11 +640,11 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.profileCookie); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.profileCookie); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
@@ -662,10 +653,10 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 		return
 	}
 
-	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Delete([]byte(workload.ContainerID)); err != nil {
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 	}
-	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
@@ -685,6 +676,7 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 
 	filename := profile.Metadata.Name + ".profile"
 	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+	tmpOutputPath := outputPath + ".tmp"
 
 	// create output directory and output file, truncate existing file if a profile already exists
 	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
@@ -692,18 +684,22 @@ func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error 
 		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
 	}
 
-	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	file, err := os.OpenFile(tmpOutputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
 	if err != nil {
 		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
 	}
 	defer file.Close()
 
-	if _, err = file.Write(raw); err != nil {
-		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	if _, err := file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", tmpOutputPath, err)
 	}
 
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpOutputPath, outputPath); err != nil {
+		return fmt.Errorf("couldn't rename profile file [%s] to [%s]: %w", tmpOutputPath, outputPath, err)
 	}
 
 	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)

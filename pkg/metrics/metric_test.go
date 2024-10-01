@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,7 @@ func TestAPIMetricTypeMarshal(t *testing.T) {
 			`{"type":"rate"}`,
 		},
 	} {
-		t.Run(fmt.Sprintf(tc.Out), func(t *testing.T) {
+		t.Run(tc.Out, func(t *testing.T) {
 			out, err := json.Marshal(tc.In)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.Out, string(out))

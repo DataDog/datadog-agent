@@ -44,6 +44,14 @@ type FailedConn struct {
 	Reason    uint32
 	Pad_cgo_0 [4]byte
 }
+type SkpConn struct {
+	Sk  uint64
+	Tup ConnTuple
+}
+type PidTs struct {
+	Tgid      uint64
+	Timestamp uint64
+}
 type Batch struct {
 	C0        Conn
 	C1        Conn
@@ -55,16 +63,21 @@ type Batch struct {
 	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_failed_connect          uint64
-	Tcp_sent_miscounts          uint64
-	Unbatched_tcp_close         uint64
-	Unbatched_udp_close         uint64
-	Udp_sends_processed         uint64
-	Udp_sends_missed            uint64
-	Udp_dropped_conns           uint64
-	Double_flush_attempts_close uint64
-	Unsupported_tcp_failures    uint64
-	Skip_new_conn_create        uint64
+	Tcp_failed_connect              uint64
+	Tcp_sent_miscounts              uint64
+	Unbatched_tcp_close             uint64
+	Unbatched_udp_close             uint64
+	Udp_sends_processed             uint64
+	Udp_sends_missed                uint64
+	Udp_dropped_conns               uint64
+	Double_flush_attempts_close     uint64
+	Double_flush_attempts_done      uint64
+	Unsupported_tcp_failures        uint64
+	Tcp_done_missing_pid            uint64
+	Tcp_connect_failed_tuple        uint64
+	Tcp_done_failed_tuple           uint64
+	Tcp_finish_connect_failed_tuple uint64
+	Tcp_close_target_failures       uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -76,12 +89,12 @@ type PIDFD struct {
 	Fd  uint32
 }
 type UDPRecvSock struct {
-	Sk  *_Ctype_struct_sock
-	Msg *_Ctype_struct_msghdr
+	Sk  uint64
+	Msg uint64
 }
 type BindSyscallArgs struct {
-	Addr *_Ctype_struct_sockaddr
-	Sk   *_Ctype_struct_sock
+	Addr uint64
+	Sk   uint64
 }
 type ProtocolStack struct {
 	Api         uint8

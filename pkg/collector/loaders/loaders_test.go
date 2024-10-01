@@ -13,9 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type LoaderOne struct{}
@@ -25,7 +27,7 @@ func (lo LoaderOne) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lo LoaderOne) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -37,7 +39,7 @@ func (lt LoaderTwo) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt LoaderTwo) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -49,24 +51,31 @@ func (lt *LoaderThree) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager) (check.Loader, error) { return l1, nil }
+	factory1 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+		return l1, nil
+	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager) (check.Loader, error) { return l2, nil }
+	factory2 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+		return l2, nil
+	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager) (check.Loader, error) { return l3, errors.New("error") }
+	factory3 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+		return l3, errors.New("error")
+	}
 
 	RegisterLoader(20, factory1)
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	require.Len(t, LoaderCatalog(senderManager), 2)
-	assert.Equal(t, l1, LoaderCatalog(senderManager)[1])
-	assert.Equal(t, l2, LoaderCatalog(senderManager)[0])
+	logReceiver := optional.NewNoneOption[integrations.Component]()
+	require.Len(t, LoaderCatalog(senderManager, logReceiver), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver)[0])
 }

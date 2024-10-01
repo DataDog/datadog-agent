@@ -18,7 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -87,9 +88,8 @@ func TestGetContainerIDForPID(t *testing.T) {
 	// TODO(components): this test needs to rely on a workloadmeta.Component mock
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		config.MockModule(),
-		logimpl.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	collector := dockerCollector{

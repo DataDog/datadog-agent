@@ -32,10 +32,9 @@ struct syscall_table_key_t {
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
-    u8 discarded;
+    enum SYSCALL_STATE state;
     u8 async;
     u32 ctx_id;
-
     struct dentry_resolver_input_t resolver;
 
     union {
@@ -214,6 +213,10 @@ struct syscall_cache_t {
             struct path *path;
             struct file_t file;
         } chdir;
+
+        struct {
+            u32 auid;
+        } login_uid;
     };
 };
 

@@ -21,7 +21,7 @@ var helperCurrentConnection *agentmodel.Connection
 func helperCleanup(t *testing.T) {
 	t.Cleanup(func() {
 		if t.Failed() {
-			t.Logf(krpretty.Sprintf("test failed on host %s at connection %# v", helperCurrentHostname, helperCurrentConnection))
+			t.Log(krpretty.Sprintf("test failed on host %s at connection %# v", helperCurrentHostname, helperCurrentConnection))
 		}
 	})
 }

@@ -47,5 +47,26 @@ namespace Datadog.CustomActions.Native
 
             return new RegistryKey(key);
         }
+
+        /// <summary>
+        /// Delete key if it is empty.
+        /// </summary>
+        /// <remarks>
+        /// https://learn.microsoft.com/en-us/dotnet/api/microsoft.win32.registrykey.deletesubkey
+        /// </remarks>
+        public void DeleteSubKey(Registries registry, string path)
+        {
+            var key = registry switch
+            {
+                Registries.LocalMachine => Registry.LocalMachine,
+                _ => null
+            };
+
+            if (key == null)
+            {
+                return;
+            }
+            key.DeleteSubKey(path, false);
+        }
     }
 }

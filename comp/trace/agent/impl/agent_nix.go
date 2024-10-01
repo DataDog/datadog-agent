@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package agent
+package agentimpl
 
 import (
 	"context"

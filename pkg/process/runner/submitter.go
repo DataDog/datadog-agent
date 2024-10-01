@@ -19,7 +19,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -92,22 +92,22 @@ type CheckSubmitter struct {
 func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
-		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
-		queueBytes = ddconfig.DefaultProcessQueueBytes
+		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
+		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
 	queueSize := config.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
-		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
-		queueSize = ddconfig.DefaultProcessQueueSize
+		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, pkgconfigsetup.DefaultProcessQueueSize)
+		queueSize = pkgconfigsetup.DefaultProcessQueueSize
 	}
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
 	rtQueueSize := config.GetInt("process_config.rt_queue_size")
 	if rtQueueSize <= 0 {
-		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
-		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
+		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, pkgconfigsetup.DefaultProcessRTQueueSize)
+		rtQueueSize = pkgconfigsetup.DefaultProcessRTQueueSize
 	}
 	// reuse main queue's ProcessQueueBytes because it's unlikely that it'll reach to that size in bytes, so we don't need a separate config for it
 	rtProcessResults := api.NewWeightedQueue(rtQueueSize, int64(queueBytes))
@@ -408,6 +408,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
+		extraHeaders.Set(headers.PayloadSource, flavor.GetFlavor())
 
 		switch name {
 		case checks.ProcessEventsCheckName:

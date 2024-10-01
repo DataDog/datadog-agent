@@ -20,6 +20,6 @@ const (
 )
 
 // Factory is used to create register the check and initialize it.
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(_ workloadmeta.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }

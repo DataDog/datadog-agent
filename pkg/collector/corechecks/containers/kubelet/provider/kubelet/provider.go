@@ -165,7 +165,7 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
 		if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
-			return
+			continue
 		}
 		tags := p.MetricTags(metric)
 		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
@@ -178,7 +178,12 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
 	for _, metric := range metricFam.Samples {
-		cID := common.GetContainerID(p.store, metric.Metric, p.filter)
+		cID, err := common.GetContainerID(p.store, metric.Metric, p.filter)
+
+		if err == common.ErrContainerExcluded {
+			log.Debugf("Skipping excluded container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
+			continue
+		}
 
 		tags, _ := tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {

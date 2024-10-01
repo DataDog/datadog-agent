@@ -49,6 +49,9 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+- How-to:
+  - Go:
+    - Add module: how-to/go/add-module.md
 - Components:
   - Overview: components/overview.md
   - Components:

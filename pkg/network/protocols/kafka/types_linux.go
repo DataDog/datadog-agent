@@ -5,6 +5,7 @@ package kafka
 
 const (
 	TopicNameBuckets = 0xa
+	TopicNameMaxSize = 0x50
 )
 
 type ConnTuple struct {
@@ -31,12 +32,15 @@ type KafkaTransactionKey struct {
 }
 type KafkaTransaction struct {
 	Request_started     uint64
+	Response_last_seen  uint64
 	Records_count       uint32
 	Request_api_key     uint8
 	Request_api_version uint8
 	Topic_name_size     uint8
 	Tags                uint8
 	Topic_name          [80]byte
+	Error_code          int8
+	Pad_cgo_0           [7]byte
 }
 
 type KafkaResponseContext struct {
@@ -44,6 +48,7 @@ type KafkaResponseContext struct {
 	State                       uint8
 	Remainder                   uint8
 	Varint_position             uint8
+	Partition_error_code        int8
 	Partition_state             uint8
 	Remainder_buf               [4]int8
 	Record_batches_num_bytes    int32
@@ -54,8 +59,10 @@ type KafkaResponseContext struct {
 	Varint_value                uint32
 	Record_batches_arrays_idx   uint32
 	Record_batches_arrays_count uint32
+	Pad_cgo_0                   [4]byte
 }
 
 type RawKernelTelemetry struct {
-	Name_size_buckets [10]uint64
+	Topic_name_size_buckets  [10]uint64
+	Produce_no_required_acks uint64
 }

@@ -58,6 +58,7 @@ func NewMetricsRetriever(refreshPeriod, metricsMaxAge int64, processor autoscale
 func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting MetricsRetriever")
 	tickerRefreshProcess := time.NewTicker(time.Duration(mr.refreshPeriod) * time.Second)
+	defer tickerRefreshProcess.Stop()
 	for {
 		select {
 		case <-tickerRefreshProcess.C:
@@ -154,13 +155,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				datadogMetricFromStore.Value = queryResult.Value
 				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
-				// If we get a valid but old metric, flag it as invalid
-				maxAge := datadogMetric.MaxAge
-				if maxAge == 0 {
-					maxAge = time.Duration(mr.metricsMaxAge) * time.Second
-				}
-
-				if time.Duration(currentTime.Unix()-queryResult.Timestamp)*time.Second <= maxAge {
+				if !datadogMetricFromStore.IsStale(mr.metricsMaxAge, currentTime.Unix(), 0) {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
 				} else {

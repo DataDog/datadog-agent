@@ -86,14 +86,19 @@ type MutatingWebhook interface {
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
 func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []MutatingWebhook {
+	// Note: the auto_instrumentation pod injection filter is used across
+	// multiple mutating webhooks, so we add it as a hard dependency to each
+	// of the components that use it via the injectionFilter parameter.
+	injectionFilter := autoinstrumentation.GetInjectionFilter()
+
 	webhooks := []MutatingWebhook{
-		config.NewWebhook(wmeta),
-		tagsfromlabels.NewWebhook(wmeta),
+		config.NewWebhook(wmeta, injectionFilter),
+		tagsfromlabels.NewWebhook(wmeta, injectionFilter),
 		agentsidecar.NewWebhook(),
 		autoscaling.NewWebhook(pa),
 	}
 
-	apm, err := autoinstrumentation.GetWebhook(wmeta)
+	apm, err := autoinstrumentation.NewWebhook(wmeta, injectionFilter)
 	if err == nil {
 		webhooks = append(webhooks, apm)
 	} else {

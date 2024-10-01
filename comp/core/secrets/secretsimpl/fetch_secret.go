@@ -121,6 +121,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	secrets := map[string]secrets.SecretVal{}
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
+		r.tlmSecretUnmarshalError.Inc()
 		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
 	}
 
@@ -128,10 +129,12 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	for _, sec := range secretsHandle {
 		v, ok := secrets[sec]
 		if !ok {
+			r.tlmSecretResolveError.Inc("missing", sec)
 			return nil, fmt.Errorf("secret handle '%s' was not resolved by the secret_backend_command", sec)
 		}
 
 		if v.ErrorMsg != "" {
+			r.tlmSecretResolveError.Inc("error", sec)
 			return nil, fmt.Errorf("an error occurred while resolving '%s': %s", sec, v.ErrorMsg)
 		}
 
@@ -140,6 +143,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		}
 
 		if v.Value == "" {
+			r.tlmSecretResolveError.Inc("empty", sec)
 			return nil, fmt.Errorf("resolved secret for '%s' is empty", sec)
 		}
 		res[sec] = v.Value

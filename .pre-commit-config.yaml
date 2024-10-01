@@ -18,6 +18,16 @@ repos:
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
+  hooks:
+    - id: mypy
+      # Keep in sync with the build image, there's no good way to centralize this.
+      additional_dependencies:
+        - types-pyyaml==6.0.12.20240311
+        - types-requests==2.30.0
+        - types-tabulate==0.9.0.20240106
+        - types-toml==0.10.8.20240310
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
@@ -41,14 +51,7 @@ repos:
       entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
-    - id: govet
-      name: govet
-      description: go vet
-      entry: 'inv linter.go-vet'
-      language: system
-      require_serial: true
-      files: \.go$
-      pass_filenames: false
+      stages: [pre-commit, pre-push]
     - id: copyright
       name: copyright
       description: copyright headers
@@ -64,15 +67,6 @@ repos:
       language: system
       types_or: [c, c++, c#]
       pass_filenames: false
-    - id: clang-format
-      name: clang-format
-      description: clang-format
-      entry: 'inv pre-commit.check-clang-format'
-      language: system
-      require_serial: true
-      pass_filenames: false
-      files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
-      exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
@@ -123,3 +117,10 @@ repos:
       entry: 'inv linter.update-go'
       language: system
       pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate'
+      language: system
+      pass_filenames: false
+      files: .*go\.mod$

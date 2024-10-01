@@ -157,7 +157,7 @@ func fetchAuthToken(config configModel.Reader, tokenCreationAllowed bool) (strin
 	// Read the token
 	authTokenRaw, e := os.ReadFile(authTokenFile)
 	if e != nil {
-		return "", fmt.Errorf("unable to read authentication token file: " + e.Error())
+		return "", fmt.Errorf("unable to read authentication token file: %s", e.Error())
 	}
 
 	// Do some basic validation

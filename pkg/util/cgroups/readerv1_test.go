@@ -41,7 +41,7 @@ func TestReaderV1(t *testing.T) {
 		defaultBaseController: filepath.Join(fakeFsPath, defaultBaseController),
 	}
 
-	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter)
+	r, err := newReaderV1("", fakeMountPoints, defaultBaseController, ContainerFilter, "")
 	r.pidMapper = nil
 	assert.NoError(t, err)
 	assert.NotNil(t, r)

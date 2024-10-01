@@ -74,7 +74,9 @@ def build(
             go_mod=go_mod,
         )
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes='3', static=static, install_path=install_path
+    )
 
     main = "main."
     ld_vars = {
@@ -197,14 +199,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -240,7 +241,7 @@ def build_go_syscall_tester(ctx, build_dir):
     return syscall_tester_exe_file
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True):
+def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
     if flags is None:
         flags = []
     if libs is None:
@@ -257,11 +258,11 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     nw.build(
         inputs=[syscall_tester_c_file],
         outputs=[syscall_tester_exe_file],
-        rule="execlang",
+        rule="exe" + compiler,
         variables={
             "exeflags": flags,
             "exelibs": libs,
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": [f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file
@@ -308,12 +309,16 @@ def build_embed_latency_tools(ctx, static=True):
     ctx.run(f"ninja -f {nf_path}")
 
 
-def ninja_syscall_x86_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
+def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler
+    )
 
 
-def ninja_syscall_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
+def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(
+        ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler
+    )
 
 
 def create_dir_if_needed(dir):
@@ -325,7 +330,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
@@ -336,11 +341,11 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
         ninja_define_ebpf_compiler(nw, arch=arch)
-        ninja_define_exe_compiler(nw)
+        ninja_define_exe_compiler(nw, compiler=compiler)
 
-        ninja_syscall_tester(nw, build_dir, static=static)
+        ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
         if arch == ARCH_AMD64:
-            ninja_syscall_x86_tester(nw, build_dir, static=static)
+            ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
@@ -363,6 +368,7 @@ def build_functional_tests(
     kernel_release=None,
     debug=False,
     skip_object_files=False,
+    syscall_tester_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -374,7 +380,7 @@ def build_functional_tests(
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
             )
-        build_embed_syscall_tester(ctx)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
@@ -382,6 +388,7 @@ def build_functional_tests(
     env["CGO_ENABLED"] = "1"
 
     build_tags = build_tags.split(",")
+    build_tags.append("test")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -515,7 +522,6 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
@@ -529,7 +535,6 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
@@ -585,9 +590,7 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    image_tag = (
-        "ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426"
-    )
+    image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -649,7 +652,7 @@ def generate_cws_documentation(ctx, go_generate=False):
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     with ctx.cd("./pkg/security/secl"):
@@ -660,17 +663,15 @@ def cws_go_generate(ctx):
         # Disable cross generation from windows for now. Need to fix the stringer issue.
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
-        ctx.run("go generate ./...")
+        cmd = "go generate"
+        if verbose:
+            cmd += " -v"
+        ctx.run(cmd + " ./...")
 
     if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-        shutil.copy(
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
         )
 
     ctx.run("go generate ./pkg/security/...")
@@ -723,9 +724,9 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
 
             plugin_opts = " ".join(
                 [
@@ -898,8 +899,8 @@ def sync_secl_win_pkg(ctx):
         ("events.go", None),
         ("args_envs.go", None),
         ("consts_common.go", None),
-        ("consts_other.go", None),
-        ("consts_map_names.go", None),
+        ("consts_windows.go", "consts_win.go"),
+        ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),

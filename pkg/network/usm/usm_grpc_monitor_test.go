@@ -115,7 +115,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	// c is a stream endpoint
 	// a + b are unary endpoints
@@ -443,7 +443,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	// Random string generation is an heavy operation, and it's proportional for the length (15MB)
@@ -525,7 +525,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 }
 
 func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, usmMonitor *Monitor, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	t.Cleanup(http2.CleanHTTP2Maps)
+	t.Cleanup(func() { cleanProtocolMaps(t, "http2", usmMonitor.ebpfProgram.Manager.Manager) })
 	runClientCallback(t, clientCount)
 
 	res := make(map[http.Key]int)

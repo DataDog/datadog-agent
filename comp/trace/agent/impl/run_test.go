@@ -3,21 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agent
+package agentimpl
 
 import (
 	"strings"
 	"testing"
 	"time"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestProfilingConfig(t *testing.T) {
 	tconfig := tracecfg.New()
-	cconfig := coreconfig.Mock(t)
+	cconfig := configmock.New(t)
 	cconfig.SetWithoutSource("apm_config.internal_profiling.enabled", true)
 	cconfig.SetWithoutSource("internal_profiling.extra_tags", "k1:v1 k2:v2")
 	cconfig.SetWithoutSource("internal_profiling.period", 30*time.Second)

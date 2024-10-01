@@ -18,6 +18,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		return 10
 	case metrics.MetricSourceJmxCustom,
 		metrics.MetricSourceActivemq,
+		metrics.MetricSourceAnyscale,
+		metrics.MetricSourceAppgateSDP,
 		metrics.MetricSourceCassandra,
 		metrics.MetricSourceConfluentPlatform,
 		metrics.MetricSourceHazelcast,
@@ -41,6 +43,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNtp,
 		metrics.MetricSourceSystemd,
 		metrics.MetricSourceHelm,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubernetesAPIServer,
 		metrics.MetricSourceKubernetesStateCore,
 		metrics.MetricSourceOrchestrator,
@@ -62,6 +65,74 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		// Python Checks
+		metrics.MetricSourceZenohRouter,
+		metrics.MetricSourceZabbix,
+		metrics.MetricSourceWayfinder,
+		metrics.MetricSourceVespa,
+		metrics.MetricSourceUpsc,
+		metrics.MetricSourceUpboundUxp,
+		metrics.MetricSourceUnifiConsole,
+		metrics.MetricSourceUnbound,
+		metrics.MetricSourceTraefik,
+		metrics.MetricSourceTidb,
+		metrics.MetricSourceSyncthing,
+		metrics.MetricSourceStorm,
+		metrics.MetricSourceStardog,
+		metrics.MetricSourceSpeedtest,
+		metrics.MetricSourceSortdb,
+		metrics.MetricSourceSonarr,
+		metrics.MetricSourceSnmpwalk,
+		metrics.MetricSourceSendmail,
+		metrics.MetricSourceScalr,
+		metrics.MetricSourceRiakRepl,
+		metrics.MetricSourceRedpanda,
+		metrics.MetricSourceRedisenterprise,
+		metrics.MetricSourceRedisSentinel,
+		metrics.MetricSourceRebootRequired,
+		metrics.MetricSourceRadarr,
+		metrics.MetricSourcePurefb,
+		metrics.MetricSourcePurefa,
+		metrics.MetricSourcePuma,
+		metrics.MetricSourcePortworx,
+		metrics.MetricSourcePing,
+		metrics.MetricSourcePihole,
+		metrics.MetricSourcePhpOpcache,
+		metrics.MetricSourcePhpApcu,
+		metrics.MetricSourceOpenPolicyAgent,
+		metrics.MetricSourceOctoprint,
+		metrics.MetricSourceNvml,
+		metrics.MetricSourceNs1,
+		metrics.MetricSourceNnSdwan,
+		metrics.MetricSourceNextcloud,
+		metrics.MetricSourceNeutrona,
+		metrics.MetricSourceNeo4j,
+		metrics.MetricSourceMergify,
+		metrics.MetricSourceLogstash,
+		metrics.MetricSourceLighthouse,
+		metrics.MetricSourceKernelcare,
+		metrics.MetricSourceJfrogPlatformSelfHosted,
+		metrics.MetricSourceHikaricp,
+		metrics.MetricSourceGrpcCheck,
+		metrics.MetricSourceGoPprofScraper,
+		metrics.MetricSourceGnatsdStreaming,
+		metrics.MetricSourceGnatsd,
+		metrics.MetricSourceGitea,
+		metrics.MetricSourceGatekeeper,
+		metrics.MetricSourceFluentbit,
+		metrics.MetricSourceFilemage,
+		metrics.MetricSourceFilebeat,
+		metrics.MetricSourceFiddler,
+		metrics.MetricSourceExim,
+		metrics.MetricSourceEventstore,
+		metrics.MetricSourceEmqx,
+		metrics.MetricSourceCyral,
+		metrics.MetricSourceCybersixgillActionableAlerts,
+		metrics.MetricSourceCloudsmith,
+		metrics.MetricSourceCloudnatix,
+		metrics.MetricSourceCfssl,
+		metrics.MetricSourceBind9,
+		metrics.MetricSourceAwsPricing,
+		metrics.MetricSourceAqua,
 		metrics.MetricSourceKubernetesClusterAutoscaler,
 		metrics.MetricSourceTraefikMesh,
 		metrics.MetricSourceWeaviate,
@@ -153,6 +224,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubelet,
 		metrics.MetricSourceKubernetesState,
 		metrics.MetricSourceKyototycoon,
+		metrics.MetricSourceKyverno,
 		metrics.MetricSourceLighttpd,
 		metrics.MetricSourceLinkerd,
 		metrics.MetricSourceLinuxProcExtras,
@@ -193,6 +265,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceScylla,
 		metrics.MetricSourceSilk,
 		metrics.MetricSourceSinglestore,
+		metrics.MetricSourceSlurm,
 		metrics.MetricSourceSnowflake,
 		metrics.MetricSourceSpark,
 		metrics.MetricSourceSqlserver,
@@ -205,6 +278,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
+		metrics.MetricSourceTibcoEMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -213,6 +287,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
 		metrics.MetricSourceWin32EventLog,
@@ -220,7 +295,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceWindowsService,
 		metrics.MetricSourceWmiCheck,
 		metrics.MetricSourceYarn,
-		metrics.MetricSourceZk:
+		metrics.MetricSourceZk,
+		metrics.MetricSourceAwsNeuron:
 		return 11 // integrationMetrics
 	default:
 		return 0
@@ -640,6 +716,158 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 330
 	case metrics.MetricSourceKubernetesClusterAutoscaler:
 		return 331
+	case metrics.MetricSourceAqua:
+		return 332
+	case metrics.MetricSourceAwsPricing:
+		return 333
+	case metrics.MetricSourceBind9:
+		return 334
+	case metrics.MetricSourceCfssl:
+		return 335
+	case metrics.MetricSourceCloudnatix:
+		return 336
+	case metrics.MetricSourceCloudsmith:
+		return 337
+	case metrics.MetricSourceCybersixgillActionableAlerts:
+		return 338
+	case metrics.MetricSourceCyral:
+		return 339
+	case metrics.MetricSourceEmqx:
+		return 340
+	case metrics.MetricSourceEventstore:
+		return 341
+	case metrics.MetricSourceExim:
+		return 342
+	case metrics.MetricSourceFiddler:
+		return 343
+	case metrics.MetricSourceFilebeat:
+		return 344
+	case metrics.MetricSourceFilemage:
+		return 345
+	case metrics.MetricSourceFluentbit:
+		return 346
+	case metrics.MetricSourceGatekeeper:
+		return 347
+	case metrics.MetricSourceGitea:
+		return 348
+	case metrics.MetricSourceGnatsd:
+		return 349
+	case metrics.MetricSourceGnatsdStreaming:
+		return 350
+	case metrics.MetricSourceGoPprofScraper:
+		return 351
+	case metrics.MetricSourceGrpcCheck:
+		return 352
+	case metrics.MetricSourceHikaricp:
+		return 353
+	case metrics.MetricSourceJfrogPlatformSelfHosted:
+		return 354
+	case metrics.MetricSourceKernelcare:
+		return 355
+	case metrics.MetricSourceLighthouse:
+		return 356
+	case metrics.MetricSourceLogstash:
+		return 357
+	case metrics.MetricSourceMergify:
+		return 358
+	case metrics.MetricSourceNeo4j:
+		return 359
+	case metrics.MetricSourceNeutrona:
+		return 360
+	case metrics.MetricSourceNextcloud:
+		return 361
+	case metrics.MetricSourceNnSdwan:
+		return 362
+	case metrics.MetricSourceNs1:
+		return 363
+	case metrics.MetricSourceNvml:
+		return 364
+	case metrics.MetricSourceOctoprint:
+		return 365
+	case metrics.MetricSourceOpenPolicyAgent:
+		return 366
+	case metrics.MetricSourcePhpApcu:
+		return 367
+	case metrics.MetricSourcePhpOpcache:
+		return 368
+	case metrics.MetricSourcePihole:
+		return 369
+	case metrics.MetricSourcePing:
+		return 370
+	case metrics.MetricSourcePortworx:
+		return 371
+	case metrics.MetricSourcePuma:
+		return 372
+	case metrics.MetricSourcePurefa:
+		return 373
+	case metrics.MetricSourcePurefb:
+		return 374
+	case metrics.MetricSourceRadarr:
+		return 375
+	case metrics.MetricSourceRebootRequired:
+		return 376
+	case metrics.MetricSourceRedisSentinel:
+		return 377
+	case metrics.MetricSourceRedisenterprise:
+		return 378
+	case metrics.MetricSourceRedpanda:
+		return 379
+	case metrics.MetricSourceRiakRepl:
+		return 380
+	case metrics.MetricSourceScalr:
+		return 381
+	case metrics.MetricSourceSendmail:
+		return 382
+	case metrics.MetricSourceSnmpwalk:
+		return 383
+	case metrics.MetricSourceSonarr:
+		return 384
+	case metrics.MetricSourceSortdb:
+		return 385
+	case metrics.MetricSourceSpeedtest:
+		return 386
+	case metrics.MetricSourceStardog:
+		return 387
+	case metrics.MetricSourceStorm:
+		return 388
+	case metrics.MetricSourceSyncthing:
+		return 389
+	case metrics.MetricSourceTidb:
+		return 390
+	case metrics.MetricSourceTraefik:
+		return 391
+	case metrics.MetricSourceUnbound:
+		return 392
+	case metrics.MetricSourceUnifiConsole:
+		return 393
+	case metrics.MetricSourceUpboundUxp:
+		return 394
+	case metrics.MetricSourceUpsc:
+		return 395
+	case metrics.MetricSourceVespa:
+		return 396
+	case metrics.MetricSourceWayfinder:
+		return 397
+	case metrics.MetricSourceZabbix:
+		return 398
+	case metrics.MetricSourceZenohRouter:
+		return 399
+	case metrics.MetricSourceVllm:
+		return 412
+	case metrics.MetricSourceAwsNeuron:
+		return 413
+	case metrics.MetricSourceAnyscale:
+		return 414
+	case metrics.MetricSourceAppgateSDP:
+		return 415
+	case metrics.MetricSourceKubeflow:
+		return 416
+	case metrics.MetricSourceSlurm:
+		return 417
+	case metrics.MetricSourceKyverno:
+		return 418
+	case metrics.MetricSourceTibcoEMS:
+		return 419
 	default:
 		return 0
 	}

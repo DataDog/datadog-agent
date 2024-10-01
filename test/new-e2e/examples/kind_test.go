@@ -55,7 +55,6 @@ func (v *myKindSuite) TestClusterAgentInstalled() {
 		}
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
-	assert.Equal(v.T(), v.Env().Agent.InstallNameLinux, "dda-linux")
 
 	stdout, stderr, err := v.Env().KubernetesCluster.KubernetesClient.
 		PodExec("datadog", clusterAgent.Name, "datadog-cluster-agent", []string{"ls"})

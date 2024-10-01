@@ -26,8 +26,7 @@ func TestLifecycle(t *testing.T) {
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: func() string { return "n/a" },

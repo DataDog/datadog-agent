@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -30,6 +31,7 @@ type KillActionReport struct {
 
 	// internal
 	resolved bool
+	rule     *rules.Rule
 }
 
 // JKillActionReport used to serialize date
@@ -45,13 +47,19 @@ type JKillActionReport struct {
 	TTR        string              `json:"ttr,omitempty"`
 }
 
-// ToJSON marshal the action
-func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
+// IsResolved return if the action is resolved
+func (k *KillActionReport) IsResolved() bool {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	resolved := k.Signal != "SIGKILL" || k.resolved
+	return k.Signal != "SIGKILL" || k.resolved
+}
+
+// ToJSON marshal the action
+func (k *KillActionReport) ToJSON() ([]byte, error) {
+	k.RLock()
+	defer k.RUnlock()
 
 	jk := JKillActionReport{
 		Type:       rules.KillAction,
@@ -69,8 +77,16 @@ func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 
 	data, err := utils.MarshalEasyJSON(jk)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return data, resolved, nil
+	return data, nil
+}
+
+// IsMatchingRule returns true if this action report is targeted at the given rule ID
+func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
+	k.RLock()
+	defer k.RUnlock()
+
+	return k.rule.ID == ruleID
 }

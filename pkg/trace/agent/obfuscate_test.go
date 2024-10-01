@@ -9,6 +9,7 @@ import (
 	"context"
 	"testing"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -20,14 +21,12 @@ import (
 )
 
 func TestNewCreditCardsObfuscator(t *testing.T) {
-	_, ok := pb.MetaHook()
-	assert.False(t, ok)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.CreditCards.Enabled = true
-	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	assert.True(t, a.conf.Obfuscation.CreditCards.Enabled)
 }
 
@@ -93,7 +92,7 @@ func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 		cfg.Features[f] = struct{}{}
 	}
 	cfg.Endpoints[0].APIKey = "test"
-	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}), cancelFunc
+	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent()), cancelFunc
 }
 
 func TestObfuscateConfig(t *testing.T) {
@@ -109,7 +108,7 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
 			agnt.obfuscateSpan(span)
@@ -404,7 +403,7 @@ func BenchmarkCCObfuscation(b *testing.B) {
 	cfg.Obfuscation = &config.ObfuscationConfig{
 		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
 	}
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
 
 	b.ResetTimer()

@@ -15,7 +15,6 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
-from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
 def omnibus_run_task(
@@ -69,12 +68,15 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
-                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
-                if res.ok:
+                try:
+                    ctx.run(cmd, env=env, err_stream=sys.stdout)
                     return
-                if not should_retry_bundle_install(res):
-                    return
-                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+                except UnexpectedExit as e:
+                    if not should_retry_bundle_install(e.result):
+                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        raise
+                    print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        raise Exit('Too many failures while installing omnibus, giving up')
 
 
 def get_omnibus_env(
@@ -88,6 +90,7 @@ def get_omnibus_env(
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
+    custom_config_dir=None,
 ):
     env = load_release_versions(ctx, release_version)
 
@@ -107,13 +110,6 @@ def get_omnibus_env(
         # Only overrides the env var if the value is a non-empty string.
         if value:
             env[key] = value
-
-    if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-        # get certificate and password from ssm
-        pfxfile = get_signing_cert(ctx)
-        pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = str(pfxfile)
-        env['SIGN_PFX_PW'] = str(pfxpass)
 
     if sys.platform == 'darwin':
         # Target MacOS 10.12
@@ -138,18 +134,23 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
 
+    if custom_config_dir:
+        env["OUTPUT_CONFIG_DIR"] = custom_config_dir
+
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
-    if os.environ.get('KUBERNETES_CPU_REQUEST'):
-        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
-    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    if os.environ.get('DEPLOY_AGENT'):
-        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
-    if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
-    if 'INSTALL_DIR' in os.environ:
-        print('Forwarding INSTALL_DIR')
-        env['INSTALL_DIR'] = os.environ.get('INSTALL_DIR')
+    kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
+    if kubernetes_cpu_request:
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
+    env_to_forward = [
+        # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+        'DEPLOY_AGENT',
+        'PACKAGE_ARCH',
+        'INSTALL_DIR',
+    ]
+    for key in env_to_forward:
+        if key in os.environ:
+            env[key] = os.environ[key]
 
     return env
 
@@ -180,6 +181,7 @@ def build(
     pip_config_file="pip.conf",
     host_distribution=None,
     install_directory=None,
+    config_directory=None,
     target_project=None,
 ):
     """
@@ -211,6 +213,7 @@ def build(
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
+        custom_config_dir=config_directory,
     )
 
     if not target_project:
@@ -249,7 +252,7 @@ def build(
         # For instance if git_cache_dir is set to "/git/cache/dir" and install_dir is
         # set to /a/b/c, the cache git repository will be located in
         # /git/cache/dir/a/b/c/.git
-        if install_directory is None:
+        if not install_directory:
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
@@ -286,6 +289,8 @@ def build(
                         )
 
     with timed(quiet=True) as durations['Omnibus']:
+        omni_flavor = env.get('AGENT_FLAVOR')
+        print(f'We are building omnibus with flavor: {omni_flavor}')
         omnibus_run_task(
             ctx=ctx,
             task="build",
@@ -380,3 +385,41 @@ def manifest(
         omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
+    # Collect mime types for all files inside the Agent installation
+    files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
+    for line in files.splitlines():
+        if not line:
+            continue
+        file, file_type = line.split(":")
+        file_type = file_type.strip()
+
+        if platform == "linux":
+            if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
+                continue
+            binary_rpath = ctx.run(f'objdump -x {file} | grep "RPATH"', warn=True, hide=True).stdout
+        else:
+            if file_type != "application/x-mach-binary":
+                continue
+            binary_rpath = ctx.run(f'otool -l {file} | grep -A 2 "RPATH"', warn=True, hide=True).stdout
+
+        if install_path in binary_rpath:
+            new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
+            if platform == "linux":
+                ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+            else:
+                # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
+                # but just in case we're replacing them all.
+                # We're also avoiding unnecessary `install_name_tool` call as much as possible.
+                number_of_rpaths = binary_rpath.count('\n') // 3
+                for _ in range(number_of_rpaths):
+                    exit_code = ctx.run(
+                        f"install_name_tool -rpath {install_path}/embedded/lib @loader_path/{new_rpath}/embedded/lib {file}",
+                        warn=True,
+                        hide=True,
+                    ).exited
+                    if exit_code != 0:
+                        break

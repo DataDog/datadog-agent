@@ -6,6 +6,7 @@ e2e_pre_test:
   stage: e2e_pre_test
   extends: .new_e2e_template
   needs:
+    - !reference [.needs_new_e2e_template]
     - job: publish_fakeintake
       optional: true
   script:
@@ -13,6 +14,6 @@ e2e_pre_test:
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   variables:
-    TEAM: "agent-developer-tools"
+    TEAM: "agent-devx-loops"
     # override to use latest stable agent
     E2E_PIPELINE_ID: ""

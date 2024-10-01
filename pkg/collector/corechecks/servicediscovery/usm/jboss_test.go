@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
 	"io/fs"
 	"testing"
 	"testing/fstest"
-
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
 )
@@ -209,7 +209,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 			if len(tt.location) > 0 {
 				memFs[tt.location] = &fstest.MapFile{Data: []byte(tt.jbossWebXML)}
 			}
-			value, ok := newJbossExtractor(NewDetectionContext(zap.NewNop(), nil, nil, nil)).customExtractWarContextRoot(memFs)
+			value, ok := newJbossExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(memFs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -217,6 +217,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 }
 
 func TestJbossFindDeployedApps(t *testing.T) {
+	sub := MakeTestSubDirFS(t)
 	tests := []struct {
 		name       string
 		args       []string
@@ -229,22 +230,22 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			args: []string{
 				"-Djboss.home.dir=" + jbossTestAppRoot,
 			},
-			domainHome: "" + jbossTestAppRoot + "/standalone",
+			domainHome: jbossTestAppRootAbsolute + "/standalone",
 			expected: []jeeDeployment{
 				{
 					name: "app.ear",
-					path: "" + jbossTestAppRoot + "/standalone/data/content/38/e/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/38/e/content",
 				},
 				{
 					name: "web3.war",
-					path: "" + jbossTestAppRoot + "/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
 				},
 				{
 					name: "web4.war",
-					path: "" + jbossTestAppRoot + "/standalone/data/content/f0/c/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/f0/c/content",
 				},
 			},
-			fs: RealFs{},
+			fs: sub,
 		},
 		{
 			name: "standalone - missing home",
@@ -290,7 +291,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 					path: "" + jbossTestAppRoot + "/domain/servers/server-one/data/content/f0/c/content",
 				},
 			},
-			fs: RealFs{},
+			fs: sub,
 		},
 		{
 			name: "domain- other server group",
@@ -305,7 +306,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 					path: "" + jbossTestAppRoot + "/domain/servers/server-three/data/content/f0/c/content",
 				},
 			},
-			fs: RealFs{},
+			fs: sub,
 		},
 		{
 			name: "domain- server not found",
@@ -315,7 +316,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			},
 			domainHome: "" + jbossTestAppRoot + "/domain/servers/server-four",
 			expected:   nil,
-			fs:         RealFs{},
+			fs:         sub,
 		},
 		{
 			name: "domain- malformed server",
@@ -325,7 +326,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			},
 			domainHome: "" + jbossTestAppRoot + "/domain/servers/server-four",
 			expected:   nil,
-			fs:         RealFs{},
+			fs:         sub,
 		},
 		{
 			name: "domain- missing dir",
@@ -394,7 +395,12 @@ func TestJbossFindDeployedApps(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := newJbossExtractor(NewDetectionContext(zap.NewNop(), tt.args, nil, tt.fs)).findDeployedApps(tt.domainHome)
+			// A sibling directory is used as PWD since the tests uses relative
+			// paths to the app root (../testdata/a).
+			envs := map[string]string{
+				"PWD": "/sibling",
+			}
+			value, ok := newJbossExtractor(NewDetectionContext(tt.args, envs, tt.fs)).findDeployedApps(tt.domainHome)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})

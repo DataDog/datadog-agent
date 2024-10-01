@@ -3,29 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"fmt"
 	"testing"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestExampleStoreSubscribe(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	filter := wmdef.NewFilterBuilder().SetSource(wmdef.SourceRuntime).AddKind(wmdef.KindContainer).Build()
 	ch := s.Subscribe("test", wmdef.NormalPriority, filter)

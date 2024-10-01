@@ -26,13 +26,14 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", expected)
 	}))
 	defer ts.Close()
@@ -87,7 +88,7 @@ func createTestFile(t *testing.T, filename string) string {
 func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
-	confMock := config.Mock(t)
+	confMock := configmock.New(t)
 	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
@@ -96,23 +97,20 @@ func TestRegistryJSON(t *testing.T) {
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
 
-func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
+func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	u, err := url.Parse(URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(u.Host)
 	require.NoError(t, err)
 
-	confMock := config.Mock(t)
 	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
-
-	return confMock
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
 	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap["random_prefix://random_id"] = types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
@@ -121,18 +119,18 @@ func TestGetAgentTaggerList(t *testing.T) {
 		Entities: tagMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
 	defer s.Close()
 
-	setupIPCAddress(t, s.URL)
+	setupIPCAddress(t, configmock.New(t), s.URL)
 
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")
@@ -150,13 +148,13 @@ func TestGetWorkloadList(t *testing.T) {
 		Entities: workloadMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
 	defer s.Close()
 
-	setupIPCAddress(t, s.URL)
+	setupIPCAddress(t, configmock.New(t), s.URL)
 
 	content, err := getAgentWorkloadList()
 	require.NoError(t, err)
@@ -171,7 +169,7 @@ func TestGetWorkloadList(t *testing.T) {
 func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
-	confMock := config.Mock(t)
+	confMock := configmock.New(t)
 	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
@@ -202,6 +200,9 @@ dd_url: https://my-url.com
 process_config:
   enabled: "true"
 `
+	// Setting an unused port to avoid problem when test run next to running Process Agent
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("process_config.cmd_port", 56789)
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		content, err := getProcessAgentFullConfig()
@@ -222,7 +223,7 @@ process_config:
 		srv := httptest.NewServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
-		setupIPCAddress(t, srv.URL)
+		setupIPCAddress(t, cfg, srv.URL)
 
 		content, err := getProcessAgentFullConfig()
 		require.NoError(t, err)
@@ -274,7 +275,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		mock.AssertFileContentMatch("error: process-agent is not running or is unreachable: error collecting data for 'process_discovery_check_output.json': .*", "process_check_output.json")
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
@@ -297,10 +298,10 @@ func TestProcessAgentChecks(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
-		setupIPCAddress(t, srv.URL)
+		setupIPCAddress(t, configmock.New(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
-		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
+		getChecksFromProcessAgent(mock.Fb, getProcessAPIAddressPort)
 
 		mock.AssertFileContent(string(expectedProcessesJSON), "process_check_output.json")
 		mock.AssertFileContent(string(expectedContainersJSON), "container_check_output.json")

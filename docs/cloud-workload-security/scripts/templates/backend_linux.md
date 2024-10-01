@@ -1,6 +1,5 @@
 ---
 title: CSM Threats Linux Events Formats
-kind: documentation
 description: JSON schema documentation of the CSM Threats Linux backend event
 disable_edit: true
 ---

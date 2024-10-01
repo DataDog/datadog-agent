@@ -1,5 +1,5 @@
 import json
-from json.decoder import WHITESPACE
+from json.decoder import WHITESPACE  # type: ignore
 from typing import Any
 
 

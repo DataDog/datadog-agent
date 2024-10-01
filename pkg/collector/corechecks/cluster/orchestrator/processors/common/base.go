@@ -49,6 +49,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Manifests:   manifests,
 		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 	return cm
 }

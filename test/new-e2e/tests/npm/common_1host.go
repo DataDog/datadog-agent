@@ -134,7 +134,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 			return
 		}
 
-		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, hostname string) {
+		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, _ string) {
 			assert.LessOrEqualf(t, len(cnx.Connections), 600, "too many payloads")
 		})
 
@@ -164,12 +164,16 @@ func test1HostFakeIntakeNPMTCPUDPDNS[Env any](v *e2e.BaseSuite[Env], FakeIntake 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
 		assert.NoError(c, err, "GetConnections() errors")
+		if !assert.NotNil(c, cnx, "GetConnections() returned nil ConnectionsAggregator") {
+			return
+		}
+
 		if !assert.NotEmpty(c, cnx.GetNames(), "no connections yet") {
 			return
 		}
 
 		foundDNS := false
-		cnx.ForeachConnection(func(c *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
+		cnx.ForeachConnection(func(c *agentmodel.Connection, _ *agentmodel.CollectorConnections, _ string) {
 			if len(c.DnsStatsByDomainOffsetByQueryType) > 0 {
 				foundDNS = true
 			}

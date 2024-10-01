@@ -70,7 +70,7 @@ func Commands() []*cobra.Command {
 		Short: "Read secrets",
 		Long:  ``,
 		Args:  cobra.MaximumNArgs(1), // 0 when using the provider prefixes option, 1 when reading a file
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(readCmd,
 				fx.Supply(cliParams),

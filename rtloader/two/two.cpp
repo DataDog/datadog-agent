@@ -908,6 +908,11 @@ void Two::setGetHostnameCb(cb_get_hostname_t cb)
     _set_get_hostname_cb(cb);
 }
 
+void Two::setGetHostTagsCb(cb_get_host_tags_t cb)
+{
+    _set_get_host_tags_cb(cb);
+}
+
 void Two::setGetClusternameCb(cb_get_clustername_t cb)
 {
     _set_get_clustername_cb(cb);
@@ -921,6 +926,11 @@ void Two::setGetTracemallocEnabledCb(cb_tracemalloc_enabled_t cb)
 void Two::setLogCb(cb_log_t cb)
 {
     _set_log_cb(cb);
+}
+
+void Two::setSendLogCb(cb_send_log_t cb)
+{
+    _set_send_log_cb(cb);
 }
 
 void Two::setSetCheckMetadataCb(cb_set_check_metadata_t cb)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -39,7 +40,8 @@ var (
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	deps := newServerDeps(b)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",
@@ -75,10 +77,11 @@ func BenchmarkParseMultipleMetric(b *testing.B) {
 
 type ServerDeps struct {
 	fx.In
-	Config config.Component
-	WMeta  optional.Option[workloadmeta.Component]
+	Config    config.Component
+	WMeta     optional.Option[workloadmeta.Component]
+	Telemetry telemetry.Component
 }
 
 func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
-	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModuleV2(), fx.Supply(workloadmeta.NewParams()), fx.Options(options...))
+	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()), fx.Options(options...))
 }

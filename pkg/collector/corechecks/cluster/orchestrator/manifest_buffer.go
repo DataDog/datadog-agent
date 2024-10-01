@@ -50,6 +50,7 @@ type ManifestBufferConfig struct {
 	BufferedManifestEnabled     bool
 	MaxBufferedManifests        int
 	ManifestBufferFlushInterval time.Duration
+	ExtraTags                   []string
 }
 
 // ManifestBuffer is a buffer of manifest sent from all collectors
@@ -76,6 +77,7 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 			BufferedManifestEnabled:     chk.orchestratorConfig.BufferedManifestEnabled,
 			MaxBufferedManifests:        chk.orchestratorConfig.MaxPerMessage,
 			ManifestBufferFlushInterval: chk.orchestratorConfig.ManifestBufferFlushInterval,
+			ExtraTags:                   chk.orchestratorConfig.ExtraTags,
 		},
 		ManifestChan: make(chan interface{}),
 		stopCh:       make(chan struct{}),
@@ -95,6 +97,7 @@ func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 				KubeClusterName:          cb.Cfg.KubeClusterName,
 				MaxPerMessage:            cb.Cfg.MaxPerMessage,
 				MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
+				ExtraTags:                cb.Cfg.ExtraTags,
 			},
 			ClusterID: cb.Cfg.ClusterID,
 		},

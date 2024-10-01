@@ -11,6 +11,7 @@ NB_RETRIES=5
 for i in $(seq 1 $NB_RETRIES); do
     "$@" && exit 0;
     errorcode=$?
+    echo "Attempt #${i} failed with error code ${errorcode}"
     # Don't bother sleeping before exiting with an error
     if [ "$i" -lt $NB_RETRIES ]; then
         sleep $((i ** 2))

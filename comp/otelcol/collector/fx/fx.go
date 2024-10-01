@@ -9,6 +9,7 @@
 package fx
 
 import (
+	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,5 +19,9 @@ import (
 // Module for OTel Agent
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(collectorimpl.NewComponent))
+		fxutil.ProvideComponentConstructor(
+			collectorimpl.NewComponent,
+		),
+		fxutil.ProvideOptional[collector.Component](),
+	)
 }

@@ -17,23 +17,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestMkURL(t *testing.T) {
-	assert.Equal(t, "https://example.com/support/flare/999?api_key=123456", mkURL("https://example.com", "999", "123456"))
-	assert.Equal(t, "https://example.com/support/flare?api_key=123456", mkURL("https://example.com", "", "123456"))
+	assert.Equal(t, "https://example.com/support/flare/999", mkURL("https://example.com", "999"))
+	assert.Equal(t, "https://example.com/support/flare", mkURL("https://example.com", ""))
 }
 
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
-	cfg := fxutil.Test[config.Component](
-		t,
-		config.MockModule(),
-	)
+	cfg := config.NewMock(t)
 
 	testCases := []struct {
 		name        string
@@ -47,8 +43,12 @@ func TestFlareHasRightForm(t *testing.T) {
 				//  * the original flare request URL, which redirects on HEAD to /post-target
 				//  * HEAD /post-target - responds with 200 OK
 				//  * POST /post-target - the final POST
+				if r.Header.Get("DD-API-KEY") != "abcdef" {
+					w.WriteHeader(403)
+					io.WriteString(w, "request missing DD-API-KEY header")
+				}
 
-				if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345?api_key=abcdef" {
+				if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345" {
 					// redirect to /post-target.
 					w.Header().Set("Location", "/post-target")
 					w.WriteHeader(307)
@@ -71,7 +71,7 @@ func TestFlareHasRightForm(t *testing.T) {
 		},
 		{
 			name: "service unavailable",
-			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(503)
 				io.WriteString(w, "path not recognized by httptest server")
 			}),
@@ -97,7 +97,7 @@ func TestFlareHasRightForm(t *testing.T) {
 			if testCase.fail {
 				assert.Error(t, err)
 				expectedErrorMessage := "We couldn't reach the flare backend " +
-					scrubber.ScrubLine(mkURL(ddURL, caseID, apiKey)) +
+					scrubber.ScrubLine(mkURL(ddURL, caseID)) +
 					" via redirects: 503 Service Unavailable"
 				assert.Equal(t, expectedErrorMessage, err.Error())
 			} else {

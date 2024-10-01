@@ -23,9 +23,27 @@ from tasks.libs.types.version import Version
 # The order matters, eg. when fetching matching tags for an Agent 6 entry,
 # tags starting with 6 will be preferred to tags starting with 7.
 COMPATIBLE_MAJOR_VERSIONS = {6: ["6", "7"], 7: ["7"]}
+RELEASE_JSON_FIELDS_TO_UPDATE = [
+    "INTEGRATIONS_CORE_VERSION",
+    "OMNIBUS_SOFTWARE_VERSION",
+    "OMNIBUS_RUBY_VERSION",
+    "MACOS_BUILD_VERSION",
+]
+
+UNFREEZE_REPO_AGENT = "datadog-agent"
+INTERNAL_DEPS_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
+ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
+UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT]
+DEFAULT_BRANCHES = {
+    "omnibus-software": "master",
+    "omnibus-ruby": "datadog-5.5.0",
+    "datadog-agent-macos-build": "master",
+    "datadog-agent": "main",
+}
 
 
-def _load_release_json():
+def load_release_json():
     with open("release.json") as release_json_stream:
         return json.load(release_json_stream, object_pairs_hook=OrderedDict)
 
@@ -274,7 +292,7 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     Updates the release entries in release.json to prepare the next RC or final build.
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
 
     release_entry = release_entry_for(new_version.major)
     print(f"Updating {release_entry} for {new_version}")
@@ -286,7 +304,7 @@ def update_release_json(new_version: Version, max_version: Version):
 
 
 def _get_release_json_value(key):
-    release_json = _load_release_json()
+    release_json = load_release_json()
 
     path = key.split('::')
 
@@ -297,3 +315,44 @@ def _get_release_json_value(key):
         release_json = release_json.get(element)
 
     return release_json
+
+
+def set_new_release_branch(branch):
+    rj = load_release_json()
+
+    rj["base_branch"] = branch
+
+    for nightly in ["nightly", "nightly-a7"]:
+        for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+            rj[nightly][field] = f"{branch}"
+
+    _save_release_json(rj)
+
+
+def generate_repo_data(warning_mode, next_version, release_branch):
+    repos = ["integrations-core"] if warning_mode else ALL_REPOS
+    previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
+    data = {}
+    for repo in repos:
+        branch = release_branch
+        if branch == "main":
+            branch = next_version.branch() if repo == "integrations-core" else DEFAULT_BRANCHES.get(repo, "main")
+        data[repo] = {
+            'branch': branch,
+            'previous_tag': previous_tags.get(repo, ""),
+        }
+    return data
+
+
+def find_previous_tags(build, repos, all_keys):
+    """
+    Finds the previous tags for the given repositories in the release.json file.
+    """
+    tags = {}
+    release_json = load_release_json()
+    for key in all_keys:
+        r = key.casefold().removesuffix("_version").replace("_", "-")
+        repo = next((repo for repo in repos if r in repo), None)
+        if repo:
+            tags[repo] = release_json[build][key]
+    return tags

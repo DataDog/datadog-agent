@@ -35,8 +35,8 @@ type ActivityDumpStorageManager struct {
 	storages     map[config.StorageType]ActivityDumpStorage
 }
 
-// NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
+// NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
+func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
@@ -51,8 +51,8 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	return manager, nil
 }
 
-// NewSecurityAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
+// NewAgentCommandStorageManager returns a new instance of ActivityDumpStorageManager
+func NewAgentCommandStorageManager(cfg *config.Config) (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
 		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}

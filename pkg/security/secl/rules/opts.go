@@ -20,24 +20,18 @@ type VariableProvider interface {
 // VariableProviderFactory describes a function called to instantiate a variable provider
 type VariableProviderFactory func() VariableProvider
 
+// RuleActionPerformedCb describes the callback function called after a rule action is performed
+type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
+
 // Opts defines rules set options
 type Opts struct {
-	RuleSetTag               map[string]eval.RuleSetTagValue
 	SupportedDiscarders      map[eval.Field]bool
 	SupportedMultiDiscarders []*MultiDiscarder
 	ReservedRuleIDs          []RuleID
 	EventTypeEnabled         map[eval.EventType]bool
 	StateScopes              map[Scope]VariableProviderFactory
 	Logger                   log.Logger
-}
-
-// WithRuleSetTag sets the rule set tag with the value of the tag of the rules that belong in this rule set
-func (o *Opts) WithRuleSetTag(tagValue eval.RuleSetTagValue) *Opts {
-	if o.RuleSetTag == nil {
-		o.RuleSetTag = make(map[string]eval.RuleSetTagValue)
-	}
-	o.RuleSetTag[RuleSetTagKey] = tagValue
-	return o
+	ruleActionPerformedCb    RuleActionPerformedCb
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -59,8 +53,8 @@ func (o *Opts) WithEventTypeEnabled(eventTypes map[eval.EventType]bool) *Opts {
 }
 
 // WithReservedRuleIDs set reserved rule ids
-func (o *Opts) WithReservedRuleIDs(ruleIds []RuleID) *Opts {
-	o.ReservedRuleIDs = ruleIds
+func (o *Opts) WithReservedRuleIDs(ruleIDs []RuleID) *Opts {
+	o.ReservedRuleIDs = ruleIDs
 	return o
 }
 
@@ -73,6 +67,12 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 // WithStateScopes set state scopes
 func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
 	o.StateScopes = stateScopes
+	return o
+}
+
+// WithRuleActionPerformedCb sets the rule action performed callback
+func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
+	o.ruleActionPerformedCb = cb
 	return o
 }
 
@@ -92,7 +92,7 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 					return ctx.Event.(*model.Event).ContainerContext
 				})
 			},
-		}).WithRuleSetTag(DefaultRuleSetTagValue)
+		})
 
 	return &ruleOpts
 }

@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
 // NetworkTracer is a factory for NPM's tracer
@@ -17,7 +18,5 @@ var NetworkTracer = module.Factory{
 	Name:             config.NetworkTracerModule,
 	ConfigNamespaces: networkTracerModuleConfigNamespaces,
 	Fn:               createNetworkTracerModule,
-	NeedsEBPF: func() bool {
-		return true
-	},
+	NeedsEBPF:        tracer.NeedsEBPF,
 }

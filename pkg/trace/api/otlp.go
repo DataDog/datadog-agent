@@ -180,6 +180,11 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 	return sampler.PriorityAutoDrop
 }
 
+// SetOTelAttributeTranslator sets the attribute translator to be used by this OTLPReceiver
+func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	o.conf.OTLPReceiver.AttributesTranslator = attrstrans
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
@@ -202,7 +207,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	if !srcok {
 		hostFromMap(rattr, "_dd.hostname")
 	}
-	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
+	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+	_, env := getFirstFromMap(rattr, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
@@ -583,7 +589,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
-		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
+		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
+		if _, env := getFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}

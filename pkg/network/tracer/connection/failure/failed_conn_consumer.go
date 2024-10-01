@@ -40,11 +40,11 @@ type TCPFailedConnConsumer struct {
 }
 
 // NewFailedConnConsumer creates a new TCPFailedConnConsumer
-func NewFailedConnConsumer(eventHandler ddebpf.EventHandler, m *manager.Manager) *TCPFailedConnConsumer {
+func NewFailedConnConsumer(eventHandler ddebpf.EventHandler, m *manager.Manager, maxFailedConnsBuffered uint32) *TCPFailedConnConsumer {
 	return &TCPFailedConnConsumer{
 		eventHandler: eventHandler,
 		closed:       make(chan struct{}),
-		FailedConns:  NewFailedConns(m),
+		FailedConns:  NewFailedConns(m, maxFailedConnsBuffered),
 	}
 }
 
@@ -57,7 +57,7 @@ func (c *TCPFailedConnConsumer) Stop() {
 	c.once.Do(func() {
 		close(c.closed)
 	})
-	c.FailedConns.mapCleaner.Stop()
+	c.FailedConns.connCloseFlushedCleaner.Stop()
 }
 
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {

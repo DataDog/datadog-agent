@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"regexp"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,13 +17,13 @@ import (
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
 	metadataListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return metadataclient.Resource(gvr).List(ctx, options)
@@ -34,11 +33,11 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 		},
 	}
 
-	annotationsExclude := config.Datadog().GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
-	parser, err := newMetadataParser(gvr, annotationsExclude)
+	annotationsExclude := config.GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all resource_annotations_exclude: %v, err:", err)
-		parser, _ = newMetadataParser(gvr, nil)
+		parser, _ = kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	}
 
 	metadataStore := &reflectorStore{
@@ -55,37 +54,4 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 		noResync,
 	)
 	return metadataReflector, metadataStore
-}
-
-type metadataParser struct {
-	gvr               schema.GroupVersionResource
-	annotationsFilter []*regexp.Regexp
-}
-
-func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []string) (objectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return metadataParser{gvr: gvr, annotationsFilter: filters}, nil
-}
-
-func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
-	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
-	id := util.GenerateKubeMetadataEntityID(p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
-
-	return &workloadmeta.KubernetesMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   string(id),
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:        partialObjectMetadata.Name,
-			Namespace:   partialObjectMetadata.Namespace,
-			Labels:      partialObjectMetadata.Labels,
-			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
-		},
-		GVR: p.gvr,
-	}
 }

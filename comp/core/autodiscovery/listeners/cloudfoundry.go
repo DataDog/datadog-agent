@@ -11,10 +11,12 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +51,7 @@ type CloudFoundryService struct {
 var _ Service = &CloudFoundryService{}
 
 // NewCloudFoundryListener creates a CloudFoundryListener
-func NewCloudFoundryListener(Config) (ServiceListener, error) {
+func NewCloudFoundryListener(Config, *telemetry.Store) (ServiceListener, error) {
 	bbsCache, err := cloudfoundry.GetGlobalBBSCache()
 	if err != nil {
 		return nil, err
@@ -194,13 +196,21 @@ func (l *CloudFoundryListener) Stop() {
 	l.stop <- true
 }
 
-// GetServiceID returns the unique entity name linked to that service
-func (s *CloudFoundryService) GetServiceID() string {
-	return s.adIdentifier.String()
+// Equal returns whether the two CloudFoundlyService are equal
+func (s *CloudFoundryService) Equal(o Service) bool {
+	s2, ok := o.(*CloudFoundryService)
+	if !ok {
+		return false
+	}
+
+	return reflect.DeepEqual(s.adIdentifier, s2.adIdentifier) &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
+		reflect.DeepEqual(s.containerIPs, s2.containerIPs) &&
+		reflect.DeepEqual(s.containerPorts, s2.containerPorts)
 }
 
-// GetTaggerEntity returns the unique entity name linked to that service
-func (s *CloudFoundryService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *CloudFoundryService) GetServiceID() string {
 	return s.adIdentifier.String()
 }
 
@@ -237,11 +247,6 @@ func (s *CloudFoundryService) GetHostname(context.Context) (string, error) {
 // IsReady always returns true on CF
 func (s *CloudFoundryService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames always returns empty slice on CF
-func (s *CloudFoundryService) GetCheckNames(context.Context) []string {
-	return []string{}
 }
 
 // HasFilter returns false on CF

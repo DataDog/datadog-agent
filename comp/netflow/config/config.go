@@ -8,10 +8,11 @@ package config
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -33,6 +34,8 @@ type NetflowConfig struct {
 
 	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
+
+	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -57,7 +60,7 @@ type Mapping struct {
 func ReadConfig(conf config.Component, logger log.Component) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
-	err := conf.UnmarshalKey("network_devices.netflow", &mainConfig)
+	err := structure.UnmarshalKey(conf, "network_devices.netflow", &mainConfig)
 	if err != nil {
 		return nil, err
 	}

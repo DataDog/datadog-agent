@@ -11,8 +11,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
@@ -31,9 +29,6 @@ func getDestinationHostname(destinationHost string) string {
 }
 
 func getHostname(ipAddr string) string {
-	// TODO: this reverse lookup appears to have some standard timeout that is relatively
-	// high. Consider switching to something where there is greater control.
-	// Possible solution is to use https://pkg.go.dev/net#Resolver.LookupAddr to specify a context with a timeout.
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -41,7 +36,6 @@ func getHostname(ipAddr string) string {
 	if errors.Is(err, context.Canceled) {
 		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
 	}
-	log.Debugf("Reverse DNS List: %+v", currHostList)
 
 	if len(currHostList) > 0 {
 		// TODO: Reverse DNS: Do we need to handle cases with multiple DNS being returned?

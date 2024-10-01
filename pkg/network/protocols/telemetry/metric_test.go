@@ -14,7 +14,7 @@ import (
 func TestNewMetric(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("different names", func(t *testing.T) {
+	t.Run("different names", func(*testing.T) {
 		Clear()
 		m1 := NewCounter("m1")
 		m2 := NewCounter("m2")
@@ -22,7 +22,7 @@ func TestNewMetric(t *testing.T) {
 		assert.NotEqual(m1, m2)
 	})
 
-	t.Run("same name", func(t *testing.T) {
+	t.Run("same name", func(*testing.T) {
 		Clear()
 		m1 := NewCounter("foo")
 		m2 := NewCounter("foo")
@@ -33,7 +33,7 @@ func TestNewMetric(t *testing.T) {
 		assert.Equal(m1, m2)
 	})
 
-	t.Run("same name and different tags", func(t *testing.T) {
+	t.Run("same name and different tags", func(*testing.T) {
 		Clear()
 		m1 := NewCounter("foo", "name:bar", "cpu:0")
 		m2 := NewCounter("foo", "name:bar", "cpu:1")
@@ -41,7 +41,7 @@ func TestNewMetric(t *testing.T) {
 		assert.NotEqual(m1, m2)
 	})
 
-	t.Run("same name and tags", func(t *testing.T) {
+	t.Run("same name and tags", func(*testing.T) {
 		Clear()
 		// tag ordering doesn't matter
 		m1 := NewCounter("foo", "name:bar", "cpu:0")
@@ -53,7 +53,7 @@ func TestNewMetric(t *testing.T) {
 
 func TestMetricOperations(t *testing.T) {
 	assert := assert.New(t)
-	t.Run("counter metric", func(t *testing.T) {
+	t.Run("counter metric", func(*testing.T) {
 		Clear()
 
 		m1 := NewCounter("m1")

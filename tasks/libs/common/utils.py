@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import traceback
 from collections import Counter
@@ -18,15 +19,12 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+import requests
 from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import (
-    ALLOWED_REPO_ALL_BRANCHES,
-    DEFAULT_BRANCH,
-    REPO_PATH,
-)
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.releasing.version import get_version
@@ -118,7 +116,7 @@ def get_distro():
         with open('/etc/os-release', encoding="utf-8") as f:
             for line in f:
                 if line.startswith('ID='):
-                    system = line.strip()[3:]
+                    system = line.strip().removeprefix('ID=').replace('"', '')
                     break
     return f"{system}_{arch}".lower()
 
@@ -393,7 +391,12 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
-
+        if sys.platform == 'win32':
+            # On Windows we don't have a version in the install_path
+            # so, set the package_version tag in order for Fleet Automation to detect
+            # upgrade in the health check.
+            # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
     return ldflags
 
 
@@ -516,13 +519,18 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False):
+def gitlab_section(section_name, collapsed=False, echo=False):
+    """
+    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
+    """
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+        elif echo:
+            print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
@@ -627,7 +635,7 @@ def simple_match(word):
             'helm',
         ],
         "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
-        "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
+        "agent-delivery": ['omnibus', 'packaging', 'script'],
         "remote-config": ['installer', 'oci'],
         "agent-cspm": ['cspm'],
         "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
@@ -689,3 +697,51 @@ def team_to_label(team):
         'asm-go': "agent-security",
     }
     return dico.get(team, team)
+
+
+@contextmanager
+def download_to_tempfile(url, checksum=None):
+    """
+    Download a file from @url to a temporary file and yields the path.
+
+    The temporary file is removed when the context manager exits.
+
+    if @checksum is provided it will be updated with each chunk of the file
+    """
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with os.fdopen(fd, "wb") as f:
+                # fd will be closed by context manager, so we no longer need it
+                fd = None
+                for chunk in r.iter_content(chunk_size=8192):
+                    if checksum:
+                        checksum.update(chunk)
+                    f.write(chunk)
+        yield tmp_path
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def experimental(message):
+    """
+    Marks this task as experimental and prints the message.
+
+    Note: This decorator must be placed after the `task` decorator.
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            fname = f.__name__
+            print(color_message(f"Warning: {fname} is experimental: {message}", Color.ORANGE), file=sys.stderr)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

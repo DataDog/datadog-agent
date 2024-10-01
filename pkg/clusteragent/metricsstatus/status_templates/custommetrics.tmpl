@@ -6,18 +6,6 @@
 
   Data sources
   ------------
-  {{- if .externalmetrics }}
-  {{- if .externalmetrics.client }}
-  URL: {{ .externalmetrics.client.url }}
-  {{- else if .externalmetrics.clients }}
-  {{- range $client := .externalmetrics.clients }}
-  - URL: {{ $client.url }}  [{{ $client.status }}]
-    Last failure: {{ $client.lastFailure }}
-    Last Success: {{ $client.lastSuccess }}
-  {{- end }}
-  {{- end }}
-  {{- end }}
-
   {{ if .custommetrics.NoStatus }}
   {{ .custommetrics.NoStatus }}
   {{ else }}

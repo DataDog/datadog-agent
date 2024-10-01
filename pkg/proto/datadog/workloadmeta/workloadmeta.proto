@@ -135,6 +135,7 @@ message KubernetesPod {
   repeated string kubeServices = 11;
   map<string, string> namespaceLabels = 12;
   repeated OrchestratorContainer InitContainers = 13;
+  string runtimeClass = 14;
 }
 
 enum ECSLaunchType {

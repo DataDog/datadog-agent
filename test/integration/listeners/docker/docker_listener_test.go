@@ -23,49 +23,56 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 type DockerListenerTestSuite struct {
 	suite.Suite
-	compose    utils.ComposeConf
-	listener   listeners.ServiceListener
-	dockerutil *docker.DockerUtil
-	newSvc     chan listeners.Service
-	delSvc     chan listeners.Service
-	stop       chan struct{}
-	m          sync.RWMutex
-	wmeta      workloadmeta.Component
+	compose        utils.ComposeConf
+	listener       listeners.ServiceListener
+	dockerutil     *docker.DockerUtil
+	newSvc         chan listeners.Service
+	delSvc         chan listeners.Service
+	stop           chan struct{}
+	m              sync.RWMutex
+	wmeta          workloadmeta.Component
+	telemetryStore *acTelemetry.Store
 }
 
 type deps struct {
 	fx.In
-	Tagger tagger.Component
-	WMeta  workloadmeta.Component
+	Tagger    tagger.Component
+	WMeta     workloadmeta.Component
+	Telemetry telemetry.Component
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
 	containers.ResetSharedFilter()
 
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
 	overrides := map[string]interface{}{
@@ -78,15 +85,15 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
-			Features:  []config.Feature{config.Docker},
 		}),
-		fx.Supply(workloadmeta.NewParams()),
-		collectors.GetCatalog(),
-		workloadmetafx.Module(),
+		wmcatalog.GetCatalog(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
+	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
+	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
 	require.Nil(suite.T(), err, "can't connect to docker")
 
@@ -101,7 +108,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewOption(suite.wmeta))
+	dl, err := listeners.NewContainerListener(&pkgconfigsetup.Listeners{}, optional.NewOption(suite.wmeta), suite.telemetryStore)
 	if err != nil {
 		panic(err)
 	}

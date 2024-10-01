@@ -304,7 +304,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			name: "only gRPC, disabled logging",
 			env: map[string]string{
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
-				"DD_OTLP_CONFIG_DEBUG_LOGLEVEL":                   "disabled",
+				"DD_OTLP_CONFIG_DEBUG_VERBOSITY":                  "none",
 			},
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{
@@ -325,7 +325,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"apm_stats_receiver_addr": "http://localhost:8126/v0.6/stats",
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 		},
@@ -475,7 +475,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 					"tags": "tag1:value1,tag2:value2",
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "debug",
+					"verbosity": "detailed",
 				},
 			},
 		},
@@ -520,7 +520,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			},
 		},
 		{
-			path:      "debug/loglevel_debug.yaml",
+			path:      "debug/verbosity_detailed.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
@@ -529,7 +529,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				Debug:          map[string]interface{}{"loglevel": "debug"},
+				Debug:          map[string]interface{}{"verbosity": "detailed"},
 				Metrics: map[string]interface{}{
 					"enabled":                 true,
 					"tag_cardinality":         "low",
@@ -538,7 +538,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			},
 		},
 		{
-			path:      "debug/loglevel_disabled.yaml",
+			path:      "debug/verbosity_none.yaml",
 			shouldSet: false,
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
@@ -547,7 +547,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				Debug:          map[string]interface{}{"loglevel": "disabled"},
+				Debug:          map[string]interface{}{"verbosity": "none"},
 				Metrics: map[string]interface{}{
 					"enabled":                 true,
 					"tag_cardinality":         "low",

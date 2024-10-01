@@ -7,6 +7,7 @@
 package fx
 
 import (
+	systemprobe "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	systemprobeimpl "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +18,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			systemprobeimpl.NewComponent,
 		),
+		fxutil.ProvideOptional[systemprobe.Component](),
 	)
 }

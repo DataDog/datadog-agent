@@ -5,13 +5,11 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
 package tracer
 
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"os"
 	"sync"
@@ -22,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,13 +63,6 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 	return cache.exists(c, c.NetNS, int(c.Pid))
 }
 
-func ipFromAddr(a util.Address) netip.Addr {
-	if a.Len() == net.IPv6len {
-		return netip.AddrFrom16(*(*[16]byte)(a.Bytes()))
-	}
-	return netip.AddrFrom4(*(*[4]byte)(a.Bytes()))
-}
-
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
 	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
@@ -90,8 +80,8 @@ func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, p
 
 	conn := netlink.Con{
 		Origin: netlink.ConTuple{
-			Src:   netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
-			Dst:   netip.AddrPortFrom(ipFromAddr(c.Dest), c.DPort),
+			Src:   netip.AddrPortFrom(c.Source.Unmap(), c.SPort),
+			Dst:   netip.AddrPortFrom(c.Dest.Unmap(), c.DPort),
 			Proto: protoNumber,
 		},
 	}

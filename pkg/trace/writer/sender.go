@@ -145,7 +145,6 @@ type sender struct {
 
 	queue      chan *payload // payload queue
 	inflight   *atomic.Int32 // inflight payloads
-	attempt    *atomic.Int32 // active retry attempt
 	maxRetries int32
 
 	mu     sync.RWMutex // guards closed
@@ -159,7 +158,6 @@ func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 		cfg:        cfg,
 		queue:      make(chan *payload, cfg.maxQueued),
 		inflight:   atomic.NewInt32(0),
-		attempt:    atomic.NewInt32(0),
 		maxRetries: int32(cfg.maxRetries),
 		statsd:     statsd,
 	}
@@ -172,15 +170,13 @@ func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 // loop runs the main sender loop.
 func (s *sender) loop() {
 	for p := range s.queue {
-		s.backoff()
 		s.sendPayload(p)
 	}
 }
 
 // backoff triggers a sleep period proportional to the retry attempt, if any.
-func (s *sender) backoff() {
-	attempt := s.attempt.Load()
-	delay := backoffDuration(int(attempt))
+func (s *sender) backoff(attempt int) {
+	delay := backoffDuration(attempt)
 	if delay == 0 {
 		return
 	}
@@ -234,10 +230,22 @@ func (s *sender) Push(p *payload) {
 
 // sendPayload sends the payload p to the destination URL.
 func (s *sender) sendPayload(p *payload) {
+	for attempt := 0; ; attempt++ {
+		s.backoff(attempt)
+		if s.sendOnce(p) {
+			return
+		}
+	}
+}
+
+// sendOnce attempts to send the payload one time, returning
+// whether or not the payload is "finished" either because it was
+// sent, or because sending encountered a non-retryable error.
+func (s *sender) sendOnce(p *payload) bool {
 	req, err := p.httpRequest(s.cfg.url)
 	if err != nil {
 		log.Errorf("http.Request: %s", err)
-		return
+		return true
 	}
 	start := time.Now()
 	err = s.do(req)
@@ -258,9 +266,8 @@ func (s *sender) sendPayload(p *payload) {
 		if s.closed {
 			s.releasePayload(p, eventTypeDropped, stats)
 			// sender is stopped
-			return
+			return true
 		}
-		s.attempt.Inc()
 
 		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 {
 			// Only log a warning if the retry attempt is a power of 2
@@ -272,33 +279,18 @@ func (s *sender) sendPayload(p *payload) {
 			log.Warnf("Dropping Payload after %d retries, due to: %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
-			return
+			return true
 		}
-		select {
-		case s.queue <- p:
-			s.recordEvent(eventTypeRetry, stats)
-			return
-		case <-time.After(10 * time.Millisecond):
-			log.Warnf("Sender queue full. Failed payload dropped after only %d retries, due to %v.\n", p.retries.Load(), err)
-			// queue is full; since this is the oldest payload, we drop it
-			s.releasePayload(p, eventTypeDropped, stats)
-		}
+		s.recordEvent(eventTypeRetry, stats)
+		return false
 	case nil:
-		// request was successful; the retry queue may have grown large - we should
-		// reduce the backoff gradually to avoid hitting the edge too hard.
-		for {
-			// interlock with other sends to avoid setting the same value
-			attempt := s.attempt.Load()
-			if s.attempt.CompareAndSwap(attempt, attempt/2) {
-				break
-			}
-		}
 		s.releasePayload(p, eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
 		log.Warnf("Dropping Payload due to non-retryable error: %v.\n", err)
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
+	return true
 }
 
 // waitForSenders blocks until all senders have sent their inflight payloads

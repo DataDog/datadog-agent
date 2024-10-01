@@ -9,24 +9,29 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 // A Docker client that is connected to an [docker.Deamon].
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	t      *testing.T
-	client *client.Client
+	t        *testing.T
+	client   *client.Client
+	scrubber *scrubber.Scrubber
 }
 
 // NewDocker creates a new instance of Docker
@@ -46,7 +51,7 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, sshOpts)
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
+		return nil, fmt.Errorf("cannot connect to docker %v: %w", deamonURL, err)
 	}
 
 	opts := []client.Opt{
@@ -56,12 +61,13 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 
 	client, err := client.NewClientWithOpts(opts...)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create docker client: %v", err)
+		return nil, fmt.Errorf("cannot create docker client: %w", err)
 	}
 
 	return &Docker{
-		t:      t,
-		client: client,
+		t:        t,
+		client:   client,
+		scrubber: scrubber.NewWithDefaults(),
 	}, nil
 }
 
@@ -82,7 +88,11 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 }
 
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
-func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (string, string, error) {
+func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (stdout string, stderr string, err error) {
+	cmd := strings.Join(commands, " ")
+	scrubbedCommand := docker.scrubber.ScrubLine(cmd) // scrub the command in case it contains secrets
+	docker.t.Logf("Executing command `%s`", scrubbedCommand)
+
 	context := context.Background()
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
@@ -101,19 +111,41 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	execInspectResp, err := docker.client.ContainerExecInspect(context, execCreateResp.ID)
 	require.NoError(docker.t, err)
 
-	output := outBuf.String()
-	errOutput := errBuf.String()
+	stdout = outBuf.String()
+	stderr = errBuf.String()
 
 	if execInspectResp.ExitCode != 0 {
-		return "", "", fmt.Errorf("error when running command %v on container %v: %v %v", commands, containerName, output, errOutput)
+		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
-	return output, errOutput, err
+	return stdout, stderr, err
 }
 
-// GetClient gets the [docker client].
-//
-// [docker client]: https://pkg.go.dev/github.com/docker/docker/client
-func (docker *Docker) GetClient() *client.Client {
-	return docker.client
+// ListContainers returns a list of container names.
+func (docker *Docker) ListContainers() ([]string, error) {
+	containersMap, err := docker.getContainerIDsByName()
+	if err != nil {
+		return nil, err
+	}
+	containerNames := make([]string, 0, len(containersMap))
+	for name := range containersMap {
+		containerNames = append(containerNames, name)
+	}
+	return containerNames, nil
+}
+
+func (docker *Docker) getContainerIDsByName() (map[string]string, error) {
+	containersMap := make(map[string]string)
+	containers, err := docker.client.ContainerList(context.Background(), container.ListOptions{All: true})
+	if err != nil {
+		return containersMap, err
+	}
+	for _, container := range containers {
+		for _, name := range container.Names {
+			// remove leading /
+			name = strings.TrimPrefix(name, "/")
+			containersMap[name] = container.ID
+		}
+	}
+	return containersMap, nil
 }

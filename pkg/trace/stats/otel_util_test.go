@@ -49,7 +49,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		parentSpanID           *pcommon.SpanID
 		spanName               string
 		rattrs                 map[string]string
-		sattrs                 map[string]string
+		sattrs                 map[string]any
 		spanKind               ptrace.SpanKind
 		libname                string
 		spanNameAsResourceName bool
@@ -72,7 +72,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		},
 		{
 			name:     "span with no attributes, everything uses default",
-			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil, true),
+			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil, true, false),
 		},
 		{
 			name:         "non root span with kind internal does not get stats with new top level rules",
@@ -81,11 +81,24 @@ func TestProcessOTLPTraces(t *testing.T) {
 			expected:     &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
 		},
 		{
+			name:         "non root span with kind internal and _dd.measured key gets stats with new top level rules",
+			parentSpanID: &parentID,
+			spanKind:     ptrace.SpanKindInternal,
+			sattrs:       map[string]any{"_dd.measured": int64(1)},
+			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, true),
+		},
+		{
+			name:         "non root span with kind client gets stats with new top level rules",
+			parentSpanID: &parentID,
+			spanKind:     ptrace.SpanKindClient,
+			expected:     createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.client", "http", "client", "", agentHost, agentEnv, "", nil, nil, false, true),
+		},
+		{
 			name:           "non root span with kind internal does get stats with legacy top level rules",
 			parentSpanID:   &parentID,
 			spanKind:       ptrace.SpanKindInternal,
 			legacyTopLevel: true,
-			expected:       createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false),
+			expected:       createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.internal", "custom", "internal", "", agentHost, agentEnv, "", nil, nil, false, false),
 		},
 		{
 			name:     "span with name, service, instrumentation scope and span kind",
@@ -93,16 +106,25 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc"},
 			spanKind: ptrace.SpanKindServer,
 			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil, true),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil, true, false),
 		},
 		{
 			name:     "span with operation name, resource name and env attributes",
 			spanName: "spanname2",
 			rattrs:   map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env"},
-			sattrs:   map[string]string{"operation.name": "op", "resource.name": "res"},
+			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
 			spanKind: ptrace.SpanKindClient,
 			libname:  "spring",
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil, true, false),
+		},
+		{
+			name:     "new env convention",
+			spanName: "spanname2",
+			rattrs:   map[string]string{"service.name": "svc", "deployment.environment.name": "new-env"},
+			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
+			spanKind: ptrace.SpanKindClient,
+			libname:  "spring",
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "new-env", "", nil, nil, true, false),
 		},
 		{
 			name:                   "span operation name from span name with db attribute, peerTagsAggr not enabled",
@@ -110,7 +132,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:                 map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis"},
 			spanKind:               ptrace.SpanKindClient,
 			spanNameAsResourceName: true,
-			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", nil, nil, true),
+			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", nil, nil, true, false),
 		},
 		{
 			name:     "with container tags",
@@ -118,15 +140,15 @@ func TestProcessOTLPTraces(t *testing.T) {
 			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
 			ctagKeys: []string{semconv.AttributeContainerID},
 			spanKind: ptrace.SpanKindClient,
-			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true),
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil, true, false),
 		},
 		{
 			name:               "operation name remapping and resource from http",
 			spanName:           "spanname5",
 			spanKind:           ptrace.SpanKindInternal,
-			sattrs:             map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
+			sattrs:             map[string]any{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
 			spanNameRemappings: map[string]string{"opentelemetry.internal": "internal_op"},
-			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil, true),
+			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil, true, false),
 		},
 		{
 			name:         "with peer tags and peerTagsAggr enabled",
@@ -134,15 +156,15 @@ func TestProcessOTLPTraces(t *testing.T) {
 			spanKind:     ptrace.SpanKindClient,
 			peerTagsAggr: true,
 			rattrs:       map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
-			sattrs:       map[string]string{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
-			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true),
+			sattrs:       map[string]any{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
+			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true, false),
 		},
 
 		{
 			name:      "ignore resource name",
 			spanName:  "spanname7",
 			spanKind:  ptrace.SpanKindClient,
-			sattrs:    map[string]string{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
+			sattrs:    map[string]any{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
 			ignoreRes: []string{"GET /home"},
 			expected:  &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
 		},
@@ -175,7 +197,14 @@ func TestProcessOTLPTraces(t *testing.T) {
 			span.SetName(tt.spanName)
 			span.SetKind(tt.spanKind)
 			for k, v := range tt.sattrs {
-				span.Attributes().PutStr(k, v)
+				switch typ := v.(type) {
+				case int64:
+					span.Attributes().PutInt(k, v.(int64))
+				case string:
+					span.Attributes().PutStr(k, v.(string))
+				default:
+					t.Fatal("unhandled attribute value type ", typ)
+				}
 			}
 
 			conf := config.New()
@@ -192,7 +221,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -254,7 +283,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}
@@ -294,11 +323,15 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 func createStatsPayload(
 	agentEnv, agentHost, svc, operation, typ, kind, resource, tracerHost, env, cid string,
 	ctags, peerTags []string,
-	root bool,
+	root, nonTopLevel bool,
 ) *pb.StatsPayload {
 	traceroot := pb.Trilean_TRUE
 	if !root {
 		traceroot = pb.Trilean_FALSE
+	}
+	var topLevelHits uint64
+	if !nonTopLevel {
+		topLevelHits = 1
 	}
 	return &pb.StatsPayload{
 		AgentEnv:      agentEnv,
@@ -316,7 +349,7 @@ func createStatsPayload(
 						Resource:     resource,
 						Type:         typ,
 						Hits:         1,
-						TopLevelHits: 1,
+						TopLevelHits: topLevelHits,
 						SpanKind:     kind,
 						PeerTags:     peerTags,
 						IsTraceRoot:  traceroot,

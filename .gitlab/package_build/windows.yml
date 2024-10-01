@@ -8,8 +8,6 @@
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
-    - !reference [.setup_ruby_mirror_win]
-    - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
       -m 8192M
@@ -38,7 +36,7 @@
       -e GO_VERSION_CHECK="true"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
+      -e API_KEY_ORG2=${API_KEY_ORG2}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -67,6 +65,7 @@ windows_msi_and_bosh_zip_x64-a7:
     PYTHON_RUNTIMES: "3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
+  timeout: 2h
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
@@ -79,7 +78,7 @@ windows_msi_x64-a6:
     PYTHON_RUNTIMES: "2,3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
-  timeout: 3h
+  timeout: 2h10
 
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
@@ -100,8 +99,6 @@ windows_zip_agent_binaries_x64-a7:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
-    - !reference [.setup_ruby_mirror_win]
-    - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
       -m 8192M
@@ -126,7 +123,7 @@ windows_zip_agent_binaries_x64-a7:
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
+      -e API_KEY_ORG2=${API_KEY_ORG2}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -23,6 +24,10 @@ type windowsHostnameSuite struct {
 }
 
 func TestWindowsHostnameSuite(t *testing.T) {
+	// WINA-1014
+	flake.Mark(t)
+
+	t.Parallel()
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
 	e2e.Run(t, &windowsHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }

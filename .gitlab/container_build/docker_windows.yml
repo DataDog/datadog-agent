@@ -1,31 +1,8 @@
 ---
-.docker_build_windows_job_definition:
-  stage: container_build
-  before_script:
-    - $ErrorActionPreference = "Stop"
-    - mkdir ci-scripts
-    - |
-      @"
-      Set-PSDebug -Trace 1
-      `$ErrorActionPreference = "Stop"
-      # ECR Login
-      `$AWS_ECR_PASSWORD = aws ecr get-login-password --region us-east-1
-      docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      # DockerHub login
-      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name $DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text
-      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
-      docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
-      If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
-      "@ | out-file ci-scripts/docker-login.ps1
-  # Workaround for temporary network failures
-  retry: 2
-
 .docker_build_agent_windows_common:
-  extends:
-    - .docker_build_windows_job_definition
+  stage: container_build
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
   script:
     - $ECR_RELEASE_SUFFIX="$(If ($BUCKET_BRANCH -eq `"nightly`") { `"-nightly`" } elseif ($CI_COMMIT_TAG) { `"-release`" } else { `"`" })"
@@ -45,7 +22,6 @@
 
     - get-childitem ${BUILD_CONTEXT}
     # Docker setup
-    - cat ci-scripts/docker-login.ps1
     - >
       docker run --rm
       -w C:\mnt
@@ -53,10 +29,12 @@
       -e SIGN_WINDOWS_DD_WCS=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e DOCKER_REGISTRY_LOGIN=${DOCKER_REGISTRY_LOGIN}
+      -e DOCKER_REGISTRY_PWD=${DOCKER_REGISTRY_PWD}
       -v "$(Get-Location):C:\mnt"
       -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       powershell
-      -C C:\mnt\ci-scripts\docker-login.ps1
+      -C C:\mnt\tools\ci\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

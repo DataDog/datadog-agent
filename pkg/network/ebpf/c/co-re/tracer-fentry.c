@@ -201,7 +201,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
         return 0;
     }
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
 }
 
 SEC("fexit/tcp_recvmsg")
@@ -232,9 +232,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    // Should actually delete something only if the connection never got established
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
-
     // Get network namespace id
     log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -242,7 +239,12 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk, false);
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    cleanup_conn(ctx, &t, sk);
     return 0;
 }
 
@@ -262,7 +264,7 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
 
     if (sent > 0) {
         log_debug("udp_sendmsg: sent: %d", sent);
-        handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
+        handle_message(t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     }
 
     bpf_map_delete_elem(&udp_send_skb_args, &pid_tgid);
@@ -450,7 +452,15 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        increment_telemetry_count(tcp_connect_failed_tuple);
+        return 0;
+    }
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
 
     return 0;
 }
@@ -458,19 +468,19 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        increment_telemetry_count(tcp_finish_connect_failed_tuple);
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    pid_ts_t *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (!pid_tgid_p) {
         return 0;
     }
-
-    u64 pid_tgid = *pid_tgid_p;
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+    u64 pid_tgid = pid_tgid_p->pid_tgid;
+    t.pid = pid_tgid >> 32;
     log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
 
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
@@ -501,6 +511,10 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     pb.netns = t.netns;
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
+
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
 }
@@ -529,7 +543,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, sk, false);
+        cleanup_conn(ctx, &tup, sk);
         lport = tup.sport;
     } else {
         // get the port for the current sock

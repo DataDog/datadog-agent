@@ -81,7 +81,7 @@ func tryCheckWPACRD(check checkAPI) error {
 
 func notifyCheckWPACRD() backoff.Notify {
 	attempt := 0
-	return func(err error, delay time.Duration) {
+	return func(_ error, delay time.Duration) {
 		attempt++
 		mins := int(delay.Minutes())
 		secs := int(math.Mod(delay.Seconds(), 60))

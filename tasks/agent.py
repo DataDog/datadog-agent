@@ -75,6 +75,7 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
+    "network_path",
     "service_discovery",
 ]
 
@@ -142,6 +143,10 @@ def build(
         inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+
+    if flavor.is_ot():
+        # for agent build purposes the UA agent is just like base
+        flavor = AgentFlavor.base
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -226,6 +231,7 @@ def build(
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
 
     for build in bundled_agents:
         if build == "agent":
@@ -411,7 +417,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise ParseError("provided python_version is invalid")
 
     build_context = "Dockerfiles/agent"
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
     dockerfile_path = f"{build_context}/Dockerfile"
@@ -448,6 +454,8 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
+    process_agent=False,
+    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -486,6 +494,18 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
 
+    copy_extra_agents = ""
+    if process_agent:
+        from tasks.process_agent import build as process_agent_build
+
+        process_agent_build(ctx, bundle=False)
+        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+    if trace_agent:
+        from tasks.trace_agent import build as trace_agent_build
+
+        trace_agent_build(ctx)
+        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
             f'''FROM ubuntu:latest AS src
@@ -513,6 +533,13 @@ FROM golang:latest AS dlv
 
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
+FROM {base_image} AS bash_completion
+
+RUN apt-get update && \
+    apt-get install -y gawk
+
+RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable bash completion/ {{uncomment=1}} {{print}}' /etc/bash.bashrc
+
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -523,10 +550,12 @@ RUN apt-get update && \
 ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
+COPY --from=bash_completion /etc/bash.bashrc /etc/bash.bashrc
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_extra_agents}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent

@@ -11,39 +11,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"os"
-	"os/exec"
-	"path/filepath"
 )
 
-func msiexec(target, operation string, args []string) (err error) {
-	programData, err := winregistry.GetProgramDataDirForProduct("Datadog Installer")
-	if err != nil {
-		return nil
-	}
-	updaterPath := filepath.Join(programData, "datadog-agent", target)
-	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1-x86_64.msi"))
-	if err != nil {
-		return nil
-	}
-	if len(msis) > 1 {
-		return fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return fmt.Errorf("no MSIs in package")
-	}
-
-	tmpDir, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-
-	logPath := filepath.Join(tmpDir, "install.log")
-	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "/l", logPath, "MSIFASTINSTALL=7"}, args...)...)
-	return cmd.Run()
-}
+const (
+	datadogAgent = "datadog-agent"
+)
 
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, args []string) (err error) {
@@ -54,7 +30,10 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("stable", "/i", args)
+	// Make sure there are no Agent already installed
+	_ = removeAgentIfInstalled(ctx)
+	err = installAgentPackage("stable", args)
+	return err
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -66,10 +45,21 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("experiment", "/i", nil)
+
+	err = removeAgentIfInstalled(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = installAgentPackage("experiment", nil)
+	if err != nil {
+		// experiment failed, expect stop-experiment to restore the stable Agent
+		return err
+	}
+	return nil
 }
 
-// StopAgentExperiment stops the agent experiment
+// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
 func StopAgentExperiment(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
@@ -78,13 +68,19 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("experiment", "/x", nil)
+
+	err = removeAgentIfInstalled(ctx)
 	if err != nil {
 		return err
 	}
 
-	// TODO: Need args here to restore DDAGENTUSER
-	return msiexec("stable", "/i", nil)
+	err = installAgentPackage("stable", nil)
+	if err != nil {
+		// if we cannot restore the stable Agent, the system is left without an Agent
+		return err
+	}
+
+	return nil
 }
 
 // PromoteAgentExperiment promotes the agent experiment
@@ -95,12 +91,43 @@ func PromoteAgentExperiment(_ context.Context) error {
 
 // RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
-	defer func() {
+	// Don't return an error if the Agent is already not installed.
+	// returning an error here will prevent the package from being removed
+	// from the local repository.
+	return removeAgentIfInstalled(ctx)
+}
+
+// ConfigureAgent noop
+func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+	return nil
+}
+
+func installAgentPackage(target string, args []string) error {
+	// TODO: Need args here to restore DDAGENTUSER
+	err := msiexec(target, datadogAgent, "/i", args)
+	if err != nil {
+		return fmt.Errorf("failed to install Agent %s: %w", target, err)
+	}
+	return nil
+}
+
+func removeAgentIfInstalled(ctx context.Context) (err error) {
+	if isProductInstalled("Datadog Agent") {
+		span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
+		defer func() {
+			if err != nil {
+				// removal failed, this should rarely happen.
+				// Rollback might have restored the Agent, but we can't be sure.
+				log.Errorf("Failed to remove agent: %s", err)
+			}
+			span.Finish(tracer.WithError(err))
+		}()
+		err := removeProduct("Datadog Agent")
 		if err != nil {
-			log.Errorf("Failed to remove agent: %s", err)
+			return err
 		}
-		span.Finish(tracer.WithError(err))
-	}()
-	return msiexec("stable", "/x", nil)
+	} else {
+		log.Debugf("Agent not installed")
+	}
+	return nil
 }

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Implement External Data environment variable injection in the Admission Controller.
+    Format for this new environment variable is `it-INIT_CONTAINER,cn-CONTAINER_NAME,pu-POD_UID`.
+    This new variable is needed for the New Origin Detection spec. It is used for Origin Detection
+    in case Local Data are unavailable, for example with Kata Containers and CGroups v2.

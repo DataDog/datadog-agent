@@ -9,35 +9,23 @@ package config
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func newSystemProbeConfig(t *testing.T) {
-	originalConfig := aconfig.SystemProbe
-	t.Cleanup(func() {
-		aconfig.SystemProbe = originalConfig
-	})
-	aconfig.SystemProbe = aconfig.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	aconfig.InitSystemProbeConfig(aconfig.SystemProbe)
-}
-
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
-
-	newSystemProbeConfig(t)
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-	cfg := aconfig.SystemProbe
+	cfg := configmock.NewSystemProbe(t)
 	sysconfig.Adjust(cfg)
 
 	if sysconfig.ProcessEventDataStreamSupported() {
@@ -47,7 +35,8 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		require.NoError(t, err)
 
 		opts := eventmonitor.Opts{}
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component]())
+		telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, telemetry)
 		require.NoError(t, err)
 		require.NoError(t, evm.Init())
 	} else {

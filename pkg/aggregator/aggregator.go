@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -258,7 +259,7 @@ type FlushAndSerializeInParallel struct {
 }
 
 // NewFlushAndSerializeInParallel creates a new instance of FlushAndSerializeInParallel.
-func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInParallel {
+func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInParallel {
 	return FlushAndSerializeInParallel{
 		BufferSize:  config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size"),
 		ChannelSize: config.GetInt("aggregator_flush_metrics_and_serialize_in_parallel_chan_size"),
@@ -267,21 +268,21 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
+	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !config.Datadog().GetBool("iot_host") {
+	if agentName == flavor.IotAgent && !pkgconfigsetup.Datadog().GetBool("iot_host") {
 		agentName = flavor.DefaultAgent
-	} else if config.Datadog().GetBool("iot_host") {
+	} else if pkgconfigsetup.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
-	if config.Datadog().GetBool("heroku_dyno") {
+	if pkgconfigsetup.Datadog().GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
 	}
 
-	if config.Datadog().GetBool("djm_config.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("djm_config.enabled") {
 		AddRecurrentSeries(&metrics.Serie{
 			Name:   "datadog.djm.agent_host",
 			Points: []metrics.Point{{Value: 1.0}},
@@ -289,7 +290,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
-	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
+	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
 		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
@@ -316,10 +317,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		stopChan:                    make(chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
-		tlmContainerTagsEnabled:     config.Datadog().GetBool("basic_telemetry_add_container_tags"),
+		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
-		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog()),
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 	}
 
 	return aggregator
@@ -494,7 +495,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 func (agg *BufferedAggregator) getSeriesAndSketches(
-	before time.Time,
+	_ time.Time,
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {
@@ -642,7 +643,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
 
 	// For debug purposes print out all serviceCheck/tag combinations
-	if config.Datadog().GetBool("log_payloads") {
+	if pkgconfigsetup.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Service Checks:")
 		for _, sc := range serviceChecks {
 			log.Debugf("%s", sc)
@@ -699,7 +700,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	addFlushCount("Events", int64(len(events)))
 
 	// For debug purposes print out all Event/tag combinations
-	if config.Datadog().GetBool("log_payloads") {
+	if pkgconfigsetup.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Events:")
 		for _, event := range events {
 			log.Debugf("%s", event)
@@ -932,10 +933,10 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		return
 	}
 	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog().GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog().GetBool("check_sampler_expire_metrics"),
-		config.Datadog().GetBool("check_sampler_context_metrics"),
-		config.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
+		pkgconfigsetup.Datadog().GetInt("check_sampler_bucket_commits_count_expiry"),
+		pkgconfigsetup.Datadog().GetBool("check_sampler_expire_metrics"),
+		pkgconfigsetup.Datadog().GetBool("check_sampler_context_metrics"),
+		pkgconfigsetup.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
 		id,
 	)

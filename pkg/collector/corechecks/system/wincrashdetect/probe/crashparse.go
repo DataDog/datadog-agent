@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package probe parses Windows crash dumps.
 package probe
 
 /*
@@ -39,13 +40,6 @@ const (
 	unableToLoadPrefix     = "Unable to"
 	ntBangPrefix           = "nt!"
 )
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 /*
  * extra layer of indirection so that we can call the go parsing code

@@ -38,7 +38,7 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result boo
 			rs.logger.Errorf("failed to get event type for field %s: %v", field, err)
 		}
 
-		if fieldEventType != "*" && fieldEventType != eventType {
+		if fieldEventType != "" && fieldEventType != eventType {
 			continue
 		}
 

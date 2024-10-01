@@ -27,6 +27,8 @@ const (
 	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 	// InstallPath is the default install path for the agent
 	InstallPath = "/opt/datadog-agent"
+	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
+	defaultStatsdSocket = ""
 )
 
 // called by init in config.go, to ensure any os-specific config is done

@@ -54,6 +54,8 @@ type PlatformProbe interface {
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ string) []string
+	GetProfileManager() interface{}
+	EnableEnforcement(bool)
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -102,6 +104,11 @@ type CustomEventHandler interface {
 // DiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type DiscarderPushedCallback func(eventType string, event *model.Event, field string)
 
+type actionStatsTags struct {
+	ruleID     rules.RuleID
+	actionName rules.ActionName
+}
+
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
@@ -124,14 +131,19 @@ type Probe struct {
 	eventHandlers       [model.MaxAllEventType][]EventHandler
 	eventConsumers      [model.MaxAllEventType][]*EventConsumer
 	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+
+	// stats
+	ruleActionStatsLock sync.RWMutex
+	ruleActionStats     map[actionStatsTags]*atomic.Int64
 }
 
 func newProbe(config *config.Config, opts Opts) *Probe {
 	return &Probe{
-		Opts:         opts,
-		Config:       config,
-		StatsdClient: opts.StatsdClient,
-		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
+		Opts:            opts,
+		Config:          config,
+		StatsdClient:    opts.StatsdClient,
+		scrubber:        newProcScrubber(config.Probe.CustomSensitiveWords),
+		ruleActionStats: make(map[actionStatsTags]*atomic.Int64),
 	}
 }
 
@@ -178,6 +190,20 @@ func (p *Probe) SendStats() error {
 	if err := p.sendConsumerStats(); err != nil {
 		return err
 	}
+
+	p.ruleActionStatsLock.RLock()
+	for tags, counter := range p.ruleActionStats {
+		count := counter.Swap(0)
+		if count > 0 {
+			tags := []string{
+				fmt.Sprintf("rule_id:%s", tags.ruleID),
+				fmt.Sprintf("action_name:%s", tags.actionName),
+			}
+			_ = p.StatsdClient.Count(metrics.MetricRuleActionPerformed, count, tags, 1.0)
+		}
+	}
+	p.ruleActionStatsLock.RUnlock()
+
 	return p.PlatformProbe.SendStats()
 }
 
@@ -202,6 +228,9 @@ func (p *Probe) FlushDiscarders() error {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.ruleActionStatsLock.Lock()
+	clear(p.ruleActionStats)
+	p.ruleActionStatsLock.Unlock()
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -362,33 +391,38 @@ func (p *Probe) GetService(ev *model.Event) string {
 	return p.Config.RuntimeSecurity.HostServiceName
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
-	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+func (p *Probe) onRuleActionPerformed(rule *rules.Rule, action *rules.ActionDefinition) {
+	p.ruleActionStatsLock.Lock()
+	defer p.ruleActionStatsLock.Unlock()
 
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
-			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-			ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
-		}
-
-		eventCtor := func() eval.Event {
-			return p.PlatformProbe.NewEvent()
-		}
-
-		rs := rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	tags := actionStatsTags{
+		ruleID:     rule.ID,
+		actionName: action.Name(),
 	}
 
-	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
-	if err != nil {
-		return nil, err
+	var counter *atomic.Int64
+	if counter = p.ruleActionStats[tags]; counter == nil {
+		counter = atomic.NewInt64(1)
+		p.ruleActionStats[tags] = counter
+	} else {
+		counter.Inc()
+	}
+}
+
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
+	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+
+	eventCtor := func() eval.Event {
+		return p.PlatformProbe.NewEvent()
 	}
 
-	return evaluationSet, nil
+	return rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts, evalOpts)
 }
 
 // IsNetworkEnabled returns whether network is enabled
@@ -409,4 +443,9 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 // IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+// EnableEnforcement sets the enforcement mode
+func (p *Probe) EnableEnforcement(state bool) {
+	p.PlatformProbe.EnableEnforcement(state)
 }

@@ -640,7 +640,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		procMissStats:   atomic.NewInt64(0),
 	}
 
-	redemption, err := simplelru.NewLRU(1024, func(mountID uint32, entry *redemptionEntry) {
+	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
 		mr.finalize(entry.mount)
 	})
 	if err != nil {

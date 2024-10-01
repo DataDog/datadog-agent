@@ -3,6 +3,9 @@ from datetime import timedelta
 
 from tasks.libs.owners.parsing import list_owners
 
+CONFLUENCE_DOMAIN = "https://datadoghq.atlassian.net/wiki"
+SPACE_KEY = "agent"
+
 
 def _stringify_config(config_dict):
     """
@@ -31,25 +34,23 @@ def release_entry_for(agent_major_version):
 def create_release_page(version, freeze_date):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    space_key = "agent"
     parent_page_id = "2244936127"
     # Make the POST request to create the page
-    domain = "https://datadoghq.atlassian.net/wiki"
     from atlassian import Confluence
 
-    confluence = Confluence(url=domain, username=username, password=password)
+    confluence = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
     page_title = f"Agent {version}"
     teams = get_releasing_teams()
     page = confluence.create_page(
-        space=space_key,
+        space=SPACE_KEY,
         title=page_title,
         body=create_release_table(version, freeze_date, teams),
         parent_id=parent_page_id,
         editor="v2",
     )
-    release_page = {"id": page["id"], "url": f"{domain}{page['_links']['webui']}"}
+    release_page = {"id": page["id"], "url": f"{CONFLUENCE_DOMAIN}{page['_links']['webui']}"}
     confluence.create_page(
-        space=space_key,
+        space=SPACE_KEY,
         title=f"{page_title} Notes",
         body=create_release_notes(freeze_date, teams),
         parent_id=release_page["id"],
@@ -60,16 +61,14 @@ def create_release_page(version, freeze_date):
 def get_release_page_info(version):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    space_key = "agent"
-    domain = "https://datadoghq.atlassian.net/wiki"
     from atlassian import Confluence
 
-    c = Confluence(url=domain, username=username, password=password)
-    page = c.get_page_by_title(space_key, f"Agent {version}", expand="body.storage")
-    return f"{domain}{page['_links']['webui']}", parse_table(page['body']['storage']['value'])
+    c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
+    page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
+    return f"{CONFLUENCE_DOMAIN}{page['_links']['webui']}", parse_table(page['body']['storage']['value'], missing=True)
 
 
-def parse_table(data):
+def parse_table(data, missing=True, teams=None):
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(data, 'lxml')
@@ -81,8 +80,27 @@ def parse_table(data):
     start = rows.index(rm_start_row)
     for row in rows[start:]:
         cells = row.find_all('td')
-        if len(cells) > 1 and len(cells[-1].find_all('ri:user')) == 0:
+        users = cells[-1].find_all('ri:user')
+        if missing and len(cells) > 1 and len(users) == 0:
             yield cells[-2].text
+        if teams is not None and cells[0].text.casefold() in teams and len(users) > 0:
+            yield users[0]['ri:account-id']
+
+
+def release_manager(version, team):
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+
+    from atlassian import Confluence
+
+    # Disable the rc flag if any to get the release base name `x.y.z`
+    version.rc = False
+    c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
+    page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
+    account_ids = parse_table(page['body']['storage']['value'], missing=False, teams=[team])
+    for id in account_ids:
+        user = c.get_user_details_by_accountid(id)
+        yield user['email']
 
 
 def get_releasing_teams():
@@ -126,9 +144,9 @@ def create_release_table(version, freeze_date, teams):
                 with tag('td', colspan="2"), tag('p', style="text-align: center;"):
                     with tag('ac:structured-macro', ('ac:name', "status"), ('ac:schema-version', "1")):
                         with tag('ac:parameter', ('ac:name', "title")):
-                            text('QA')
+                            text('Development')
                         with tag('ac:parameter', ('ac:name', "colour")):
-                            text('Purple')
+                            text('Blue')
             with tag('tr'):
                 with tag('td'), tag('p'):
                     text('Release date')
@@ -229,3 +247,14 @@ def create_release_notes(freeze_date, teams):
                         pass
 
     return doc.getvalue()
+
+
+def list_not_closed_qa_cards(version):
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    from atlassian import Jira
+
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa)  and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
+    response = jira.jql(jql)
+    return response['issues']

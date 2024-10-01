@@ -11,7 +11,7 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -56,7 +56,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		lookupFn: USMLookup[K, V],
 
 		// Experimental: Connection Rollups
-		enableConnectionRollup: config.SystemProbe.GetBool("service_monitoring_config.enable_connection_rollup"),
+		enableConnectionRollup: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enable_connection_rollup"),
 	}
 
 	// The map intended to calculate how many entries we actually need in byConnection.data, and for each entry

@@ -19,6 +19,8 @@ import (
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
@@ -40,7 +42,6 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		nginxHost, err := ec2.NewVM(awsEnv, vmName)
@@ -65,17 +66,15 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		params := envecs.GetProvisionerParams(
+			envecs.WithAwsEnv(&awsEnv),
 			envecs.WithECSLinuxECSOptimizedNodeGroup(),
 			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				testURL := "http://" + env.HTTPBinHost.Address + "/"
+				return npmtools.EcsAppDefinition(e, clusterArn, testURL)
+			}),
 		)
 		envecs.Run(ctx, &env.ECS, params)
-
-		// Workload
-		testURL := "http://" + env.HTTPBinHost.Address + "/"
-		if _, err := npmtools.EcsAppDefinition(awsEnv, env.ClusterArn, testURL); err != nil {
-			return err
-		}
-
 		return nil
 	}
 }
@@ -114,6 +113,7 @@ func (v *ecsVMSuite) AfterTest(suiteName, testName string) {
 // The test start by 00 to validate the agent/system-probe is up and running
 // On ECS the agent is slow to start and this avoid flaky tests
 func (v *ecsVMSuite) Test00FakeIntakeNPM() {
+	flake.Mark(v.T())
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 

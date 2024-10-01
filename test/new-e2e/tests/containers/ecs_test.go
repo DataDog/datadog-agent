@@ -186,7 +186,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 10*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }
 
@@ -207,7 +207,8 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
@@ -237,7 +238,8 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
@@ -269,6 +271,7 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
@@ -297,6 +300,7 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
@@ -378,6 +382,73 @@ func (suite *ecsSuite) TestRedisFargate() {
 	})
 }
 
+func (suite *ecsSuite) TestWindowsFargate() {
+	suite.testCheckRun(&testCheckRunArgs{
+		Filter: testCheckRunFilterArgs{
+			Name: "http.can_connect",
+			Tags: []string{
+				"^ecs_launch_type:fargate$",
+				"^container_name:aspnetsample$",
+			},
+		},
+		Expect: testCheckRunExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:aspnetsample$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:aspnetsample$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:mcr.microsoft.com/dotnet/samples$`,
+				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
+				`^region:us-east-1$`,
+				`^short_image:samples$`,
+				`^task_arn:`,
+				`^task_family:.*-aspnet-fg$`,
+				`^task_name:.*-aspnet-fg*`,
+				`^task_version:[[:digit:]]+$`,
+				`^url:`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+
+	// Test container check
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"^ecs_container_name:aspnetsample$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:aspnetsample$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:aspnetsample$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:mcr.microsoft.com/dotnet/samples$`,
+				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
+				`^region:us-east-1$`,
+				`^runtime:ecsfargate$`,
+				`^short_image:samples$`,
+				`^task_arn:`,
+				`^task_family:.*-aspnet-fg$`,
+				`^task_name:.*-aspnet-fg*`,
+				`^task_version:[[:digit:]]+$`,
+			},
+		},
+	})
+}
+
 func (suite *ecsSuite) TestCPU() {
 	// Test CPU metrics
 	suite.testMetric(&testMetricArgs{
@@ -395,6 +466,7 @@ func (suite *ecsSuite) TestCPU() {
 				`^docker_image:ghcr.io/colinianking/stress-ng:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-stress-ng$`,
 				`^git.commit.sha:`,
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
 				`^image_id:sha256:`,
@@ -439,7 +511,8 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
@@ -469,8 +542,9 @@ func (suite *ecsSuite) TestPrometheus() {
 				`^docker_image:ghcr.io/datadog/apps-prometheus:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:prometheus$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-prometheus$`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-prometheus$`,

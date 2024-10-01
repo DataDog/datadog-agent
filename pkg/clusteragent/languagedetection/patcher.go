@@ -24,9 +24,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -66,8 +66,8 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		logger:    logger,
 		queue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
-				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
-				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
 				Name:            subsystem,
@@ -179,9 +179,9 @@ func (lp *languagePatcher) extractOwnerFromEvent(event workloadmeta.Event) (*lan
 		deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 		// extract deployment name and namespace from entity id
-		deploymentIds := strings.Split(deploymentID, "/")
-		namespace := deploymentIds[0]
-		deploymentName := deploymentIds[1]
+		deploymentIDs := strings.Split(deploymentID, "/")
+		namespace := deploymentIDs[0]
+		deploymentName := deploymentIDs[1]
 
 		// construct namespaced owner reference
 		owner := langUtil.NewNamespacedOwnerReference(

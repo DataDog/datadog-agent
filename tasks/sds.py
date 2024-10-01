@@ -10,7 +10,7 @@ from tasks.rtloader import get_dev_path
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
 
-sds_version = "v0.1.2"
+sds_version = "v0.2.0"
 
 
 @task
@@ -34,10 +34,10 @@ def build_library(ctx):
                     lib64_path = os.path.join(dev_path, "lib64")
                     # We do not support Windows for now.
                     if is_darwin:
-                        ctx.run(f"cp target/release/libsds_go.dylib {lib_path}")
+                        ctx.run(f"cp target/release/libdd_sds_go.dylib {lib_path}")
                         if os.path.exists(lib64_path):
-                            ctx.run(f"cp target/release/libsds_go.dylib {lib64_path}")
+                            ctx.run(f"cp target/release/libdd_sds_go.dylib {lib64_path}")
                     else:
-                        ctx.run(f"cp target/release/libsds_go.so {lib_path}")
+                        ctx.run(f"cp target/release/libdd_sds_go.so {lib_path}")
                         if os.path.exists(lib64_path):
-                            ctx.run(f"cp target/release/libsds_go.so {lib64_path}")
+                            ctx.run(f"cp target/release/libdd_sds_go.so {lib64_path}")

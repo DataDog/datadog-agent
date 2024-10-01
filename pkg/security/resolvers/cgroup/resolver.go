@@ -30,6 +30,8 @@ const (
 	WorkloadSelectorResolved Event = iota
 	// CGroupDeleted is used to notify that a cgroup was deleted
 	CGroupDeleted
+	// CGroupCreated new croup created
+	CGroupCreated
 	// CGroupMaxEvent is used cap the event ID
 	CGroupMaxEvent
 )
@@ -55,7 +57,7 @@ func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		listeners:            make(map[Event][]Listener),
 	}
-	workloads, err := simplelru.NewLRU(1024, func(key string, value *cgroupModel.CacheEntry) {
+	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 
@@ -119,7 +121,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(process.ContainerID)
+	entry, exists := cr.workloads.Get(string(process.ContainerID))
 	if exists {
 		entry.AddPID(process.Pid)
 		return
@@ -127,7 +129,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.CGroupFlags), process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
@@ -135,7 +137,14 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	cr.workloads.Add(process.ContainerID, newCGroup)
+	cr.workloads.Add(string(process.ContainerID), newCGroup)
+
+	// notify listeners
+	cr.listenersLock.Lock()
+	for _, l := range cr.listeners[CGroupCreated] {
+		l(newCGroup)
+	}
+	cr.listenersLock.Unlock()
 
 	// check the tags of this workload
 	cr.checkTags(newCGroup)
@@ -166,9 +175,9 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 
 // fetchTags fetches tags for the provided workload
 func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
-	newTags, err := cr.tagsResolver.ResolveWithErr(workload.ID)
+	newTags, err := cr.tagsResolver.ResolveWithErr(string(workload.ContainerID))
 	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", workload.ID, err)
+		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
 	}
 	workload.SetTags(newTags)
 	return nil
@@ -215,7 +224,7 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
-		cr.workloads.Remove(workload.ID)
+		cr.workloads.Remove(string(workload.ContainerID))
 	}
 }
 

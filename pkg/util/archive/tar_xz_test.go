@@ -58,7 +58,7 @@ func TestTarXZExtractAll(t *testing.T) {
 
 func TestWalkTarXZArchive(t *testing.T) {
 	var foundpaths []string
-	err := WalkTarXZArchive(archive, func(rdr *tar.Reader, hdr *tar.Header) error {
+	err := WalkTarXZArchive(archive, func(_ *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag == tar.TypeReg {
 			foundpaths = append(foundpaths, hdr.Name)
 		}
@@ -69,7 +69,7 @@ func TestWalkTarXZArchive(t *testing.T) {
 	}
 
 	foundpaths = []string{}
-	err = WalkTarXZArchive(archive, func(rdr *tar.Reader, hdr *tar.Header) error {
+	err = WalkTarXZArchive(archive, func(_ *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag == tar.TypeReg {
 			foundpaths = append(foundpaths, hdr.Name)
 			return ErrStopWalk

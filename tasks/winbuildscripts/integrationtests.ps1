@@ -17,8 +17,8 @@ $Env:PATH="$UT_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Pyt
 & inv -e install-tools
 & inv -e integration-tests
 $err = $LASTEXITCODE
-Write-Host Test result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "test failed $err"
     [Environment]::Exit($err)
 }
+Write-Host Test passed

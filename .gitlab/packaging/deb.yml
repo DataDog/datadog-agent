@@ -2,8 +2,6 @@
 .package_deb_common:
   stage: packaging
   script:
-    - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -19,6 +17,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -86,6 +85,36 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: "datadog-agent_7_arm64.deb"
     DD_PROJECT: "agent"
 
+.package_ot_deb_common:
+  extends: [.package_deb_common]
+  script:
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - echo "About to package for $RELEASE_VERSION"
+    - !reference [.setup_deb_signing_key]
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
+    - !reference [.lint_linux_packages]
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-ot-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+
+ot_agent_deb-x64-a7:
+  extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-ot-agent-7-x64"]
+  variables:
+    DESTINATION_DEB: "datadog-ot-agent_7_amd64.deb"
+    DD_PROJECT: "agent"
+
+ot_agent_deb-arm64-a7:
+  extends: [.package_ot_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-ot-agent-7-arm64"]
+  variables:
+    DESTINATION_DEB: "datadog-ot-agent_7_arm64.deb"
+    DD_PROJECT: "agent"
+
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
@@ -95,6 +124,9 @@ installer_deb-amd64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PROJECT: "installer"
+    # There are currently no files to check for in the installer so we
+    # explicitly disable the check
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -105,6 +137,7 @@ installer_deb-arm64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PROJECT: "installer"
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
   extends: [.package_deb_agent_7]
@@ -113,8 +146,6 @@ installer_deb-arm64:
     - when: on_success
   stage: packaging
   script:
-    - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -130,6 +161,7 @@ installer_deb-arm64:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -165,6 +197,7 @@ dogstatsd_deb-x64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 
 dogstatsd_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -175,4 +208,5 @@ dogstatsd_deb-arm64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 

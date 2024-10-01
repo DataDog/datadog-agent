@@ -8,6 +8,7 @@ package debug
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -43,14 +44,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the runtime state of a running system-probe",
 		Long:  ``,
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
-					LogParams:            logimpl.ForOneShot("SYS-PROBE", "off", false),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
 				core.Bundle(),
@@ -79,7 +80,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return fmt.Errorf(e)
+			return errors.New(e)
 		}
 
 		return fmt.Errorf("Could not reach system-probe: %s\nMake sure system-probe is running before running this command and contact support if you continue having issues", err)

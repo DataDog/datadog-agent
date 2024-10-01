@@ -30,6 +30,7 @@ import (
 
 var detectorsWithPrivilege = []languagemodels.Detector{
 	detectors.NewGoDetector(),
+	detectors.NewDotnetDetector(),
 }
 
 var (
@@ -53,6 +54,7 @@ func handleDetectorError(err error) {
 type LanguageDetector struct {
 	hostProc      string
 	binaryIDCache *simplelru.LRU[binaryID, languagemodels.Language]
+	mux           *sync.RWMutex
 	detectors     []languagemodels.Detector
 }
 
@@ -64,6 +66,7 @@ func NewLanguageDetector() LanguageDetector {
 		detectors:     detectorsWithPrivilege,
 		hostProc:      kernel.ProcFSRoot(),
 		binaryIDCache: lru,
+		mux:           &sync.RWMutex{},
 	}
 }
 
@@ -75,15 +78,18 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 		if err != nil {
 			handleDetectorError(err)
 			log.Debug("failed to get binID:", err)
+			continue
 		}
 
-		if lang, ok := l.binaryIDCache.Get(bin); ok {
+		l.mux.RLock()
+		lang, ok := l.binaryIDCache.Get(bin)
+		l.mux.RUnlock()
+		if ok {
 			log.Tracef("Pid %v already detected as %v, skipping", proc.GetPid(), lang.Name)
 			languages[i] = lang
 			continue
 		}
 
-		var lang languagemodels.Language
 		for _, detector := range l.detectors {
 			var err error
 			lang, err = detector.DetectLanguage(proc)
@@ -92,8 +98,11 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 				continue
 			}
 			languages[i] = lang
+			break
 		}
+		l.mux.Lock()
 		l.binaryIDCache.Add(bin, lang)
+		l.mux.Unlock()
 	}
 	return languages
 }
@@ -108,17 +117,11 @@ func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detecto
 func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
 	procPath := filepath.Join(l.hostProc, strconv.Itoa(int(process.GetPid())))
 	exePath := filepath.Join(procPath, "exe")
-	binPath, err := os.Readlink(exePath)
-	if err != nil {
-		return binaryID{}, fmt.Errorf("readlink %s: %v", exePath, err)
-	}
-
-	binPath = filepath.Join(procPath, "root", binPath)
 
 	var stat syscall.Stat_t
-	err = syscall.Stat(binPath, &stat)
-	if err != nil {
-		return binaryID{}, fmt.Errorf("stat binary path %s: %v", binPath, err)
+
+	if err := syscall.Stat(exePath, &stat); err != nil {
+		return binaryID{}, fmt.Errorf("stat binary path %s: %v", exePath, err)
 	}
 
 	return binaryID{

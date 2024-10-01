@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 )
 
 func TestStatKeeperProcess(t *testing.T) {
@@ -21,22 +22,22 @@ func TestStatKeeperProcess(t *testing.T) {
 	s := NewStatkeeper(cfg)
 	for i := 0; i < 20; i++ {
 		s.Process(&EventWrapper{
-			EbpfEvent: &EbpfEvent{
-				Tx: EbpfTx{
+			EbpfEvent: &ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
 					Request_started:    1,
 					Response_last_seen: 10,
 				},
 			},
-			operationSet: true,
-			operation:    SelectOP,
-			tableNameSet: true,
-			tableName:    "dummy",
+			operationSet:  true,
+			operation:     SelectOP,
+			parametersSet: true,
+			parameters:    "dummy",
 		})
 	}
 
 	require.Equal(t, 1, len(s.stats))
 	for k, stat := range s.stats {
-		require.Equal(t, "dummy", k.TableName)
+		require.Equal(t, "dummy", k.Parameters)
 		require.Equal(t, SelectOP, k.Operation)
 		require.Equal(t, 20, stat.Count)
 		require.Equal(t, float64(20), stat.Latencies.GetCount())

@@ -23,7 +23,7 @@ type testResponse struct {
 	Body       string `json:"body"`
 }
 
-func handleRequest(ctx context.Context, ev events.APIGatewayProxyRequest) (testResponse, error) {
+func handleRequest(ctx context.Context, _ events.APIGatewayProxyRequest) (testResponse, error) {
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", "https://www.datadoghq.com", nil)
 	client := http.Client{}

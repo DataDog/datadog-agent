@@ -1,6 +1,5 @@
 ---
 title: Windows Agent attributes and helpers
-kind: documentation
 description: "Windows Agent attributes and helpers for CSM Threats Rules"
 disable_edit: true
 further_reading:
@@ -67,6 +66,7 @@ List of the available variables:
 | -------- | ------------- |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
+| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
@@ -582,6 +582,13 @@ Definition: Timestamp of the creation of the container
 Type: string
 
 Definition: ID of the container
+
+
+
+### `container.runtime` {#container-runtime-doc}
+Type: string
+
+Definition: Runtime managing the container
 
 
 

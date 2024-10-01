@@ -1,4 +1,1 @@
-*.go
-go.mod
-go.sum
 otel

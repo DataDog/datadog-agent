@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func testMetadata(t *testing.T, d *dogstatsdTest) {
@@ -70,7 +70,7 @@ func TestReceiveAndForward(t *testing.T) {
 			requests := d.getRequests()
 			require.Len(t, requests, 1)
 
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			strategy := compressionimpl.NewCompressor(mockConfig)
 

@@ -76,7 +76,7 @@ class Arch:
             raise ValueError(f"KMT arch not defined for {self.name}")
         return self._kmt_arch
 
-    def __eq__(self, other: Arch) -> bool:
+    def __eq__(self, other) -> bool:
         if not isinstance(other, Arch):
             return False
         return self.name == other.name
@@ -136,7 +136,7 @@ ARCH_AMD64 = Arch(
     kmt_arch="x86_64",
     windows_arch="x64",
     ci_arch="x64",
-    spellings={"amd64", "x86_64", "x64", "x86-64"},
+    spellings={"amd64", "x86_64", "x64", "x86-64", "x86"},
 )
 
 ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64]

@@ -15,9 +15,10 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -58,6 +59,18 @@ func GetHostname(hostname **C.char) {
 	*hostname = TrackedCString(goHostname)
 }
 
+// GetHostTags exposes the tags of the agent host to Python checks.
+//
+//export GetHostTags
+func GetHostTags(hostTags **C.char) {
+	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	tagsBytes, err := json.Marshal(tags)
+	if err != nil {
+		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
+	}
+	*hostTags = TrackedCString(string(tagsBytes))
+}
+
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
 //
 //export GetClusterName
@@ -72,7 +85,7 @@ func GetClusterName(clusterName **C.char) {
 //
 //export TracemallocEnabled
 func TracemallocEnabled() C.bool {
-	return C.bool(config.Datadog().GetBool("tracemalloc_debug"))
+	return C.bool(pkgconfigsetup.Datadog().GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
@@ -97,12 +110,12 @@ func Headers(yamlPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
-	if !config.Datadog().IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsSet(goKey) {
 		*yamlPayload = nil
 		return
 	}
 
-	value := config.Datadog().Get(goKey)
+	value := pkgconfigsetup.Datadog().Get(goKey)
 	data, err := yaml.Marshal(value)
 	if err != nil {
 		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
@@ -201,6 +214,28 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
+// SendLog submits a log for one check instance.
+// Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
+//
+//export SendLog
+func SendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	cc, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Log submission failed: %s", err)
+	}
+
+	lr, ok := cc.logReceiver.Get()
+	if !ok {
+		log.Error("Log submission failed: no receiver")
+		return
+	}
+
+	lr.SendLog(line, cid)
+}
+
 var (
 	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file
@@ -210,12 +245,12 @@ var (
 )
 
 // lazyInitObfuscator initializes the obfuscator the first time it is used. We can't initialize during the package init
-// because the obfuscator depends on config.Datadog and it isn't guaranteed to be initialized during package init, but
+// because the obfuscator depends on pkgconfigsetup.Datadog and it isn't guaranteed to be initialized during package init, but
 // will definitely be initialized by the time one of the python checks runs
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg obfuscate.Config
-		if err := config.Datadog().UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}
@@ -551,7 +586,7 @@ var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
 
 //export getProcessStartTime
 func getProcessStartTime() float64 {
-	return float64(config.StartTime.Unix())
+	return float64(pkgconfigsetup.StartTime.Unix())
 }
 
 // ObfuscateMongoDBString obfuscates the MongoDB query

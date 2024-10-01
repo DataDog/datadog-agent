@@ -70,6 +70,13 @@ func (t *SuffixTrie[T]) delete(node *node[T], suffix string, depth int) bool {
 
 // Insert stores the value for a given suffix
 func (t *SuffixTrie[T]) Insert(suffix string, value *T) {
+	if suffix == "" {
+		// since we are matching based on the smallest match, and everything
+		// would theoretically match an empty string which would be the smallest
+		// match, we will prevent inserting in this case
+		return
+	}
+
 	reversedSuffix := reverse(suffix)
 	n := t.root
 

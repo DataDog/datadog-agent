@@ -69,7 +69,6 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		VerifierOptions: bpflib.CollectionOptions{
 			Programs: bpflib.ProgramOptions{
 				KernelTypes: ret.vmlinux,
-				LogSize:     10 * 1024 * 1024,
 			},
 		},
 	}

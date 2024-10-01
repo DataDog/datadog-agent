@@ -20,7 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -52,9 +53,9 @@ type ConsulConfigProvider struct {
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+func NewConsulConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	if providerConfig == nil {
-		providerConfig = &config.ConfigurationProviders{}
+		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
 	}
 
 	consulURL, err := url.Parse(providerConfig.TemplateURL)

@@ -8,7 +8,7 @@ package localapiclient
 
 import "github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 
-// team: fleet
+// team: fleet windows-agent
 
 // Component is the component type.
 type Component interface {

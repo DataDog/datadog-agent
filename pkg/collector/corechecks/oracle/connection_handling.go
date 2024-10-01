@@ -10,6 +10,7 @@ package oracle
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
@@ -32,11 +33,11 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 	var oracleDriver string
 	if c.config.TnsAlias != "" {
 		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, c.config.Username, c.config.Password, c.config.TnsAlias)
-		oracleDriver = "godror"
+		oracleDriver = common.Godror
 	} else {
 		// godror ezconnect string
 		if c.config.InstanceConfig.OracleClient {
-			oracleDriver = "godror"
+			oracleDriver = common.Godror
 			protocolString := ""
 			walletString := ""
 			if c.config.Protocol == "TCPS" {
@@ -54,6 +55,10 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
+	if oracleDriver == common.Godror && c.config.InstanceConfig.OracleClientLibDir != "" {
+		connStr = fmt.Sprintf(`%s libDir="%s"`, connStr, c.config.InstanceConfig.OracleClientLibDir)
+	}
+
 	c.driver = oracleDriver
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)

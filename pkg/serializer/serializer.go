@@ -350,7 +350,27 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
+		failoverActive, allowlist := s.getFailoverAllowlist()
+
+		if failoverActive && len(allowlist) > 0 {
+			var filtered transaction.BytesPayloads
+			seriesBytesPayloads, filtered, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(s *metrics.Serie) bool {
+				_, allowed := allowlist[s.Name]
+				return allowed
+			})
+			for _, seriesBytesPayload := range seriesBytesPayloads {
+				seriesBytesPayload.Destination = transaction.PrimaryOnly
+			}
+			for _, seriesBytesPayload := range filtered {
+				seriesBytesPayload.Destination = transaction.SecondaryOnly
+			}
+			seriesBytesPayloads = append(seriesBytesPayloads, filtered...)
+		} else {
+			seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
+			for _, seriesBytesPayload := range seriesBytesPayloads {
+				seriesBytesPayload.Destination = transaction.AllRegions
+			}
+		}
 		extraHeaders = s.protobufExtraHeadersWithCompression
 	}
 
@@ -362,6 +382,19 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
 	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
+}
+
+func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
+	failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+	var allowlist map[string]struct{}
+	if failoverActive && s.config.IsSet("multi_region_failover.metric_allowlist") {
+		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
+		}
+	}
+	return failoverActive, allowlist
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization
@@ -377,12 +410,33 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
+		failoverActive, allowlist := s.getFailoverAllowlist()
 
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+		if failoverActive && len(allowlist) > 0 {
+			payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
+				_, allowed := allowlist[ss.Name]
+				return allowed
+			})
+			if err != nil {
+				return fmt.Errorf("dropping sketch payload: %v", err)
+			}
+			for _, payload := range payloads {
+				payload.Destination = transaction.PrimaryOnly
+			}
+			for _, payload := range filteredPayloads {
+				payload.Destination = transaction.SecondaryOnly
+			}
+			payloads = append(payloads, filteredPayloads...)
+
+			return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+		} else {
+			payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
+			if err != nil {
+				return fmt.Errorf("dropping sketch payload: %v", err)
+			}
+
+			return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+		}
 	} else {
 		//nolint:revive // TODO(AML) Fix revive linter
 		compress := true

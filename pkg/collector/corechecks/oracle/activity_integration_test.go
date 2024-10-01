@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,4 +63,49 @@ sessions:
 	}
 	assert.True(t, found, "test query not found in samples")
 	assert.Equal(t, 1000, c.sqlSubstringLength, "sql substring length should be 1000")
+}
+
+func TestCurrentTime(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+	// This is to ensure that query samples return rows
+	c.config.QuerySamples.IncludeAllSessions = true
+
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+	mockClock := clock.NewMock()
+	mockClock.Now().UTC()
+	c.clock = mockClock
+
+	c.config.QuerySamples.ForceDirectQuery = true
+	for _, directQuery := range []bool{true, false} {
+		c.config.QuerySamples.ForceDirectQuery = directQuery
+		err = c.SampleSession()
+		require.NoError(t, err, "activity sample failed")
+
+		fetchedNow := c.lastOracleActivityRows[0].Now
+		fetchedNowTime, err := time.Parse(time.RFC3339, fetchedNow)
+		require.NoErrorf(t, err, "couldn't parse now from activity sample for direct query: %t", directQuery)
+
+		assert.WithinDuration(t, time.Now(), fetchedNowTime, 10*time.Second)
+	}
+}
+
+func TestIdleWaits(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+
+	for _, r := range c.lastOracleActivityRows {
+		assert.NotEqual(t, r.WaitEventClass, "Idle", "Idle wait class not sampled")
+	}
 }

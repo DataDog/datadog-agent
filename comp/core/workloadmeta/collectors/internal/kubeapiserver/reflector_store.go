@@ -16,13 +16,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
-
-// objectParser is an interface allowing to plug any object
-type objectParser interface {
-	Parse(obj interface{}) workloadmeta.Entity
-}
 
 // entityUID glue together a WLM Entity and a Kube UID
 type entityUID struct {
@@ -35,7 +31,7 @@ type reflectorStore struct {
 
 	mu     sync.Mutex
 	seen   map[string]workloadmeta.EntityID // needs to be updated only if the object is added
-	parser objectParser
+	parser kubernetesresourceparsers.ObjectParser
 	// hasSynced logic is based on the logic see in FIFO queue (client-go/tools/cache/fifo.go)
 	// Normally `Replace` is called first and then `Add/Update/Delete`.
 	// If `Add/Update/Delete` is called first, triggers hasSynced
@@ -58,6 +54,7 @@ func (r *reflectorStore) Add(obj interface{}) error {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.hasSynced = true
 	if r.filter != nil && r.filter.filteredOut(entity) {
 		// Don't store the object in memory if it is filtered out
@@ -119,12 +116,15 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	}
 
 	for _, entityID := range seenBefore {
+		entity, err := entityFromEntityID(entityID)
+		if err != nil {
+			return err
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: collectorID,
-			Entity: &workloadmeta.KubernetesPod{
-				EntityID: entityID,
-			},
+			Entity: entity,
 		})
 	}
 
@@ -144,13 +144,13 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	var uid types.UID
 	var entity workloadmeta.Entity
 	switch v := obj.(type) {
+	// All the supported objects need to be in this switch statement to be able
+	// to be deleted.
 	case *corev1.Pod:
-		uid = v.UID
-	case *corev1.Node:
 		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
-	case *corev1.Namespace:
+	case *metav1.PartialObjectMetadata:
 		uid = v.UID
 	default:
 		return fmt.Errorf("failed to identify Kind of object: %#v", obj)
@@ -206,4 +206,26 @@ func (r *reflectorStore) GetByKey(_ string) (item interface{}, exists bool, err 
 // Resync is not implemented
 func (r *reflectorStore) Resync() error {
 	panic("not implemented")
+}
+
+func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, error) {
+	// All the supported objects need to be in this switch statement
+	switch entityID.Kind {
+	case workloadmeta.KindKubernetesDeployment:
+		return &workloadmeta.KubernetesDeployment{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesPod:
+		return &workloadmeta.KubernetesPod{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesMetadata:
+		return &workloadmeta.KubernetesMetadata{
+			EntityID: entityID,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported entity kind: %s", entityID.Kind)
 }

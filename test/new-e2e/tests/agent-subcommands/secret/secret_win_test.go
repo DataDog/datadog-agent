@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -27,27 +28,34 @@ type windowsSecretSuite struct {
 }
 
 func TestWindowsSecretSuite(t *testing.T) {
+	// WINA-1014
+	flake.Mark(t)
+	t.Parallel()
 	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 
-	output := v.Env().Agent.Client.Secret()
-	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
-	assert.Contains(v.T(), output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
-	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		output := v.Env().Agent.Client.Secret()
+		assert.Contains(t, output, "=== Checking executable permissions ===")
+		assert.Contains(t, output, "Executable path: /does/not/exist")
+		assert.Contains(t, output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
+		assert.Regexp(t, "Number of secrets .+: 0", output)
+	}, 30*time.Second, 2*time.Second)
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
 
-	output := v.Env().Agent.Client.Secret()
-	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: C:\\Windows\\system32\\cmd.exe")
-	assert.Regexp(v.T(), "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
-	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		output := v.Env().Agent.Client.Secret()
+		assert.Contains(t, output, "=== Checking executable permissions ===")
+		assert.Contains(t, output, "Executable path: C:\\Windows\\system32\\cmd.exe")
+		assert.Regexp(t, "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
+		assert.Regexp(t, "Number of secrets .+: 0", output)
+	}, 30*time.Second, 2*time.Second)
 }
 
 func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {

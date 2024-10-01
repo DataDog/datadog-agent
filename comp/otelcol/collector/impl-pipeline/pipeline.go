@@ -5,23 +5,18 @@
 
 //go:build otlp
 
-// Package collector implements the collector component
-package collector
+// Package collectorimpl implements the collector component
+package collectorimpl
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"strings"
+	"time"
 
-	"github.com/gocolly/colly/v2"
-
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -30,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -50,7 +46,10 @@ type Requires struct {
 	Config config.Component
 
 	// Log specifies the logging component.
-	Log corelog.Component
+	Log log.Component
+
+	// Authtoken specifies the authentication token component.
+	Authtoken authtoken.Component
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -75,13 +74,16 @@ type Provides struct {
 }
 
 type collectorImpl struct {
+	authToken      authtoken.Component
 	col            *otlp.Pipeline
 	config         config.Component
-	log            corelog.Component
+	log            log.Component
 	serializer     serializer.MetricSerializer
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
+	client         *http.Client
+	ctx            context.Context
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -104,11 +106,8 @@ func (c *collectorImpl) start(context.Context) error {
 		return nil
 	}
 	c.col = col
-	// the context passed to this function has a startup deadline which
-	// will shutdown the collector prematurely
-	ctx := context.Background()
 	go func() {
-		if err := col.Run(ctx); err != nil {
+		if err := col.Run(c.ctx); err != nil {
 			c.log.Errorf("Error running the OTLP ingest pipeline: %v", err)
 		}
 	}()
@@ -122,159 +121,6 @@ func (c *collectorImpl) stop(context.Context) error {
 	return nil
 }
 
-func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	if !c.config.GetBool("otel.enabled") {
-		fb.AddFile("otel/otel-agent.log", []byte("'otel.enabled' is disabled in the configuration"))
-		return nil
-	}
-
-	// request config from Otel-Agent
-	responseBytes, err := c.requestOtelConfigInfo(c.config.GetInt("otel.extension_url"))
-	if err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err)))
-		return nil
-	}
-
-	// add raw response to flare, and unmarshal it
-	fb.AddFile("otel/otel-response.json", responseBytes)
-	var responseInfo configResponseInfo
-	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %s", responseBytes)))
-		return nil
-	}
-
-	fb.AddFile("otel/otel-flare/startup.cfg", []byte(toJSON(responseInfo.StartupConf)))
-	fb.AddFile("otel/otel-flare/runtime.cfg", []byte(toJSON(responseInfo.RuntimeConf)))
-	fb.AddFile("otel/otel-flare/environment.cfg", []byte(toJSON(responseInfo.Environment)))
-	fb.AddFile("otel/otel-flare/cmdline.txt", []byte(responseInfo.Cmdline))
-
-	// retrieve each source of configuration
-	for _, src := range responseInfo.Sources {
-		response, err := http.Get(src.URL)
-		if err != nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error()))
-			continue
-		}
-		defer response.Body.Close()
-
-		data, err := io.ReadAll(response.Body)
-		if err != nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error()))
-			continue
-		}
-		fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", src.Name), data)
-
-		if !src.Crawl {
-			continue
-		}
-
-		// crawl the url by following any hyperlinks
-		col := colly.NewCollector()
-		col.OnHTML("a", func(e *colly.HTMLElement) {
-			// visit all links
-			link := e.Attr("href")
-			if err := e.Request.Visit(e.Request.AbsoluteURL(link)); err != nil {
-				filename := strings.ReplaceAll(url.PathEscape(link), ":", "_")
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s.err", filename), []byte(err.Error()))
-			}
-		})
-		col.OnResponse(func(r *colly.Response) {
-			// the root sources (from the configResponseInfo) were already fetched earlier
-			// don't re-fetch them
-			responseURL := r.Request.URL.String()
-			if responseURL == src.URL {
-				return
-			}
-			// use the url as the basis for the filename saved in the flare
-			filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body)
-		})
-		if err := col.Visit(src.URL); err != nil {
-			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error()))
-		}
-	}
-	return nil
-}
-
-func toJSON(it interface{}) string {
-	data, err := json.Marshal(it)
-	if err != nil {
-		return err.Error()
-	}
-	return string(data)
-}
-
-type configSourceInfo struct {
-	Name  string `json:"name"`
-	URL   string `json:"url"`
-	Crawl bool   `json:"crawl"`
-}
-
-type configResponseInfo struct {
-	StartupConf interface{}        `json:"startup_configuration"`
-	RuntimeConf interface{}        `json:"runtime_configuration"`
-	Environment interface{}        `json:"environment"`
-	Cmdline     string             `json:"cmdline"`
-	Sources     []configSourceInfo `json:"sources"`
-}
-
-// Can be overridden for tests
-var overrideConfigResponse = ""
-
-// TODO: Will be removed once otel extension exists and is in use
-const hardCodedConfigResponse = `{
-	"startup_configuration": {
-		"key1": "value1",
-		"key2": "value2",
-		"key3": "value3"
-	},
-	"runtime_configuration": {
-		"key4": "value4",
-		"key5": "value5",
-		"key6": "value6"
-	},
-	"cmdline": "./otel-agent a b c",
-	"sources": [
-		{
-			"name": "prometheus",
-			"url": "http://localhost:5788/one",
-			"crawl": true
-		},
-		{
-			"name": "zpages",
-			"url": "http://localhost:5788/two",
-			"crawl": false
-		},
-		{
-			"name": "healthcheck",
-			"url": "http://localhost:5788/three",
-			"crawl": true
-		},
-		{
-			"name": "pprof",
-			"url": "http://localhost:5788/four",
-			"crawl": true
-		}
-	],
-	"environment": {
-		"DD_KEY7": "value7",
-		"DD_KEY8": "value8",
-		"DD_KEY9": "value9"
-	}
-}
-`
-
-func (c *collectorImpl) requestOtelConfigInfo(_ int) ([]byte, error) {
-	// Value to return for tests
-	if overrideConfigResponse != "" {
-		return []byte(overrideConfigResponse), nil
-	}
-	// TODO: (components) In the future, contact the otel-agent flare extension on its configured port
-	// it will respond with a JSON response that resembles this format. For now just use this
-	// hard-coded response value
-	return []byte(hardCodedConfigResponse), nil
-}
-
 // Status returns the status of the collector.
 func (c *collectorImpl) Status() datatype.CollectorStatus {
 	return c.col.GetCollectorStatus()
@@ -282,13 +128,23 @@ func (c *collectorImpl) Status() datatype.CollectorStatus {
 
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
+
+	timeoutSeconds := reqs.Config.GetInt("otelcollector.extension_timeout")
+	if timeoutSeconds == 0 {
+		timeoutSeconds = defaultExtensionTimeout
+	}
+	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds)*time.Second, false)
+
 	collector := &collectorImpl{
+		authToken:      reqs.Authtoken,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
 		tagger:         reqs.Tagger,
+		client:         client,
+		ctx:            context.Background(),
 	}
 
 	reqs.Lc.Append(compdef.Hook{

@@ -26,3 +26,38 @@ func TestParseRegionAndAWSAccountID(t *testing.T) {
 	require.Equal(t, "us-east-1", region)
 	require.Equal(t, 0, awsAccountID)
 }
+
+func TestParserECSAgentVersion(t *testing.T) {
+	for _, testCase := range []struct {
+		version  string
+		expected string
+	}{
+		{
+			version:  "Amazon ECS Agent - v1.30.0 (02ff320c)",
+			expected: "1.30.0",
+		},
+		{
+			version:  "some prefix v1.30.0-beta some suffix",
+			expected: "1.30.0-beta",
+		},
+		{
+			version:  "some prefix v1 some suffix",
+			expected: "1",
+		},
+		{
+			version:  "some prefix v0.1 some suffix",
+			expected: "0.1",
+		},
+		{
+			version:  "Amazon ECS Agent - (02ff320c)",
+			expected: "",
+		},
+		{
+			version:  "someprefixv0.1somesuffix",
+			expected: "",
+		},
+	} {
+		version := ParseECSAgentVersion(testCase.version)
+		require.Equal(t, testCase.expected, version)
+	}
+}

@@ -1,15 +1,15 @@
-using Datadog.CustomActions.Interfaces;
-using Datadog.CustomActions.Native;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace Datadog.CustomActions.RollbackData
+namespace Datadog.CustomActions.Rollback
 {
     internal class RollbackDataStore
     {

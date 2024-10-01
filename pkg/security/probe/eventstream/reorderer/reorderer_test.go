@@ -62,11 +62,11 @@ func TestOrderRetention(t *testing.T) {
 	}
 
 	var count int
-	heap.dequeue(func(record *perf.Record) { count++ }, 1, &metric, &Opts{})
+	heap.dequeue(func(_ *perf.Record) { count++ }, 1, &metric, &Opts{})
 	assert.Equal(t, 30, count)
-	heap.dequeue(func(record *perf.Record) { count++ }, 2, &metric, &Opts{})
+	heap.dequeue(func(_ *perf.Record) { count++ }, 2, &metric, &Opts{})
 	assert.Equal(t, 60, count)
-	heap.dequeue(func(record *perf.Record) { count++ }, 3, &metric, &Opts{})
+	heap.dequeue(func(_ *perf.Record) { count++ }, 3, &metric, &Opts{})
 	assert.Equal(t, 90, count)
 }
 

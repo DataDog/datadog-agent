@@ -47,7 +47,7 @@ func NewNoPrioritySampler(conf *config.AgentConfig, statsd statsd.ClientInterfac
 }
 
 // NewErrorsSampler returns an initialized Sampler dedicate to errors. It behaves
-// just like the the normal ScoreEngine except for its GetType method (useful
+// just like the normal ScoreEngine except for its GetType method (useful
 // for reporting).
 func NewErrorsSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ErrorsSampler {
 	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"}, statsd)

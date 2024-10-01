@@ -25,7 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,8 +39,8 @@ var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not starte
 
 // GrpcClient interface that represents a gRPC client for the remote workloadmeta.
 type GrpcClient interface {
-	// StreamEntites establishes the stream between the client and the remote gRPC server.
-	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
+	// StreamEntities establishes the stream between the client and the remote gRPC server.
+	StreamEntities(ctx context.Context) (Stream, error)
 }
 
 // Stream is an interface that represents a gRPC stream.
@@ -94,7 +94,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	opts := []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		return net.Dial("tcp", url)
 	})}
 
@@ -148,7 +148,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfig.Datadog())
+		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
@@ -179,7 +179,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfig.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := pkgconfigsetup.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {
@@ -209,14 +209,7 @@ func (c *GenericCollector) Run() {
 			}, streamRecvTimeout)
 		}
 		if err != nil {
-			// at the end of stream, but its OK
-			if errors.Is(err, io.EOF) {
-				continue
-			}
-
 			c.streamCancel()
-
-			telemetry.RemoteClientErrors.Inc(c.CollectorID)
 
 			// when Recv() returns an error, the stream is aborted and the
 			// contents of our store are considered out of sync. The stream must
@@ -225,7 +218,10 @@ func (c *GenericCollector) Run() {
 			c.stream = nil
 			c.resyncNeeded = true
 
-			log.Warnf("error received from remote workloadmeta: %s", err)
+			if err != io.EOF {
+				telemetry.RemoteClientErrors.Inc(c.CollectorID)
+				log.Warnf("error received from remote workloadmeta: %s", err)
+			}
 
 			continue
 		}

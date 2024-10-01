@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/resources/local"
 
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
@@ -37,6 +38,7 @@ type ProvisionerParams struct {
 	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
+	workloadAppFuncs  []WorkloadAppFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -47,6 +49,9 @@ func newProvisionerParams() *ProvisionerParams {
 		extraConfigParams: runner.ConfigMap{},
 	}
 }
+
+// WorkloadAppFunc is a function that deploys a workload app to a kube provider
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
@@ -87,6 +92,14 @@ func WithoutAgent() ProvisionerOption {
 func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
+		return nil
+	}
+}
+
+// WithWorkloadApp adds a workload app to the environment
+func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
 		return nil
 	}
 }
@@ -169,7 +182,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -179,6 +192,13 @@ agents:
 		}
 	} else {
 		env.Agent = nil
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(&localEnv, kubeProvider)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

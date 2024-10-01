@@ -6,10 +6,13 @@
 package api
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -55,31 +58,24 @@ func (endpointInfo *agentEndpointInfo) url() *url.URL {
 	}
 }
 
-func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
-	data := endpointInfo.data
-	if len(endpointInfo.data) == 0 {
-		data = "{}"
+func (endpointInfo *agentEndpointInfo) httpRequest(authtoken string) (*http.Request, error) {
+	payload := bytes.NewBufferString(endpointInfo.data)
+
+	req, err := http.NewRequest(endpointInfo.method, endpointInfo.url().String(), payload)
+	if err != nil {
+		return nil, err
 	}
 
-	// -s: silent so we don't show auth token in output
-	// -k: allow insecure server connections since we self-sign the TLS cert
-	// -H: add a header with the auth token
-	// -X: http request method
-	// -d: request data (json)
-	return fmt.Sprintf(
-		`curl -s -k -H "authorization: Bearer %s" -X %s "%s" -d "%s"`,
-		authtoken,
-		endpointInfo.method,
-		endpointInfo.url().String(),
-		data,
-	)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authtoken))
+	return req, nil
 }
 
 func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	testcases := []struct {
 		agentEndpointInfo
-		name   string
-		assert func(*assert.CollectT, agentEndpointInfo, string)
+		name         string
+		expectedCode int
+		assert       func(*assert.CollectT, agentEndpointInfo, *http.Response)
 	}{
 		{
 			name: "version",
@@ -90,15 +86,20 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Version struct {
 					Major int
 				}
 				var have Version
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
 				want := Version{Major: 7}
-				assert.Equal(ct, have, want, "%s %s returned: %s, wanted: %v", e.method, e.endpoint, resp, want)
+				assert.Equal(ct, have, want, "%s %s returned: %s, wanted: %v", e.method, e.endpoint, body, want)
 			},
 		},
 		{
@@ -110,9 +111,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				want := v.Env().Agent.Client.Hostname()
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
 			},
 		},
 		{
@@ -124,14 +130,19 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type HealthCheck struct {
 					Healthy []string
 				}
 				var have HealthCheck
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Healthy, "%s %s returned: %s, expected Healthy not to be empty", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Healthy, "%s %s returned: %s, expected Healthy not to be empty", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -143,10 +154,15 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				// this returns text output
 				want := `api_key: '*******`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
 			},
 		},
 		{
@@ -158,14 +174,19 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Config struct {
 					DogstatsdCaptureDuration interface{} `json:"dogstatsd_capture_duration"`
 				}
 				var have Config
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.DogstatsdCaptureDuration, "%s %s returned: %s, expected dogstatsd_capture_duration key", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.DogstatsdCaptureDuration, "%s %s returned: %s, expected dogstatsd_capture_duration key", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -177,34 +198,20 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
+			expectedCode: 200,
 			// TODO: can we set up a jmx environment
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Config struct {
 					JMXConfig interface{} `json:"configs"`
 				}
 				var have Config
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.Equal(ct, have.JMXConfig, make(map[string]interface{}), "%s %s returned: %s, expected jmx configs to be empty", e.method, e.endpoint, resp)
-			},
-		},
-		{
-			name: "config check raw",
-			agentEndpointInfo: agentEndpointInfo{
-				scheme:   "https",
-				port:     agentCmdPort,
-				endpoint: "/agent/config-check/raw",
-				method:   "GET",
-				data:     "",
-			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				type Config struct {
-					Checks []interface{} `json:"configs"`
-				}
-				var have Config
-				err := json.Unmarshal([]byte(resp), &have)
-				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks raw to be present", e.method, e.endpoint, resp)
+				assert.Equal(ct, have.JMXConfig, make(map[string]interface{}), "%s %s returned: %s, expected jmx configs to be empty", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -216,8 +223,19 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				assert.NotEmpty(ct, resp, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
+				type Config struct {
+					Checks []interface{} `json:"configs"`
+				}
+				var have Config
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -229,9 +247,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "POST",
 				data:     "{}",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				want := `/tmp/datadog-agent-`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
 			},
 		},
 		{
@@ -243,9 +266,14 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				want := `secrets feature is not enabled`
-				assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
 			},
 		},
 		{
@@ -257,15 +285,20 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
+			expectedCode: 200,
 			// TODO: there isn't a configuration to enable this, it needs a dedicated environment setup
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Tagger struct {
 					Entities interface{} `json:"entities"`
 				}
 				var have Tagger
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, resp)
+				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -277,14 +310,19 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "GET",
 				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Workload struct {
 					Entities interface{} `json:"entities"`
 				}
 				var have Workload
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, resp)
+				assert.Equal(ct, have.Entities, make(map[string]interface{}), "%s %s returned: %s, expected entities to be empty", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -294,16 +332,21 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				port:     agentCmdPort,
 				endpoint: "/agent/metadata/gohai",
 				method:   "GET",
-				data:     "{}",
+				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
 					Gohai interface{} `json:"gohai"`
 				}
 				var have Metadata
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Gohai, "%s %s returned: %s, expected \"gohai\" fields to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Gohai, "%s %s returned: %s, expected \"gohai\" fields to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -313,16 +356,21 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				port:     agentCmdPort,
 				endpoint: "/agent/metadata/v5",
 				method:   "GET",
-				data:     "{}",
+				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
 					Version string `json:"agentVersion"`
 				}
 				var have Metadata
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Version, "%s %s returned: %s, expected \"agentVersion\" to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Version, "%s %s returned: %s, expected \"agentVersion\" to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -332,16 +380,21 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				port:     agentCmdPort,
 				endpoint: "/agent/metadata/inventory-checks",
 				method:   "GET",
-				data:     "{}",
+				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
 					Check interface{} `json:"check_metadata"`
 				}
 				var have Metadata
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Check, "%s %s returned: %s, expected \"check_metadata\" fields to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Check, "%s %s returned: %s, expected \"check_metadata\" fields to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -351,16 +404,21 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				port:     agentCmdPort,
 				endpoint: "/agent/metadata/inventory-agent",
 				method:   "GET",
-				data:     "{}",
+				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
 					Agent interface{} `json:"agent_metadata"`
 				}
 				var have Metadata
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Agent, "%s %s returned: %s, expected \"agent_metadata\" fields to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Agent, "%s %s returned: %s, expected \"agent_metadata\" fields to be present", e.method, e.endpoint, body)
 			},
 		},
 		{
@@ -370,16 +428,21 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				port:     agentCmdPort,
 				endpoint: "/agent/metadata/inventory-host",
 				method:   "GET",
-				data:     "{}",
+				data:     "",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
 				type Metadata struct {
 					Host interface{} `json:"host_metadata"`
 				}
 				var have Metadata
-				err := json.Unmarshal([]byte(resp), &have)
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Host, "%s %s returned: %s, expected \"host_metadata\" fields to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Host, "%s %s returned: %s, expected \"host_metadata\" fields to be present", e.method, e.endpoint, body)
 			},
 		},
 		// TODO: figure out how to make this work
@@ -403,14 +466,26 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				method:   "POST",
 				data:     "{}",
 			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				type Diagnose struct {
-					Suite string `json:"SuiteName"`
+			expectedCode: 200,
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp *http.Response) {
+				type Diagnoses struct {
+					SuiteName string `json:"suite_name"`
 				}
-				var have []Diagnose
-				err := json.Unmarshal([]byte(resp), &have)
+
+				// DiagnoseResult contains the results of the diagnose command
+				type DiagnoseResult struct {
+					Diagnoses []Diagnoses `json:"runs"`
+				}
+
+				var have DiagnoseResult
+
+				body, err := io.ReadAll(resp.Body)
+				assert.NoError(ct, err, "failed to read body from request")
+
+				err = json.Unmarshal(body, &have)
 				assert.NoError(ct, err)
-				assert.NotZero(ct, len(have), "%s %s returned: %s, expected diagnose suites to be present", e.method, e.endpoint, resp)
+				assert.NotNil(ct, have)
+				assert.NotZero(ct, len(have.Diagnoses), "%s %s returned: %s, expected diagnose suites to be present", e.method, e.endpoint, body)
 			},
 		},
 	}
@@ -419,15 +494,20 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
+	hostHTTPClient := v.Env().RemoteHost.NewHTTPClient()
 	for _, testcase := range testcases {
-		cmd := testcase.fetchCommand(authtoken)
-		host := v.Env().RemoteHost
 		v.T().Run(fmt.Sprintf("API - %s test", testcase.name), func(t *testing.T) {
+			req, err := testcase.httpRequest(authtoken)
+			assert.NoError(t, err, "failed to create request")
+
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
-				resp, err := host.Execute(cmd)
-				if assert.NoError(ct, err) {
-					testcase.assert(ct, testcase.agentEndpointInfo, resp)
-				}
+				resp, err := hostHTTPClient.Do(req)
+				assert.NoError(ct, err, "failed to send request")
+				defer resp.Body.Close()
+
+				endpoint := testcase.agentEndpointInfo
+				assert.Equal(ct, testcase.expectedCode, resp.StatusCode, "%s %s returned: %s, expected %s", endpoint.method, endpoint.endpoint, resp.StatusCode, testcase.expectedCode)
+				testcase.assert(ct, endpoint, resp)
 			}, 2*time.Minute, 10*time.Second)
 		})
 	}
@@ -472,13 +552,20 @@ hostname: ENC[hostname]`
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	cmd := e.fetchCommand(authtoken)
+	req, err := e.httpRequest(authtoken)
+	assert.NoError(v.T(), err, "failed to create request")
+	host := v.Env().RemoteHost
+	hostHTTPClient := host.NewHTTPClient()
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
-		resp, err := v.Env().RemoteHost.Execute(cmd)
-		if assert.NoError(ct, err) {
-			assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
-		}
+		resp, err := hostHTTPClient.Do(req)
+		assert.NoError(ct, err, "failed to send request")
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.NoError(ct, err, "failed to read body from request")
+
+		assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, body, want)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -512,8 +599,10 @@ log_level: debug
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	cmd := e.fetchCommand(authtoken)
+	req, err := e.httpRequest(authtoken)
+	assert.NoError(v.T(), err, "failed to create request")
 	host := v.Env().RemoteHost
+	hostHTTPClient := host.NewHTTPClient()
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		type Workload struct {
@@ -521,11 +610,16 @@ log_level: debug
 		}
 
 		var have Workload
-		resp, err := host.Execute(cmd)
-		if assert.NoError(ct, err) {
-			err := json.Unmarshal([]byte(resp), &have)
-			assert.NoError(ct, err)
-			assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, resp)
-		}
+		resp, err := hostHTTPClient.Do(req)
+		assert.NoError(ct, err, "failed to send request")
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.NoError(ct, err, "failed to read body from request")
+
+		err = json.Unmarshal(body, &have)
+		assert.NoError(ct, err)
+
+		assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, body)
 	}, 2*time.Minute, 10*time.Second)
 }

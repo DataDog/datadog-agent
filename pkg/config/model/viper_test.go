@@ -162,37 +162,6 @@ float_list:
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
-func TestIsSectionSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-
-	config.BindEnv("test.key")
-	config.BindEnv("othertest.key")
-	config.SetKnown("yetanothertest_key")
-	config.SetConfigType("yaml")
-
-	yamlExample := []byte(`
-test:
-  key:
-`)
-
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	res := config.IsSectionSet("test")
-	assert.Equal(t, true, res)
-
-	res = config.IsSectionSet("othertest")
-	assert.Equal(t, false, res)
-
-	t.Setenv("DD_OTHERTEST_KEY", "value")
-
-	res = config.IsSectionSet("othertest")
-	assert.Equal(t, true, res)
-
-	config.SetWithoutSource("yetanothertest_key", "value")
-	res = config.IsSectionSet("yetanothertest")
-	assert.Equal(t, false, res)
-}
-
 func TestSet(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	config.Set("foo", "bar", SourceFile)
@@ -217,13 +186,6 @@ func TestGetSource(t *testing.T) {
 	config.Set("foo", "bar", SourceFile)
 	config.Set("foo", "baz", SourceEnvVar)
 	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
-}
-
-func TestIsSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
-	config.Set("foo", "bar", SourceFile)
-	assert.True(t, config.IsSetForSource("foo", SourceFile))
 }
 
 func TestIsKnown(t *testing.T) {
@@ -275,13 +237,6 @@ func TestIsKnown(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUnsetForSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	config.Set("foo", "bar", SourceFile)
-	config.UnsetForSource("foo", SourceFile)
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
 }
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {
@@ -371,7 +326,7 @@ func TestCopyConfig(t *testing.T) {
 	config.Set("foo", "bar", SourceFile)
 	config.BindEnv("xyz", "XXYYZZ")
 	config.SetKnown("tyu")
-	config.OnUpdate(func(key string, _, _ any) {})
+	config.OnUpdate(func(_ string, _, _ any) {})
 
 	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	backup.CopyConfig(config)
@@ -447,4 +402,67 @@ proxy:
 	err = config.ReadInConfig()
 	assert.NoError(t, err)
 	assert.True(t, reflect.DeepEqual(oldConf, config.AllSettings()))
+}
+
+func TestMergeFleetPolicy(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetConfigType("yaml")
+	config.Set("foo", "bar", SourceFile)
+
+	file, err := os.CreateTemp("", "datadog.yaml")
+	assert.NoError(t, err, "failed to create temporary file: %w", err)
+	file.Write([]byte("foo: baz"))
+	err = config.MergeFleetPolicy(file.Name())
+	assert.NoError(t, err)
+
+	assert.Equal(t, "baz", config.Get("foo"))
+	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
+}
+
+func TestParseEnvAsStringSlice(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("slice_of_string")
+	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
+
+	t.Setenv("DD_SLICE_OF_STRING", "__some_data__")
+	assert.Equal(t, []string{"a", "b", "c"}, config.Get("slice_of_string"))
+}
+
+func TestParseEnvAsMapStringInterface(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("map_of_float")
+	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
+
+	t.Setenv("DD_MAP_OF_FLOAT", "__some_data__")
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.Get("map_of_float"))
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.GetStringMap("map_of_float"))
+}
+
+func TestParseEnvAsSliceMapString(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("map")
+	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
+
+	t.Setenv("DD_MAP", "__some_data__")
+	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
+}
+
+func TestListenersUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	// Create a listener that will keep track of the changes
+	logLevels := []string{}
+	config.OnUpdate(func(_ string, _, next any) {
+		nextString := next.(string)
+		logLevels = append(logLevels, nextString)
+	})
+
+	config.Set("log_level", "info", SourceFile)
+	config.Set("log_level", "debug", SourceRC)
+	config.UnsetForSource("log_level", SourceRC)
+
+	assert.Equal(t, []string{"info", "debug", "info"}, logLevels)
 }

@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +23,7 @@ var kubeUtilGet kubeUtilGetter = k.GetKubeUtil
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name
 func GetHostname(ctx context.Context) (string, error) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return "", nil
 	}
 
@@ -51,7 +51,7 @@ func GetHostname(ctx context.Context) (string, error) {
 // Some kubernetes cluster-names (EKS,AKS) are not RFC1123 compliant, mostly due to an `_`.
 // This function replaces the invalid `_` with a valid `-`.
 func getRFC1123CompliantClusterName(ctx context.Context, hostname string) (string, string) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return "", ""
 	}
 	clusterName := clustername.GetClusterName(ctx, hostname)

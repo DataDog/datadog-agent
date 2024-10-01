@@ -93,7 +93,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
 	}
 	defer tcpConn.Close()
-	log.Debugf("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
+	log.Tracef("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
 	// RawConn is necessary to set the TTL and ID fields
 	rawTCPConn, err := ipv4.NewRawConn(tcpConn)
 	if err != nil {
@@ -103,15 +103,9 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// hops should be of length # of hops
 	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
 
-	// TODO: better logic around timeout for sequential is needed
-	// right now we're just hacking around the existing
-	// need to convert uint8 to int for proper conversion to
-	// time.Duration
-	timeout := t.Timeout / time.Duration(int(t.MaxTTL-t.MinTTL))
-
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, timeout)
+		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, t.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -152,7 +146,6 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
 	}
-	log.Debugf("Finished loop for TTL %d", ttl)
 
 	rtt := time.Duration(0)
 	if !hopIP.Equal(net.IP{}) {

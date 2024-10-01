@@ -10,6 +10,7 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -48,6 +49,7 @@ type KubeEndpointsListener struct {
 	targetAllEndpoints bool
 	m                  sync.RWMutex
 	containerFilters   *containerFilters
+	telemetryStore     *telemetry.Store
 }
 
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
@@ -64,7 +66,7 @@ type KubeEndpointService struct {
 var _ Service = &KubeEndpointService{}
 
 // NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
-func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
+func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -95,6 +97,7 @@ func NewKubeEndpointsListener(conf Config) (ServiceListener, error) {
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
 		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
 		containerFilters:   containerFilters,
+		telemetryStore:     telemetryStore,
 	}, nil
 }
 
@@ -337,13 +340,18 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 	l.m.Lock()
 	l.endpoints[kep.UID] = eps
 	l.m.Unlock()
+	telemetryStorePresent := l.telemetryStore != nil
 
-	telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeService)
+	if telemetryStorePresent {
+		l.telemetryStore.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeService)
+	}
 
 	for _, ep := range eps {
 		log.Debugf("Creating a new AD service: %s", ep.entity)
 		l.newService <- ep
-		telemetry.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+		if telemetryStorePresent {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+		}
 	}
 }
 
@@ -389,12 +397,18 @@ func (l *KubeEndpointsListener) removeService(kep *v1.Endpoints) {
 		delete(l.endpoints, kep.UID)
 		l.m.Unlock()
 
-		telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeService)
+		telemetryStorePresent := l.telemetryStore != nil
+
+		if telemetryStorePresent {
+			l.telemetryStore.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeService)
+		}
 
 		for _, ep := range eps {
 			log.Debugf("Deleting AD service: %s", ep.entity)
 			l.delService <- ep
-			telemetry.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+			if telemetryStorePresent {
+				l.telemetryStore.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+			}
 		}
 	} else {
 		log.Debugf("Entity %s not found, not removing", kep.UID)
@@ -421,13 +435,21 @@ func (l *KubeEndpointsListener) getStandardTagsForEndpoints(kep *v1.Endpoints) (
 	return getStandardTags(ksvc.GetLabels()), nil
 }
 
-// GetServiceID returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetServiceID() string {
-	return s.entity
+// Equal returns whether the two KubeEndpointService are equal
+func (s *KubeEndpointService) Equal(o Service) bool {
+	s2, ok := o.(*KubeEndpointService)
+	if !ok {
+		return false
+	}
+
+	return s.entity == s2.entity &&
+		reflect.DeepEqual(s.tags, s2.tags) &&
+		reflect.DeepEqual(s.hosts, s2.hosts) &&
+		reflect.DeepEqual(s.ports, s2.ports)
 }
 
-// GetTaggerEntity returns the unique entity name linked to that service
-func (s *KubeEndpointService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity name linked to that service
+func (s *KubeEndpointService) GetServiceID() string {
 	return s.entity
 }
 
@@ -473,12 +495,6 @@ func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
 // IsReady returns if the service is ready
 func (s *KubeEndpointService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns slice of check names defined in kubernetes annotations or container labels
-// KubeEndpointService doesn't implement this method
-func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter returns whether the kube endpoint should not collect certain metrics

@@ -167,6 +167,10 @@ func (m *testModel) GetIterator(field Field) (Iterator, error) {
 	return nil, &ErrIteratorNotSupported{Field: field}
 }
 
+func (m *testModel) GetFieldRestrictions(_ Field) []EventType {
+	return nil
+}
+
 func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 	switch field {
 
@@ -393,7 +397,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -402,7 +406,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringValuesContains(a, &evaluator, state)
 				},
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
+				StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -428,7 +432,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()
@@ -437,7 +441,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringArrayMatches(b, &evaluator, state)
 				},
-				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()
@@ -603,63 +607,63 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 	case "process.name":
 
-		return "*", nil
+		return "", nil
 
 	case "process.argv0":
 
-		return "*", nil
+		return "", nil
 
 	case "process.uid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.gid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.pid":
 
-		return "*", nil
+		return "", nil
 
 	case "process.is_root":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.key":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.value":
 
-		return "*", nil
+		return "", nil
 
 	case "process.list.flag":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.key":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.value":
 
-		return "*", nil
+		return "", nil
 
 	case "process.array.flag":
 
-		return "*", nil
+		return "", nil
 
 	case "process.created_at":
 
-		return "*", nil
+		return "", nil
 
 	case "process.or_name":
 
-		return "*", nil
+		return "", nil
 
 	case "process.or_array.value":
 
-		return "*", nil
+		return "", nil
 
 	case "open.filename":
 
@@ -667,7 +671,7 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 	case "retval":
 
-		return "*", nil
+		return "", nil
 
 	case "open.flags":
 

@@ -5,10 +5,10 @@
     "properties": {
         "dd": {
             "span_id": {
-                "type": "integer"
+                "type": "string"
             },
             "trace_id": {
-                "type": "integer"
+                "type": "string"
             },
             "required": [
                 "span_id",

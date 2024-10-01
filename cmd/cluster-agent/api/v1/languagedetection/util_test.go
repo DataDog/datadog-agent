@@ -300,8 +300,7 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	err := ownersLanguages.flush(mockStore)
@@ -401,8 +400,7 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	err := ownersLanguages.flush(mockStore)
@@ -483,8 +481,7 @@ func TestCleanExpiredLanguages(t *testing.T) {
 
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
@@ -578,8 +575,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	ownersLanguages := OwnersLanguages{

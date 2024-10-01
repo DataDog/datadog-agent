@@ -13,10 +13,15 @@ import (
         "{{.}}"
     {{end}}
     "reflect"
+	"math"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
+
+// to always require the math package
+var _ = math.MaxUint16
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -32,11 +37,24 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		{{range $Name, $Exists := .EventTypes}}
-			{{- if ne $Name "*"}}
+			{{- if ne $Name ""}}
 			eval.EventType("{{$Name}}"),
 			{{end -}}
 		{{end}}
 	}
+}
+
+func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	switch field {
+	{{range $Name, $Field := .Fields}}
+	{{- if $Field.RestrictedTo }}
+	case "{{$Name}}":
+		return {{ $Field | GetFieldRestrictions }}
+	{{end}}
+	{{end}}
+	}
+
+	return nil
 }
 
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
@@ -393,7 +411,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{if $Field.IsLength}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
-			{{- if eq $Field.OrigType "string"}}
+			{{- if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {
 						case string:
@@ -408,7 +426,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
+					{{- if ne $Field.OrigType "string" }}
+					{{$FieldName}} = {{$Field.OrigType}}(rv)
+					{{else}}
 					{{$FieldName}} = rv
+					{{end}}
 				{{end}}
 				return nil
 			{{else if eq $Field.BasicType "int"}}
@@ -428,6 +450,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
+					{{- if eq $Field.OrigType "uint16" }}
+					if rv < 0 || rv > math.MaxUint16 {
+						return &eval.ErrValueOutOfRange{Field: "{{$Field.Name}}"}
+					}
+					{{- end }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
 				{{end}}
 				return nil

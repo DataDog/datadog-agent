@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 flavor = ENV['AGENT_FLAVOR']
+output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 if flavor.nil? || flavor == 'base'
   name 'agent'
@@ -38,6 +39,10 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
+  if ot_target?
+    raise UnknownPlatform
+  end
+
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
@@ -276,7 +281,7 @@ elsif do_package
 end
 
 if linux_target?
-  extra_package_file '/etc/datadog-agent/'
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
 end

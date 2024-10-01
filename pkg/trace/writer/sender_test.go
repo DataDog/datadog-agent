@@ -170,7 +170,7 @@ func TestSender(t *testing.T) {
 		assert := assert.New(t)
 		var wg sync.WaitGroup
 		wg.Add(1)
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			assert.Equal(testAPIKey, req.Header.Get(headerAPIKey))
 			assert.Equal("testUserAgent", req.Header.Get(headerUserAgent))
 			wg.Done()
@@ -278,7 +278,7 @@ func TestPayload(t *testing.T) {
 // function which restores it.
 func useBackoffDuration(d time.Duration) func() {
 	old := backoffDuration
-	backoffDuration = func(attempt int) time.Duration { return d }
+	backoffDuration = func(_ int) time.Duration { return d }
 	return func() { backoffDuration = old }
 }
 

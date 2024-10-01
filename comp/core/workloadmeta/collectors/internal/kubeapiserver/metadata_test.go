@@ -10,8 +10,6 @@ package kubeapiserver
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,174 +18,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
-
-func TestParse_ParsePartialObjectMetadata(t *testing.T) {
-
-	testcases := []struct {
-		name                           string
-		gvr                            schema.GroupVersionResource
-		partialObjectMetadata          *metav1.PartialObjectMetadata
-		expected                       *workloadmeta.KubernetesMetadata
-		annotationsFilter              []string
-		requireErrorInitailisingParser bool
-	}{
-		{
-			name: "deployments [namespace scoped]",
-			gvr: schema.GroupVersionResource{
-				Group:    "apps",
-				Version:  "v1",
-				Resource: "deployments",
-			},
-			partialObjectMetadata: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-app",
-					Namespace:   "default",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-			},
-			expected: &workloadmeta.KubernetesMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "deployments/default/test-app",
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:        "test-app",
-					Namespace:   "default",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-				GVR: schema.GroupVersionResource{
-					Group:    "apps",
-					Version:  "v1",
-					Resource: "deployments",
-				},
-			},
-			requireErrorInitailisingParser: false,
-		},
-		{
-			name: "namespaces [cluster scoped]",
-			gvr: schema.GroupVersionResource{
-				Group:    "",
-				Version:  "v1",
-				Resource: "namespaces",
-			},
-			partialObjectMetadata: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-			},
-			expected: &workloadmeta.KubernetesMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-				GVR: schema.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "namespaces",
-				},
-			},
-			requireErrorInitailisingParser: false,
-		},
-		{
-			name: "namespaces [cluster scoped], with well-formatted annotation filters",
-			gvr: schema.GroupVersionResource{
-				Group:    "",
-				Version:  "v1",
-				Resource: "namespaces",
-			},
-			partialObjectMetadata: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3", "weird-annotation": "weird-value"},
-				},
-			},
-			expected: &workloadmeta.KubernetesMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-				GVR: schema.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "namespaces",
-				},
-			},
-			annotationsFilter: []string{"weird-annotation"},
-
-			requireErrorInitailisingParser: false,
-		},
-		{
-			name: "namespaces [cluster scoped], with badly-formatted annotation filters",
-			gvr: schema.GroupVersionResource{
-				Group:    "",
-				Version:  "v1",
-				Resource: "namespaces",
-			},
-			partialObjectMetadata: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3", "weird-annotation": "weird-value"},
-				},
-			},
-			expected: &workloadmeta.KubernetesMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:        "test-namespace",
-					Namespace:   "",
-					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
-					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
-				},
-				GVR: schema.GroupVersionResource{
-					Group:    "",
-					Version:  "v1",
-					Resource: "namespaces",
-				},
-			},
-			annotationsFilter:              []string{"/foo1)("},
-			requireErrorInitailisingParser: true,
-		},
-	}
-
-	for _, test := range testcases {
-		t.Run(test.name, func(tt *testing.T) {
-			parser, err := newMetadataParser(test.gvr, test.annotationsFilter)
-
-			if test.requireErrorInitailisingParser {
-				require.Errorf(tt, err, "should have failed to create parser")
-			} else {
-				require.NoErrorf(tt, err, "should have not failed to create parser")
-				entity := parser.Parse(test.partialObjectMetadata)
-				storedMetadata, ok := entity.(*workloadmeta.KubernetesMetadata)
-				require.True(t, ok)
-				assert.Equal(t, test.expected, storedMetadata)
-			}
-		})
-	}
-}
 
 func Test_MetadataFakeClient(t *testing.T) {
 	ns := "default"
@@ -217,7 +47,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						ID:   "deployments/default/test-app",
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
@@ -226,7 +56,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 						Labels:      objectMeta.Labels,
 						Annotations: objectMeta.Annotations,
 					},
-					GVR: gvr,
+					GVR: &gvr,
 				},
 			},
 		},

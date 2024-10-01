@@ -8,7 +8,6 @@
 package wincrashdetect
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 
@@ -21,25 +20,38 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 
-	//process_net "github.com/DataDog/datadog-agent/pkg/process/net"
+	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 
 	"golang.org/x/sys/windows/registry"
 )
 
+const (
+	// SystemProbeTestPipeName is the test named pipe for system-probe
+	systemProbeTestPipeName = `\\.\pipe\dd_system_probe_wincrash_test`
+
+	// systemProbeTestPipeSecurityDescriptor has a DACL that allows Everyone access for these tests.
+	systemProbeTestPipeSecurityDescriptor = "D:PAI(A;;FA;;;WD)"
+)
+
 func createSystemProbeListener() (l net.Listener, close func()) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	process_net.OverrideSystemProbeNamedPipeConfig(
+		systemProbeTestPipeName,
+		systemProbeTestPipeSecurityDescriptor)
+
+	// No socket address. Windows uses a fixed name pipe
+	conn, err := process_net.NewSystemProbeListener("")
 	if err != nil {
 		panic(err)
 	}
-	return l, func() {
-		_ = l.Close()
+	return conn.GetListener(), func() {
+		_ = conn.GetListener().Close()
 	}
 }
 
-func testSetup(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func testSetup(_ *testing.T) {
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
 	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
@@ -61,7 +73,7 @@ func TestWinCrashReporting(t *testing.T) {
 	listener, closefunc := createSystemProbeListener()
 	defer closefunc()
 
-	config.InitSystemProbeConfig(config.SystemProbe)
+	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -69,8 +81,8 @@ func TestWinCrashReporting(t *testing.T) {
 	}
 	defer server.Close()
 
-	sock := fmt.Sprintf("localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-	config.SystemProbe.SetWithoutSource("system_probe_config.sysprobe_socket", sock)
+	// no socket address is set in config for Windows since system probe
+	// utilizes a fixed named pipe.
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different
@@ -83,10 +95,10 @@ func TestWinCrashReporting(t *testing.T) {
 	 */
 	var p *probe.WinCrashStatus
 
-	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		utils.WriteAsJSON(rw, p)
 	}))
-	mux.Handle("/debug/stats", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
 	go server.Serve(listener)
 

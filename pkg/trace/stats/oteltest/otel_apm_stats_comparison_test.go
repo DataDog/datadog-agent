@@ -11,18 +11,23 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/go-cmp/cmp"
-	"github.com/tj/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/metric/noop"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 )
 
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
@@ -31,16 +36,20 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
 	attributesTranslator, err := attributes.NewTranslator(set)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	tcfg := getTraceAgentCfg(attributesTranslator)
+	peerTagKeys := tcfg.ConfiguredPeerTags()
 
+	metricsClient := &statsd.NoOpClient{}
+	timingReporter := timing.New(metricsClient)
 	// Set up 2 output channels for APM stats, and start 2 fake trace agent to conduct a comparison test
-	now := time.Now()
-	statschan1 := make(chan *pb.StatsPayload, 100)
-	fakeAgent1 := getAndStartFakeAgent(ctx, tcfg, statschan1, now)
+	out1 := make(chan *pb.StatsPayload, 100)
+	fakeAgent1 := statsprocessor.NewAgentWithConfig(ctx, tcfg, out1, metricsClient, timingReporter)
+	fakeAgent1.Start()
 	defer fakeAgent1.Stop()
-	statschan2 := make(chan *pb.StatsPayload, 100)
-	fakeAgent2 := getAndStartFakeAgent(ctx, tcfg, statschan2, now)
+	out2 := make(chan *pb.StatsPayload, 100)
+	fakeAgent2 := statsprocessor.NewAgentWithConfig(ctx, tcfg, out2, metricsClient, timingReporter)
+	fakeAgent2.Start()
 	defer fakeAgent2.Stop()
 
 	traces := getTestTraces()
@@ -49,7 +58,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	fakeAgent1.Ingest(ctx, traces)
 
 	// fakeAgent2 calls the new API in Concentrator that directly calculates APM stats for OTLP traces
-	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName})
+	inputs := stats.OTLPTracesToConcentratorInputs(traces, tcfg, []string{semconv.AttributeContainerID, semconv.AttributeK8SContainerName}, peerTagKeys)
 	for _, input := range inputs {
 		fakeAgent2.Concentrator.Add(input)
 	}
@@ -59,23 +68,23 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	var payload2 *pb.StatsPayload
 	for payload1 == nil || payload2 == nil {
 		select {
-		case sp1 := <-statschan1:
+		case sp1 := <-out1:
 			if len(sp1.Stats) > 0 {
 				payload1 = sp1
 				for _, csb := range sp1.Stats {
-					assert.Len(t, csb.Stats, 1)
-					assert.Len(t, csb.Stats[0].Stats, 3) // stats on 3 spans
+					require.Len(t, csb.Stats, 1)
+					require.Len(t, csb.Stats[0].Stats, 4) // stats on 4 spans
 					sort.Slice(csb.Stats[0].Stats, func(i, j int) bool {
 						return csb.Stats[0].Stats[i].Name < csb.Stats[0].Stats[j].Name
 					})
 				}
 			}
-		case sp2 := <-statschan2:
+		case sp2 := <-out2:
 			if len(sp2.Stats) > 0 {
 				payload2 = sp2
 				for _, csb := range sp2.Stats {
-					assert.Len(t, csb.Stats, 1)
-					assert.Len(t, csb.Stats[0].Stats, 3) // stats on 3 spans
+					require.Len(t, csb.Stats, 1)
+					require.Len(t, csb.Stats[0].Stats, 4) // stats on 4 spans
 					sort.Slice(csb.Stats[0].Stats, func(i, j int) bool {
 						return csb.Stats[0].Stats[i].Name < csb.Stats[0].Stats[j].Name
 					})
@@ -92,7 +101,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 		protocmp.IgnoreFields(&pb.ClientStatsPayload{}, "tags")); diff != "" {
 		t.Errorf("Diff between APM stats received:\n%v", diff)
 	}
-	assert.ElementsMatch(t, payload2.Stats[0].Tags, []string{"kube_container_name:k8s_container", "container_id:test_cid"})
+	require.ElementsMatch(t, payload2.Stats[0].Tags, []string{"kube_container_name:k8s_container", "container_id:test_cid"})
 }
 
 func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.AgentConfig {
@@ -105,17 +114,12 @@ func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.
 	return acfg
 }
 
-func getAndStartFakeAgent(ctx context.Context, tcfg *traceconfig.AgentConfig, statschan chan *pb.StatsPayload, now time.Time) *traceAgent {
-	fakeAgent := newAgentWithConfig(ctx, tcfg, statschan, now)
-	fakeAgent.Start()
-	return fakeAgent
-}
-
 var (
 	traceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	spanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 	spanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
 	spanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
+	spanID4 = [8]byte{4, 2, 3, 4, 5, 6, 7, 8}
 )
 
 func getTestTraces() ptrace.Traces {
@@ -169,6 +173,16 @@ func getTestTraces() ptrace.Traces {
 	child2attrs.PutStr(semconv.AttributeRPCService, "test_rpc_svc")
 	child2.Status().SetCode(ptrace.StatusCodeError)
 	child2.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	child3 := sspan.Spans().AppendEmpty()
+	child3.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	child3.SetKind(ptrace.SpanKindInternal)
+	child3.SetName("child3")
+	child3.SetTraceID(traceID)
+	child3.SetSpanID(spanID4)
+	child3.SetParentSpanID(spanID1)
+	child3.Attributes().PutInt("_dd.measured", 1) // _dd.measured forces the span to get APM stats despite having span kind internal
+	child3.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
 	root.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 

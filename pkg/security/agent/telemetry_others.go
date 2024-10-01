@@ -10,8 +10,8 @@ package agent
 
 import "context"
 
-type telemetry struct{}
+type profContainersTelemetry struct{}
 
-func (t *telemetry) registerProfiledContainer(_, _ string) {}
+func (t *profContainersTelemetry) registerProfiledContainer(_, _ string) {}
 
-func (t *telemetry) run(_ context.Context, _ *RuntimeSecurityAgent) {}
+func (t *profContainersTelemetry) run(_ context.Context) {}

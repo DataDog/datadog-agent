@@ -25,7 +25,7 @@ func TestWithConcurrencyLimit(t *testing.T) {
 		wait      = make(chan struct{})
 	)
 
-	handler := WithConcurrencyLimit(concurrentRequests, func(w http.ResponseWriter, r *http.Request) {
+	handler := WithConcurrencyLimit(concurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
 		<-wait
 		w.WriteHeader(http.StatusOK)
 	})

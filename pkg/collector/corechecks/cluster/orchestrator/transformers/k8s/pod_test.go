@@ -641,8 +641,12 @@ func TestConvertResourceRequirements(t *testing.T) {
 		})
 	}
 }
+func boolPointer(b bool) *bool {
+	return &b
+}
 
 func TestComputeStatus(t *testing.T) {
+	restartPolicyAlways := v1.ContainerRestartPolicyAlways
 	for nb, tc := range []struct {
 		pod    *v1.Pod
 		status string
@@ -703,6 +707,41 @@ func TestComputeStatus(t *testing.T) {
 				},
 			},
 			status: "CrashLoopBackoff",
+		}, {
+			pod: &v1.Pod{
+				Spec: v1.PodSpec{
+					InitContainers: []v1.Container{
+						{Name: "restartable-init-1", RestartPolicy: &restartPolicyAlways},
+					},
+				},
+				Status: v1.PodStatus{
+					Phase: "Running",
+					InitContainerStatuses: []v1.ContainerStatus{
+						{
+							Started: boolPointer(true),
+							Name:    "restartable-init-1",
+							Ready:   true,
+							State: v1.ContainerState{
+								Running: &v1.ContainerStateRunning{
+									StartedAt: metav1.NewTime(time.Now()),
+								},
+							},
+						},
+					},
+					ContainerStatuses: []v1.ContainerStatus{
+						{
+							Started: boolPointer(true),
+							Ready:   true,
+							State: v1.ContainerState{
+								Running: &v1.ContainerStateRunning{
+									StartedAt: metav1.NewTime(time.Now()),
+								},
+							},
+						},
+					},
+				},
+			},
+			status: "Running",
 		},
 	} {
 		t.Run(fmt.Sprintf("case %d", nb), func(t *testing.T) {

@@ -163,42 +163,42 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2FirstFrame),
+			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFirstFrameTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2Filter),
+			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFilterTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2HeaderParser),
+			Key:           uint32(protocols.ProgramHTTP2HeadersParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsHeadersParserTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2DynamicTableCleaner),
+			Key:           uint32(protocols.ProgramHTTP2DynamicTableCleaner),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDynamicTableCleaner,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2EOSParser),
+			Key:           uint32(protocols.ProgramHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEOSParserTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2Termination),
+			Key:           uint32(protocols.ProgramHTTP2Termination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
@@ -415,7 +415,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key HTTP2StreamKey, val HTTP2Stream) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, _ HTTP2StreamKey, val HTTP2Stream) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

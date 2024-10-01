@@ -17,7 +17,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
 func TestGet(t *testing.T) {
@@ -30,7 +31,7 @@ func TestGet(t *testing.T) {
 	comp, err := newAuthToken(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 		),

@@ -19,11 +19,12 @@ import (
 	"syscall"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -179,7 +180,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_max",
 				Help:      "gauge tracking maximum time a tracked lock was contended for",
 			},
-			[]string{"name", "lock_type"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 		avgContention: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -187,7 +188,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_avg",
 				Help:      "gauge tracking average time a tracked lock was contended for",
 			},
-			[]string{"name", "lock_type"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 		totalContention: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -195,7 +196,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_total",
 				Help:      "counter tracking total time a tracked lock was contended for",
 			},
-			[]string{"name", "lock_type"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 	}
 
@@ -257,15 +258,20 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 			continue
 		}
 
+		module, err := GetModuleFromMapID(mp.id)
+		if err != nil {
+			module = "n/a"
+		}
+
 		if (data.Total_time > 0) && (mp.totalTime != data.Total_time) {
 			avgTime := data.Total_time / uint64(data.Count)
 
 			lockType := lockTypes[lr.Type]
-			l.maxContention.WithLabelValues(mp.name, lockType).Set(float64(data.Max_time))
-			l.avgContention.WithLabelValues(mp.name, lockType).Set(float64(avgTime))
+			l.maxContention.WithLabelValues(mp.name, lockType, module).Set(float64(data.Max_time))
+			l.avgContention.WithLabelValues(mp.name, lockType, module).Set(float64(avgTime))
 
 			// TODO: should we consider overflows. u64 overflow seems very unlikely?
-			l.totalContention.WithLabelValues(mp.name, lockType).Add(float64(data.Total_time - mp.totalTime))
+			l.totalContention.WithLabelValues(mp.name, lockType, module).Add(float64(data.Total_time - mp.totalTime))
 			mp.totalTime = data.Total_time
 		}
 	}
@@ -288,10 +294,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	if l.initialized {
 		return nil
 	}
-	defer func() {
-		log.Infof("lock contention collector initialized")
-		l.initialized = true
-	}()
 
 	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
 	maps := make(map[uint32]*targetMap)
@@ -371,7 +373,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel:    ebpf.LogLevelBranch,
-				LogSize:     10 * 1024 * 1024,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}
@@ -430,7 +431,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	if uint32(count) < ranges && !staticRanges {
-		return fmt.Errorf("discovered fewer ranges than expected: %d < %d", count, ranges)
+		log.Warnf("discovered fewer ranges than expected: %d < %d", count, ranges)
 	}
 
 	for i, id := range mapids {
@@ -470,6 +471,9 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	// initialize buffers used in Collect
 	l.lockRanges = make([]LockRange, l.ranges)
 	l.contention = make([]ContentionData, l.ranges)
+
+	log.Infof("lock contention collector initialized")
+	l.initialized = true
 
 	return nil
 }
@@ -553,7 +557,6 @@ func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel:    ebpf.LogLevelBranch,
-				LogSize:     10 * 1024 * 1024,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}

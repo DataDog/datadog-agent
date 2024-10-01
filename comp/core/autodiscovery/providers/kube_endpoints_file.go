@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -56,7 +57,7 @@ type KubeEndpointsFileConfigProvider struct {
 }
 
 // NewKubeEndpointsFileConfigProvider returns a new KubeEndpointsFileConfigProvider
-func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err

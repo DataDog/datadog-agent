@@ -121,7 +121,7 @@ inv -e kmt.launch-stack --stack=demo-stack
 You can generate a SSH config file to connect to the VMs using the following command:
 
 ```bash
-inv -e kmt.ssh-config --stack=demo-stack > ~/.ssh/kmt_ssh_config
+inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
 ```
 
 This will generate a file `kmt_ssh_config` in the `~/.ssh` directory, which you can include in your config by using the line `Include ~/.ssh/kmt_ssh_config` in your `~/.ssh/config` file. Then you can then connect to the VMs using the following command:
@@ -414,3 +414,36 @@ This will show several tables, skipping the cases where all jobs/tests passed to
 - For each component (security-agent or system-probe) and vmset (e.g., in system-probe we have `only_tracersuite` and `no_tracersuite` test sets) it will show the jobs that failed and why (e.g., if the job failed due to an infra or a test failure).
 - Again, for each component and vmset, it will show which tests failed in a table showing in which distros/archs they failed (tests and distros that did not have any failures will not be shown).
 - For each job that failed due to infra reasons, it will show a summary with quick detection of possible boot causes (e.g., it will show if the VM did not reach the login prompt, or if it didn't get an IP address, etc).
+
+## Alien VMs
+The KMT tasks provided here allow developers to run the system-probe build process, and test setup exactly as in the CI. As such it can be useful to use these tasks to package system-probe and target VMs outside the purview of KMT. For this we can provide a profile representing these "alien" vms, and the invoke tasks will
+correctly package system-probe and share with the provided VMs as if they were launch by KMT. This can be useful when a developer wants to use these tasks with local VMs launch with VMware, parallels, etc, or remote VMs launch in ec2 or gcp.
+
+The format of the profile is a json list of objects representing a vm. For each VM the following information is required:
+- ssh_key_path
+- IP
+- architecture
+- name
+- ssh_user
+
+An example of an alien VMs profile:
+```json
+[
+    {
+        "ssh_key_path": "/home/user/.ssh/some-key.id_rsa",
+        "ip": "xxx.yyy.aaa.bbb",
+        "arch": "x86",
+        "name": "ubuntu-gcp",
+        "ssh_user": "ubuntu"
+    }
+]
+```
+
+To target these alien profiles use the `--alien-vms` flag to provide the path to this profile file.
+```
+inv -e kmt.build --alien-vms=/tmp/alien.profile
+```
+
+```
+inv -e kmt.test --packages=./pkg/ebpf --run=TestLockRanges/Hashmap --alien-vms=./alien.profile
+```

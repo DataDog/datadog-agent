@@ -8,7 +8,7 @@
 package network
 
 import (
-	"net"
+	"net/netip"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -57,14 +57,14 @@ func isTCPFlowEstablished(flow *driver.PerFlowData) bool {
 	return false
 }
 
-func convertV4Addr(addr [16]uint8) util.Address {
+func convertV4Addr(addr [16]byte) util.Address {
 	// We only read the first 4 bytes for v4 address
-	return util.V4AddressFromBytes(addr[:net.IPv4len])
+	return util.Address{Addr: netip.AddrFrom4([4]byte(addr[:]))}
 }
 
-func convertV6Addr(addr [16]uint8) util.Address {
+func convertV6Addr(addr [16]byte) util.Address {
 	// We read all 16 bytes for v6 address
-	return util.V6AddressFromBytes(addr[:net.IPv6len])
+	return util.Address{Addr: netip.AddrFrom16(addr)}
 }
 
 // Monotonic values include retransmits and headers, while transport does not. We default to using transport
@@ -106,7 +106,8 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Monotonic.RecvBytes = monotonicOrTransportBytes(enableMonotonicCounts, flow.MonotonicRecvBytes, flow.TransportBytesIn)
 	cs.Monotonic.SentPackets = flow.PacketsOut
 	cs.Monotonic.RecvPackets = flow.PacketsIn
-	cs.LastUpdateEpoch = flow.Timestamp
+	// ok.  flow.Timestamp is actually the number of ns that the system has been up.
+	cs.LastUpdateEpoch = driverTimeToUnixTime(flow.Timestamp)
 	cs.Pid = uint32(flow.ProcessId)
 	cs.SPort = flow.LocalPort
 	cs.DPort = flow.RemotePort
@@ -119,9 +120,22 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 		tf := flow.TCPFlow()
 		if tf != nil {
+			cs.TCPFailures = make(map[uint32]uint32)
 			cs.Monotonic.Retransmits = uint32(tf.RetransmitCount)
 			cs.RTT = uint32(tf.SRTT)
 			cs.RTTVar = uint32(tf.RttVariance)
+
+			switch driver.ConnectionStatus(tf.ConnectionStatus) {
+			case driver.ConnectionStatusACKRST:
+				cs.TCPFailures[111] = 1 // ECONNREFUSED in posix is 111
+			case driver.ConnectionStatusTimeout:
+				cs.TCPFailures[110] = 1 // ETIMEDOUT in posix is 110
+			case driver.ConnectionStatusSentRst:
+				fallthrough
+			case driver.ConnectionStatusRecvRst:
+				cs.TCPFailures[104] = 1 // ECONNRESET in posix is 104
+			}
+
 		}
 
 		if isTCPFlowEstablished(flow) {

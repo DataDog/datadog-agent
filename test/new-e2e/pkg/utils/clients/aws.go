@@ -7,6 +7,7 @@ package clients
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"sync"
 	"time"
 
@@ -51,7 +52,10 @@ func getAWSConfig() (*aws.Config, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), awsTimeout)
 	defer cancel()
 
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	// https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/retries-timeouts/
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRetryer(func() aws.Retryer {
+		return retry.AddWithMaxAttempts(retry.NewStandard(), 5)
+	}))
 	if err != nil {
 		return nil, err
 	}

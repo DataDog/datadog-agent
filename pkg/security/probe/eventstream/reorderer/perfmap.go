@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // OrderedPerfMap implements the EventStream interface
@@ -34,7 +35,7 @@ type OrderedPerfMap struct {
 	lostEventCounter eventstream.LostEventCounter
 	reordererMonitor *Monitor
 	reOrderer        *ReOrderer
-	recordPool       *RecordPool
+	recordPool       *ddsync.TypedPool[perf.Record]
 }
 
 // Init the event stream.
@@ -103,10 +104,10 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 
 // NewOrderedPerfMap returned a new ordered perf map.
 func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdClient statsd.ClientInterface) (*OrderedPerfMap, error) {
-	recordPool := NewRecordPool()
+	recordPool := ddsync.NewDefaultTypedPool[perf.Record]()
 	reOrderer := NewReOrderer(ctx,
 		func(record *perf.Record) {
-			defer recordPool.Release(record)
+			defer recordPool.Put(record)
 			handler(record.CPU, record.RawSample)
 		},
 		ExtractEventInfo,

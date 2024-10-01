@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,7 +36,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 	}
 
 	confSearchPaths := map[string]string{
-		"":     config.Datadog().GetString("confd_path"),
+		"":     pkgconfigsetup.Datadog().GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
@@ -75,14 +75,14 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
 	getPerformanceProfileDCA(fb, pdata)
 
-	if config.Datadog().GetBool("external_metrics_provider.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
 	}
 }
 
 // QueryDCAMetrics gets the metrics payload exposed by the cluster agent
 func QueryDCAMetrics() ([]byte, error) {
-	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", config.Datadog().GetInt("metrics_port")))
+	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", pkgconfigsetup.Datadog().GetInt("metrics_port")))
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentConfigCheck(writer, true, true) //nolint:errcheck
+	GetClusterAgentConfigCheck(writer, true) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("config-check.log", b.Bytes())
@@ -168,23 +168,23 @@ func getClusterAgentDiagnose(fb flaretypes.FlareBuilder) error {
 }
 
 func getDCATaggerList() ([]byte, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	return getTaggerList(taggerListURL)
 }
 
 func getDCAWorkloadList() ([]byte, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port")))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {

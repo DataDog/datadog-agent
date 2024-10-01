@@ -195,11 +195,11 @@
     "DDContext": {
       "properties": {
         "span_id": {
-          "type": "integer",
+          "type": "string",
           "description": "Span ID used for APM correlation"
         },
         "trace_id": {
-          "type": "integer",
+          "type": "string",
           "description": "Trace ID used for APM correlation"
         }
       },

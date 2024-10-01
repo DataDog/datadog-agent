@@ -7,9 +7,11 @@ package aggregator
 
 import (
 	"bytes"
+	"encoding/json"
 	"time"
 
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -47,7 +49,13 @@ func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 		return nil, err
 	}
 	metricsPayload := new(metricspb.MetricPayload)
-	err = metricsPayload.Unmarshal(enflated)
+
+	if payload.ContentType == "application/json" {
+		err = json.Unmarshal(enflated, metricsPayload)
+	} else {
+		err = metricsPayload.Unmarshal(enflated)
+	}
+
 	if err != nil {
 		return nil, err
 	}

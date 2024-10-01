@@ -171,9 +171,9 @@ func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []
 		case workloadmeta.KindKubernetesDeployment:
 			// extract deployment name and namespace from entity id
 			deployment := event.Entity.(*workloadmeta.KubernetesDeployment)
-			deploymentIds := strings.Split(deployment.GetID().ID, "/")
-			namespace := deploymentIds[0]
-			deploymentName := deploymentIds[1]
+			deploymentIDs := strings.Split(deployment.GetID().ID, "/")
+			namespace := deploymentIDs[0]
+			deploymentName := deploymentIDs[1]
 			delete(ownersLanguages.containersLanguages, langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, namespace))
 			_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
 				Type:   workloadmeta.EventTypeUnset,

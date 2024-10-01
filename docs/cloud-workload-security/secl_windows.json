@@ -18,6 +18,11 @@
           "property_doc_link": "container-id-doc"
         },
         {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
+        },
+        {
           "name": "container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "container-tags-doc"
@@ -1320,6 +1325,18 @@
       "link": "container-id-doc",
       "type": "string",
       "definition": "ID of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
+      "type": "string",
+      "definition": "Runtime managing the container",
       "prefixes": [
         "container"
       ],

@@ -12,9 +12,13 @@ def check_protected_branch(ctx):
     local_branch = get_current_branch(ctx)
 
     if local_branch == 'main':
-        print(color_message("You're about to commit on main, are you sure this is what you want?", "red"))
+        print(color_message("You're about to commit or push to the main, are you sure this is what you want?", "red"))
         raise Exit(code=1)
 
     if re.fullmatch(r'^[0-9]+\.[0-9]+\.x$', local_branch):
-        print(color_message("You're about to commit on a release branch, are you sure this is what you want?", "red"))
+        print(
+            color_message(
+                "You're about to commit or push to a release branch, are you sure this is what you want?", "red"
+            )
+        )
         raise Exit(code=1)

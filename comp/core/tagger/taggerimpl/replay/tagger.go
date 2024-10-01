@@ -10,12 +10,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,14 +28,16 @@ type Tagger struct {
 	cancel context.CancelFunc
 
 	telemetryTicker *time.Ticker
+	telemetryStore  *telemetry.Store
 	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger() *Tagger {
+func NewTagger(cfg config.Component, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
-		store: tagstore.NewTagStore(),
+		store:          tagstore.NewTagStore(cfg, telemetryStore),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -62,20 +64,22 @@ func (t *Tagger) Stop() error {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	tags := t.store.Lookup(entityID, cardinality)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags := t.store.Lookup(id, cardinality)
 	return tags, nil
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
 func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags := t.store.LookupHashed(entityID, cardinality)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags := t.store.LookupHashed(id, cardinality)
 
 	if tags.Len() == 0 {
-		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return nil
 	}
 
-	telemetry.QueriesByCardinality(cardinality).Success.Inc()
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	tb.AppendHashed(tags)
 
 	return nil
@@ -83,7 +87,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	tags, err := t.store.LookupStandard(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	tags, err := t.store.LookupStandard(id)
 	if err != nil {
 		return []string{}, err
 	}
@@ -107,23 +112,26 @@ func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
 	// NOP
 }
 
+// ReplayTagger returns the replay tagger instance
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
+	return t
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
+}
+
 // LoadState loads the state for the tagger from the supplied map.
-func (t *Tagger) LoadState(state map[string]*pb.Entity) {
+func (t *Tagger) LoadState(state []types.Entity) {
 	if state == nil {
 		return
 	}
 
-	// better stores these as the native type
-	for id, entity := range state {
-		entityID, err := proto.Pb2TaggerEntityID(entity.Id)
-		if err != nil {
-			log.Errorf("Error getting identity ID for %v: %v", id, err)
-			continue
-		}
-
+	for _, entity := range state {
 		t.store.ProcessTagInfo([]*types.TagInfo{{
 			Source:               "replay",
-			Entity:               entityID,
+			EntityID:             entity.ID,
 			HighCardTags:         entity.HighCardinalityTags,
 			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
 			LowCardTags:          entity.LowCardinalityTags,
@@ -137,5 +145,6 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	return t.store.GetEntity(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	return t.store.GetEntity(id)
 }

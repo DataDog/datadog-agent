@@ -16,20 +16,22 @@ begin
         'dba_tablespaces',
         'dba_tablespace_usage_metrics'
       );
-      command varchar2(100);
+      command varchar2(4000);
       object_name varchar2(30);
     begin
       for i in 1..array.count loop
         if :hostingType = :hostingTypeSelfManaged then
           command := 'grant select on ' || array(i) || ' to &&legacy_user with grant option';
         elsif :hostingType = :hostingTypeRDS then
-          command := 'rdsadmin.rdsadmin_util.grant_sys_object(''' || array(i) || ',''&&legacy_user'',''SELECT'', p_grant_option => false)';
+          command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(array(i)) || ''',''&&legacy_user'',''SELECT'', p_grant_option => false); end;';
         elsif :hostingType = :hostingTypeOCI then
-          object_name := replace(array(i), 'V_$', 'V$');
+          object_name := replace(array(i), 'GV_$', 'GV$');
           command := 'grant select on ' || array(i) || ' to &&legacy_user with grant option';
         end if;
         begin
+          dbms_output.disable;
           execute immediate command;
+          dbms_output.enable;
         exception
           when others then
             null;

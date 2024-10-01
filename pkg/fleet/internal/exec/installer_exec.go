@@ -12,20 +12,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-)
-
-const (
-	// StableInstallerPath is the path to the stable installer binary.
-	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
-	// ExperimentInstallerPath is the path to the experiment installer binary.
-	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -54,8 +50,12 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	cmd.Cancel = func() error {
-		return cmd.Process.Signal(os.Interrupt)
+	if runtime.GOOS != "windows" {
+		// os.Interrupt is not support on Windows
+		// It gives " run failed: exec: canceling Cmd: not supported by windows"
+		cmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
 	}
 	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
 	cmd.Env = env
@@ -165,14 +165,63 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 	return defaultPackages, nil
 }
 
+// Setup runs the setup command.
+func (i *InstallerExec) Setup(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error running setup: %w\n%s", err, stderr.String())
+	}
+	return nil
+}
+
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
-	return repositories.GetState()
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	states, err := repositories.GetStates()
+	log.Debugf("repositories states: %v", states)
+	return states, err
+}
+
+// ConfigState returns the state of a package's configuration.
+func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
+	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	return repositories.Get(pkg).GetState()
+}
+
+// ConfigStates returns the states of all packages' configurations.
+func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
+	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	states, err := repositories.GetStates()
+	log.Debugf("config repositories states: %v", states)
+	return states, err
+}
+
+// Close cleans up any resources.
+func (i *InstallerExec) Close() error {
+	return nil
+}
+
+func (iCmd *installerCmd) Run() error {
+	var errBuf bytes.Buffer
+	iCmd.Stderr = &errBuf
+	err := iCmd.Cmd.Run()
+	if err == nil {
+		return nil
+	}
+
+	if len(errBuf.Bytes()) == 0 {
+		return fmt.Errorf("run failed: %s", err.Error())
+	}
+
+	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }

@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	// This is a special metric, it's 1 if the span is top-level, 0 if not.
+	// topLevelKey is a special metric, it's 1 if the span is top-level, 0 if not, this is kept for backwards
+	// compatibility but will eventually be replaced with just using the preferred tracerTopLevelKey
 	topLevelKey = "_top_level"
 	// measuredKey is a special metric flag that marks a span for trace metrics calculation.
 	measuredKey = "_dd.measured"
@@ -26,7 +27,12 @@ const (
 
 // HasTopLevel returns true if span is top-level.
 func HasTopLevel(s *pb.Span) bool {
-	return s.Metrics[topLevelKey] == 1
+	return HasTopLevelMetrics(s.Metrics)
+}
+
+// HasTopLevelMetrics returns true if the provided metrics map indicates the span is top-level.
+func HasTopLevelMetrics(metrics map[string]float64) bool {
+	return metrics[topLevelKey] == 1 || metrics[tracerTopLevelKey] == 1
 }
 
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
@@ -38,7 +44,12 @@ func UpdateTracerTopLevel(s *pb.Span) {
 
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s *pb.Span) bool {
-	return s.Metrics[measuredKey] == 1
+	return IsMeasuredMetrics(s.Metrics)
+}
+
+// IsMeasuredMetrics returns true if a span should be measured (i.e., it should get trace metrics calculated).
+func IsMeasuredMetrics(metrics map[string]float64) bool {
+	return metrics[measuredKey] == 1
 }
 
 // IsPartialSnapshot returns true if the span is a partial snapshot.
@@ -46,7 +57,15 @@ func IsMeasured(s *pb.Span) bool {
 // When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
 // The metric usually increases each time a new version of the same span is sent by the tracer
 func IsPartialSnapshot(s *pb.Span) bool {
-	v, ok := s.Metrics[partialVersionKey]
+	return IsPartialSnapshotMetrics(s.Metrics)
+}
+
+// IsPartialSnapshotMetrics returns true if the span is a partial snapshot.
+// These kinds of spans are partial images of long-running spans.
+// When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
+// The metric usually increases each time a new version of the same span is sent by the tracer
+func IsPartialSnapshotMetrics(metrics map[string]float64) bool {
+	v, ok := metrics[partialVersionKey]
 	return ok && v >= 0
 }
 

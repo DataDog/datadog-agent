@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"expvar"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +21,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -242,11 +243,11 @@ func publishDropCheckPayloads() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 
-	return infoDropCheckPayloads
+	return slices.Clone(infoDropCheckPayloads)
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config ddconfig.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(_ pkgconfigmodel.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")

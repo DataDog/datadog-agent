@@ -78,7 +78,7 @@ func TestUpgradeScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)),
+				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%v-%s", *srcAgentVersion, *destAgentVersion, *flavorName, osVers, *architecture)),
 			)
 		})
 	}

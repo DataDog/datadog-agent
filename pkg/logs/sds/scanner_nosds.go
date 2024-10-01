@@ -29,8 +29,8 @@ func CreateScanner(_ int) *Scanner {
 }
 
 // Reconfigure mocks the Reconfigure function.
-func (s *Scanner) Reconfigure(_ ReconfigureOrder) error {
-	return nil
+func (s *Scanner) Reconfigure(_ ReconfigureOrder) (bool, error) {
+	return false, nil
 }
 
 // Delete mocks the Delete function.

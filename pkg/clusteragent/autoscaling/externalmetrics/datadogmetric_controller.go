@@ -73,7 +73,7 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 	if _, err := datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
 		DeleteFunc: c.enqueue,
-		UpdateFunc: func(obj, new interface{}) {
+		UpdateFunc: func(_, new interface{}) {
 			c.enqueue(new)
 		},
 	}); err != nil {

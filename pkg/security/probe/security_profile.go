@@ -99,16 +99,6 @@ func (spm *SecurityProfileManagers) AddActivityDumpHandler(handler dump.Activity
 	}
 }
 
-// DumpActivity handles an activity dump request
-func (spm *SecurityProfileManagers) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if spm.activityDumpManager == nil {
-		return &api.ActivityDumpMessage{
-			Error: ErrActivityDumpManagerDisabled.Error(),
-		}, ErrActivityDumpManagerDisabled
-	}
-	return spm.activityDumpManager.DumpActivity(params)
-}
-
 // ListActivityDumps returns the list of active dumps
 func (spm *SecurityProfileManagers) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if spm.activityDumpManager == nil {
@@ -142,6 +132,11 @@ func (spm *SecurityProfileManagers) GenerateTranscoding(params *api.TranscodingR
 // GetActivityDumpTracedEventTypes returns traced event types
 func (spm *SecurityProfileManagers) GetActivityDumpTracedEventTypes() []model.EventType {
 	return spm.config.RuntimeSecurity.ActivityDumpTracedEventTypes
+}
+
+// GetAnomalyDetectionEventTypes returns the event types that may generate anomaly detections
+func (spm *SecurityProfileManagers) GetAnomalyDetectionEventTypes() []model.EventType {
+	return spm.config.RuntimeSecurity.AnomalyDetectionEventTypes
 }
 
 // SnapshotTracedCgroups snapshots traced cgroups

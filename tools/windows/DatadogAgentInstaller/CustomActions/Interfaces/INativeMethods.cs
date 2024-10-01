@@ -46,5 +46,7 @@ namespace Datadog.CustomActions.Interfaces
         void EnablePrivilege(string privilegeName);
 
         void GetCurrentUser(out string name, out SecurityIdentifier sid);
+
+        string GetVersionString(string product);
     }
 }

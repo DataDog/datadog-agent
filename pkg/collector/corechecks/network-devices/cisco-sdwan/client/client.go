@@ -24,7 +24,7 @@ const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
-	defaultLookback    = 10 * time.Minute
+	defaultLookback    = 30 * time.Minute
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
 )
@@ -324,6 +324,39 @@ func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
 	}
 
 	return hardwareStates.Data, nil
+}
+
+// GetCloudExpressMetrics gets cloud applications metrics
+func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
+	startDate, endDate := client.statisticsTimeRange()
+
+	params := map[string]string{
+		"startDate": startDate,
+		"endDate":   endDate,
+		"timeZone":  "UTC",
+		"count":     client.maxCount,
+	}
+
+	cloudApplications, err := getAllEntries[CloudXStatistics](client, "/dataservice/data/device/statistics/cloudxstatistics", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return cloudApplications.Data, nil
+}
+
+// GetBGPNeighbors gets BGP neighbors
+func (client *Client) GetBGPNeighbors() ([]BGPNeighbor, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/data/device/state/BGPNeighbor", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return bgpNeighbors.Data, nil
 }
 
 func (client *Client) statisticsTimeRange() (string, string) {

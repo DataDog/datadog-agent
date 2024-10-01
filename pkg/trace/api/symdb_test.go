@@ -50,7 +50,7 @@ func TestSymDBProxy(t *testing.T) {
 func TestSymDBProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
 			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags)
 			called = true
@@ -67,7 +67,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 	t.Run("ok_multiple_requests", func(t *testing.T) {
 		extraTag := "a:b"
 		var numCalls atomic.Int32
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
 			assert.Equal(t, fmt.Sprintf("host:myhost,default_env:test,agent_version:v1,%s", extraTag), ddtags)
 			numCalls.Add(1)
@@ -87,7 +87,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
 			assert.True(t, strings.Contains(ddtags, "orchestrator"), "ddtags must contain orchestrator: %v", ddtags)
 			called = true
@@ -124,7 +124,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 		conf := getSymDBConf("")
 		srvs := make([]*httptest.Server, 0, numEndpoints)
 		for i := 0; i < numEndpoints; i++ {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 				ddtags := req.Header.Get("X-Datadog-Additional-Tags")
 				assert.Equal(t, "host:myhost,default_env:test,agent_version:v1", ddtags, "got invalid tags: %q", ddtags)
 				numCalls.Add(1)
@@ -158,7 +158,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 			var srv *httptest.Server
 
 			if i == 0 {
-				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(500)
 				}))
 				srvs = append(srvs, srv)
@@ -166,7 +166,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 				continue
 			}
 
-			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(200)
 			}))
 			srvs = append(srvs, srv)
@@ -195,7 +195,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 			var srv *httptest.Server
 
 			if i == 0 {
-				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(200)
 				}))
 				srvs = append(srvs, srv)
@@ -203,7 +203,7 @@ func TestSymDBProxyHandler(t *testing.T) {
 				continue
 			}
 
-			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(500)
 			}))
 			srvs = append(srvs, srv)

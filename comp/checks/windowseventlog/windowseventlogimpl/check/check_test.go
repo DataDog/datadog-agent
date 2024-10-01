@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
-	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
+	agentConfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -86,7 +86,7 @@ func (s *GetEventsTestSuite) testsetup() {
 	// create tmpdir to store bookmark. Necessary to isolate test runs from each other, otherwise
 	// they will load bookmarks from previous runs.
 	testDir := s.T().TempDir()
-	mockConfig := agentConfig.Mock(s.T())
+	mockConfig := agentConfigmock.New(s.T())
 	mockConfig.SetWithoutSource("run_path", testDir)
 }
 
@@ -163,7 +163,7 @@ func generateAndCountEvents(ti eventlog_test.APITester, check *Check, senderEven
 	eventsCollected := uint(0)
 	done := make(chan struct{})
 	if numEvents > 0 {
-		senderEventCall.Run(func(args mock.Arguments) {
+		senderEventCall.Run(func(_ mock.Arguments) {
 			eventsCollected++
 			if eventsCollected == numEvents {
 				close(done)
@@ -194,7 +194,7 @@ func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint 
 	eventsCollected := uint(0)
 	done := make(chan struct{})
 	if numEvents > 0 {
-		senderEventCall.Run(func(args mock.Arguments) {
+		senderEventCall.Run(func(_ mock.Arguments) {
 			eventsCollected++
 			if eventsCollected == numEvents {
 				close(done)
@@ -954,7 +954,7 @@ func BenchmarkGetEvents(b *testing.B) {
 					continue
 				}
 				b.Run(fmt.Sprintf("%vAPI/%dEvents/%dBatch", tiName, v, batchCount), func(b *testing.B) {
-					mockConfig := agentConfig.Mock(b)
+					mockConfig := agentConfigmock.New(b)
 
 					// setup check
 					instanceConfig := []byte(fmt.Sprintf(`

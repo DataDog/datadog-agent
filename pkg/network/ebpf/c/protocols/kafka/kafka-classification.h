@@ -91,7 +91,6 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
             // so dropping support for this case
             return false;
         } else if (kafka_header->api_version > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
-            // Produce request version 9 and above is not supported.
             return false;
         }
         break;
@@ -165,9 +164,45 @@ static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offs
     return true;
 }
 
+// Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
+// above could potentially be merged with this, although that leads to a small
+// growth in the number of instructions processed.
+//
+// Note there is an assumption that there are at least `max_bytes` available in
+// the packet (even if the varint actually occupies a lesser amount of space).
+//
+// A return value of false indicates an error in reading the varint.
+static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset, u32 max_bytes) {
+    u8 bytes[4] = {};
+
+    if (max_bytes == 0 || max_bytes > sizeof(bytes)) {
+        return false;
+    }
+
+    if (*offset + max_bytes > pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, bytes, max_bytes);
+
+    #pragma unroll
+    for (u32 i = 0; i < max_bytes; i++) {
+        // Note that doing *offset += i + 1 before the return true instead of
+        // this leads to a compiler error due to the optimizer not being to
+        // unroll the loop.
+        *offset += 1;
+        if (!isMSBSet(bytes[i])) {
+            return true;
+        }
+    }
+
+    // MSB set on last byte, so our max_bytes wasn't enough.
+    return false;
+}
+
 // `flexible` indicates that the API version is a flexible version as described in
 // https://cwiki.apache.org/confluence/display/KAFKA/KIP-482%3A+The+Kafka+Protocol+should+Support+Optional+Tagged+Fields
-static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexible, u32 *offset) {
+static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible, u32 *offset) {
     u16 topic_name_size_raw = 0;
     // We assume we can always read two bytes. Even if the varint for the topic
     // name size is just one byte, the topic name itself will at least occupy
@@ -210,7 +245,7 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
         offset += sizeof(s32);
     }
 
-    s16 topic_name_size = read_first_topic_name_size(pkt, flexible, &offset);
+    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -228,12 +263,42 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
+// Flexible API version can have an arbitrary number of tagged fields.  We don't
+// need to handle these but we do need to skip them to get at the normal fields
+// which we are interested in.  However, we would need to parse the list of fields
+// to find out how much we need to skip over.  For now, we assume (and assert)
+// that there are no tagged fields.
+static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset) {
+    if (*offset >= pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    u8 num_tagged_fields = 0;
+
+    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
+    *offset += sizeof(num_tagged_fields);
+
+    // We don't support parsing tagged fields for now.
+    return num_tagged_fields == 0;
+}
+
 // Getting the offset (out parameter) of the first topic name in the produce request.
-static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset) {
+static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset, s16 *out_acks) {
     const s16 api_version = kafka_header->api_version;
     u32 offset = *out_offset;
+    bool flexible = api_version >= 9;
+
+    if (flexible && !skip_request_tagged_fields(pkt, &offset)) {
+        return false;
+    }
+
     if (api_version >= 3) {
-        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, transactional_id_size, pkt, offset);
+        // The transactional ID for flex versions can, in theory, have a size
+        // larger than that which can be represented in a two-byte varint, but
+        // that seems unlikely, so just reuse the same nullable string read that
+        // we use for the topic names.
+        s16 transactional_id_size = read_nullable_string_size(pkt, flexible, &offset);
+
         if (transactional_id_size > 0) {
             offset += transactional_id_size;
         }
@@ -245,6 +310,9 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
         // complete. Allowed values: 0 for no acknowledgments, 1 for only the leader and -1 for the full ISR.
         return false;
     }
+    if (out_acks != NULL) {
+        *out_acks = acks;
+    }
 
     PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, timeout_ms, pkt, offset);
     if (timeout_ms < 0) {
@@ -254,20 +322,6 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
 
     *out_offset = offset;
     return true;
-}
-
-static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset) {
-    if (*offset >= pktbuf_data_end(pkt)) {
-        return false;
-    }
-
-    u8 num_tagged_fields = 0;
-
-    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, 1);
-    *offset += 1;
-
-    // We don't support parsing tagged fields for now.
-    return num_tagged_fields == 0;
 }
 
 // Getting the offset the topic name in the fetch request.
@@ -310,9 +364,10 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     bool flexible = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
-        if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset)) {
+        if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset, NULL)) {
             return false;
         }
+        flexible = kafka_header->api_version >= 9;
         break;
     case KAFKA_FETCH:
         if (!get_topic_offset_from_fetch_request(kafka_header, pkt, &offset)) {

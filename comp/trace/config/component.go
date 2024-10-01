@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -30,7 +30,7 @@ import (
 // Component is the component type.
 type Component interface {
 	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
+	Warnings() *model.Warnings
 
 	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
@@ -48,7 +48,7 @@ type Component interface {
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newConfig),
+		fx.Provide(NewConfig),
 		fx.Supply(Params{
 			FailIfAPIKeyMissing: true,
 		}))

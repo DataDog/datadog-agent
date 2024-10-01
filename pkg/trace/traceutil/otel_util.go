@@ -125,7 +125,10 @@ func GetOTelAttrValInResAndSpanAttrs(span ptrace.Span, res pcommon.Resource, nor
 
 // GetOTelSpanType returns the DD span type based on OTel span kind and attributes.
 func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
-	var typ string
+	typ := GetOTelAttrValInResAndSpanAttrs(span, res, false, "span.type")
+	if typ != "" {
+		return typ
+	}
 	switch span.Kind() {
 	case ptrace.SpanKindServer:
 		typ = "web"

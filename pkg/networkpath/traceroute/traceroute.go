@@ -8,15 +8,9 @@ package traceroute
 
 import (
 	"context"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
-)
-
-const (
-	// UDP represents the UDP protocol
-	UDP = "UDP"
-	// TCP represents the TCP protocol
-	TCP = "TCP"
 )
 
 type (
@@ -37,10 +31,10 @@ type (
 		// Max number of hops to try
 		MaxTTL uint8
 		// TODO: do we want to expose this?
-		TimeoutMs uint
+		Timeout time.Duration
 		// Protocol is the protocol to use
 		// for traceroute, default is UDP
-		Protocol string
+		Protocol payload.Protocol
 	}
 
 	// Traceroute defines an interface for running

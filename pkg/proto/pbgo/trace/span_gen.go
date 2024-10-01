@@ -119,7 +119,6 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		err = msgp.WrapError(err)
 		return
 	}
-	hook, hookok := MetaHook()
 	for zb0001 > 0 {
 		zb0001--
 		field, bts, err = msgp.ReadMapKeyZC(bts)
@@ -260,11 +259,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "Meta", za0001)
 					return
 				}
-				if hookok {
-					z.Meta[za0001] = hook(za0001, za0002)
-				} else {
-					z.Meta[za0001] = za0002
-				}
+				z.Meta[za0001] = za0002
 			}
 		case "metrics":
 			if msgp.IsNil(bts) {
@@ -278,7 +273,7 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Metrics")
 				return
 			}
-			if z.Metrics == nil && zb0003 > 0{
+			if z.Metrics == nil && zb0003 > 0 {
 				z.Metrics = make(map[string]float64, zb0003)
 			} else if len(z.Metrics) > 0 {
 				for key := range z.Metrics {

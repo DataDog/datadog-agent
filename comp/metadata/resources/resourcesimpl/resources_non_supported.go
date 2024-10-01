@@ -9,7 +9,7 @@ package resourcesimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"go.uber.org/fx"
 )
@@ -22,7 +22,7 @@ type provides struct {
 	Comp resources.Component
 }
 
-func newResourcesProvider(log log.Component, config config.Component) provides { //nolint:revive // TODO fix revive unused-parameter
+func newResourcesProvider(_ log.Component, _ config.Component) provides {
 	return provides{
 		// We return a dummy Component
 		Comp: &resourcesImpl{},

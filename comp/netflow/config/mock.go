@@ -8,7 +8,7 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -17,6 +17,9 @@ func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
 	if err := conf.SetDefaults("default", logger); err != nil {
 		return nil, err
 	}
+	// TODO Currently reverse DNS enrichment is disabled by default for the agent but we want it enabled by default for tests.
+	// Move this to conf.SetDefaults() if/when we enable it by default for the agent.
+	conf.ReverseDNSEnrichmentEnabled = true
 	return &configService{conf}, nil
 }
 

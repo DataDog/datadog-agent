@@ -597,20 +597,20 @@ def generate_vmconfig(
                 vmset.tags,
             )
 
-    for vmset in vm_config["vmsets"]:
-        add_vcpu(vmset, vcpu)
-        add_memory(vmset, memory)
-        add_machine_type(vmconfig_template, vmset)
+    for vmset_config in vm_config["vmsets"]:
+        add_vcpu(vmset_config, vcpu)
+        add_memory(vmset_config, memory)
+        add_machine_type(vmconfig_template, vmset_config)
 
-        if vmset.get("recipe", "") != "custom":
-            add_disks(vmconfig_template, vmset)
+        if vmset_config.get("recipe", "") != "custom":
+            add_disks(vmconfig_template, vmset_config)
 
         # For local VMs we want to read images from the filesystem
-        if vmset.get("arch") == local_arch:
-            image_source_to_path(vmset)
+        if vmset_config.get("arch") == local_arch:
+            image_source_to_path(vmset_config)
 
         if ci:
-            add_console(vmset)
+            add_console(vmset_config)
 
     return vm_config
 
@@ -648,7 +648,7 @@ def gen_config_for_stack(
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
-            f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --init-stack option'"
+            f"Stack {stack} does not exist. Please create stack first 'inv kmt.create-stack --stack={stack}', or specify --init-stack option to the current command"
         )
 
     if init_stack:
@@ -658,6 +658,11 @@ def gen_config_for_stack(
 
     ## get all possible (recipe, version, arch) combinations we can support.
     vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
+    if os.path.exists(vmconfig_file) and not new:
+        raise Exit(
+            "Editing configuration is current not supported. Destroy the stack first to change the configuration."
+        )
+
     if new or not os.path.exists(vmconfig_file):
         empty_config(vmconfig_file)
 

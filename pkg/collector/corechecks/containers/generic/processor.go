@@ -13,7 +13,6 @@ import (
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -72,8 +71,9 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 			continue
 		}
 
-		entityID := containers.BuildTaggerEntityName(container.ID)
-		tags, err := tagger.Tag(entityID, types.HighCardinality)
+		entityID := types.NewEntityID(types.ContainerID, container.ID)
+
+		tags, err := tagger.Tag(entityID.String(), types.HighCardinality)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %q, err: %v", container.ID[:12], err)
 			continue

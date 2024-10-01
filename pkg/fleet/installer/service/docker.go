@@ -17,9 +17,11 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -150,7 +152,7 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
-		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		cmd := exec.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
 		var outb bytes.Buffer
 		cmd.Stdout = &outb
 		err = cmd.Run()
@@ -176,12 +178,27 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 		log.Warn("docker is inactive, skipping docker reload")
 		return nil
 	}
-	cmd := exec.Command("systemctl", "reload", "docker")
-	bufErr := new(bytes.Buffer)
-	cmd.Stderr = bufErr
-	err = cmd.Run()
+
+	pids := []int32{}
+	processes, err := process.Processes()
 	if err != nil {
-		return fmt.Errorf("failed to reload docker (%s): %s", err.Error(), bufErr.String())
+		return fmt.Errorf("couldn't get running processes: %s", err.Error())
+	}
+	for _, process := range processes {
+		name, err := process.NameWithContext(ctx)
+		if err != nil {
+			continue // Don't pollute with warning logs
+		}
+		if name == "dockerd" {
+			pids = append(pids, process.Pid)
+		}
+	}
+	span.SetTag("dockerd_count", len(pids))
+	for _, pid := range pids {
+		err = syscall.Kill(int(pid), syscall.SIGHUP)
+		if err != nil {
+			return fmt.Errorf("failed to reload docker daemon (pid %d): %s", pid, err.Error())
+		}
 	}
 	return nil
 }
@@ -206,18 +223,8 @@ func isDockerInstalled(ctx context.Context) bool {
 	return true
 }
 
-// isDockerActive checks if docker is active on the system
+// isDockerActive checks if docker is started on the system
 func isDockerActive(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "systemctl", "is-active", "docker")
-	var outb bytes.Buffer
-	cmd.Stdout = &outb
-	err := cmd.Run()
-	if err != nil {
-		log.Warn("installer: failed to check if docker is active, assuming it isn't: ", err)
-		return false
-	}
-	if strings.TrimSpace(outb.String()) == "active" {
-		return true
-	}
-	return false
+	cmd := exec.CommandContext(ctx, "pidof", "dockerd")
+	return cmd.Run() == nil
 }

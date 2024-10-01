@@ -21,11 +21,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -60,7 +61,7 @@ var (
 	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
 	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
-	fetchSystemProbeConfig = configFetcher.SystemProbeConfig
+	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
 
 type agentMetadata map[string]interface{}
@@ -240,6 +241,11 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
+
+	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	// ECS Fargate
+	ia.fetchECSFargateAgentMetadata()
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
@@ -292,11 +298,16 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
+	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
 	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
+
+	// Discovery module / system-probe
+
+	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
 
 	// miscellaneous / system-probe
 
@@ -320,9 +331,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_root_namespace_enabled"] = sysProbeConf.GetBool("network_config.enable_root_netns")
 
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
-
-	// ECS Fargate
-	ia.fetchECSFargateAgentMetadata()
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
@@ -368,7 +376,7 @@ func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Requ
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := ia.GetAsJSON()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -417,6 +425,7 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 			model.SourceAgentRuntime:       "agent_runtime_configuration",
 			model.SourceLocalConfigProcess: "source_local_configuration",
 			model.SourceRC:                 "remote_configuration",
+			model.SourceFleetPolicies:      "fleet_policies_configuration",
 			model.SourceCLI:                "cli_configuration",
 			model.SourceProvided:           "provided_configuration",
 		}

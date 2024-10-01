@@ -46,12 +46,13 @@ func container1(testTime time.Time) Container {
 			CreatedAt:  testTime,
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
+			Health:     ContainerHealthUnknown,
 		},
 		CollectorTags: []string{"tag1", "tag2"},
 	}
 }
 
-func container2(testTime time.Time) Container { //nolint:revive // TODO fix revive unused-parameter
+func container2() Container {
 	return Container{
 		EntityID: EntityID{
 			Kind: KindContainer,
@@ -87,6 +88,7 @@ func container2(testTime time.Time) Container { //nolint:revive // TODO fix revi
 			StartedAt:  time.Time{},
 			FinishedAt: time.Time{},
 			ExitCode:   pointer.Ptr(int64(100)),
+			Health:     ContainerHealthHealthy,
 		},
 		CollectorTags: []string{"tag3"},
 	}
@@ -110,6 +112,7 @@ func TestMerge(t *testing.T) {
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
 			ExitCode:   pointer.Ptr(int64(100)),
+			Health:     ContainerHealthHealthy,
 		},
 	}
 
@@ -143,7 +146,7 @@ func TestMerge(t *testing.T) {
 
 	// Test merging both ways
 	fromSource1 := container1(testTime)
-	fromSource2 := container2(testTime)
+	fromSource2 := container2()
 	err := merge(&fromSource1, &fromSource2)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, expectedPorts, fromSource1.Ports)
@@ -153,7 +156,7 @@ func TestMerge(t *testing.T) {
 	assert.Equal(t, expectedContainer, fromSource1)
 
 	fromSource1 = container1(testTime)
-	fromSource2 = container2(testTime)
+	fromSource2 = container2()
 	err = merge(&fromSource2, &fromSource1)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, expectedPorts, fromSource2.Ports)
@@ -164,14 +167,14 @@ func TestMerge(t *testing.T) {
 
 	// Test merging nil slice in src/dst
 	fromSource1 = container1(testTime)
-	fromSource2 = container2(testTime)
+	fromSource2 = container2()
 	fromSource2.Ports = nil
 	err = merge(&fromSource1, &fromSource2)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, container1(testTime).Ports, fromSource1.Ports)
 
 	fromSource1 = container1(testTime)
-	fromSource2 = container2(testTime)
+	fromSource2 = container2()
 	fromSource2.Ports = nil
 	err = merge(&fromSource2, &fromSource1)
 	assert.NoError(t, err)

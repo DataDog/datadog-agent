@@ -23,7 +23,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"stop"},
 		stop,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }

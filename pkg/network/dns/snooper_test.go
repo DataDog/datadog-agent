@@ -390,7 +390,7 @@ func TestParsingError(t *testing.T) {
 
 	reverseDNS := rdns.(*dnsMonitor)
 	// Pass a byte array of size 1 which should result in parsing error
-	err = reverseDNS.processPacket(make([]byte, 1), time.Now())
+	err = reverseDNS.processPacket(make([]byte, 1), 0, time.Now())
 	require.NoError(t, err)
 	assert.True(t, cacheTelemetry.length.Load() == 0)
 	assert.True(t, snooperTelemetry.decodingErrors.Load() == 1)

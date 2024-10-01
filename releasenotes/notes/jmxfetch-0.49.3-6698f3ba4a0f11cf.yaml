@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Upgraded JMXFetch to `0.49.3 <https://github.com/DataDog/jmxfetch/releases/0.49.3>`_ which adds support for jsr77 j2ee statistics
+    and custom ConnectionFactory. See `0.49.3  <https://github.com/DataDog/jmxfetch/releases/tag/0.49.3>`_ for more details.

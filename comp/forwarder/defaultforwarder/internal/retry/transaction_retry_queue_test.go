@@ -12,12 +12,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // only used for testing
@@ -181,7 +179,7 @@ func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQue
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, 1000, 1)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	q, err := newOnDiskRetryQueue(
 		log,
 		NewHTTPTransactionsSerializer(log, resolver.NewSingleDomainResolver("", nil)),

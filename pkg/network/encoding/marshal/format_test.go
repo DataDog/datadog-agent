@@ -95,10 +95,10 @@ func BenchmarkConnectionReset(b *testing.B) {
 func BenchmarkFormatTags(b *testing.B) {
 	tagSet := network.NewTagsSet()
 	var c network.ConnectionStats
-	c.Tags = map[*intern.Value]struct{}{
-		intern.GetByString("env:env"):         {},
-		intern.GetByString("version:version"): {},
-		intern.GetByString("service:service"): {},
+	c.Tags = []*intern.Value{
+		intern.GetByString("env:env"),
+		intern.GetByString("version:version"),
+		intern.GetByString("service:service"),
 	}
 	b.ReportAllocs()
 	b.ResetTimer()

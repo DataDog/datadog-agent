@@ -3,30 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agent defines the tracer agent.
-package agent
+// Package agentimpl defines the tracer agent.
+package agentimpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"strconv"
 	"sync"
 	"syscall"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -35,6 +42,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -57,11 +66,24 @@ type dependencies struct {
 	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
 	Tagger             tagger.Component
+	Compressor         compression.Component
 }
 
-type component struct{}
+var _ traceagent.Component = (*component)(nil)
 
-type agent struct {
+func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
+}
+
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+}
+
+func (c component) SendStatsPayload(p *pb.StatsPayload) {
+	c.Agent.StatsWriter.SendPayload(p)
+}
+
+type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
@@ -70,7 +92,7 @@ type agent struct {
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	workloadmeta       workloadmeta.Component
-	wg                 sync.WaitGroup
+	wg                 *sync.WaitGroup
 }
 
 // NewAgent creates a new Agent component.
@@ -85,37 +107,84 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		return c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
-	ag := &agent{
+	c = component{
 		cancel:             cancel,
 		config:             deps.Config,
 		params:             deps.Params,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
-		wg:                 sync.WaitGroup{},
+		wg:                 &sync.WaitGroup{},
 	}
-	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
+	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
 		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
-	ag.Agent = pkgagent.NewAgent(
+
+	prepGoRuntime(tracecfg)
+
+	c.Agent = pkgagent.NewAgent(
 		ctx,
-		ag.config.Object(),
-		ag.telemetryCollector,
+		c.config.Object(),
+		c.telemetryCollector,
 		statsdCl,
+		deps.Compressor,
 	)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
-		OnStart: func(_ context.Context) error { return start(ag) },
-		OnStop:  func(_ context.Context) error { return stop(ag) },
+		OnStart: func(_ context.Context) error { return start(c) },
+		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
 }
 
-func start(ag *agent) error {
+func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
+	cgsetprocs := agentrt.SetMaxProcs()
+	if !cgsetprocs {
+		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
+			log.Infof("GOMAXPROCS manually set to %v", mp)
+		} else if tracecfg.MaxCPU > 0 {
+			allowedCores := int(tracecfg.MaxCPU / 100)
+			if allowedCores < 1 {
+				allowedCores = 1
+			}
+			if allowedCores < runtime.GOMAXPROCS(0) {
+				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, allowedCores)
+				runtime.GOMAXPROCS(int(allowedCores))
+			}
+		} else {
+			log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
+		}
+	}
+	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
+
+	cgmem, err := agentrt.SetGoMemLimit(env.IsContainerized())
+	if err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+	if cgmem == 0 {
+		// memory limit not set from cgroups
+		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
+			log.Infof("GOMEMLIMIT manually set to: %v", lim)
+		} else if tracecfg.MaxMemory > 0 {
+			// We have apm_config.max_memory, and no cgroup memory limit is in place.
+			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			finalmem := int64(tracecfg.MaxMemory * 0.9)
+			debug.SetMemoryLimit(finalmem)
+			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+		} else {
+			// There are no memory constraints
+			log.Infof("GOMEMLIMIT unconstrained.")
+		}
+	} else {
+		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
+	}
+}
+
+func start(ag component) error {
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
 		if err != nil {
@@ -159,11 +228,14 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 		return nil, fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
 
-	_ = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	err = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	if err != nil {
+		log.Error("Failed to emit datadog.trace_agent.started metric: ", err)
+	}
 	return client, nil
 }
 
-func stop(ag *agent) error {
+func stop(ag component) error {
 	ag.cancel()
 	ag.wg.Wait()
 	if err := ag.Statsd.Flush(); err != nil {

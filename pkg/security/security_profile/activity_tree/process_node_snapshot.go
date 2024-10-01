@@ -26,6 +26,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -49,8 +50,6 @@ func (pn *ProcessNode) snapshot(owner Owner, stats *Stats, newEvent func() *mode
 	// snapshot files
 	if owner.IsEventTypeValid(model.FileOpenEventType) {
 		pn.snapshotAllFiles(p, stats, newEvent, reducer)
-	} else {
-		pn.snapshotMemoryMappedFiles(p, stats, newEvent, reducer)
 	}
 
 	// snapshot sockets
@@ -108,16 +107,6 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 	pn.addFiles(files, stats, newEvent, reducer)
 }
 
-func (pn *ProcessNode) snapshotMemoryMappedFiles(p *process.Process, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
-	// list the mmaped files of the process
-	mmapedFiles, err := getMemoryMappedFiles(p.Pid, pn.Process.FileEvent.PathnameStr)
-	if err != nil {
-		seclog.Warnf("error while listing memory maps (pid: %v): %s", p.Pid, err)
-	}
-
-	pn.addFiles(mmapedFiles, stats, newEvent, reducer)
-}
-
 func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *model.Event, reducer *PathsReducer) {
 	// list the mmaped files of the process
 	slices.Sort(files)
@@ -142,7 +131,9 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.ContainerContext = &model.ContainerContext{}
 		}
 		evt.ProcessContext.Process = pn.Process
-		evt.ContainerContext.ID = pn.Process.ContainerID
+		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
+		evt.CGroupContext.CGroupFlags = pn.Process.CGroup.CGroupFlags
+		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {

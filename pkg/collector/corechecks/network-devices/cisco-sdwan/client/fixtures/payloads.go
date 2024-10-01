@@ -149,11 +149,11 @@ const GetCEdgeInterfaces = `
 		"createTimeStamp": 1707919153393,
 		"vpn-id": "0",
 		"vdevice-host-name": "Site3-cEdge01",
-		"ipv4-subnet-mask": "0.0.0.0",
+		"ipv4-subnet-mask": "255.255.255.0",
 		"tx-drops": 0,
 		"mtu": "1500",
 		"rx-drops": 0,
-		"ip-address": "0.0.0.0",
+		"ip-address": "10.0.0.1",
 		"speed-mbps": "1000",
 		"hwaddr": "52:54:00:0b:6e:90",
 		"vdevice-dataKey": "10.10.1.17-0-GigabitEthernet4-0.0.0.0-52:54:00:0b:6e:90",
@@ -398,5 +398,64 @@ const GetHardwareStates = `
       "lastupdated": 1708940180703,
       "status": "OK"
     }
+]
+`
+
+// GetCloudExpressMetrics /dataservice/data/device/statistics/cloudxstatistics
+const GetCloudExpressMetrics = `
+[
+	{
+		"remote_color": "mpls",
+		"device_model": "vedge-C8000V",
+		"latency": 404,
+		"interface": "-",
+		"local_color": "mpls",
+		"loss": 0,
+		"gateway_system_ip": "10.10.1.11",
+		"source_public_ip": "-",
+		"statcycletime": 1721820600114,
+		"local_system_ip": "10.10.1.13",
+		"tenant": "default",
+		"entry_time": 1721819993833,
+		"vqe_status": "averageSites",
+		"exit_type": "Remote",
+		"vip_time": 1721819993833,
+		"vmanage_system_ip": "10.10.1.13",
+		"nbar_app_group_name": "amazon-group",
+		"application": "amazon_aws",
+		"vdevice_name": "10.10.1.13",
+		"best_path": "FALSE",
+		"vip_idx": 9789,
+		"site_id": 1001,
+		"vqe_score": "5.0",
+		"service_area": "-",
+		"host_name": "Site1-cEdge01",
+		"vpn_id": 1,
+		"app_url_host_ip": "-",
+		"id": "1DKB5JAB5928XahrV_c7"
+	}
+]
+`
+
+// GetBGPNeighbors /dataservice/data/device/state/BGPNeighbor
+const GetBGPNeighbors = `
+[
+	{
+		"recordId": "0:BGPNeighborNode:1000:500",
+		"vdevice-name": "10.10.1.11",
+		"afi": "ipv4-unicast",
+		"createTimeStamp": 1707919131595,
+		"last-uptime": "Thu Jul 25 13:48:17 2024",
+		"vpn-id": 1,
+		"vdevice-host-name": "DC-cEdge01",
+		"peer-addr": "10.60.1.1",
+		"as": 2024,
+		"vdevice-dataKey": "10.10.1.11-10.60.1.1",
+		"@rid": 100,
+		"vmanage-system-ip": "10.10.1.11",
+		"afi-id": 0,
+		"lastupdated": 1708940180703,
+		"state": "established"
+	}
 ]
 `

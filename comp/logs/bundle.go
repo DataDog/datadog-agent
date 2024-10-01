@@ -15,5 +15,6 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		agentimpl.Module())
+		agentimpl.Module(),
+	)
 }

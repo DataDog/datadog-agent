@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
@@ -27,8 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -139,9 +139,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 			if err != nil {
@@ -185,20 +185,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(scanDevice,
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
+				compressionimpl.Module(),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
-				forwarder.Bundle(),
-				eventplatformimpl.Module(),
+				forwarder.Bundle(defaultforwarder.NewParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				fx.Provide(
-					defaultforwarder.NewParams,
-					orchestratorimpl.NewDefaultParams,
-					eventplatformimpl.NewDefaultParams,
 					demultiplexerimpl.NewDefaultParams,
 				),
 			)

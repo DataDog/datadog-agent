@@ -22,6 +22,10 @@ int __attribute__((always_inline)) resolve_dentry(void *ctx, int dr_type) {
     return tail_call_dr_progs(ctx, dr_type, DR_AD_FILTER_KEY);
 }
 
+int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, int dr_type) {
+    return tail_call_dr_progs(ctx, dr_type, DR_DENTRY_RESOLVER_KERN_INPUTS);
+}
+
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
     if (resolution_err > 0) {
         struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
@@ -95,6 +99,12 @@ int __attribute__((always_inline)) select_dr_key(int dr_type, int kprobe_key, in
     default: // DR_TRACEPOINT
         return tracepoint_key;
     }
+}
+
+// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+void __attribute__((always_inline)) cache_dentry_resolver_input(struct dentry_resolver_input_t *input) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&dentry_resolver_inputs, &pid_tgid, input, BPF_ANY);
 }
 
 #endif

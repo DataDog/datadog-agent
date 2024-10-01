@@ -11,23 +11,20 @@ package custommetrics
 import (
 	"context"
 	"fmt"
-	"net"
 
 	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/util/errors"
-	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
-	genericapiserver "k8s.io/apiserver/pkg/server"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver"
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
-	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var cmd *DatadogMetricsAdapter
@@ -47,7 +44,7 @@ const (
 )
 
 // RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context, apiCl *as.APIClient) error {
+func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Option[datadogclient.Component]) error {
 	defer clearServerResources()
 	if apiCl == nil {
 		return fmt.Errorf("unable to run server with nil APIClient")
@@ -55,15 +52,10 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 
 	cmd = &DatadogMetricsAdapter{}
 	cmd.Name = adapterName
-
-	cmd.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(apiserver.Scheme))
-	cmd.OpenAPIConfig.Info.Title = adapterName
-	cmd.OpenAPIConfig.Info.Version = adapterVersion
-
 	cmd.FlagSet = pflag.NewFlagSet(cmd.Name, pflag.ExitOnError)
 
 	var c []string
-	for k, v := range config.Datadog().GetStringMapString(metricsServerConf) {
+	for k, v := range pkgconfigsetup.Datadog().GetStringMapString(metricsServerConf) {
 		c = append(c, fmt.Sprintf("--%s=%s", k, v))
 	}
 
@@ -71,12 +63,10 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 		return err
 	}
 
-	provider, err := cmd.makeProviderOrDie(ctx, apiCl)
+	provider, err := cmd.makeProviderOrDie(ctx, apiCl, datadogCl)
 	if err != nil {
 		return err
 	}
-
-	// TODO when implementing the custom metrics provider, add cmd.WithCustomMetrics(provider) here
 	cmd.WithExternalMetrics(provider)
 
 	conf, err := cmd.Config()
@@ -92,7 +82,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
 
-func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient) (provider.ExternalMetricsProvider, error) {
+func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient, datadogCl optional.Option[datadogclient.Component]) (provider.ExternalMetricsProvider, error) {
 	client, err := a.DynamicClient()
 	if err != nil {
 		log.Infof("Unable to construct dynamic client: %v", err)
@@ -105,8 +95,11 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 		return nil, err
 	}
 
-	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		return externalmetrics.NewDatadogMetricProvider(ctx, apiCl)
+	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
+		if dc, ok := datadogCl.Get(); ok {
+			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc)
+		}
+		return nil, fmt.Errorf("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
@@ -129,28 +122,14 @@ func (a *DatadogMetricsAdapter) Config() (*apiserver.Config, error) {
 	if !a.FlagSet.Lookup("secure-port").Changed {
 		// Ensure backward compatibility. 443 by default, but will error out if incorrectly set.
 		// refer to apiserver code in k8s.io/apiserver/pkg/server/option/serving.go
-		a.SecureServing.BindPort = config.Datadog().GetInt("external_metrics_provider.port")
+		a.SecureServing.BindPort = pkgconfigsetup.Datadog().GetInt("external_metrics_provider.port")
 		// Default in External Metrics is TLS 1.2
-		if !config.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
+		if !pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 			a.SecureServing.MinTLSVersion = tlsVersion13Str
 		}
 	}
-	if err := a.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
-		log.Errorf("Failed to create self signed AuthN/Z configuration %#v", err)
-		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
-	}
-	if errList := a.CustomMetricsAdapterServerOptions.Validate(); len(errList) > 0 {
-		return nil, errors.NewAggregate(errList)
-	}
 
-	serverConfig := genericapiserver.NewConfig(apiserver.Codecs)
-	err := a.CustomMetricsAdapterServerOptions.ApplyTo(serverConfig)
-	if err != nil {
-		return nil, err
-	}
-	return &apiserver.Config{
-		GenericConfig: serverConfig,
-	}, nil
+	return a.AdapterBase.Config()
 }
 
 // clearServerResources closes the connection and the server

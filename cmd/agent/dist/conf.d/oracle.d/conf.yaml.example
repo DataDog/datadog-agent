@@ -89,6 +89,11 @@ instances:
     #
     # oracle_client: false
 
+    ## @param oracle_client_lib_dir - boolean - optional
+    ## Specify the directory with Oracle client libraries. Relevant only if `oracle_client = true`.
+    #
+    # oracle_client_lib_dir: <ORACLE_CLIENT_LIB_DIR>
+
     ## @param username - string - required
     ## Username for the Datadog-Oracle server check user. The user has to exist in CDB.
     #
@@ -133,6 +138,12 @@ instances:
       ## Enable collection of query samples. Requires `dbm: true`.
       #
       # enabled: true
+
+      ## @param active_session_history - boolean - optional - default: false
+      ## Collect activity samples from `v$active_session_history` instead of the Agent performing sampling.
+      ## WARNING: Querying `v$active_session_history` requires optional Oracle licences and may result in additional costs if enabled.
+      #
+      # active_session_history: false
 
     ## Configure collection of query metrics
     #

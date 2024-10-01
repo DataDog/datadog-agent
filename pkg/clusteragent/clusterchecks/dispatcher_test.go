@@ -17,7 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -467,7 +468,7 @@ func TestReset(t *testing.T) {
 }
 
 func TestPatchConfiguration(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -479,7 +480,7 @@ func TestPatchConfiguration(t *testing.T) {
 	}
 	initialDigest := checkConfig.Digest()
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
@@ -505,7 +506,7 @@ func TestPatchConfiguration(t *testing.T) {
 }
 
 func TestPatchEndpointsConfiguration(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	checkConfig := integration.Config{
 		Name:          "test",
@@ -516,7 +517,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 		LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_name", "testing")
 	clustername.ResetClusterName()
 	dispatcher := newDispatcher()
@@ -538,7 +539,7 @@ func TestPatchEndpointsConfiguration(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	env.SetFeatures(t, env.Kubernetes)
 
 	for _, tc := range []struct {
 		extraTagsConfig   []string
@@ -554,7 +555,7 @@ func TestExtraTags(t *testing.T) {
 		{[]string{"one", "two"}, "mycluster", "custom_name", []string{"one", "two", "custom_name:mycluster", "kube_cluster_name:mycluster"}},
 	} {
 		t.Run("", func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("cluster_checks.extra_tags", tc.extraTagsConfig)
 			mockConfig.SetWithoutSource("cluster_name", tc.clusterNameConfig)
 			mockConfig.SetWithoutSource("cluster_checks.cluster_tag_name", tc.tagNameConfig)
@@ -641,7 +642,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 }
 
 func TestUpdateRunnersStats(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_checks.rebalance_with_utilization", true)
 
 	dispatcher := newDispatcher()

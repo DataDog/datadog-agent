@@ -85,7 +85,7 @@ func RemoveDummyInterface(link *netlink.Dummy) error {
 // CreateIMDSServer creates a fake IMDS server
 func CreateIMDSServer(addr string) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(IMDSSecurityCredentialsURL, func(w http.ResponseWriter, _ *http.Request) {
 		// Define your custom JSON data
 		data := map[string]interface{}{
 			"AccessKeyId":     AWSSecurityCredentialsAccessKeyIDTestValue,

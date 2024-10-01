@@ -6,10 +6,14 @@ on:
   pull_request_target:
     types: [opened, reopened]
 
+permissions: {}
+
 jobs:
   external-contributor-prs:
     name: Handle Fork PRs
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     if: github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - name: Checkout repository
@@ -18,7 +22,7 @@ jobs:
           ref: main
           fetch-depth: 0
       - name: Setup python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
           python-version: 3.11
           cache: 'pip'
@@ -27,7 +31,7 @@ jobs:
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Set label on external contributor PRs
         run: |
-          gh issue edit "$NUMBER" --milestone "$MILESTONE"
+          gh issue edit "$NUMBER"
           inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,5 +40,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
           # labels is a comma-separated list of tags
-          LABELS: community,team/triage
-          MILESTONE: Triage
+          LABELS: community

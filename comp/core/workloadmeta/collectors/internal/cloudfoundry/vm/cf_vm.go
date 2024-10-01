@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package vm provides a workloadmeta collector for CloudForundry VM
+// Package vm provides a workloadmeta collector for CloudFoundry VM
 package vm
 
 import (
@@ -12,14 +12,16 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/fx"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ddjson "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 )
 
 const (
@@ -57,7 +59,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.CloudFoundry) {
+	if !env.IsFeaturePresent(env.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
 
@@ -70,10 +72,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
-	c.nodeName = config.Datadog().GetString("bosh_id")
+	c.nodeName = pkgconfigsetup.Datadog().GetString("bosh_id")
 
 	// Check for Cluster Agent availability (will be retried at each pull)
-	c.dcaEnabled = config.Datadog().GetBool("cluster_agent.enabled")
+	c.dcaEnabled = pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled")
 	c.dcaClient = c.getDCAClient()
 
 	return nil

@@ -108,11 +108,10 @@ host_heartbeat_validity_seconds: 1000000
 }
 
 func TestFactory(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	checkFactory := Factory(mockStore, cfg)
 	assert.NotNil(t, checkFactory)
@@ -164,11 +163,10 @@ func TestConfigure(t *testing.T) {
 			},
 		}),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
+		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmetafxmock.MockModuleV2(),
 	))
 	cfg := app.Cfg
 	mockStore := app.Store

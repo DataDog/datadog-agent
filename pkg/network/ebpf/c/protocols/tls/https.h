@@ -102,25 +102,25 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
                 .data_end = len,
                 .data_off = 0,
             };
-            bpf_tail_call_compat(ctx, &tls_dispatcher_classification_progs, TLS_DISPATCHER_KAFKA_PROG);
+            bpf_tail_call_compat(ctx, &tls_dispatcher_classification_progs, DISPATCHER_KAFKA_PROG);
         }
     }
-    tls_prog_t prog;
+    protocol_prog_t prog;
     switch (protocol) {
     case PROTOCOL_HTTP:
-        prog = TLS_HTTP_PROCESS;
+        prog = PROG_HTTP;
         final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
-        prog = TLS_HTTP2_FIRST_FRAME;
+        prog = PROG_HTTP2_HANDLE_FIRST_FRAME;
         final_tuple = *t;
         break;
     case PROTOCOL_KAFKA:
-        prog = TLS_KAFKA;
+        prog = PROG_KAFKA;
         final_tuple = *t;
         break;
     case PROTOCOL_POSTGRES:
-        prog = TLS_POSTGRES;
+        prog = PROG_POSTGRES;
         final_tuple = normalized_tuple;
         break;
     default:
@@ -172,7 +172,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     }
 
     set_protocol(stack, PROTOCOL_KAFKA);
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, PROG_KAFKA);
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
@@ -187,7 +187,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         return;
     }
 
-    tls_prog_t prog;
+    protocol_prog_t prog;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
@@ -196,19 +196,19 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
         // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
         if (skip_http) {return;}
-        prog = TLS_HTTP_TERMINATION;
+        prog = PROG_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
-        prog = TLS_HTTP2_TERMINATION;
+        prog = PROG_HTTP2_TERMINATION;
         final_tuple = *t;
         break;
     case PROTOCOL_KAFKA:
-        prog = TLS_KAFKA_TERMINATION;
+        prog = PROG_KAFKA_TERMINATION;
         final_tuple = *t;
         break;
     case PROTOCOL_POSTGRES:
-        prog = TLS_POSTGRES_TERMINATION;
+        prog = PROG_POSTGRES_TERMINATION;
         final_tuple = normalized_tuple;
         break;
     default:

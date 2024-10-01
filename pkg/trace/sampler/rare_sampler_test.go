@@ -93,13 +93,6 @@ func TestRareSamplerRace(_ *testing.T) {
 	}
 }
 
-func min(i, j int) int {
-	if i < j {
-		return i
-	}
-	return j
-}
-
 func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
 	c := config.New()

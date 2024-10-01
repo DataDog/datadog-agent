@@ -25,6 +25,7 @@ type linuxSecretSuite struct {
 }
 
 func TestLinuxSecretSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 

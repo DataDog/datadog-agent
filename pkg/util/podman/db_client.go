@@ -90,7 +90,7 @@ func (client *DBClient) GetAllContainers() ([]Container, error) {
 			return err
 		}
 
-		return allCtrsBucket.ForEach(func(id, name []byte) error {
+		return allCtrsBucket.ForEach(func(id, _ []byte) error {
 			// If performance becomes an issue, this check can be
 			// removed. But the error messages that come back will
 			// be much less helpful.

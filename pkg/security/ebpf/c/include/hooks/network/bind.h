@@ -11,12 +11,6 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
         return 0;
     }
 
-    struct policy_t policy = fetch_policy(EVENT_BIND);
-    if (is_discarded_by_process(policy.mode, EVENT_BIND)) {
-        return 0;
-    }
-
-    /* cache the bind and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
     };
@@ -113,7 +107,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 #endif
 
-#ifdef DEBUG
+#if defined(DEBUG_BIND)
         bpf_printk("# registered (bind) pid:%d", pid);
         bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
 #endif

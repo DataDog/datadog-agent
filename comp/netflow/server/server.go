@@ -16,11 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
 
 type dependencies struct {
@@ -30,6 +32,7 @@ type dependencies struct {
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
+	RDNSQuerier   rdnsquerier.Component
 }
 
 type provides struct {
@@ -46,7 +49,21 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	if err != nil {
 		return provides{}, err
 	}
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
+
+	// Note that multiple components can share the same rdnsQuerier instance.  If any of them have
+	// reverse DNS enrichment enabled then the deps.RDNSQuerier component passed here will be an
+	// active instance.  However, we also need to check here whether the netflow component has
+	// reverse DNS enrichment enabled to decide whether to use the passed instance or to override
+	// it with a noop implementation.
+	rdnsQuerier := deps.RDNSQuerier
+	if conf.ReverseDNSEnrichmentEnabled {
+		deps.Logger.Infof("Reverse DNS Enrichment is enabled for NDM NetFlow")
+	} else {
+		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
+		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
+	}
+
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
 
 	server := &Server{
 		config:  conf,
@@ -63,7 +80,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 
 		// netflow is enabled, so start the server
 		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 
 				err := server.Start()
 				return err

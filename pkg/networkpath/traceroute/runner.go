@@ -13,14 +13,15 @@ import (
 	"net"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
@@ -31,19 +32,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/google/uuid"
 )
 
-// TODO: are these good defaults?
 const (
-	DefaultSourcePort   = 12345
-	DefaultDestPort     = 33434
-	DefaultNumPaths     = 1
-	DefaultMinTTL       = 1
-	DefaultMaxTTL       = 30
-	DefaultDelay        = 50 //msec
-	DefaultReadTimeout  = 10 * time.Second
+	// DefaultSourcePort defines the default source port
+	DefaultSourcePort = 12345
+	// DefaultDestPort defines the default destination port
+	DefaultDestPort = 33434
+	// DefaultNumPaths defines the default number of paths
+	DefaultNumPaths = 1
+	// DefaultMinTTL defines the default minimum TTL
+	DefaultMinTTL = 1
+	// DefaultDelay defines the default delay
+	DefaultDelay = 50 //msec
+	// DefaultOutputFormat defines the default output format
 	DefaultOutputFormat = "json"
 
 	tracerouteRunnerModuleName = "traceroute_runner__"
@@ -114,14 +116,14 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = DefaultMaxTTL
+		maxTTL = setup.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
-	if cfg.TimeoutMs == 0 {
-		timeout = DefaultReadTimeout
+	if cfg.Timeout == 0 {
+		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
-		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+		timeout = cfg.Timeout
 	}
 
 	hname, err := hostname.Get(ctx)
@@ -131,23 +133,23 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	}
 
 	var pathResult payload.NetworkPath
-	protocol := strings.ToUpper(cfg.Protocol)
+	var protocol = cfg.Protocol
 
 	// default to UDP if protocol
 	// is not set
 	if protocol == "" {
-		protocol = UDP
+		protocol = payload.ProtocolUDP
 	}
 	switch protocol {
-	case TCP:
-		log.Debugf("Running TCP traceroute for: %+v", cfg)
+	case payload.ProtocolTCP:
+		log.Tracef("Running TCP traceroute for: %+v", cfg)
 		pathResult, err = r.runTCP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
-	case UDP:
-		log.Debugf("Running UDP traceroute for: %+v", cfg)
+	case payload.ProtocolUDP:
+		log.Tracef("Running UDP traceroute for: %+v", cfg)
 		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
@@ -178,18 +180,16 @@ func (r *Runner) runUDP(cfg Config, hname string, dest net.IP, maxTTL uint8, tim
 		BrokenNAT:  false,
 	}
 
-	log.Debugf("Traceroute UDPv4 probe config: %+v", dt)
 	results, err := dt.Traceroute()
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
-	log.Debugf("UDP Results: %+v", results)
 
 	pathResult, err := r.processUDPResults(results, hname, cfg.DestHostname, destPort, dest)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("Processed UDP Results: %+v", pathResult)
+	log.Tracef("UDP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
@@ -214,23 +214,22 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("TCP Results: %+v", results)
 
 	pathResult, err := r.processTCPResults(results, hname, cfg.DestHostname, destPort, target)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("Parsed TCP Results: %+v", pathResult)
+	log.Tracef("TCP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
 
 func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
-	pathID := uuid.New().String()
 	traceroutePath := payload.NetworkPath{
-		PathID:    pathID,
-		Protocol:  payload.ProtocolTCP,
-		Timestamp: time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolTCP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -260,12 +259,12 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 
 	for i, hop := range res.Hops {
 		ttl := i + 1
-		isSuccess := false
+		isReachable := false
 		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
 		hostname := hopname
 
 		if !hop.IP.Equal(net.IP{}) {
-			isSuccess = true
+			isReachable = true
 			hopname = hop.IP.String()
 			hostname = getHostname(hop.IP.String())
 		}
@@ -275,7 +274,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			IPAddress: hopname,
 			Hostname:  hostname,
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
-			Success:   isSuccess,
+			Reachable: isReachable,
 		}
 		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 	}
@@ -289,12 +288,11 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		probe *results.Probe
 	}
 
-	pathID := uuid.New().String()
-
 	traceroutePath := payload.NetworkPath{
-		PathID:    pathID,
-		Protocol:  payload.ProtocolUDP,
-		Timestamp: time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolUDP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -306,13 +304,6 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		},
 	}
 
-	for idx, probes := range res.Flows {
-		log.Debugf("Flow idx: %d\n", idx)
-		for probleIndex, probe := range probes {
-			log.Debugf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
-		}
-	}
-
 	flowIDs := make([]int, 0, len(res.Flows))
 	for flowID := range res.Flows {
 		flowIDs = append(flowIDs, int(flowID))
@@ -322,7 +313,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 	for _, flowID := range flowIDs {
 		hops := res.Flows[uint16(flowID)]
 		if len(hops) == 0 {
-			log.Debugf("No hops for flow ID %d", flowID)
+			log.Tracef("No hops for flow ID %d", flowID)
 			continue
 		}
 		var nodes []node
@@ -344,29 +335,14 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		for _, hop := range hops {
 			hop := hop
 			nodename := fmt.Sprintf("unknown_hop_%d", hop.Sent.IP.TTL)
-			label := "*"
-			hostname := ""
 			if hop.Received != nil {
 				nodename = hop.Received.IP.SrcIP.String()
-				if hop.Name != nodename {
-					hostname = "\n" + hop.Name
-				}
-				// MPLS labels
-				mpls := ""
-				if len(hop.Received.ICMP.MPLSLabels) > 0 {
-					mpls = "MPLS labels: \n"
-					for _, mplsLabel := range hop.Received.ICMP.MPLSLabels {
-						mpls += fmt.Sprintf(" - %d, ttl: %d\n", mplsLabel.Label, mplsLabel.TTL)
-					}
-				}
-				label = fmt.Sprintf("%s%s\n%s\n%s", nodename, hostname, hop.Received.ICMP.Description, mpls)
 			}
 			nodes = append(nodes, node{node: nodename, probe: &hop})
 
 			if hop.IsLast {
 				break
 			}
-			log.Debugf("Label: %s", label)
 		}
 		// add edges
 		if len(nodes) <= 1 {
@@ -396,7 +372,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			}
 			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
 
-			isSuccess := cur.probe.Received != nil
+			isReachable := cur.probe.Received != nil
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
 
@@ -405,13 +381,12 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 				IPAddress: ip,
 				Hostname:  getHostname(cur.node),
 				RTT:       durationMs,
-				Success:   isSuccess,
+				Reachable: isReachable,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)
 		}
 	}
 
-	log.Debugf("Traceroute path metadata payload: %+v", traceroutePath)
 	return traceroutePath, nil
 }
 

@@ -8,14 +8,19 @@
 package agentimpl
 
 import (
+	"time"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
@@ -27,12 +32,13 @@ import (
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.
 
-// NewAgent returns a Logs Agent instance to run in a serverless environment.
+// SetupPipeline returns a Logs Agent instance to run in a serverless environment.
 // The Serverless Logs Agent has only one input being the channel to receive the logs to process.
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
-	_ optional.Option[workloadmeta.Component],
+	wmeta optional.Option[workloadmeta.Component],
+	_ integrations.Component,
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
@@ -45,10 +51,21 @@ func (a *logAgent) SetupPipeline(
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
-	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
 
+	fileLimits := a.config.GetInt("logs_config.open_files_limit")
+	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
+	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	lnchrs.AddLauncher(filelauncher.NewLauncher(
+		fileLimits,
+		filelauncher.DefaultSleepDuration,
+		fileValidatePodContainer,
+		fileScanPeriod,
+		fileWildcardSelectionMode,
+		a.flarecontroller,
+		a.tagger))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
@@ -58,6 +75,14 @@ func (a *logAgent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
-	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
+	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+	if err != nil {
+		return nil, err
+	}
+	if env.IsServerless() {
+		// in AWS Lambda, we never want the batch strategy to flush with a tick
+		config.BatchWait = 365 * 24 * time.Hour
+	}
+	return config, nil
 }

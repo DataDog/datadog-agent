@@ -22,6 +22,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
@@ -29,6 +30,8 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     ("./test/fakeintake/docs/README.md", "[Golang ", "]", False),
     ("./cmd/process-agent/README.md", "`go >= ", "`", False),
     ("./pkg/logs/launchers/windowsevent/README.md", "install go ", "+,", False),
+    ("./.wwhrd.yml", "raw.githubusercontent.com/golang/go/go", "/LICENSE", True),
+    ("./docs/public/setup.md", "version `", "` or higher", True),
 ]
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
@@ -54,7 +57,7 @@ def go_version(_):
 def update_go(
     ctx: Context,
     version: str,
-    image_tag: str,
+    image_tag: str | None = None,
     test_version: bool = True,
     warn: bool = False,
     release_note: bool = True,
@@ -76,28 +79,29 @@ def update_go(
     if is_minor_update:
         print(color_message("WARNING: this is a change of minor version\n", "orange"))
 
-    try:
-        update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
+    if image_tag:
+        try:
+            update_gitlab_config(".gitlab-ci.yml", image_tag, test_version=test_version)
+        except RuntimeError as e:
+            if warn:
+                print(color_message(f"WARNING: {str(e)}", "orange"))
+            else:
+                raise
 
-    try:
-        update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
-    except RuntimeError as e:
-        if warn:
-            print(color_message(f"WARNING: {str(e)}", "orange"))
-        else:
-            raise
+        try:
+            update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
+        except RuntimeError as e:
+            if warn:
+                print(color_message(f"WARNING: {str(e)}", "orange"))
+            else:
+                raise
 
     _update_references(warn, version)
     _update_go_mods(warn, version, include_otel_modules)
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
-    if res.stdout.startswith(f"go version go{version} "):
+    if res and res.stdout.startswith(f"go version go{version} "):
         tidy(ctx)
     else:
         print(
@@ -193,15 +197,9 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
             continue
         mod_file = f"./{path}/go.mod"
         major_minor = _get_major_minor_version(version)
-        if module.legacy_go_mod_version:
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {major_minor}", dry_run=dry_run)
-        else:
-            major_minor_zero = f"{major_minor}.0"
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(
-                warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run
-            )
+        major_minor_zero = f"{major_minor}.0"
+        # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
+        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
@@ -212,6 +210,7 @@ enhancements:
 """
     # hiding stderr too because `reno` displays some warnings about the config
     res = ctx.run(f'reno new "bump go to {version}"', hide='both')
+    assert res, "Could not create release note"
     match = re.match("^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
     if not match:
         raise exceptions.Exit("Could not get created release note path")

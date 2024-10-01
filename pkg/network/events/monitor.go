@@ -5,7 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(h *eventConsumerWrapper)" -pkg events -output event_copy_linux.go Process .
 
-//go:build linux
+//go:build linux || windows
 
 // Package events handles process events
 package events
@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -71,7 +70,7 @@ func Initialized() bool {
 	return theMonitor.Load() != nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// ProcessEventHandler represents a handler function triggered for process events
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }
@@ -115,18 +114,25 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	// If this consumer subscribes to more event types, this block will have to account for those additional event types
-	var processStartTime time.Time
-	if ev.GetEventType() == model.ExecEventType {
-		processStartTime = ev.GetProcessExecTime()
-	}
-	if ev.GetEventType() == model.ForkEventType {
-		processStartTime = ev.GetProcessForkTime()
-	}
+	processStartTime := getProcessStartTime(ev)
 
 	p := &Process{
 		Pid:       ev.GetProcessPid(),
 		StartTime: processStartTime.UnixNano(),
 	}
+
+	// we need to keep looking for settings until all of the desired
+	// key/value pairs are found, following the precedence order.
+
+	// the precedence order is
+	// 1. environment variables
+	// 2. tags from the web.config file
+	// 3. tags from the datadog.json file
+
+	// keep the map of tagsFound, so that entries found at lower levels
+	// don't supercede those at higher.  However, we must actually parse
+	// all of the inputs to ensure that we don't miss any tags that are
+	tagsFound := make(map[string]struct{})
 
 	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
 	if len(envs) > 0 {
@@ -136,8 +142,15 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			if len(v) > 0 {
 				if t := envTagNames[k]; t != "" {
 					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+					tagsFound[k] = struct{}{}
 				}
 			}
+		}
+	}
+	if len(tagsFound) < len(envFilter) {
+		apmTags := getAPMTags(tagsFound, ev.GetExecFilePath())
+		if len(apmTags) > 0 {
+			p.Tags = append(p.Tags, apmTags...)
 		}
 	}
 

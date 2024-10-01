@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -28,17 +29,16 @@ type dummyService struct {
 	Ports         []listeners.ContainerPort
 	Pid           int
 	Hostname      string
-	CheckNames    []string
 	ExtraConfig   map[string]string
+}
+
+// Equal returns whether the two dummyService are equal
+func (s *dummyService) Equal(o listeners.Service) bool {
+	return reflect.DeepEqual(s, o)
 }
 
 // GetServiceID returns the service entity name
 func (s *dummyService) GetServiceID() string {
-	return s.ID
-}
-
-// GetTaggerEntity returns the tagger entity ID for the entity corresponding to this service
-func (s *dummyService) GetTaggerEntity() string {
 	return s.ID
 }
 
@@ -77,15 +77,10 @@ func (s *dummyService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns slice of check names defined in container labels
-func (s *dummyService) GetCheckNames(context.Context) []string {
-	return s.CheckNames
-}
-
 // HasFilter returns false
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
@@ -558,7 +553,6 @@ func TestResolve(t *testing.T) {
 					"": "my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com",
 				},
 				Ports:       []listeners.ContainerPort{{Port: 5432, Name: fmt.Sprintf("p%d", 5432)}},
-				CheckNames:  []string{"postgres"},
 				ExtraConfig: map[string]string{"region": "us-west-2", "dbclusteridentifier": "my-cluster", "managed_authentication_enabled": "true"},
 			},
 			tpl: integration.Config{

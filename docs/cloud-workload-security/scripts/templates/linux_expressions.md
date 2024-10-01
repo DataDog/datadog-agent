@@ -1,6 +1,5 @@
 ---
 title: Linux Agent attributes and helpers
-kind: documentation
 description: "Linux Agent attributes and helpers for CSM Threats Rules"
 disable_edit: true
 further_reading:

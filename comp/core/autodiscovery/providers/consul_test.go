@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 //
@@ -133,7 +133,7 @@ func TestConsulGetTemplates(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default
@@ -202,7 +202,7 @@ func TestConsulCollect(t *testing.T) {
 	queryOptions := &consul.QueryOptions{}
 	queryOptions = queryOptions.WithContext(ctx)
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("autoconf_template_dir", "/datadog/tpl")
 
 	//Restore default

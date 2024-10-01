@@ -21,9 +21,10 @@ const (
 
 // OriginInfo contains the Origin Detection information.
 type OriginInfo struct {
-	FromUDS       string        // FromUDS is the origin resolved using Unix Domain Socket.
-	FromTag       string        // FromTag is the origin resolved from tags.
-	FromMsg       string        // FromMsg is the origin resolved from the message.
-	Cardinality   string        // Cardinality is the cardinality of the resolved origin.
-	ProductOrigin ProductOrigin // ProductOrigin is the product that sent the origin information.
+	ContainerIDFromSocket string        // ContainerIDFromSocket is the origin resolved using Unix Domain Socket.
+	PodUID                string        // PodUID is the origin resolved from the Kubernetes Pod UID.
+	ContainerID           string        // ContainerID is the origin resolved from the container ID.
+	ExternalData          string        // ExternalData is the external data list.
+	Cardinality           string        // Cardinality is the cardinality of the resolved origin.
+	ProductOrigin         ProductOrigin // ProductOrigin is the product that sent the origin information.
 }

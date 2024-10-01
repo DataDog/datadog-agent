@@ -13,17 +13,19 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
 type YamlConfigTestSuite struct {
 	suite.Suite
-	config *coreConfig.MockConfig
+	config model.Config
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock(nil)
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
@@ -215,6 +217,20 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 
 	for _, val := range strings.Split(expectedValue, " ") {
 		suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, val)
+	}
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
+	ddSensitiveAnnotationsLabels := "DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS"
+	expectedValue := "my-sensitive-annotation my-sensitive-label"
+	suite.T().Setenv(ddSensitiveAnnotationsLabels, expectedValue)
+
+	orchestratorCfg := NewDefaultOrchestratorConfig()
+	err := orchestratorCfg.Load()
+	suite.NoError(err)
+
+	for _, val := range strings.Split(expectedValue, " ") {
+		suite.Contains(redact.GetSensitiveAnnotationsAndLabels(), val)
 	}
 }
 

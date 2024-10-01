@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
@@ -119,7 +119,7 @@ func assertErrorCount(t *testing.T, c check.Check, count int) {
 func TestWorkerInit(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	senderManager := aggregator.NewNoOpSenderManager()
 	_, err := NewWorker(senderManager, 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
@@ -139,7 +139,7 @@ func TestWorkerInit(t *testing.T) {
 func TestWorkerInitExpvarStats(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	var wg sync.WaitGroup
 
@@ -168,7 +168,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 func TestWorkerName(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
@@ -182,13 +182,13 @@ func TestWorkerName(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	testCheck1 := newCheck(t, "testing:123", false, nil)
 	testCheck2 := newCheck(t, "testing2:234", false, nil)
@@ -258,13 +258,13 @@ func TestWorker(t *testing.T) {
 
 func TestWorkerUtilizationExpvars(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	blockingCheck := newCheck(t, "testing:123", false, nil)
 	longRunningCheck := &testCheck{
@@ -328,15 +328,15 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	testCheck1 := newCheck(t, "testing:123", true, nil)
 	testCheck2 := newCheck(t, "testing2:234", true, nil)
@@ -383,13 +383,13 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	testCheck := newCheck(t, "testing:123", true, nil)
 
@@ -412,7 +412,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 
 func TestWorkerStatsAddition(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -421,7 +421,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		return string(id) != "squelched:123"
 	}
 
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	longRunningCheckNoErrorNoWarning := &testCheck{
 		t:           t,
@@ -471,14 +471,14 @@ func TestWorkerStatsAddition(t *testing.T) {
 
 func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
-	config.Datadog().SetWithoutSource("integration_check_status_enabled", "true")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("integration_check_status_enabled", "true")
 
 	var wg sync.WaitGroup
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	goodCheck := newCheck(t, "goodcheck:123", false, nil)
 	checkWithError := newCheck(t, "check_witherr:123", true, nil)
@@ -557,11 +557,11 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 
 func TestWorkerSenderNil(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	pendingChecksChan <- newCheck(t, "goodcheck:123", false, nil)
 	close(pendingChecksChan)
@@ -588,11 +588,11 @@ func TestWorkerSenderNil(t *testing.T) {
 
 func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	expvars.Reset()
-	config.Datadog().SetWithoutSource("hostname", "myhost")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	longRunningCheck := &testCheck{
 		t:           t,

@@ -22,11 +22,13 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -117,7 +119,7 @@ func (suite *PodTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
@@ -149,7 +151,7 @@ func TestPodTestSuite(t *testing.T) {
 }
 
 func (suite *PodTestSuite) TestPodCheck() {
-	cacheKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	cachedClusterID, found := cache.Cache.Get(cacheKey)
 	if !found {
 		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)

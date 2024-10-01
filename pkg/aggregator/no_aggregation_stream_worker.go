@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -78,7 +78,7 @@ func init() {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
+func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{
@@ -93,7 +93,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog().GetInt("dogstatsd_queue_size")),
+		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
 
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
@@ -144,7 +144,7 @@ func (w *noAggregationStreamWorker) run() {
 
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
-	logPayloads := config.Datadog().GetBool("log_payloads")
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
 
 	stopped := false
@@ -158,7 +158,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -238,7 +238,7 @@ func (w *noAggregationStreamWorker) run() {
 				}
 			}, func(serieSource metrics.SerieSource) {
 				sendIterableSeries(w.serializer, start, serieSource)
-			}, func(sketches metrics.SketchesSource) {
+			}, func(_ metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
 			})
 

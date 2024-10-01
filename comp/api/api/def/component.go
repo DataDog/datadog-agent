@@ -22,9 +22,8 @@ import (
 
 // Component is the component type.
 type Component interface {
-	StartServer() error
-	StopServer()
-	ServerAddress() *net.TCPAddr
+	CMDServerAddress() *net.TCPAddr
+	IPCServerAddress() *net.TCPAddr
 }
 
 // EndpointProvider is an interface to register api endpoints
@@ -40,6 +39,24 @@ type endpointProvider struct {
 	methods []string
 	route   string
 	handler http.HandlerFunc
+}
+
+// AuthorizedSet is a type to store the authorized config options for the config API
+type AuthorizedSet map[string]struct{}
+
+// AuthorizedConfigPathsCore is the the set of authorized config keys authorized for the
+// config API.
+var AuthorizedConfigPathsCore = buildAuthorizedSet(
+	"api_key", "site", "dd_url", "logs_config.dd_url",
+	"additional_endpoints", "logs_config.additional_endpoints",
+)
+
+func buildAuthorizedSet(paths ...string) AuthorizedSet {
+	authorizedPaths := make(AuthorizedSet, len(paths))
+	for _, path := range paths {
+		authorizedPaths[path] = struct{}{}
+	}
+	return authorizedPaths
 }
 
 // Methods returns the methods for the endpoint.

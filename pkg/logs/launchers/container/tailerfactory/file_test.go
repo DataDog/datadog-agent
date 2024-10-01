@@ -18,12 +18,13 @@ import (
 	"go.uber.org/fx"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -42,7 +43,7 @@ func fileTestSetup(t *testing.T) {
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
 	oldDockerLogsBasePathNix, dockerLogsBasePathNix = dockerLogsBasePathNix, filepath.Join(tmp, "docker-nix")
 	oldDockerLogsBasePathWin, dockerLogsBasePathWin = dockerLogsBasePathWin, filepath.Join(tmp, "docker-win")
-	oldPodmanLogsBasePath, podmanLogsBasePath = podmanLogsBasePath, filepath.Join(tmp, "containers")
+	oldPodmanLogsBasePath, podmanRootfullLogsBasePath = podmanRootfullLogsBasePath, filepath.Join(tmp, "containers")
 
 	switch runtime.GOOS {
 	case "windows":
@@ -55,7 +56,7 @@ func fileTestSetup(t *testing.T) {
 		podLogsBasePath = oldPodLogsBasePath
 		dockerLogsBasePathNix = oldDockerLogsBasePathNix
 		dockerLogsBasePathWin = oldDockerLogsBasePathWin
-		podmanLogsBasePath = oldPodmanLogsBasePath
+		podmanRootfullLogsBasePath = oldPodmanLogsBasePath
 	})
 }
 
@@ -134,7 +135,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
@@ -144,7 +145,7 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 		t.Skip("Skip on Windows due to WSL file path abstraction")
 	}
 
-	p := filepath.Join(podmanLogsBasePath, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
+	p := filepath.Join(podmanRootfullLogsBasePath, filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
@@ -177,6 +178,45 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.321)
 }
 
+func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
+	tmp := t.TempDir()
+	customPath := filepath.Join(tmp, "/custom/path/containers/storage/db.sql")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetWithoutSource("podman_db_path", customPath)
+
+	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
+	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
+	// Ref: https://github.com/containers/podman/blob/main/docs/tutorials/podman-for-windows.md
+	if runtime.GOOS == "windows" {
+		t.Skip("Skip on Windows due to WSL file path abstraction")
+	}
+
+	p := filepath.Join(filepath.Join(tmp, "/custom/path/containers"), filepath.FromSlash("storage/overlay-containers/abc/userdata/ctr.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "podman",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, source.Name, child.Name)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, source.Config.Identifier, child.Config.Identifier)
+	require.Equal(t, p, child.Config.Path)
+	require.Equal(t, source.Config.Source, child.Config.Source)
+	require.Equal(t, source.Config.Service, child.Config.Service)
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+}
+
 func TestMakeFileSource_docker_no_file(t *testing.T) {
 	fileTestSetup(t)
 
@@ -205,7 +245,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 
 func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
 	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
 
@@ -243,11 +283,10 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()
 	store.Set(pod)
@@ -300,11 +339,10 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	workloadmetaStore := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	tf := &factory{
