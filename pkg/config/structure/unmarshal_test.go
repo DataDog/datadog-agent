@@ -16,7 +16,7 @@ import (
 )
 
 // Struct that is used within the config
-type UserV3 struct {
+type userV3 struct {
 	Username       string `yaml:"user"`
 	UsernameLegacy string `yaml:"username"`
 	AuthKey        string `yaml:"authKey"`
@@ -26,10 +26,10 @@ type UserV3 struct {
 }
 
 // Type that gets parsed out of config
-type TrapsConfig struct {
+type trapsConfig struct {
 	Enabled          bool     `yaml:"enabled"`
 	Port             uint16   `yaml:"port"`
-	Users            []UserV3 `yaml:"users"`
+	Users            []userV3 `yaml:"users"`
 	CommunityStrings []string `yaml:"community_strings"`
 	BindHost         string   `yaml:"bind_host"`
 	StopTimeout      int      `yaml:"stop_timeout"`
@@ -60,7 +60,7 @@ network_devices:
 `
 	mockConfig := mock.NewFromYAML(t, confYaml)
 
-	var trapsCfg = TrapsConfig{}
+	var trapsCfg = trapsConfig{}
 	err := UnmarshalKey(mockConfig, "network_devices.snmp_traps", &trapsCfg)
 	assert.NoError(t, err)
 
@@ -85,12 +85,12 @@ network_devices:
 	assert.Equal(t, trapsCfg.Namespace, "abc")
 }
 
-type ServiceDescription struct {
+type serviceDescription struct {
 	Host     string
-	Endpoint Endpoint `mapstructure:",squash"`
+	Endpoint endpoint `mapstructure:",squash"`
 }
 
-type Endpoint struct {
+type endpoint struct {
 	Name   string `yaml:"name"`
 	APIKey string `yaml:"apikey"`
 }
@@ -99,7 +99,7 @@ func TestUnmarshalKeySliceOfStructures(t *testing.T) {
 	testcases := []struct {
 		name string
 		conf string
-		want []Endpoint
+		want []endpoint
 	}{
 		{
 			name: "simple wellformed",
@@ -112,7 +112,7 @@ endpoints:
 - name: health
   apikey: abc3
 `,
-			want: []Endpoint{
+			want: []endpoint{
 				{Name: "intake", APIKey: "abc1"},
 				{Name: "config", APIKey: "abc2"},
 				{Name: "health", APIKey: "abc3"},
@@ -126,7 +126,7 @@ endpoints:
 - name: config
   apikey: abc2
 `,
-			want: []Endpoint{
+			want: []endpoint{
 				{Name: "intake", APIKey: ""},
 				{Name: "config", APIKey: "abc2"},
 			},
@@ -138,7 +138,7 @@ endpoints:
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("endpoints")
 
-			var endpoints = []Endpoint{}
+			var endpoints = []endpoint{}
 			err := UnmarshalKey(mockConfig, "endpoints", &endpoints)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 
@@ -161,7 +161,7 @@ service:
 	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("service")
 
-	var svc = ServiceDescription{}
+	var svc = serviceDescription{}
 	// fails without EnableSquash being given
 	err := UnmarshalKey(mockConfig, "service", &svc)
 	assert.Error(t, err)
@@ -176,7 +176,7 @@ service:
 	assert.Equal(t, svc.Endpoint.APIKey, "abc1")
 }
 
-type FeatureConfig struct {
+type featureConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
@@ -342,7 +342,7 @@ feature:
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
-			var feature = FeatureConfig{}
+			var feature = featureConfig{}
 			err := UnmarshalKey(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 
@@ -351,7 +351,7 @@ feature:
 	}
 }
 
-type UintConfig struct {
+type uintConfig struct {
 	Fielduint8  uint8  `yaml:"uint8"`
 	Fielduint16 uint16 `yaml:"uint16"`
 	Fielduint32 uint32 `yaml:"uint32"`
@@ -366,7 +366,7 @@ func TestUnmarshalKeyAsInt(t *testing.T) {
 	testcases := []struct {
 		name string
 		conf string
-		want UintConfig
+		want uintConfig
 		skip bool
 	}{
 		{
@@ -382,7 +382,7 @@ feature:
   int32: 1234
   int64: 1234
 `,
-			want: UintConfig{
+			want: uintConfig{
 				Fielduint8:  123,
 				Fielduint16: 1234,
 				Fielduint32: 1234,
@@ -407,7 +407,7 @@ feature:
   int32: 12.34
   int64: -12.34
 `,
-			want: UintConfig{
+			want: uintConfig{
 				Fielduint8:  12,
 				Fielduint16: 1234,
 				Fielduint32: 1234,
@@ -431,7 +431,7 @@ feature:
   int32: 1234
   int64: 1234
 `,
-			want: UintConfig{
+			want: uintConfig{
 				Fielduint8:  0,
 				Fielduint16: 1234,
 				Fielduint32: 1234,
@@ -456,7 +456,7 @@ feature:
   int32: 1234
   int64: 1234
 `,
-			want: UintConfig{
+			want: uintConfig{
 				Fielduint8:  math.MaxUint8, // actual 230 - unclear what this behavior should be
 				Fielduint16: 1234,
 				Fielduint32: 1234,
@@ -481,7 +481,7 @@ feature:
   int32: 1234
   int64: 1234
 `,
-			want: UintConfig{
+			want: uintConfig{
 				Fielduint8:  0, // actual 133 - unclear what this behavior should be
 				Fielduint16: 1234,
 				Fielduint32: 1234,
@@ -504,7 +504,7 @@ feature:
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
-			var feature = UintConfig{}
+			var feature = uintConfig{}
 			err := UnmarshalKey(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
@@ -524,7 +524,7 @@ feature:
 	}
 }
 
-type FloatConfig struct {
+type floatConfig struct {
 	Fieldfloat32 float32 `yaml:"float32"`
 	Fieldfloat64 float64 `yaml:"float64"`
 }
@@ -533,7 +533,7 @@ func TestUnmarshalKeyAsFloat(t *testing.T) {
 	testcases := []struct {
 		name string
 		conf string
-		want FloatConfig
+		want floatConfig
 		skip bool
 	}{
 		{
@@ -543,7 +543,7 @@ feature:
   float32: 12.34
   float64: 12.34
 `,
-			want: FloatConfig{
+			want: floatConfig{
 				Fieldfloat32: 12.34,
 				Fieldfloat64: 12.34,
 			},
@@ -555,7 +555,7 @@ feature:
 feature:
   float64: 12.34
 `,
-			want: FloatConfig{
+			want: floatConfig{
 				Fieldfloat32: 0.0,
 				Fieldfloat64: 12.34,
 			},
@@ -568,7 +568,7 @@ feature:
   float32: 12
   float64: 12
 `,
-			want: FloatConfig{
+			want: floatConfig{
 				Fieldfloat32: 12.0,
 				Fieldfloat64: 12.0,
 			},
@@ -581,7 +581,7 @@ feature:
   float32: -12
   float64: -12.34
 `,
-			want: FloatConfig{
+			want: floatConfig{
 				Fieldfloat32: -12.0,
 				Fieldfloat64: -12.34,
 			},
@@ -594,7 +594,7 @@ feature:
   float32: .34
   float64: -.34
 `,
-			want: FloatConfig{
+			want: floatConfig{
 				Fieldfloat32: 0.34,
 				Fieldfloat64: -0.34,
 			},
@@ -611,7 +611,7 @@ feature:
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
-			var feature = FloatConfig{}
+			var feature = floatConfig{}
 			err := UnmarshalKey(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
@@ -631,7 +631,7 @@ feature:
 	}
 }
 
-type StringConfig struct {
+type stringConfig struct {
 	Field string `yaml:"value"`
 }
 
@@ -639,7 +639,7 @@ func TestUnmarshalKeyAsString(t *testing.T) {
 	testcases := []struct {
 		name string
 		conf string
-		want StringConfig
+		want stringConfig
 		skip bool
 	}{
 		{
@@ -648,7 +648,7 @@ func TestUnmarshalKeyAsString(t *testing.T) {
 feature:
   value: a string
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "a string",
 			},
 			skip: false,
@@ -659,7 +659,7 @@ feature:
 feature:
   value: "12.34"
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "12.34",
 			},
 			skip: false,
@@ -670,7 +670,7 @@ feature:
 feature:
   float64: 12.34
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: string(""),
 			},
 			skip: false,
@@ -681,7 +681,7 @@ feature:
 feature:
   value: 42
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "42",
 			},
 			skip: false,
@@ -692,7 +692,7 @@ feature:
 feature:
   value: 4.2222222222222222222222
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "4.222222222222222",
 			},
 			skip: false,
@@ -703,7 +703,7 @@ feature:
 feature:
   value: 4.2
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "4.2",
 			},
 			skip: false,
@@ -714,7 +714,7 @@ feature:
 feature:
   value: not, a, list
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "not, a, list",
 			},
 			skip: false,
@@ -725,7 +725,7 @@ feature:
 feature:
   value: ☺☻☹
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "☺☻☹",
 			},
 			skip: false,
@@ -736,7 +736,7 @@ feature:
 feature:
   value: \xff-\xff
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: `\xff-\xff`,
 			},
 			skip: false,
@@ -747,7 +747,7 @@ feature:
 feature:
   value: 日本語
 `,
-			want: StringConfig{
+			want: stringConfig{
 				Field: "日本語",
 			},
 			skip: false,
@@ -763,7 +763,7 @@ feature:
 			mockConfig := mock.NewFromYAML(t, tc.conf)
 			mockConfig.SetKnown("feature")
 
-			var feature = StringConfig{}
+			var feature = stringConfig{}
 			err := UnmarshalKey(mockConfig, "feature", &feature)
 			assert.NoError(t, err, "%s failed to marshal: %s", tc.name, err)
 			if err != nil {
@@ -783,7 +783,7 @@ feature:
 	}
 }
 
-type FeatureConfigDiffCase struct {
+type featureConfigDiffCase struct {
 	ENaBLEd bool
 }
 
@@ -795,13 +795,13 @@ feature:
 	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("feature")
 
-	var feature = FeatureConfig{}
+	var feature = featureConfig{}
 	err := UnmarshalKey(mockConfig, "feature", &feature)
 	assert.NoError(t, err)
 
 	assert.Equal(t, feature.Enabled, true)
 
-	var diffcase = FeatureConfigDiffCase{}
+	var diffcase = featureConfigDiffCase{}
 	err = UnmarshalKey(mockConfig, "feature", &diffcase)
 	assert.NoError(t, err)
 
@@ -818,7 +818,7 @@ feature:
 
 	// If the data from the config is missing, UnmarshalKey is a no-op, does
 	// nothing, and returns no error
-	var endpoints = []Endpoint{}
+	var endpoints = []endpoint{}
 	err := UnmarshalKey(mockConfig, "config_providers", &endpoints)
 	assert.NoError(t, err)
 }
