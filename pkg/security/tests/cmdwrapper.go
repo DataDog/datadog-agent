@@ -23,6 +23,7 @@ const (
 	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
+	podmanWrapperType wrapperType = "podman"
 	multiWrapperType  wrapperType = "multi"
 )
 
@@ -151,16 +152,30 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	return err
 }
 
-func newDockerCmdWrapper(mountSrc, mountDest string, kind string) (*dockerCmdWrapper, error) {
-	executable, err := exec.LookPath("docker")
+func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	if runtimeCommand == "" {
+		runtimeCommand = "docker"
+	}
+
+	executable, err := exec.LookPath(runtimeCommand)
 	if err != nil {
 		return nil, err
 	}
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.Output()
+	if err != nil {
 		return nil, err
+	}
+
+	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
+		splitted := strings.SplitN(line, ":", 2)
+		if splitted[0] == "client" && len(splitted) > 1 {
+			if !strings.Contains(splitted[1], runtimeCommand) {
+				return nil, fmt.Errorf("client doesn't report as '%s'", runtimeCommand)
+			}
+		}
 	}
 
 	wrapper := &dockerCmdWrapper{

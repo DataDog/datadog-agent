@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -55,7 +54,7 @@ func TestContainerCreatedAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
 		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
@@ -122,9 +121,9 @@ func TestContainerFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
+		t.Skipf("Skipping container test: Docker not available (%s)", err.Error())
 		return
 	}
 
