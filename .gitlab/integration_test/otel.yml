@@ -25,6 +25,7 @@ integration_tests_otel:
 docker_image_build_otel:  
   stage: otel_docker_image_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10
+  tags: ["arch:amd64"]
   needs: ["integration_tests_otel"]
   script:
     - inv check-otel-image-build
