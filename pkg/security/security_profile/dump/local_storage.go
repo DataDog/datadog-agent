@@ -22,10 +22,11 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type dumpFiles struct {
@@ -137,7 +138,7 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 			if !ok {
 				ad = &dumpFiles{
 					Name:  dumpName,
-					Files: make([]string, 1),
+					Files: make([]string, 0, 1),
 				}
 				localDumps[dumpName] = ad
 			}
