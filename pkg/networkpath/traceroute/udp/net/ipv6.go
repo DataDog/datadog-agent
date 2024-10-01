@@ -110,12 +110,12 @@ func (h IPv6) MarshalBinary() ([]byte, error) {
 		h.Dst = net.IPv6zero
 	}
 
-	binary.Write(&b, binary.BigEndian, uint32(h.Version<<28|h.TrafficClass<<20|h.FlowLabel))
-	binary.Write(&b, binary.BigEndian, uint16(h.PayloadLen))
-	binary.Write(&b, binary.BigEndian, uint8(h.NextHeader))
-	binary.Write(&b, binary.BigEndian, uint8(h.HopLimit))
-	binary.Write(&b, binary.BigEndian, []byte(h.Src.To16()))
-	binary.Write(&b, binary.BigEndian, []byte(h.Dst.To16()))
+	binary.Write(&b, binary.BigEndian, uint32(h.Version<<28|h.TrafficClass<<20|h.FlowLabel)) //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, uint16(h.PayloadLen))                                 //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, uint8(h.NextHeader))                                  //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, uint8(h.HopLimit))                                    //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, []byte(h.Src.To16()))                                 //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, []byte(h.Dst.To16()))                                 //nolint:errcheck
 	ret := b.Bytes()
 	// payload
 	ret = append(ret, payload...)
@@ -134,34 +134,26 @@ func (h *IPv6) UnmarshalBinary(b []byte) error {
 		u128 [16]byte
 	)
 	buf := bytes.NewBuffer(b)
-	buf.Read(u32[:])
+	buf.Read(u32[:]) //nolint:errcheck
 	h.Version = int(u32[0] >> 4)
 	h.TrafficClass = int(u32[0]&0xf)<<4 | int(u32[1]>>4)
 	h.FlowLabel = int(u32[1]&0xf)<<16 | int(u32[2])<<8 | int(u32[3])
-	buf.Read(u16[:])
+	buf.Read(u16[:]) //nolint:errcheck
 	h.PayloadLen = int(binary.BigEndian.Uint16(u16[:]))
 	u8, _ = buf.ReadByte()
 	h.NextHeader = IPProto(u8)
 	u8, _ = buf.ReadByte()
 	h.HopLimit = int(u8)
-	buf.Read(u128[:])
+	buf.Read(u128[:]) //nolint:errcheck
 	h.Src = append([]byte{}, u128[:]...)
-	buf.Read(u128[:])
+	buf.Read(u128[:]) //nolint:errcheck
 	h.Dst = append([]byte{}, u128[:]...)
 	// payload
 	if len(b) < h.PayloadLen && !h.IPinICMP {
 		return errors.New("invalid IPv6 packet: payload too short")
 	}
 	payload := b[IPv6HeaderLen : IPv6HeaderLen+h.PayloadLen]
-	if h.NextHeader == ProtoUDP {
-		/*
-			u, err := NewUDP(payload)
-			if err != nil {
-				return err
-			}
-			h.next = u
-		*/
-	} else {
+	if h.NextHeader != ProtoUDP {
 		h.next = &Raw{Data: payload}
 	}
 	return nil

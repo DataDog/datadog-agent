@@ -56,7 +56,7 @@ func (d *UDPv6) Validate() error {
 }
 
 // packet generates a probe packet and returns its bytes
-func (d UDPv6) packet(hl uint8, src, dst net.IP, srcport, dstport uint16) ([]byte, []byte, error) {
+func (d UDPv6) packet(hl uint8, _, _ net.IP, srcport, dstport uint16) ([]byte, []byte, error) {
 	// Forge the payload so that it can be used for path tracking and
 	// NAT detection.
 	//
@@ -211,31 +211,31 @@ func (d UDPv6) ListenFor(conn *ipv6.PacketConn, howLong time.Duration) ([]probes
 	packets := make([]probes.ProbeResponse, 0)
 	deadline := time.Now().Add(howLong)
 	for {
-		if deadline.Sub(time.Now()) <= 0 {
+		if time.Until(deadline) <= 0 {
 			break
 		}
-		select {
-		default:
-			// TODO tune data size
-			data := make([]byte, 4096)
-			now := time.Now()
-			conn.SetReadDeadline(now.Add(time.Millisecond * 100))
-			n, _, addr, err := conn.ReadFrom(data)
-			receivedAt := time.Now()
-			if err != nil {
-				if nerr, ok := err.(*net.OpError); ok {
-					if nerr.Timeout() {
-						continue
-					}
-					return nil, err
-				}
-			}
-			packets = append(packets, &ProbeResponseUDPv6{
-				Data:      data[:n],
-				Addr:      (*(addr).(*net.IPAddr)).IP,
-				Timestamp: receivedAt,
-			})
+		// TODO tune data size
+		data := make([]byte, 4096)
+		now := time.Now()
+		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
+		if err != nil {
+			return nil, fmt.Errorf("failed to set read deadline: %w", err)
 		}
+		n, _, addr, err := conn.ReadFrom(data)
+		receivedAt := time.Now()
+		if err != nil {
+			if nerr, ok := err.(*net.OpError); ok {
+				if nerr.Timeout() {
+					continue
+				}
+				return nil, err
+			}
+		}
+		packets = append(packets, &ProbeResponseUDPv6{
+			Data:      data[:n],
+			Addr:      (*(addr).(*net.IPAddr)).IP,
+			Timestamp: receivedAt,
+		})
 	}
 	return packets, nil
 }
@@ -249,7 +249,7 @@ func (d UDPv6) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 	for _, sp := range sent {
 		spu := sp.(*ProbeUDPv6)
 		if err := spu.Validate(); err != nil {
-			log.Debugf("Invalid probe: %w", err)
+			log.Debugf("Invalid probe: %v", err)
 			continue
 		}
 		sentUDP := spu.UDP()
@@ -309,7 +309,7 @@ func (d UDPv6) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 			// this is our packet. Let's fill the probe data up
 			// probe.Flowhash = flowhash
 			// TODO check if To16() is the right thing to do here
-			probe.IsLast = bytes.Equal(rpu.Addr.To16(), d.Target.To16())
+			probe.IsLast = rpu.Addr.To16().Equal(d.Target.To16())
 			probe.Name = rpu.Addr.String()
 			probe.RttUsec = uint64(rpu.Timestamp.Sub(spu.Timestamp)) / 1000
 			probe.ZeroTTLForwardingBug = (rpu.InnerIPv6().HopLimit == 0)

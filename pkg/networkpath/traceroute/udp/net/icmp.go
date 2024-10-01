@@ -74,26 +74,26 @@ func NewICMP(b []byte) (*ICMP, error) {
 // ComputeChecksum computes the ICMP checksum.
 func (i ICMP) ComputeChecksum() (uint16, error) {
 	var bc bytes.Buffer
-	binary.Write(&bc, binary.BigEndian, i.Type)
-	binary.Write(&bc, binary.BigEndian, i.Code)
-	binary.Write(&bc, binary.BigEndian, i.Payload)
+	binary.Write(&bc, binary.BigEndian, i.Type)    //nolint:errcheck
+	binary.Write(&bc, binary.BigEndian, i.Code)    //nolint:errcheck
+	binary.Write(&bc, binary.BigEndian, i.Payload) //nolint:errcheck
 	return Checksum(bc.Bytes()), nil
 }
 
 // MarshalBinary serializes the layer
 func (i ICMP) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
-	binary.Write(&b, binary.BigEndian, i.Type)
-	binary.Write(&b, binary.BigEndian, i.Code)
+	binary.Write(&b, binary.BigEndian, i.Type) //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, i.Code) //nolint:errcheck
 	csum, err := i.ComputeChecksum()
 	if err != nil {
 		return nil, err
 	}
 	i.Checksum = csum
-	binary.Write(&b, binary.BigEndian, i.Checksum)
+	binary.Write(&b, binary.BigEndian, i.Checksum) //nolint:errcheck
 	// TODO implement multipart, RFC4884, RFC4950
-	binary.Write(&b, binary.BigEndian, i.Unused)
-	binary.Write(&b, binary.BigEndian, i.Payload)
+	binary.Write(&b, binary.BigEndian, i.Unused)  //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, i.Payload) //nolint:errcheck
 	return b.Bytes(), nil
 }
 

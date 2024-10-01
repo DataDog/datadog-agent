@@ -3,7 +3,6 @@
 package probev4
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -231,31 +230,31 @@ func (d UDPv4) ListenFor(rconn *ipv4.RawConn, howLong time.Duration) ([]probes.P
 	packets := make([]probes.ProbeResponse, 0)
 	deadline := time.Now().Add(howLong)
 	for {
-		if deadline.Sub(time.Now()) <= 0 {
+		if time.Until(deadline) <= 0 {
 			break
 		}
-		select {
-		default:
-			// TODO tune data size
-			data := make([]byte, 1024)
-			now := time.Now()
-			rconn.SetReadDeadline(now.Add(time.Millisecond * 100))
-			hdr, payload, _, err := rconn.ReadFrom(data)
-			receivedAt := time.Now()
-			if err != nil {
-				if nerr, ok := err.(*net.OpError); ok {
-					if nerr.Timeout() {
-						continue
-					}
-					return nil, err
-				}
-			}
-			packets = append(packets, &ProbeResponseUDPv4{
-				Header:    hdr,
-				Payload:   payload,
-				Timestamp: receivedAt,
-			})
+		// TODO tune data size
+		data := make([]byte, 1024)
+		now := time.Now()
+		err := rconn.SetReadDeadline(now.Add(time.Millisecond * 100))
+		if err != nil {
+			return nil, fmt.Errorf("failed to set read deadline: %w", err)
 		}
+		hdr, payload, _, err := rconn.ReadFrom(data)
+		receivedAt := time.Now()
+		if err != nil {
+			if nerr, ok := err.(*net.OpError); ok {
+				if nerr.Timeout() {
+					continue
+				}
+				return nil, err
+			}
+		}
+		packets = append(packets, &ProbeResponseUDPv4{
+			Header:    hdr,
+			Payload:   payload,
+			Timestamp: receivedAt,
+		})
 	}
 	return packets, nil
 }
@@ -324,7 +323,7 @@ func (d UDPv4) Match(sent []probes.Probe, received []probes.ProbeResponse) resul
 			}
 			// This is our packet, let's fill the probe data up
 			probe.Flowhash = flowhash
-			probe.IsLast = bytes.Equal(rpu.Header.Src.To4(), d.Target.To4()) || isPortUnreachable
+			probe.IsLast = rpu.Header.Src.To4().Equal(d.Target.To4()) || isPortUnreachable
 			probe.Name = rpu.Header.Src.String() // TODO compute this field
 			probe.RttUsec = uint64(rpu.Timestamp.Sub(spu.Timestamp)) / 1000
 			probe.NATID = NATID

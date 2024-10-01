@@ -96,8 +96,8 @@ func (i *ICMPv6) SetNext(l Layer) {
 // MarshalBinary serializes the layer
 func (i ICMPv6) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
-	binary.Write(&b, binary.BigEndian, i.Type)
-	binary.Write(&b, binary.BigEndian, i.Code)
+	binary.Write(&b, binary.BigEndian, i.Type) //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, i.Code) //nolint:errcheck
 	var (
 		payload []byte
 		err     error
@@ -111,12 +111,12 @@ func (i ICMPv6) MarshalBinary() ([]byte, error) {
 	// compute checksum
 	i.Checksum = 0
 	var bc bytes.Buffer
-	binary.Write(&bc, binary.BigEndian, i.Type)
-	binary.Write(&bc, binary.BigEndian, i.Code)
-	binary.Write(&bc, binary.BigEndian, payload)
+	binary.Write(&bc, binary.BigEndian, i.Type)  //nolint:errcheck
+	binary.Write(&bc, binary.BigEndian, i.Code)  //nolint:errcheck
+	binary.Write(&bc, binary.BigEndian, payload) //nolint:errcheck
 	i.Checksum = Checksum(bc.Bytes())
-	binary.Write(&b, binary.BigEndian, i.Checksum)
-	binary.Write(&b, binary.BigEndian, i.Unused)
+	binary.Write(&b, binary.BigEndian, i.Checksum) //nolint:errcheck
+	binary.Write(&b, binary.BigEndian, i.Unused)   //nolint:errcheck
 	return b.Bytes(), nil
 }
 
