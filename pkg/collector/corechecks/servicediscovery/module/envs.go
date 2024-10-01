@@ -231,8 +231,9 @@ func nullTerminatedString(data []byte, atEOF bool) (advance int, token []byte, e
 }
 
 // newEnvScanner returns a new [EnvScanner] to read from path.
-func newEnvScanner(path string, onlyTargets bool) (*EnvScanner, error) {
-	file, err := os.Open(path)
+func newEnvScanner(proc *process.Process, onlyTargets bool) (*EnvScanner, error) {
+	envPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "environ")
+	file, err := os.Open(envPath)
 	if err != nil {
 		return nil, err
 	}
@@ -289,18 +290,9 @@ func (es *EnvScanner) addTargetEnvToMap() error {
 	return nil
 }
 
-// getEnvironPath return path '/proc/<PID>/environ'
-func getEnvironPath(proc *process.Process) string {
-	hostProc := os.Getenv("HOST_PROC")
-	if len(hostProc) == 0 {
-		hostProc = "/proc"
-	}
-	return filepath.Join(hostProc, strconv.Itoa(int(proc.Pid)), "environ")
-}
-
 // getEnvsUsingScan searches the environment variables of interest in the proc file by reading the proc file
 func getEnvsUsingScan(proc *process.Process, onlyTargets bool) (map[string]string, error) {
-	es, err := newEnvScanner(getEnvironPath(proc), onlyTargets)
+	es, err := newEnvScanner(proc, onlyTargets)
 	if err != nil {
 		return nil, err
 	}
