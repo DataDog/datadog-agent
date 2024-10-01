@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -208,7 +209,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				tt.config(c)
 			}
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, c)
 			require.Equal(t, instrumentationV2, webhook.version)
 			require.True(t, webhook.version.usesInjector())
 
@@ -562,7 +563,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c := configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, c)
 			err := webhook.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
 				libs:   tt.libsToInject,
 				source: libInfoSourceLibInjection,
@@ -995,7 +996,7 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, mockConfig)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
@@ -1212,6 +1213,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 
 			conf := configmock.New(t)
 			if tt.cpu != "" {
@@ -1221,7 +1223,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 
-			wh, err := NewWebhook(wmeta, GetInjectionFilter())
+			wh, err := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -2908,6 +2910,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
 
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
+			datadogConfig := configmock.New(t)
 
 			mockConfig = configmock.New(t)
 			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v1")
@@ -2917,7 +2920,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter())
+			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3169,18 +3172,19 @@ func TestShouldInject(t *testing.T) {
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			webhook := mustWebhook(t, wmeta)
+			webhook := mustWebhook(t, wmeta, datadogConfig)
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustWebhook(t *testing.T, wmeta workloadmeta.Component) *Webhook {
-	webhook, err := NewWebhook(wmeta, GetInjectionFilter())
+func mustWebhook(t *testing.T, wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
+	webhook, err := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
 	require.NoError(t, err)
 	return webhook
 }

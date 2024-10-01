@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -475,6 +476,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 
 	// prepare the workload meta
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -489,7 +491,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, datadogConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -830,6 +832,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// prepare the workload meta
 			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
@@ -846,7 +849,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
 			mockConfig.SetWithoutSource("cluster_agent.service_account_name", tt.args.cwsInjectorServiceAccountName)
 
-			ci, err := NewCWSInstrumentation(wmeta)
+			ci, err := NewCWSInstrumentation(wmeta, datadogConfig)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {

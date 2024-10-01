@@ -10,9 +10,10 @@ package autoinstrumentation
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFailingInjectionConfig(t *testing.T) {
@@ -90,7 +91,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 			nsFilter := GetNamespaceInjectionFilter()
 			require.NotNil(t, nsFilter, "we should always get a filter")
 
-			_, err := NewWebhook(wmeta, common.InjectionFilter{NSFilter: nsFilter})
+			_, err := NewWebhook(wmeta, common.InjectionFilter{NSFilter: nsFilter}, c)
 			if tt.expectedWebhookError {
 				require.Error(t, err)
 			} else {

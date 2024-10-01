@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -53,15 +54,15 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() *Webhook {
+func NewWebhook(datadogConfig config.Component) *Webhook {
 	nsSelector, objSelector := labelSelectors()
 
 	containerRegistry := common.ContainerRegistry("admission_controller.agent_sidecar.container_registry")
 
 	return &Webhook{
 		name:              webhookName,
-		isEnabled:         pkgconfigsetup.Datadog().GetBool("admission_controller.agent_sidecar.enabled"),
-		endpoint:          pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.endpoint"),
+		isEnabled:         datadogConfig.GetBool("admission_controller.agent_sidecar.enabled"),
+		endpoint:          datadogConfig.GetString("admission_controller.agent_sidecar.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
 		namespaceSelector: nsSelector,

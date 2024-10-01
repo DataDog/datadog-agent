@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -93,12 +94,12 @@ type WebhookForPods struct {
 	admissionFunc admission.WebhookFunc
 }
 
-func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
+func newWebhookForPods(admissionFunc admission.WebhookFunc, datadogConfig config.Component) *WebhookForPods {
 	return &WebhookForPods{
 		name: webhookForPodsName,
-		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
-			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		isEnabled: datadogConfig.GetBool("admission_controller.cws_instrumentation.enabled") &&
+			len(datadogConfig.GetString("admission_controller.cws_instrumentation.image_name")) > 0,
+		endpoint:      datadogConfig.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
 		resources:     []string{"pods"},
 		operations:    []admiv1.OperationType{admiv1.Create},
 		admissionFunc: admissionFunc,
@@ -282,7 +283,7 @@ type CWSInstrumentation struct {
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
-func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, error) {
+func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
 		wmeta: wmeta,
 	}
@@ -291,16 +292,16 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	// Parse filters
 	ci.filter, err = containers.NewFilter(
 		containers.GlobalFilter,
-		pkgconfigsetup.Datadog().GetStringSlice("admission_controller.cws_instrumentation.include"),
-		pkgconfigsetup.Datadog().GetStringSlice("admission_controller.cws_instrumentation.exclude"),
+		datadogConfig.GetStringSlice("admission_controller.cws_instrumentation.include"),
+		datadogConfig.GetStringSlice("admission_controller.cws_instrumentation.exclude"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't initialize filter: %w", err)
 	}
 
 	// Parse init container image
-	cwsInjectorImageName := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")
-	cwsInjectorImageTag := pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_tag")
+	cwsInjectorImageName := datadogConfig.GetString("admission_controller.cws_instrumentation.image_name")
+	cwsInjectorImageTag := datadogConfig.GetString("admission_controller.cws_instrumentation.image_tag")
 
 	cwsInjectorContainerRegistry := common.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
 
@@ -317,16 +318,16 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	}
 
 	// parse mode
-	ci.mode, err = ParseInstrumentationMode(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.mode"))
+	ci.mode, err = ParseInstrumentationMode(datadogConfig.GetString("admission_controller.cws_instrumentation.mode"))
 	if err != nil {
 		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
 	}
-	ci.mountVolumeForRemoteCopy = pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
-	ci.directoryForRemoteCopy = pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.remote_copy.directory")
+	ci.mountVolumeForRemoteCopy = datadogConfig.GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+	ci.directoryForRemoteCopy = datadogConfig.GetString("admission_controller.cws_instrumentation.remote_copy.directory")
 
 	if ci.mode == RemoteCopy {
 		// build the cluster agent service account
-		serviceAccountName := pkgconfigsetup.Datadog().GetString("cluster_agent.service_account_name")
+		serviceAccountName := datadogConfig.GetString("cluster_agent.service_account_name")
 		if len(serviceAccountName) == 0 {
 			return nil, fmt.Errorf("can't initialize CWS Instrumentation in %s mode without providing a service account name in config (cluster_agent.service_account_name)", RemoteCopy)
 		}
@@ -340,7 +341,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 		return nil, fmt.Errorf("couldn't parse CWS Instrumentation init container resources: %w", err)
 	}
 
-	ci.webhookForPods = newWebhookForPods(ci.injectForPod)
+	ci.webhookForPods = newWebhookForPods(ci.injectForPod, datadogConfig)
 	ci.webhookForCommands = newWebhookForCommands(ci.injectForCommand)
 
 	return &ci, nil

@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -64,7 +65,7 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilter) (*Webhook, error) {
+func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilter, datadogConfig config.Component) (*Webhook, error) {
 	// Note: the webhook is not functional with the filter being disabled--
 	//       and the filter is _global_! so we need to make sure that it was
 	//       initialized as it validates the configuration itself.
@@ -84,13 +85,13 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		return nil, err
 	}
 
-	v, err := instrumentationVersion(pkgconfigsetup.Datadog().GetString("apm_config.instrumentation.version"))
+	v, err := instrumentationVersion(datadogConfig.GetString("apm_config.instrumentation.version"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
 	}
 
 	var (
-		isEnabled         = pkgconfigsetup.Datadog().GetBool("admission_controller.auto_instrumentation.enabled")
+		isEnabled         = datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled")
 		containerRegistry = mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 		pinnedLibraries   []libInfo
 	)
@@ -102,14 +103,14 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 	return &Webhook{
 		name:                     webhookName,
 		isEnabled:                isEnabled,
-		endpoint:                 pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
+		endpoint:                 datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:                []string{"pods"},
 		operations:               []admiv1.OperationType{admiv1.Create},
 		initSecurityContext:      initSecurityContext,
 		initResourceRequirements: initResourceRequirements,
 		injectionFilter:          filter,
 		containerRegistry:        containerRegistry,
-		injectorImageTag:         pkgconfigsetup.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
+		injectorImageTag:         datadogConfig.GetString("apm_config.instrumentation.injector_image_tag"),
 		pinnedLibraries:          pinnedLibraries,
 		version:                  v,
 		wmeta:                    wmeta,

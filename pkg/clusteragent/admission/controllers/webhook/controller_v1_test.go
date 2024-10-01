@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -954,6 +955,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
@@ -962,7 +964,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
+			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil, datadogConfig)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
@@ -1089,6 +1091,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
 	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	datadogConfig := fxutil.Test[config.Component](f.t, core.MockBundle())
 	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),
@@ -1098,6 +1101,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		v1Cfg,
 		wmeta,
 		nil,
+		datadogConfig,
 	), factory
 }
 

@@ -17,8 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -349,8 +352,8 @@ func TestInjectAgentSidecar(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-
-			webhook := NewWebhook()
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+			webhook := NewWebhook(datadogConfig)
 
 			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
 

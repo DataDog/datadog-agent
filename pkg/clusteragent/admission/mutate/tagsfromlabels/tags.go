@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -53,11 +54,11 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter, datadogConfig config.Component) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_tags.endpoint"),
+		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
 		resources:       []string{"pods"},
 		operations:      []admiv1.OperationType{admiv1.Create},
 		ownerCacheTTL:   ownerCacheTTL(),
