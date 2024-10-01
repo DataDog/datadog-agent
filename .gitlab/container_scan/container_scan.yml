@@ -15,6 +15,7 @@ scan_nightly-dogstatsd:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: dogstatsd-scan:${BUCKET_BRANCH}
+  timeout: 15m
 
 scan_nightly-a6:
   extends: .docker_publish_job_definition
