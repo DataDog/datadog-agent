@@ -108,11 +108,8 @@ notify_gitlab_ci_changes:
     - git checkout -
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - |
-      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64) || exit $?; export GITHUB_KEY_B64
-      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID) || exit $?; export GITHUB_APP_ID
-      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
-      GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - !reference [.setup_agent_github_app]
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e notify.gitlab-ci-diff --pr-comment
 
 .failure_summary_job:
@@ -163,3 +160,28 @@ notify_failure_summary_daily:
         echo 'Sending weekly summary'
         inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
+
+close_failing_tests_stale_issues:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  rules:
+    # Daily
+    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_deploy_nightly_repo_branch_always]
+  needs: []
+  tags: ["arch:amd64"]
+  script:
+    - weekday="$(date --utc '+%A')"
+    # Weekly on Friday
+    - |
+      if [ "$weekday" != "Friday" ]; then
+        echo "This script is run weekly on Fridays"
+        exit
+      fi
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt # For Atlassian / Jira dependencies
+    - inv -e notify.close-failing-tests-stale-issues
