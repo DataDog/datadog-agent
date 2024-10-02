@@ -321,7 +321,7 @@ def send_build_metrics(ctx, overall_duration):
         ).stdout.strip()
     else:
         dd_api_key = ctx.run(
-            f'vault kv -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
             hide=True,
         ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
@@ -341,7 +341,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
         ).stdout.strip()
     else:
         dd_api_key = ctx.run(
-            f'vault kv -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
+            f'vault kv get -field=token kv/k8s/gitlab-runner/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}',
             hide=True,
         ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
