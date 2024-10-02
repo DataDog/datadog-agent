@@ -91,7 +91,7 @@ func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, data
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
-	injectionFilter := autoinstrumentation.GetInjectionFilter()
+	injectionFilter := autoinstrumentation.GetInjectionFilter(datadogConfig)
 
 	webhooks := []MutatingWebhook{
 		configInjector.NewWebhook(wmeta, injectionFilter, datadogConfig),

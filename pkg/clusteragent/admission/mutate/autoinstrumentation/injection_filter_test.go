@@ -88,7 +88,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 			c.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", tt.enabledNamespaces)
 			c.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", tt.disabledNamespaces)
 
-			nsFilter := GetNamespaceInjectionFilter()
+			nsFilter := GetNamespaceInjectionFilter(c)
 			require.NotNil(t, nsFilter, "we should always get a filter")
 
 			_, err := NewWebhook(wmeta, common.InjectionFilter{NSFilter: nsFilter}, c)
@@ -100,7 +100,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 			checkedNamespaces := map[string]bool{}
 			for ns := range tt.expectedNamespaces {
-				checkedNamespaces[ns] = nsFilter.IsNamespaceEligible(ns)
+				checkedNamespaces[ns] = nsFilter.IsNamespaceEligible(ns, mockconfig.New(t))
 			}
 
 			require.Equal(t, tt.expectedNamespaces, checkedNamespaces)

@@ -71,7 +71,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry),
+							*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 						},
 					},
 				}
@@ -117,7 +117,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "container-name"},
-						*getDefaultSidecarTemplate(commonRegistry),
+						*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 					},
 				},
 			},
@@ -133,7 +133,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry),
+							*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 						},
 					},
 				}
@@ -156,7 +156,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry)
+				sidecar := *getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 				_, _ = withEnvOverrides(
 					&sidecar,
 					corev1.EnvVar{
@@ -257,7 +257,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry)
+				sidecar := *getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 
 				_, _ = withEnvOverrides(
 					&sidecar,
@@ -418,7 +418,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate(test.containerRegistry)
+			sidecar := getDefaultSidecarTemplate(test.containerRegistry, config.NewMock(t))
 			assert.Equal(tt, test.expectedImage, sidecar.Image)
 		})
 	}
@@ -568,7 +568,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate(commonRegistry)
+			sidecar := getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 			envVarsMap := make(map[string]corev1.EnvVar)
 			for _, envVar := range sidecar.Env {
 				envVarsMap[envVar.Name] = envVar

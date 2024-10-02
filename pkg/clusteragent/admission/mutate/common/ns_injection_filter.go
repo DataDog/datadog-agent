@@ -10,8 +10,8 @@ package common
 import (
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +24,7 @@ type InjectionFilter struct {
 
 // ShouldMutatePod checks if a pod is mutable per explicit rules and
 // the NSFilter if InjectionFilter has one.
-func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod) bool {
+func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod, datadogConfig config.Component) bool {
 	switch getPodMutationLabelFlag(pod) {
 	case podMutationDisabled:
 		return false
@@ -32,11 +32,11 @@ func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod) bool {
 		return true
 	}
 
-	if f.NSFilter != nil && f.NSFilter.IsNamespaceEligible(pod.Namespace) {
+	if f.NSFilter != nil && f.NSFilter.IsNamespaceEligible(pod.Namespace, datadogConfig) {
 		return true
 	}
 
-	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
+	return datadogConfig.GetBool("admission_controller.mutate_unlabelled")
 }
 
 type podMutationLabelFlag int
@@ -78,7 +78,7 @@ func getPodMutationLabelFlag(pod *corev1.Pod) podMutationLabelFlag {
 // See autoinstrumentation.GetInjectionFilter.
 type NamespaceInjectionFilter interface {
 	// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
-	IsNamespaceEligible(ns string) bool
+	IsNamespaceEligible(ns string, datadogConfig config.Component) bool
 	// Err returns an error if creation of the NamespaceInjectionFilter failed.
 	Err() error
 }

@@ -1030,7 +1030,7 @@ func Test_initCWSInitContainerResources(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", tt.cpu)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", tt.mem)
 
-			got, err := parseCWSInitContainerResources()
+			got, err := parseCWSInitContainerResources(mockConfig)
 			if err != nil && !tt.wantErr {
 				require.Nil(t, err, "an error shouldn't have been generated")
 			}

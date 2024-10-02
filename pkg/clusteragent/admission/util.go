@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -23,8 +23,8 @@ import (
 // useNamespaceSelector returns whether we need to fallback to using namespace selector instead of object selector.
 // Returns true if `namespace_selector_fallback` is enabled and k8s version is between 1.10 and 1.14 (included).
 // Kubernetes 1.15+ supports object selectors.
-func useNamespaceSelector(discoveryCl discovery.DiscoveryInterface) (bool, error) {
-	if !pkgconfigsetup.Datadog().GetBool("admission_controller.namespace_selector_fallback") {
+func useNamespaceSelector(discoveryCl discovery.DiscoveryInterface, datadogConfig config.Component) (bool, error) {
+	if !datadogConfig.GetBool("admission_controller.namespace_selector_fallback") {
 		return false, nil
 	}
 

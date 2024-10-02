@@ -25,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -984,7 +983,7 @@ func TestExtractLibInfo(t *testing.T) {
 
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
-				fx.Replace(configComp.MockParams{Overrides: overrides}),
+				fx.Replace(config.MockParams{Overrides: overrides}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 			mockConfig = configmock.New(t)
@@ -1213,7 +1212,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				core.MockBundle(),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
-			datadogConfig := fxutil.Test[configComp.Component](t, core.MockBundle())
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 
 			conf := configmock.New(t)
 			if tt.cpu != "" {
@@ -1223,7 +1222,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 
-			wh, err := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
+			wh, err := NewWebhook(wmeta, GetInjectionFilter(datadogConfig), datadogConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -2920,7 +2919,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
+			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter(datadogConfig), datadogConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3184,7 +3183,7 @@ func TestShouldInject(t *testing.T) {
 }
 
 func mustWebhook(t *testing.T, wmeta workloadmeta.Component, datadogConfig config.Component) *Webhook {
-	webhook, err := NewWebhook(wmeta, GetInjectionFilter(), datadogConfig)
+	webhook, err := NewWebhook(wmeta, GetInjectionFilter(datadogConfig), datadogConfig)
 	require.NoError(t, err)
 	return webhook
 }

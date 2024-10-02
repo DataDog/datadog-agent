@@ -416,7 +416,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
-			mutated, err := applyProviderOverrides(test.basePod)
+			mutated, err := applyProviderOverrides(test.basePod, mockConfig)
 
 			if test.expectError {
 				assert.Error(tt, err)

@@ -27,7 +27,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,12 +43,11 @@ const webhookName = "standard_tags"
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
 	name            string
-	isEnabled       bool
-	endpoint        string
 	resources       []string
 	operations      []admiv1.OperationType
 	ownerCacheTTL   time.Duration
 	wmeta           workloadmeta.Component
+	datadogConfig   config.Component
 	injectionFilter common.InjectionFilter
 }
 
@@ -57,12 +55,11 @@ type Webhook struct {
 func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter, datadogConfig config.Component) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       datadogConfig.GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:        datadogConfig.GetString("admission_controller.inject_tags.endpoint"),
 		resources:       []string{"pods"},
 		operations:      []admiv1.OperationType{admiv1.Create},
-		ownerCacheTTL:   ownerCacheTTL(),
+		ownerCacheTTL:   ownerCacheTTL(datadogConfig),
 		wmeta:           wmeta,
+		datadogConfig:   datadogConfig,
 		injectionFilter: injectionFilter,
 	}
 }
@@ -74,12 +71,12 @@ func (w *Webhook) Name() string {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.isEnabled
+	return w.datadogConfig.GetBool("admission_controller.inject_tags.enabled")
 }
 
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
-	return w.endpoint
+	return w.datadogConfig.GetString("admission_controller.inject_tags.endpoint")
 }
 
 // Resources returns the kubernetes resources for which the webhook should
@@ -97,7 +94,7 @@ func (w *Webhook) Operations() []admiv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultLabelSelectors(useNamespaceSelector, w.datadogConfig)
 }
 
 // MutateFunc returns the function that mutates the resources
@@ -141,7 +138,7 @@ func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !w.injectionFilter.ShouldMutatePod(pod) {
+	if !w.injectionFilter.ShouldMutatePod(pod, w.datadogConfig) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false
 		// or Single step configuration is disabled
 		return false, nil
@@ -270,10 +267,10 @@ func (w *Webhook) getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interf
 	return owner, nil
 }
 
-func ownerCacheTTL() time.Duration {
-	if pkgconfigsetup.Datadog().IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
-		return pkgconfigsetup.Datadog().GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+func ownerCacheTTL(datadogConfig config.Component) time.Duration {
+	if datadogConfig.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+		return datadogConfig.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 	}
 
-	return pkgconfigsetup.Datadog().GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
+	return datadogConfig.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
 }

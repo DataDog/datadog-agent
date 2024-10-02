@@ -27,7 +27,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -945,7 +944,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
@@ -975,8 +974,8 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := common.DefaultLabelSelectors(true)
-	_, objectSelector := common.DefaultLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultLabelSelectors(true, mockConfig)
+	_, objectSelector := common.DefaultLabelSelectors(false, mockConfig)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1063,7 +1062,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = NewConfig(false, tt.namespaceSelector)
 
-			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, mockConfig)
 
 			assert.EqualValues(t, tt.want, c.getWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
 		})
