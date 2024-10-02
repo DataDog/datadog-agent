@@ -145,7 +145,7 @@ func (c *cudaEventConsumer) Start() {
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
 		if key.Pid == pid {
-			log.Debugf("Process %d ended, marking stream as ended", pid)
+			log.Debugf("Process %d ended, marking stream %d as ended", pid, key.Stream)
 			// the probe is responsible for deleting the stream handler
 			_ = handler.markEnd()
 		}
