@@ -8,5 +8,5 @@
 ---
 features:
   - |
-	APM: Add new 'sqllexer' feature flag for the Trace Agent, which enables
-	the sqllexer imprementation of the SQL Obfuscator.
+        APM: Add new 'sqllexer' feature flag for the Trace Agent, which enables
+        the sqllexer imprementation of the SQL Obfuscator.
