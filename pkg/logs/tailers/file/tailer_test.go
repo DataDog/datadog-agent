@@ -380,7 +380,7 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 
 	msg := <-suite.outputChan
 	tags := msg.Tags()
-	suite.Contains(tags, message.TruncatedTag)
+	suite.Contains(tags, message.TruncatedReasonTag("single_line"))
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

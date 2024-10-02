@@ -109,6 +109,9 @@ tests_macos:
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
   tags: ["macos:monterey-amd64", "specific:true"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab

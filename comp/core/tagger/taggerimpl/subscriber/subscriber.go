@@ -8,113 +8,31 @@
 package subscriber
 
 import (
-	"sync"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const bufferSize = 1000
 
-// Subscriber allows processes to subscribe to entity events generated from a
-// tagger.
+// Subscriber describes a component that subscribes to the tagger
+// Subscriber implements types.Subscription
 type Subscriber struct {
-	sync.RWMutex
-	subscribers    map[chan []types.EntityEvent]types.TagCardinality
-	telemetryStore *telemetry.Store
+	filter  types.Filter
+	id      string
+	ch      chan []types.EntityEvent
+	manager SubscriptionManager
 }
 
-// NewSubscriber returns a new subscriber.
-func NewSubscriber(telemetryStore *telemetry.Store) *Subscriber {
-	return &Subscriber{
-		subscribers:    make(map[chan []types.EntityEvent]types.TagCardinality),
-		telemetryStore: telemetryStore,
-	}
+// ID implements #types.Subscription.ID
+func (s *Subscriber) ID() string {
+	return s.id
 }
 
-// Subscribe returns a channel that receives a slice of events whenever an
-// entity is added, modified or deleted. It can send an initial burst of events
-// only to the new subscriber, without notifying all of the others.
-func (s *Subscriber) Subscribe(cardinality types.TagCardinality, events []types.EntityEvent) chan []types.EntityEvent {
-	// this is a `ch []EntityEvent` instead of a `ch EntityEvent` to
-	// improve throughput, as bursts of events are as likely to occur as
-	// isolated events, especially at startup or with collectors that
-	// periodically pull changes.
-	ch := make(chan []types.EntityEvent, bufferSize)
-
-	s.Lock()
-	s.subscribers[ch] = cardinality
-	s.telemetryStore.Subscribers.Inc()
-	s.Unlock()
-
-	if len(events) > 0 {
-		s.notify(ch, events, cardinality)
-	}
-
-	return ch
+// EventsChan implements #types.Subscription.EventsChan
+func (s *Subscriber) EventsChan() chan []types.EntityEvent {
+	return s.ch
 }
 
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (s *Subscriber) Unsubscribe(ch chan []types.EntityEvent) {
-	s.Lock()
-	defer s.Unlock()
-
-	s.unsubscribe(ch)
-}
-
-// unsubscribe ends a subscription to entity events and closes its channel. It
-// is not thread-safe, and callers should take care of synchronization.
-func (s *Subscriber) unsubscribe(ch chan []types.EntityEvent) {
-	if _, ok := s.subscribers[ch]; ok {
-		s.telemetryStore.Subscribers.Dec()
-		delete(s.subscribers, ch)
-		close(ch)
-	}
-}
-
-// Notify sends a slice of EntityEvents to all registered subscribers at their
-// chosen cardinality.
-func (s *Subscriber) Notify(events []types.EntityEvent) {
-	if len(events) == 0 {
-		return
-	}
-
-	s.Lock()
-	defer s.Unlock()
-
-	for ch, cardinality := range s.subscribers {
-		if len(ch) >= bufferSize {
-			log.Info("channel full, canceling subscription")
-			s.unsubscribe(ch)
-			continue
-		}
-
-		s.notify(ch, events, cardinality)
-	}
-}
-
-// notify sends a slice of EntityEvents to a channel at a chosen cardinality.
-func (s *Subscriber) notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality types.TagCardinality) {
-	subscriberEvents := make([]types.EntityEvent, 0, len(events))
-
-	for _, event := range events {
-		var entity types.Entity
-
-		if event.EventType == types.EventTypeDeleted {
-			entity = types.Entity{ID: event.Entity.ID}
-		} else {
-			entity = event.Entity.Copy(cardinality)
-		}
-
-		subscriberEvents = append(subscriberEvents, types.EntityEvent{
-			EventType: event.EventType,
-			Entity:    entity,
-		})
-	}
-
-	s.telemetryStore.Sends.Inc()
-	s.telemetryStore.Events.Add(float64(len(events)), types.TagCardinalityToString(cardinality))
-
-	ch <- subscriberEvents
+// Unsubscribe implements #types.Subscription.Unsubscribe
+func (s *Subscriber) Unsubscribe() {
+	s.manager.Unsubscribe(s.ID())
 }
