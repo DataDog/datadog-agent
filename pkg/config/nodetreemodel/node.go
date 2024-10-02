@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package nodetreemodel
 
 import (
@@ -26,7 +31,13 @@ func NewNode(v interface{}) (Node, error) {
 	if isScalar(v) {
 		return newLeafNodeImpl(v)
 	}
-	return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
+	// Finally, try determining node type using reflection, should only be needed for unit tests that
+	// supply data that isn't one of the "plain" types produced by parsing json, yaml, etc
+	node, err := asReflectionNode(v)
+	if err == errUnknownConversion {
+		return nil, fmt.Errorf("could not create node from: %v of type %T", v, v)
+	}
+	return node, err
 }
 
 // LeafNode represents a leaf node of the config
