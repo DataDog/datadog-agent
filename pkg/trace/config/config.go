@@ -117,6 +117,13 @@ type ObfuscationConfig struct {
 	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
+func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
+	if enabled {
+		return obfuscate.ObfuscateOnly
+	}
+	return ""
+}
+
 // Export returns an obfuscate.Config matching o.
 func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 	return obfuscate.Config{
@@ -126,6 +133,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
 			Cache:            conf.HasFeature("sql_cache"),
+			ObfuscationMode:  obfuscationMode(conf.HasFeature("sqllexer")),
 		},
 		ES:                   o.ES,
 		OpenSearch:           o.OpenSearch,
