@@ -265,6 +265,25 @@ func TestRuleMatches(t *testing.T) {
 	})
 }
 
+func TestAttachRuleValidatesLibsets(t *testing.T) {
+	attachCfg := AttacherConfig{SharedLibsLibset: sharedlibraries.LibsetCrypto}
+	t.Run("ValidLibset", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.NoError(tt, rule.Validate(&attachCfg))
+	})
+
+	t.Run("IncompatibleLibset", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`somethingelse.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfg))
+	})
+}
+
 func TestMonitor(t *testing.T) {
 	ebpfCfg := ddebpf.NewConfig()
 	require.NotNil(t, ebpfCfg)

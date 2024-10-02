@@ -131,16 +131,31 @@ func (r *AttachRule) getProbeOptions(probeID manager.ProbeIdentificationPair) (P
 	}, nil
 }
 
-// Validate checks whether the rule is valid, returns nil if it is, an error message otherwise
-func (r *AttachRule) Validate() error {
+// Validate checks whether the rule is valid and compatible with the given attacher config, returns nil if it is, an error message otherwise
+func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 	var result error
 
 	if r.Targets == 0 {
 		result = multierror.Append(result, errors.New("no targets specified"))
 	}
 
-	if r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex == nil {
-		result = multierror.Append(result, errors.New("no library name regex specified"))
+	if r.canTarget(AttachToSharedLibraries) {
+		if r.LibraryNameRegex == nil {
+			result = multierror.Append(result, errors.New("no library name regex specified"))
+		}
+
+		matchesAtLeastOneLib := false
+		for _, libSuffix := range sharedlibraries.LibsetToLibSuffixes[attacherConfig.SharedLibsLibset] {
+			libSuffixWithExt := libSuffix + ".so"
+			if r.LibraryNameRegex.MatchString(libSuffixWithExt) {
+				matchesAtLeastOneLib = true
+				break
+			}
+		}
+
+		if !matchesAtLeastOneLib {
+			result = multierror.Append(result, fmt.Errorf("no library name regex matches any library in libset %s", attacherConfig.SharedLibsLibset))
+		}
 	}
 
 	for _, selector := range r.ProbesSelector {
@@ -221,8 +236,14 @@ func (ac *AttacherConfig) Validate() error {
 		errs = append(errs, "missing proc root")
 	}
 
+	// Even if we're not using shared libraries, SetDefaults sets a default value for this field, so
+	// if it's empty something is definitely wrong.
+	if ac.SharedLibsLibset == "" {
+		errs = append(errs, "missing shared libs libset")
+	}
+
 	for _, rule := range ac.Rules {
-		err := rule.Validate()
+		err := rule.Validate(ac)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}

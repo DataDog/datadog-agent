@@ -38,13 +38,6 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
-// Libset represents the name of a set of shared libraries that share the same filtering eBPF program
-type Libset string
-
-const (
-	LibsetCrypto Libset = "crypto"
-)
-
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	cfg         *ddebpf.Config
