@@ -6,7 +6,6 @@
 package structure
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -1160,7 +1159,7 @@ func TestFieldNameToKey(t *testing.T) {
 	for i := 0; i < targetType.NumField(); i++ {
 		f := targetType.Field(i)
 
-		t.Run(fmt.Sprintf("%s", f.Tag), func(t *testing.T) {
+		t.Run(string(f.Tag), func(t *testing.T) {
 			if expectedSelectorSet[i].skip {
 				t.Skip("Skipping test case")
 			}
