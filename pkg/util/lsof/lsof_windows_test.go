@@ -173,6 +173,9 @@ func TestGetDLLFile(t *testing.T) {
 }
 
 func TestListOpenDLL(t *testing.T) {
+	var h windows.Handle
+	handleTypeSize := uint32(unsafe.Sizeof(h))
+
 	t.Run("success", func(t *testing.T) {
 		var procHandle windows.Handle = 42
 		expected := []windows.Handle{1, 2}
@@ -182,12 +185,40 @@ func TestListOpenDLL(t *testing.T) {
 				require.EqualValues(t, procHandle, proc)
 
 				copySliceToBuff(expected, handles)
-				*size = uint32(len(expected)) * uint32(unsafe.Sizeof(procHandle))
+				*size = uint32(len(expected)) * handleTypeSize
 				return nil
 			},
 		}
 		handles, err := ofl.listOpenDLL(procHandle)
 		require.NoError(t, err)
+		require.Equal(t, expected, handles)
+	})
+
+	t.Run("success with retry enum", func(t *testing.T) {
+		expected := []windows.Handle{1, 2, 3, 4, 5}
+		var nbCall int
+		var secondCallExpectedSize uint32
+
+		ofl := &openFilesLister{
+			EnumProcessModules: func(_ windows.Handle, handles *windows.Handle, byteSize uint32, size *uint32) error {
+				require.LessOrEqual(t, nbCall, 1)
+				if nbCall == 0 {
+					secondCallExpectedSize = byteSize * 2
+					*size = secondCallExpectedSize
+				} else {
+					require.Equal(t, secondCallExpectedSize, byteSize)
+					copySliceToBuff(expected, handles)
+					*size = uint32(len(expected)) * handleTypeSize
+				}
+
+				nbCall++
+				return nil
+			},
+		}
+
+		handles, err := ofl.listOpenDLL(0)
+		require.NoError(t, err)
+		require.Equal(t, 2, nbCall)
 		require.Equal(t, expected, handles)
 	})
 
