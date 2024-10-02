@@ -123,7 +123,7 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
 integration_tests_otel        @DataDog/opentelemetry
-docker_image_build_otel       @DataDog/opentelemetry
+<!-- docker_image_build_otel       @DataDog/opentelemetry -->
 
 # Functional test
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
