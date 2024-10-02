@@ -142,7 +142,7 @@ single-machine-performance-regression_detector:
     # escape double quotes to distinguish literal quotes in the report from the
     # double quotes that delimit the value of the "message" field in the
     # payload.
-    - cat outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\"/g' > report_as_json_string.txt
+    - cat outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
     - cat report_as_json_string.txt
     # Transforming the Markdown report to a valid JSON string is easy to foul
     # up, so to make debugging easier, we store the payload in a variable to
