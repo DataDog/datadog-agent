@@ -80,7 +80,7 @@ func TestPackages(t *testing.T) {
 		t.FailNow()
 	}
 
-	method := GetInstallMethodFromEnv()
+	method := GetInstallMethodFromEnv(t)
 	if method == InstallMethodWindows {
 		t.Skip("Windows install method - skipping")
 	}

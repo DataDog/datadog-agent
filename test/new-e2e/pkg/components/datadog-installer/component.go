@@ -43,7 +43,8 @@ func (h *Component) Export(ctx *pulumi.Context, out *Output) error {
 
 // Configuration represents the Windows NewDefender configuration
 type Configuration struct {
-	URL string
+	URL       string
+	AgentUser string
 }
 
 // Option is an optional function parameter type for Configuration options
@@ -53,6 +54,14 @@ type Option = func(*Configuration) error
 func WithInstallURL(url string) func(*Configuration) error {
 	return func(p *Configuration) error {
 		p.URL = url
+		return nil
+	}
+}
+
+// WithAgentUser specifies the ddagentuser for the installation
+func WithAgentUser(user string) func(*Configuration) error {
+	return func(p *Configuration) error {
+		p.AgentUser = user
 		return nil
 	}
 }
@@ -79,14 +88,19 @@ func NewInstaller(e config.Env, host *remoteComp.Host, options ...Option) (*Comp
 		return nil, err
 	}
 
+	agentUserArg := ""
+	if params.AgentUser != "" {
+		agentUserArg = "DDAGENTUSER_NAME=" + params.AgentUser
+	}
+
 	hostInstaller, err := components.NewComponent(e, e.CommonNamer().ResourceName("datadog-installer"), func(comp *Component) error {
 		comp.namer = e.CommonNamer().WithPrefix("datadog-installer")
 		comp.Host = host
 
 		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install"), &command.Args{
 			Create: pulumi.Sprintf(`
-Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s').ExitCode
-`, params.URL),
+Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s %s').ExitCode
+`, params.URL, agentUserArg),
 			Delete: pulumi.Sprintf(`
 $installerList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like 'Datadog Installer'}
 if (($installerList | measure).Count -ne 1) {

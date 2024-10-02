@@ -325,7 +325,7 @@ new-e2e-installer:
     - qa_installer_oci
     - qa_agent_oci
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
 
@@ -349,7 +349,7 @@ new-e2e-installer-windows:
     - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
 
@@ -369,7 +369,7 @@ new-e2e-installer-ansible:
     - qa_installer_oci
     - qa_agent_oci
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
 
