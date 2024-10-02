@@ -133,7 +133,7 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 }
 
 // UnsetForSource unsets a config entry for a given source
-func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
+func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
 	// modify the config then release the lock to avoid deadlocks while notifying
 	//var receivers []model.NotificationReceiver
 	// TODO: Is this needed by anything?
@@ -468,7 +468,7 @@ func (c *ntmConfig) GetSizeInBytes(key string) uint {
 	return val
 }
 
-func (n *ntmConfig) logErrorNotImplemented(method string) error {
+func (c *ntmConfig) logErrorNotImplemented(method string) error {
 	err := fmt.Errorf("not implemented: %s", method)
 	log.Error(err)
 	return err
@@ -523,7 +523,7 @@ func (c *ntmConfig) BindEnv(input ...string) {
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
-func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
+func (c *ntmConfig) SetEnvKeyReplacer(_r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("SetEnvKeyReplacer")
@@ -531,7 +531,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 
 // UnmarshalKey wraps Viper for concurrent access
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -539,21 +539,21 @@ func (c *ntmConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.D
 }
 
 // Unmarshal wraps Viper for concurrent access
-func (c *ntmConfig) Unmarshal(rawVal interface{}) error {
+func (c *ntmConfig) Unmarshal(_rawVal interface{}) error {
 	c.RLock()
 	defer c.RUnlock()
 	return c.logErrorNotImplemented("Unmarshal")
 }
 
 // UnmarshalExact wraps Viper for concurrent access
-func (c *ntmConfig) UnmarshalExact(rawVal interface{}) error {
+func (c *ntmConfig) UnmarshalExact(_rawVal interface{}) error {
 	c.RLock()
 	defer c.RUnlock()
 	return c.logErrorNotImplemented("UnmarshalExact")
 }
 
 // MergeConfig wraps Viper for concurrent access
-func (c *ntmConfig) MergeConfig(in io.Reader) error {
+func (c *ntmConfig) MergeConfig(_in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.logErrorNotImplemented("MergeConfig")
@@ -581,13 +581,13 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	// TOOD: Implement merging, merge in the policy that was read
+	// TODO: Implement merging, merge in the policy that was read
 	return c.logErrorNotImplemented("MergeFleetPolicy")
 }
 
 // MergeConfigMap merges the configuration from the map given with an existing config.
 // Note that the map given may be modified.
-func (c *ntmConfig) MergeConfigMap(cfg map[string]any) error {
+func (c *ntmConfig) MergeConfigMap(_cfg map[string]any) error {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("AllSettings")
@@ -621,7 +621,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 }
 
 // AddConfigPath wraps Viper for concurrent access
-func (c *ntmConfig) AddConfigPath(in string) {
+func (c *ntmConfig) AddConfigPath(_in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("AddConfigPath")
@@ -685,7 +685,7 @@ func (c *ntmConfig) ConfigFileUsed() string {
 	return c.configFile
 }
 
-func (c *ntmConfig) SetTypeByDefaultValue(in bool) {
+func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("SetTypeByDefaultValue")

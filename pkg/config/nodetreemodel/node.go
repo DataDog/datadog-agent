@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// error for when a key is not found
+// ErrNotFound is an error for when a key is not found
 var ErrNotFound = fmt.Errorf("not found")
 
 // NewNode constructs a Node from either a map, a slice, or a scalar value
