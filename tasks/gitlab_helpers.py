@@ -288,7 +288,7 @@ def print_entry_points(ctx):
 def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     """
     Computes the full configs and the diff between two git references.
-    The base commit where after is compared to is the LCA commit between before and after.
+    The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
     """
 
     before_name = before or "merge base"
