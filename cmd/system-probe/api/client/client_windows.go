@@ -7,6 +7,15 @@
 
 package client
 
-const (
-	netType = "tcp"
+import (
+	"net/http"
+
+	processNet "github.com/DataDog/datadog-agent/pkg/process/net"
 )
+
+// newSystemProbeClient returns a http client configured to talk to the system-probe
+// This is a simple wrapper around process_net.NewSystemProbeHttpClient because
+// Linux is unable to import pkg/process/net due to size restrictions.
+func newSystemProbeClient(_ string) *http.Client {
+	return processNet.NewSystemProbeClient()
+}

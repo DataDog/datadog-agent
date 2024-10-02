@@ -15,6 +15,7 @@ package noopimpl
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/fx"
 
@@ -73,11 +74,9 @@ func (n *noopTagger) GetEntity(string) (*types.Entity, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) Subscribe(types.TagCardinality) chan []types.EntityEvent {
-	return make(chan []types.EntityEvent)
+func (n *noopTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
+	return nil, fmt.Errorf("not implemented")
 }
-
-func (n *noopTagger) Unsubscribe(chan []types.EntityEvent) {}
 
 func (n *noopTagger) GetEntityHash(string, types.TagCardinality) string {
 	return ""

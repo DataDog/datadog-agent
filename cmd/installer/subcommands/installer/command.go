@@ -46,6 +46,11 @@ const (
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 )
 
+// BootstrapCommand returns the bootstrap command.
+func BootstrapCommand() *cobra.Command {
+	return bootstrapCommand()
+}
+
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
@@ -158,7 +163,6 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 
 func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if env.APIKey == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
 	t, err := telemetry.NewTelemetry(env, "datadog-installer")
@@ -232,14 +236,14 @@ func setupCommand() *cobra.Command {
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstraperCmd("setup")
-			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
+			cmd := newCmd("setup")
+			defer func() { cmd.Stop(err) }()
+			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
 			defer cancel()
-			return bootstraper.InstallDefaultPackages(ctx, b.env)
+			return installer.Setup(ctx, cmd.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
 	return cmd
 }
 

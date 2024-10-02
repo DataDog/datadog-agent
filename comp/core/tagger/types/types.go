@@ -197,3 +197,13 @@ func (e EntityIDPrefix) ToUID(id string) string {
 	}
 	return fmt.Sprintf("%s://%s", e, id)
 }
+
+// Subscription can be used by external subscribing components to interact with tagger events
+type Subscription interface {
+	// EventsChan returns a channel on which the subscriber can receive tagger events
+	EventsChan() chan []EntityEvent
+	// ID returns the id of the subscription
+	ID() string
+	// Unsubscribe is used cancel subscription to the tagger
+	Unsubscribe()
+}

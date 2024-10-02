@@ -1,0 +1,45 @@
+--- Setting rtloader paths to lib:/workspaces/datadog-agent/dev/lib | header:/workspaces/datadog-agent/dev/include | common headers:
+--- Flavor base: unit tests
+-----  Module '/workspaces/datadog-agent'
+=== RUN   TestSubscriptionManager
+    writer.go:40: [Fx] PROVIDE	fx.Lifecycle <= go.uber.org/fx.New.func1()
+    writer.go:40: [Fx] PROVIDE	fx.Shutdowner <= go.uber.org/fx.(*App).shutdowner-fm()
+    writer.go:40: [Fx] PROVIDE	fx.DotGraph <= go.uber.org/fx.(*App).dotGraph-fm()
+    writer.go:40: [Fx] PROVIDE	compdef.Lifecycle <= github.com/DataDog/datadog-agent/pkg/util/fxutil.newFxLifecycleAdapter()
+    writer.go:40: [Fx] PROVIDE	compdef.Shutdowner <= github.com/DataDog/datadog-agent/pkg/util/fxutil.newFxShutdownerAdapter()
+    writer.go:40: [Fx] SUPPLY	*testing.T
+    writer.go:40: [Fx] PROVIDE	telemetry.Mock <= github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock() from module "comp/core/telemetry"
+    writer.go:40: [Fx] PROVIDE	telemetry.Component <= github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.MockModule.func1() from module "comp/core/telemetry"
+    writer.go:40: [Fx] LOGGER	Initialized custom logger from go.uber.org/fx/fxtest.WithTestLogger.func1()
+    writer.go:40: [Fx] INVOKE		reflect.makeFuncStub()
+    writer.go:40: [Fx] RUN	provide: go.uber.org/fx.New.func1()
+    writer.go:40: [Fx] RUN	provide: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock() from module "comp/core/telemetry"
+    writer.go:40: [Fx] RUN	provide: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.MockModule.func1() from module "comp/core/telemetry"
+    writer.go:40: [Fx] RUNNING
+    writer.go:40: [Fx] HOOK OnStop		github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock.func1() executing (caller: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock)
+    writer.go:40: [Fx] HOOK OnStop		github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock.func1() called by github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock ran successfully in 139.833µs
+--- PASS: TestSubscriptionManager (0.00s)
+=== RUN   TestSubscriptionManagerDuplicateSubscriberID
+    writer.go:40: [Fx] PROVIDE	fx.Lifecycle <= go.uber.org/fx.New.func1()
+    writer.go:40: [Fx] PROVIDE	fx.Shutdowner <= go.uber.org/fx.(*App).shutdowner-fm()
+    writer.go:40: [Fx] PROVIDE	fx.DotGraph <= go.uber.org/fx.(*App).dotGraph-fm()
+    writer.go:40: [Fx] PROVIDE	compdef.Lifecycle <= github.com/DataDog/datadog-agent/pkg/util/fxutil.newFxLifecycleAdapter()
+    writer.go:40: [Fx] PROVIDE	compdef.Shutdowner <= github.com/DataDog/datadog-agent/pkg/util/fxutil.newFxShutdownerAdapter()
+    writer.go:40: [Fx] SUPPLY	*testing.T
+    writer.go:40: [Fx] PROVIDE	telemetry.Mock <= github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock() from module "comp/core/telemetry"
+    writer.go:40: [Fx] PROVIDE	telemetry.Component <= github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.MockModule.func1() from module "comp/core/telemetry"
+    writer.go:40: [Fx] LOGGER	Initialized custom logger from go.uber.org/fx/fxtest.WithTestLogger.func1()
+    writer.go:40: [Fx] INVOKE		reflect.makeFuncStub()
+    writer.go:40: [Fx] RUN	provide: go.uber.org/fx.New.func1()
+    writer.go:40: [Fx] RUN	provide: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock() from module "comp/core/telemetry"
+    writer.go:40: [Fx] RUN	provide: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.MockModule.func1() from module "comp/core/telemetry"
+    writer.go:40: [Fx] RUNNING
+    writer.go:40: [Fx] HOOK OnStop		github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock.func1() executing (caller: github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock)
+    writer.go:40: [Fx] HOOK OnStop		github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock.func1() called by github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl.newMock ran successfully in 155.083µs
+--- PASS: TestSubscriptionManagerDuplicateSubscriberID (0.00s)
+PASS
+ok  	github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/subscriber	0.018s
+
+DONE 2 tests in 0.664s
+[92mAll tests passed[0m
+Tests final status (including re-runs): [92mALL TESTS PASSED[0m
