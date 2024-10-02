@@ -17,6 +17,7 @@ char __license[] SEC("license") = "GPL";
 
 BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
+BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
 // a 64 bit register with the x and y values in the lower and upper 32 bits respectively,
@@ -135,19 +136,39 @@ int BPF_UPROBE(uprobe__cudaFree, void *mem) {
 
 SEC("uprobe/cudaStreamSynchronize")
 int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
-    // TODO: Send this on return, not on entry
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    log_debug("cudaStreamSynchronize: pid=%llu, stream=%llu", pid_tgid, stream);
+    bpf_map_update_elem(&cuda_sync_cache, &pid_tgid, &stream, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaStreamSynchronize")
+int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    __u64 *stream = NULL;
     cuda_sync_t event;
+
+    log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", pid_tgid);
+
+    stream = bpf_map_lookup_elem(&cuda_sync_cache, &pid_tgid);
+    if (!stream) {
+        log_debug("cudaStreamSyncronize[ret]: failed to find cudaStreamSyncronize request");
+        return 0;
+    }
 
     bpf_memset(&event, 0, sizeof(event));
 
     event.header.pid_tgid = bpf_get_current_pid_tgid();
-    event.header.stream_id = stream;
+    event.header.stream_id = *stream;
     event.header.type = cuda_sync;
     event.header.ktime_ns = bpf_ktime_get_ns();
 
-    log_debug("cudaStreamSynchronize: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
+    log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
 
     bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
+    bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
 
     return 0;
 }
