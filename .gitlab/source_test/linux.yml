@@ -74,18 +74,6 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
 
-tests_deb-x64-py2:
-  extends:
-    - .rtloader_tests
-    - .linux_x64
-  rules:
-    - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
-    - when: on_success
-  variables:
-    PYTHON_RUNTIMES: '2'
-    CONDA_ENV: ddpy2
-
 tests_deb-x64-py3:
   extends:
     - .rtloader_tests
@@ -160,22 +148,6 @@ lint_flavor_heroku_linux-x64:
   variables:
     FLAVORS: '--flavor heroku'
 
-# Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
-# https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
-# This is OK because the test on systemd still runs on the debian image above
-tests_rpm-x64-py2:
-  extends: .rtloader_tests
-  rules:
-    - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
-    - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  variables:
-    PYTHON_RUNTIMES: '2'
-    CONDA_ENV: ddpy2
-    EXTRA_OPTS: '--build-exclude=systemd'
-
 tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
@@ -189,18 +161,6 @@ tests_rpm-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     EXTRA_OPTS: '--build-exclude=systemd'
-
-tests_deb-arm64-py2:
-  extends: .rtloader_tests
-  rules:
-    - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
-    - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  variables:
-    PYTHON_RUNTIMES: '2'
-    CONDA_ENV: ddpy2
 
 tests_deb-arm64-py3:
   extends:
@@ -219,18 +179,6 @@ lint_linux-arm64:
     - .linux_lint
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-
-tests_rpm-arm64-py2:
-  extends: .rtloader_tests
-  rules:
-    - !reference [.except_disable_unit_tests]
-    - !reference [.except_mergequeue]
-    - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
-  variables:
-    PYTHON_RUNTIMES: '2'
-    CONDA_ENV: ddpy2
 
 tests_rpm-arm64-py3:
   extends:

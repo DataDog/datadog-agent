@@ -285,12 +285,6 @@ variables:
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
-
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
 
@@ -429,10 +423,8 @@ workflow:
   - when: manual
     allow_failure: true
 
-.except_no_a6_or_no_a7:
+.except_no_a7:
   - !reference [.except_mergequeue]
-  - <<: *if_not_version_6
-    when: never
   - <<: *if_not_version_7
     when: never
 

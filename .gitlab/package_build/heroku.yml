@@ -47,15 +47,6 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
-agent_heroku_deb-x64-a6:
-  extends: .heroku_build_base
-  variables:
-    DESTINATION_DEB: "datadog-heroku-agent_6_amd64.deb"
-    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_6_amd64.deb"
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: "2,3"
-
 agent_heroku_deb-x64-a7:
   extends: .heroku_build_base
   variables:
