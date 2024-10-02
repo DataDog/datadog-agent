@@ -811,7 +811,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
-	// We can have missed events from the process monitor, so we need to retry
+	// We can have missed events so we need to retry
 	var cmd *exec.Cmd
 	waitAndRetryIfFail(t,
 		func() {
