@@ -5,7 +5,4 @@
 
 //go:build linux_bpf
 
-// Package module encapsulates a system-probe module which uses uprobes and bpf
-// to exfiltrate data from running processes. This is the Go implementation of
-// the dynamic instrumentation product.
-package module
+package diconfig
