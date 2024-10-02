@@ -170,10 +170,10 @@ func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand
 	}
 
 	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
-		splitted := strings.SplitN(line, ":", 2)
-		if splitted[0] == "client" && len(splitted) > 1 {
-			if !strings.Contains(splitted[1], runtimeCommand) {
-				return nil, fmt.Errorf("client doesn't report as '%s'", runtimeCommand)
+		splited := strings.SplitN(line, ":", 2)
+		if splited[0] == "client" && len(splited) > 1 {
+			if client := strings.TrimSpace(splited[1]); client != "" && !strings.Contains(client, runtimeCommand) {
+				return nil, fmt.Errorf("client doesn't report as '%s' but as '%s'", runtimeCommand, client)
 			}
 		}
 	}
