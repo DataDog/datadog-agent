@@ -4,7 +4,7 @@ module github.com/DataDog/comp/otelcol/collector-contrib
 
 go 1.22.0
 
-toolchain go1.22.5
+toolchain go1.22.7
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
@@ -78,7 +78,7 @@ require (
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/docker/docker v25.0.6+incompatible // indirect
+	github.com/docker/docker v25.0.5+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
@@ -276,7 +276,7 @@ require (
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	golang.org/x/time v0.6.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
 	google.golang.org/api v0.169.0 // indirect
@@ -306,33 +306,5 @@ replace github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 =>
 replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
-
-replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
-
-replace github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
-
-replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
-
-replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
-
-replace github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
-
-replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
-
-replace github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../core/log/mock
-
-replace github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
-
-replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
-
-replace github.com/DataDog/datadog-agent/comp/def => ../../../def
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
-
-replace github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
