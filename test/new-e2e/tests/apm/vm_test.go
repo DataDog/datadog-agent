@@ -126,7 +126,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetrics() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTraceAgentMetrics(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
@@ -144,7 +144,7 @@ func (s *VMFakeintakeSuite) TestTraceAgentMetricTags() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTraceAgentMetricTags(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
 }
 
@@ -167,7 +167,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces with container tags")
 }
 
@@ -190,7 +190,7 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -213,7 +213,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding traces")
 }
 
@@ -236,7 +236,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -259,7 +259,7 @@ func (s *VMFakeintakeSuite) TestIsTraceRootTag() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testIsTraceRootTag(s.T(), c, s.Env().FakeIntake)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
 
@@ -283,7 +283,7 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
-		s.logJournal()
+		s.logJournal(false)
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 }
 
@@ -393,8 +393,8 @@ func (s *VMFakeintakeSuite) logStatus() {
 	s.T().Log(status)
 }
 
-func (s *VMFakeintakeSuite) logJournal() {
-	if !s.extraLogging {
+func (s *VMFakeintakeSuite) logJournal(force bool) {
+	if !s.extraLogging && !force {
 		return
 	}
 	journal, err := s.Env().RemoteHost.Execute("sudo journalctl -n1000 -xu datadog-agent-trace")
@@ -406,12 +406,6 @@ func (s *VMFakeintakeSuite) logJournal() {
 }
 
 func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
-	extraLogging := s.extraLogging
-	s.extraLogging = true
-	defer func() {
-		s.extraLogging = extraLogging
-	}()
-
 	apiKey1 := strings.Repeat("1", 32)
 	apiKey2 := strings.Repeat("2", 32)
 
@@ -485,5 +479,5 @@ secret_backend_command_allow_group_exec_perm: true
 		testBasicTraces(c, service, s.Env().FakeIntake, s.Env().Agent.Client)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces with basic properties")
 
-	s.logJournal()
+	s.logJournal(true)
 }
