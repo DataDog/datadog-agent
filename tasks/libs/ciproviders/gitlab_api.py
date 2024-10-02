@@ -117,27 +117,27 @@ def refresh_pipeline(pipeline: ProjectPipeline):
 
 class GitlabCIDiff:
     def __init__(
-        self, before: dict | None = None, after: dict | None = None, dict_initialization: dict | None = None
+        self,
+        before: dict | None = None,
+        after: dict | None = None,
+        added: set[str] | None = None,
+        removed: set[str] | None = None,
+        modified: set[str] | None = None,
+        renamed: set[tuple[str, str]] | None = None,
+        modified_diffs: dict[str, list[str]] | None = None,
+        added_contents: dict[str, str] | None = None,
     ) -> None:
         """
         Used to display job diffs between two gitlab ci configurations
         """
-        if dict_initialization:
-            self.before = dict_initialization['before']
-            self.after = dict_initialization['after']
-            self.added = dict_initialization['added']
-            self.removed = dict_initialization['removed']
-            self.modified = dict_initialization['modified']
-            self.renamed = set(dict_initialization['renamed'])
-            self.modified_diffs = dict_initialization['modied_diffs']
-            self.added_contents = dict_initialization['added_contents']
-        else:
-            self.before = before
-            self.after = after
-            self.added_contents = {}
-            self.modified_diffs = {}
-
-            self.make_diff()
+        self.before = before or {}
+        self.after = after or {}
+        self.added = added or set()
+        self.removed = removed or set()
+        self.modified = modified or set()
+        self.renamed = renamed or set()
+        self.modified_diffs = modified_diffs or {}
+        self.added_contents = added_contents or {}
 
     def __bool__(self) -> bool:
         return bool(self.added or self.removed or self.modified or self.renamed)
@@ -156,7 +156,23 @@ class GitlabCIDiff:
 
     @staticmethod
     def from_dict(data: dict) -> GitlabCIDiff:
-        return GitlabCIDiff(dict_initialization=data)
+        return GitlabCIDiff(
+            before=data['before'],
+            after=data['after'],
+            added=set(data['added']),
+            removed=set(data['removed']),
+            modified=set(data['modified']),
+            renamed=set(data['renamed']),
+            modified_diffs=data['modied_diffs'],
+            added_contents=data['added_contents'],
+        )
+
+    @staticmethod
+    def from_contents(before: dict | None = None, after: dict | None = None) -> GitlabCIDiff:
+        diff = GitlabCIDiff(before, after)
+        diff.make_diff()
+
+        return diff
 
     def make_diff(self):
         """
@@ -413,22 +429,16 @@ class MultiGitlabCIDiff:
         self,
         before: dict[str, dict] | None = None,
         after: dict[str, dict] | None = None,
-        dict_initialization: dict | None = None,
+        diffs: list[MultiGitlabCIDiff.MultiDiff] | None = None,
     ) -> None:
         """
         Used to display job diffs between two full gitlab ci configurations (multiple entry points)
 
         - before/after: Dict of [entry point] -> ([job name] -> job content)
         """
-        if dict_initialization:
-            self.before = dict_initialization['before']
-            self.after = dict_initialization['after']
-            self.diffs = [MultiGitlabCIDiff.MultiDiff.from_dict(d) for d in dict_initialization['diffs']]
-        else:
-            self.before = dict(before)
-            self.after = dict(after)
-            self.diffs = []
-            self.make_diff()
+        self.before = before
+        self.after = after
+        self.diffs = diffs or []
 
     def __bool__(self) -> bool:
         return bool(self.diffs)
@@ -438,11 +448,22 @@ class MultiGitlabCIDiff:
 
     @staticmethod
     def from_dict(data: dict) -> MultiGitlabCIDiff:
-        return MultiGitlabCIDiff(dict_initialization=data)
+        return MultiGitlabCIDiff(
+            data['before'], data['after'], [MultiGitlabCIDiff.MultiDiff.from_dict(d) for d in data['diffs']]
+        )
+
+    @staticmethod
+    def from_contents(before: dict[str, dict] | None = None, after: dict[str, dict] | None = None) -> MultiGitlabCIDiff:
+        diff = MultiGitlabCIDiff(before, after)
+        diff.make_diff()
+
+        return diff
 
     def make_diff(self):
+        self.diffs = []
+
         for entry_point in set(list(self.before) + list(self.after)):
-            diff = GitlabCIDiff(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
+            diff = GitlabCIDiff.from_contents(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
 
             # Diff for this entry point, add it to the list
             if diff:

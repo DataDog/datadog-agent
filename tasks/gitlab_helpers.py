@@ -297,7 +297,7 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
 
     # The before commit is the LCA commit between before and after
     before = before or DEFAULT_BRANCH
-    before = get_common_ancestor(before, after or "HEAD")
+    before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
     after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
@@ -305,7 +305,7 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
     before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
-    diff = MultiGitlabCIDiff(before_config, after_config)
+    diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 
     return before_config, after_config, diff
 

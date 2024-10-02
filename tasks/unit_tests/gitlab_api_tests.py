@@ -171,7 +171,7 @@ class TestGitlabCiDiff(unittest.TestCase):
                 'script': 'echo "???"',
             },
         }
-        diff = GitlabCIDiff(before, after)
+        diff = GitlabCIDiff.from_contents(before, after)
         self.assertSetEqual(diff.modified, {'job1'})
         self.assertSetEqual(set(diff.modified_diffs.keys()), {'job1'})
         self.assertSetEqual(diff.removed, {'job4'})
@@ -215,7 +215,7 @@ class TestGitlabCiDiff(unittest.TestCase):
                 'script': 'echo "???"',
             },
         }
-        diff = MultiGitlabCIDiff({'file': before}, {'file': after})
+        diff = MultiGitlabCIDiff.from_contents({'file': before}, {'file': after})
         dict_diff = diff.to_dict()
         diff_from_dict = MultiGitlabCIDiff.from_dict(dict_diff)
 
