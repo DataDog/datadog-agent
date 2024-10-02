@@ -56,7 +56,7 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
 #define match6chars(_base, _a, _b, _c, _d, _e, _f) (match3chars(_base, _a, _b, _c) && match3chars(_base + 3, _d, _e, _f))
 
 #define def_sys_open_helper_exit(libset)                                                                  \
-    static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {                             \
+    static __always_inline void do_sys_open_helper_exit_##libset(exit_sys_ctx *args) {                    \
         u64 pid_tgid = bpf_get_current_pid_tgid();                                                        \
                                                                                                           \
         /* If file couldn't be opened, bail out*/                                                         \
