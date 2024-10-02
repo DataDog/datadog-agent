@@ -220,7 +220,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    // connection timeouts will have 0 pids as they are cleaned up by an idle process. 
+    // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
@@ -1126,14 +1126,8 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-SEC("tracepoint/net/net_dev_queue")
-int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff *skb = ctx->skb;
-    if (!skb) {
-        return 0;
-    }
-    struct sock *sk = sk_buff_sk(skb);
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
+    struct sock* sk = sk_buff_sk(skb);
     if (!sk) {
         return 0;
     }
@@ -1165,6 +1159,27 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     }
 
     return 0;
+}
+
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
+}
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
 }
 
 char _license[] SEC("license") = "GPL";
