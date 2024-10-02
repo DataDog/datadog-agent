@@ -18,12 +18,11 @@ import "os"
 type Params struct {
 	PipelineID                  string
 	MajorVersion                string
+	Arch                        string
+	Flavor                      string
+	Upgrade                     bool
+	APIKey                      string
 	InstallPythonThirdPartyDeps bool
-
-	Arch    string
-	Flavor  string
-	Upgrade bool
-	APIKey  string
 }
 
 // Option alias to a functional option changing a given Params instance
