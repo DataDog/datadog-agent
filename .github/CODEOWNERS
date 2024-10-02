@@ -326,7 +326,7 @@
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
 /pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
-/pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
+/pkg/trace/telemetry/                   @DataDog/apm-trace-storage
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
@@ -341,7 +341,7 @@
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
-/pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
+/pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
