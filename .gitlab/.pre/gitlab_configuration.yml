@@ -61,4 +61,4 @@ lint_gitlab_ci_jobs_needs_rules:
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
-    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml # TODO: --diff-file artifacts/diff.gitlab-ci.yml
+    - inv -e linter.gitlab-ci-jobs-needs-rules --diff-file artifacts/diff.gitlab-ci.yml
