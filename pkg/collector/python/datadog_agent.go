@@ -641,9 +641,8 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
 		return nil
 	case telemetry.Histogram:
-		// Correct type, proceed
+		return t
 	}
-	return histogram.(telemetry.Histogram)
 }
 
 func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
@@ -668,9 +667,8 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
 		return nil
 	case telemetry.Counter:
-		// Correct type, proceed
+		return t
 	}
-	return counter.(telemetry.Counter)
 }
 
 func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
@@ -695,9 +693,8 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
 		return nil
 	case telemetry.Gauge:
-		// Correct type, proceed
+		return t
 	}
-	return gauge.(telemetry.Gauge)
 }
 
 // EmitAgentTelemetry records a telemetry data point for a Python integration
