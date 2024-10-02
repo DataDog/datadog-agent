@@ -128,7 +128,7 @@ def trigger_macos(
 
 
 @task
-def lint_codeowner(_):
+def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     """
     Check every package in `pkg` has an owner
     """
@@ -137,42 +137,39 @@ def lint_codeowner(_):
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = _get_code_owners(root_folder)
+    exit_code = 0
 
-    # make sure each root package has an owner
-    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
-    if len(pkgs_without_owner) > 0:
-        raise Exit(
-            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
-            code=1,
-        )
+    # Getting GitHub CODEOWNER file content
+    owners = read_owners(owners_file)
+
+    # Define linters
+    linters = [_has_packages_without_owner, _has_orphans_in_codeowner]
+
+    # Execute linters
+    for linter in linters:
+        if linter(owners):
+            exit_code = 1
+
+    raise Exit(code=exit_code)
 
 
-def _find_packages_without_owner(owners, folder):
-    pkg_without_owners = []
+def _has_packages_without_owner(owners, folder="pkg"):
+    error = False
+
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
-        if path not in owners:
-            pkg_without_owners.append(path)
-    return pkg_without_owners
+        if not any(owner[1].rstrip('/') == path for owner in owners.paths):
+            if not error:
+                print(
+                    color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr
+                )
+                error = True
+            print(color_message(f"\t- {path}", "orange"), file=sys.stderr)
+
+    return error
 
 
-def _get_code_owners(root_folder):
-    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
-    owners = {}
-    with open(code_owner_path) as f:
-        for line in f:
-            line = line.strip()
-            line = line.split("#")[0]  # remove comment
-            if len(line) > 0:
-                parts = line.split()
-                path = os.path.normpath(parts[0])
-                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
-                owners[path] = parts[1:]
-    return owners
-
-
-def _find_orphans_in_codeowner(owners):
+def _has_orphans_in_codeowner(owners):
     error = False
 
     for rule in owners.paths:
