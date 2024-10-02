@@ -259,6 +259,22 @@ func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCa
 	return storedTags.getHashedTags(cardinality)
 }
 
+// LookupHashedWithEntityStr is the same as LookupHashed but takes a string as input.
+// This function is needed only for performance reasons. It functions like
+// LookupHashed, but accepts a string instead of an EntityID. This reduces the
+// allocations that occur when an EntityID is passed as a parameter.
+func (s *TagStore) LookupHashedWithEntityStr(entityID string, cardinality types.TagCardinality) tagset.HashedTags {
+	s.RLock()
+	defer s.RUnlock()
+
+	storedTags, present := s.store.GetWithEntityIDStr(entityID)
+
+	if !present {
+		return tagset.HashedTags{}
+	}
+	return storedTags.getHashedTags(cardinality)
+}
+
 // Lookup gets tags from the store and returns them concatenated in a string slice.
 func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
 	return s.LookupHashed(entityID, cardinality).Get()
