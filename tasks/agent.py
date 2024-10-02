@@ -50,7 +50,7 @@ if sys.platform == "win32":
     # This dir contains `aws.rb` which will execute if we just call `aws`,
     # so we need to be explicit about the executable extension/path
     # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
-    #       causes it to fail due to not searching the PATH, so we use shutil.which to looku
+    #       causes it to fail due to not searching the PATH, so we use shutil.which to lookup
     #       the full path.
     #       If we remove the user provided awscli args from our invoke tasks
     #       we could just use `aws.cmd` here and then remove the qoutes from the `ctx.run` calls.
