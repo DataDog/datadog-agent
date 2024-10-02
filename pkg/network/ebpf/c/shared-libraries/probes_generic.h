@@ -96,7 +96,7 @@ static __always_inline void fill_path_safe(lib_path_t *path, const char *path_ar
         }                                                                                                 \
                                                                                                           \
         u32 cpu = bpf_get_smp_processor_id();                                                             \
-        bpf_perf_event_output((void *)args, &shared_libraries, cpu, path, sizeof(lib_path_t));            \
+        bpf_perf_event_output((void *)args, &shared_libraries_##libset, cpu, path, sizeof(lib_path_t));   \
     cleanup:                                                                                              \
         bpf_map_delete_elem(&open_at_args_##libset, &pid_tgid);                                           \
         return;                                                                                           \
