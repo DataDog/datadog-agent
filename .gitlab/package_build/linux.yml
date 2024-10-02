@@ -35,7 +35,7 @@
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 .agent_build_x86:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     [
@@ -51,7 +51,7 @@
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
 
 .agent_build_arm64:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
     [
@@ -162,7 +162,7 @@ datadog-ot-agent-7-arm64:
 iot-agent-x64:
   extends: .iot-agent-common
   tags: ["arch:amd64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
@@ -170,7 +170,7 @@ iot-agent-x64:
 iot-agent-arm64:
   extends: .iot-agent-common
   tags: ["arch:arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   variables:
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
@@ -214,7 +214,7 @@ iot-agent-armhf:
 dogstatsd-x64:
   extends: .dogstatsd_build_common
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
@@ -222,7 +222,7 @@ dogstatsd-x64:
 
 dogstatsd-arm64:
   extends: .dogstatsd_build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
   variables:
