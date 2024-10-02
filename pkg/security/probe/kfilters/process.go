@@ -9,8 +9,6 @@
 package kfilters
 
 import (
-	"errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -18,35 +16,40 @@ import (
 )
 
 const (
+	auidField               = "process.auid"
 	maxAUID                 = model.AuditUIDUnset - 1
 	auidApproversTable      = "auid_approvers"
 	auidRangeApproversTable = "auid_range_approvers"
 )
 
-var processCapabilities = rules.FieldCapability{
-	Field:            "process.auid",
-	TypeBitmask:      eval.ScalarValueType | eval.RangeValueType,
-	FilterMode:       rules.ApproverOnlyMode,
-	RangeFilterValue: &rules.RangeFilterValue{Min: 0, Max: maxAUID},
-	FilterWeight:     100,
-	// convert  `!= model.AuditUIDUnset`` to the max range
-	HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
-		if fieldValueType != eval.ScalarValueType {
+var processCapabilities = rules.FieldCapabilities{
+	{
+		Field:            "process.auid",
+		TypeBitmask:      eval.ScalarValueType | eval.RangeValueType,
+		FilterMode:       rules.ApproverOnlyMode,
+		RangeFilterValue: &rules.RangeFilterValue{Min: 0, Max: maxAUID},
+		FilterWeight:     100,
+		// convert  `!= model.AuditUIDUnset`` to the max range
+		HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
+			if fieldValueType != eval.ScalarValueType {
+				return fieldValueType, value, false
+			}
+
+			if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+				return eval.RangeValueType, rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+			}
+
 			return fieldValueType, value, false
-		}
-
-		if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
-			return eval.RangeValueType, rules.RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
-		}
-
-		return fieldValueType, value, false
+		},
 	},
 }
 
-func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([]activeKFilter, error) {
-	values, exists := approvers["process.auid"]
+func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([]activeKFilter, []eval.Field, error) {
+	var fieldHandled []eval.Field
+
+	values, exists := approvers[auidField]
 	if !exists {
-		return nil, errors.New("process auid not present")
+		return nil, nil, nil
 	}
 
 	var (
@@ -72,8 +75,6 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 				auidRange.Max = max
 			}
 			auidRangeSet = true
-		default:
-			return nil, errors.New("value type not supported")
 		}
 	}
 
@@ -86,5 +87,9 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 		})
 	}
 
-	return kfilters, nil
+	if len(kfilters) > 0 {
+		fieldHandled = append(fieldHandled, auidField)
+	}
+
+	return kfilters, fieldHandled, nil
 }
