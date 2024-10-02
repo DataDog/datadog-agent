@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
+	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
