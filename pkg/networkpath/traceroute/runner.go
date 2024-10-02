@@ -236,9 +236,9 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname:           destinationHost,
-			ReverseDnsHostname: getReverseDnsForDestination(destinationHost),
 			Port:               destinationPort,
 			IPAddress:          destinationIP.String(),
+			ReverseDNSHostname: getReverseDnsForIP(destinationIP),
 		},
 	}
 
@@ -300,9 +300,9 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname:           destinationHost,
-			ReverseDnsHostname: getReverseDnsForDestination(destinationHost),
 			Port:               destinationPort,
 			IPAddress:          destinationIP.String(),
+			ReverseDNSHostname: getReverseDnsForIP(destinationIP),
 		},
 	}
 
