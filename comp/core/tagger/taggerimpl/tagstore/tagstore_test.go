@@ -96,6 +96,37 @@ func (s *StoreTestSuite) TestLookup() {
 	assert.Len(s.T(), tagsOrch, 3)
 }
 
+func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+	entityIDStr := entityID.String()
+	s.tagstore.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:       "source1",
+			EntityID:     entityID,
+			LowCardTags:  []string{"low1"},
+			HighCardTags: []string{"high1"},
+		},
+		{
+			Source:      "source2",
+			EntityID:    entityID,
+			LowCardTags: []string{"low2"},
+		},
+		{
+			Source:               "source3",
+			EntityID:             entityID,
+			OrchestratorCardTags: []string{"orchestrator1"},
+		},
+	})
+
+	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.LowCardinality)
+	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.OrchestratorCardinality)
+	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.HighCardinality)
+
+	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
+	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
+	assert.ElementsMatch(s.T(), tagsHigh.Get(), []string{"low1", "low2", "orchestrator1", "high1"})
+}
+
 func (s *StoreTestSuite) TestLookupStandard() {
 	entityID := types.NewEntityID("", "test")
 
