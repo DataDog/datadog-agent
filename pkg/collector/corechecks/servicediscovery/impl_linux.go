@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,8 +28,8 @@ type linuxImpl struct {
 	getSysProbeClient func() (systemProbeClient, error)
 	time              timer
 
-	ignoreCfg map[string]bool
-	store     workloadmeta.Component
+	ignoreCfg         map[string]bool
+	containerProvider proccontainers.ContainerProvider
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
@@ -87,6 +88,13 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 	clear(li.potentialServices)
 
+	// Get container IDs to enrich the service info with it. The SD check is
+	// supposed to run once every minute, so we use this duration for cache
+	// validity.
+	// TODO: use/find a global constant for this delay, to keep in sync with
+	// the check delay if it were to change.
+	containers := li.containerProvider.GetPidToCid(1 * time.Minute)
+
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
 		pid := service.PID
@@ -102,6 +110,12 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				li.ignoreProcs[pid] = true
 				continue
 			}
+
+			if id, ok := containers[pid]; ok {
+				svc.service.ContainerID = id
+				log.Debugf("[pid: %d] add containerID to process: %s", pid, id)
+			}
+
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
 			li.potentialServices[pid] = &svc
 		}
