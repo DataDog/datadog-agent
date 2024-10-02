@@ -333,7 +333,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
 
-    test_programs = ["logdebug-test", "error_telemetry"]
+    test_programs = ["logdebug-test", "error_telemetry", "uprobe_attacher-test"]
 
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
@@ -845,7 +845,6 @@ def go_package_dirs(packages, build_tags):
     This handles the ellipsis notation (eg. ./pkg/ebpf/...)
     """
 
-    target_packages = []
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
     packages_arg = " ".join(packages)

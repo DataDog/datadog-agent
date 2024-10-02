@@ -46,11 +46,17 @@ const (
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 )
 
+// BootstrapCommand returns the bootstrap command.
+func BootstrapCommand() *cobra.Command {
+	return bootstrapCommand()
+}
+
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
 		bootstrapCommand(),
 		installCommand(),
+		setupCommand(),
 		removeCommand(),
 		installExperimentCommand(),
 		removeExperimentCommand(),
@@ -109,7 +115,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.Stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.env)
+	i, err := installer.NewInstaller(cmd.env, "opt/datadog-packages/run/rc/cmd")
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +123,14 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 		Installer: i,
 		cmd:       cmd,
 	}, nil
+}
+
+func (i *installerCmd) stop(err error) {
+	i.cmd.Stop(err)
+	err = i.Installer.Close()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to close Installer: %v\n", err)
+	}
 }
 
 type bootstraperCmd struct {
@@ -149,7 +163,6 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 
 func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if env.APIKey == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
 	t, err := telemetry.NewTelemetry(env, "datadog-installer")
@@ -216,6 +229,24 @@ func bootstrapCommand() *cobra.Command {
 	return cmd
 }
 
+func setupCommand() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:     "setup",
+		Hidden:  true,
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			cmd := newCmd("setup")
+			defer func() { cmd.Stop(err) }()
+			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
+			defer cancel()
+			return installer.Setup(ctx, cmd.env)
+		},
+	}
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
+	return cmd
+}
+
 func installCommand() *cobra.Command {
 	var installArgs []string
 	cmd := &cobra.Command{
@@ -228,7 +259,7 @@ func installCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0], installArgs)
 		},
@@ -248,7 +279,7 @@ func removeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -267,7 +298,7 @@ func purgeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -286,7 +317,7 @@ func installExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -305,7 +336,7 @@ func removeExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -324,7 +355,7 @@ func promoteExperimentCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -343,7 +374,7 @@ func garbageCollectCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -366,7 +397,7 @@ func isInstalledCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() { i.Stop(err) }()
+			defer i.stop(err)
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

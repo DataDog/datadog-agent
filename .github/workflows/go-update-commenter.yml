@@ -5,6 +5,8 @@ on:
     # Only run on PR label events (in particular not on every commit)
     types: [ labeled ]
 
+permissions: {}
+
 jobs:
   old-versions-match:
     # Only run if the PR is labeled with 'go-update'

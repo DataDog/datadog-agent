@@ -62,13 +62,14 @@ type NetworkPathDestination struct {
 // NetworkPath encapsulates data that defines a
 // path between two hosts as mapped by the agent
 type NetworkPath struct {
-	Timestamp   int64                  `json:"timestamp"`
-	Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
-	PathtraceID string                 `json:"pathtrace_id"`
-	Origin      PathOrigin             `json:"origin"`
-	Protocol    Protocol               `json:"protocol"`
-	Source      NetworkPathSource      `json:"source"`
-	Destination NetworkPathDestination `json:"destination"`
-	Hops        []NetworkPathHop       `json:"hops"`
-	Tags        []string               `json:"tags,omitempty"`
+	Timestamp    int64                  `json:"timestamp"`
+	AgentVersion string                 `json:"agent_version"`
+	Namespace    string                 `json:"namespace"` // namespace used to resolve NDM resources
+	PathtraceID  string                 `json:"pathtrace_id"`
+	Origin       PathOrigin             `json:"origin"`
+	Protocol     Protocol               `json:"protocol"`
+	Source       NetworkPathSource      `json:"source"`
+	Destination  NetworkPathDestination `json:"destination"`
+	Hops         []NetworkPathHop       `json:"hops"`
+	Tags         []string               `json:"tags,omitempty"`
 }

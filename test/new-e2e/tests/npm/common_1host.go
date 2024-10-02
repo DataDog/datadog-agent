@@ -164,6 +164,10 @@ func test1HostFakeIntakeNPMTCPUDPDNS[Env any](v *e2e.BaseSuite[Env], FakeIntake 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
 		assert.NoError(c, err, "GetConnections() errors")
+		if !assert.NotNil(c, cnx, "GetConnections() returned nil ConnectionsAggregator") {
+			return
+		}
+
 		if !assert.NotEmpty(c, cnx.GetNames(), "no connections yet") {
 			return
 		}

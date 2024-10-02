@@ -3,6 +3,8 @@ name: Check Markdown links
 on:
   pull_request:
 
+permissions: {}
+
 jobs:
   markdown-link-check:
     runs-on: ubuntu-latest

@@ -467,8 +467,8 @@ func TestSubscribe(t *testing.T) {
 	collectors.CollectorPriorities["source2"] = types.ClusterOrchestrator
 	collectors.CollectorPriorities["source"] = types.NodeRuntime
 
-	entityID1 := types.NewEntityID("", "test1")
-	entityID2 := types.NewEntityID("", "test2")
+	entityID1 := types.NewEntityID(types.ContainerID, "test1")
+	entityID2 := types.NewEntityID(types.ContainerID, "test2")
 	var expectedEvents = []entityEventExpectation{
 		{types.EventTypeAdded, entityID1, []string{"low"}, []string{}, []string{"high"}},
 		{types.EventTypeModified, entityID1, []string{"low"}, []string{"orch"}, []string{"high:1", "high:2"}},
@@ -480,7 +480,7 @@ func TestSubscribe(t *testing.T) {
 	store.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:       "source",
-			EntityID:     types.NewEntityID("", "test1"),
+			EntityID:     entityID1,
 			LowCardTags:  []string{"low"},
 			HighCardTags: []string{"high"},
 		},
@@ -489,8 +489,13 @@ func TestSubscribe(t *testing.T) {
 	highCardEvents := []types.EntityEvent{}
 	lowCardEvents := []types.EntityEvent{}
 
-	highCardCh := store.Subscribe(types.HighCardinality)
-	lowCardCh := store.Subscribe(types.LowCardinality)
+	highCardSubID := "high-card-sub-id"
+	highCardSubscription, err := store.Subscribe(highCardSubID, types.NewFilterBuilder().Build(types.HighCardinality))
+	require.NoError(t, err)
+
+	lowCardSubID := "low-card-sub-id"
+	lowCardSubscription, err := store.Subscribe(lowCardSubID, types.NewFilterBuilder().Build(types.LowCardinality))
+	require.NoError(t, err)
 
 	store.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -530,12 +535,11 @@ func TestSubscribe(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	go collectEvents(&wg, &highCardEvents, highCardCh)
-	go collectEvents(&wg, &lowCardEvents, lowCardCh)
+	go collectEvents(&wg, &highCardEvents, highCardSubscription.EventsChan())
+	go collectEvents(&wg, &lowCardEvents, lowCardSubscription.EventsChan())
 
-	store.Unsubscribe(highCardCh)
-	store.Unsubscribe(lowCardCh)
-
+	highCardSubscription.Unsubscribe()
+	lowCardSubscription.Unsubscribe()
 	wg.Wait()
 
 	checkEvents(t, expectedEvents, highCardEvents, types.HighCardinality)

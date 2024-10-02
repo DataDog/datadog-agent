@@ -29,7 +29,7 @@ if ohai['platform'] == "windows"
   install_dir "C:/opt/datadog-dogstatsd/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-dogstatsd'
+  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-dogstatsd'
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 

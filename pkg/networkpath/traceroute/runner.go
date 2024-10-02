@@ -15,6 +15,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
 	"github.com/vishvananda/netns"
@@ -225,9 +226,10 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 
 func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolTCP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolTCP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -287,9 +289,10 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 	}
 
 	traceroutePath := payload.NetworkPath{
-		PathtraceID: payload.NewPathtraceID(),
-		Protocol:    payload.ProtocolUDP,
-		Timestamp:   time.Now().UnixMilli(),
+		AgentVersion: version.AgentVersion,
+		PathtraceID:  payload.NewPathtraceID(),
+		Protocol:     payload.ProtocolUDP,
+		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,

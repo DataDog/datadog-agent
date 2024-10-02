@@ -26,7 +26,7 @@ import (
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
@@ -152,8 +152,8 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*Resolver, error) {
-	sbomScanner, err := sbomscanner.CreateGlobalScanner(coreconfig.SystemProbe(), optional.NewOption(wmeta))
+func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+	sbomScanner, err := sbomscanner.CreateGlobalScanner(pkgconfigsetup.SystemProbe(), optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (r *Resolver) prepareContextTags() {
 	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
+	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
