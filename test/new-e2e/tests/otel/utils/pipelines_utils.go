@@ -444,7 +444,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "stanleyliu855/manual-container-metrics:1.0",
+						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.14",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -510,10 +510,10 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 		},
 	}
 
-	s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
-	// require.NoError(s.T(), err, "Could not properly start service")
-	s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
-	// require.NoError(s.T(), err, "Could not properly start deployment")
+	_, err := s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start service")
+	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
+	require.NoError(s.T(), err, "Could not properly start deployment")
 }
 
 func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {

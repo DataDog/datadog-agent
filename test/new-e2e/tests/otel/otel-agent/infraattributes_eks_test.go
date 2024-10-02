@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type iaEKSTestSuite14 struct {
+type iaEKSTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
@@ -33,7 +33,7 @@ datadog:
 `
 
 	t.Parallel()
-	e2e.Run(t, &iaEKSTestSuite14{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 
 var eksParams = utils.IAParams{
@@ -42,27 +42,27 @@ var eksParams = utils.IAParams{
 	Cardinality:     types.HighCardinality,
 }
 
-func (s *iaEKSTestSuite14) SetupSuite() {
+func (s *iaEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.TestCalendarApp(s)
 }
 
-func (s *iaEKSTestSuite14) TestOTLPTraces() {
+func (s *iaEKSTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s, eksParams)
 }
 
-func (s *iaEKSTestSuite14) TestOTLPMetrics() {
+func (s *iaEKSTestSuite) TestOTLPMetrics() {
 	utils.TestMetrics(s, eksParams)
 }
 
-func (s *iaEKSTestSuite14) TestOTLPLogs() {
+func (s *iaEKSTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s, eksParams)
 }
 
-func (s *iaEKSTestSuite14) TestHosts() {
+func (s *iaEKSTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaEKSTestSuite14) TestPrometheusMetrics() {
+func (s *iaEKSTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
 }
