@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -85,9 +86,17 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 
+	// Ring buffer size has to be a multiple of the page size, and we want to have at least 4096 bytes
+	pagesize := os.Getpagesize()
+	ringbufSize := pagesize
+	minRingbufSize := 4096
+	if minRingbufSize > ringbufSize {
+		ringbufSize = (minRingbufSize/pagesize + 1) * pagesize
+	}
+
 	opts.MapSpecEditors[cudaEventMap] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,
-		MaxEntries: 4096,
+		MaxEntries: uint32(ringbufSize),
 		KeySize:    0,
 		ValueSize:  0,
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,

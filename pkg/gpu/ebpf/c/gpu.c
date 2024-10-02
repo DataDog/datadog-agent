@@ -15,7 +15,7 @@
 
 char __license[] SEC("license") = "GPL";
 
-BPF_PERF_EVENT_ARRAY_MAP(cuda_events, cuda_event_header_t);
+BPF_RINGBUF_MAP(cuda_events, cuda_event_header_t);
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
