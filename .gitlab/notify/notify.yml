@@ -26,7 +26,7 @@ notify:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - |
       # Do not send notifications if this is a child pipeline of another repo
@@ -54,7 +54,7 @@ send_pipeline_stats:
   dependencies: []
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - invoke -e notify.send-stats
 
 notify_github:
@@ -116,7 +116,7 @@ notify_gitlab_ci_changes:
 .failure_summary_setup:
   - SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT_CI_TOKEN) || exit $?; export SLACK_API_TOKEN
   - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_READ_API_TOKEN) || exit $?; export GITLAB_TOKEN
-  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+  - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
 
 # Upload failure summary data to S3 at the end of each main pipeline
@@ -172,7 +172,7 @@ close_failing_tests_stale_issues:
         echo "This script is run weekly on Fridays"
         exit
       fi
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY
     - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME

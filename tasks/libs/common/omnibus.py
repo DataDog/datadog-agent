@@ -317,7 +317,7 @@ def send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["AGENT_API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
@@ -335,7 +335,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     else:
         aws_cmd = "aws"
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["AGENT_API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
