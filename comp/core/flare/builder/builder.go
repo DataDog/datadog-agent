@@ -16,8 +16,8 @@ import (
 //
 // When adding data to a flare the builder will do multiple things internally.
 //
-// First a log of the archive creation will be kept and shipped with the flare. When using the the FlareBuilder you
-// should not stop at the first error. We want to collect as much as possible. Any error returned by the a FlareBuilder
+// First a log of the archive creation will be kept and shipped with the flare. When using FlareBuilder you
+// should not stop at the first error. We want to collect as much as possible. Any error returned by a FlareBuilder
 // method is added to the flare log. In general, you can safely ignore those errors unless sending a flare without some
 // file/information would not make sense.
 //
@@ -34,7 +34,7 @@ import (
 type FlareBuilder interface {
 	// IsLocal returns true when the flare is created by the CLI instead of the running Agent process. This happens
 	// when the CLI could not reach the Agent process to request a new flare. In that case a flare is still created
-	// directly from the CLI process and will not contains any runtime informations.
+	// directly from the CLI process and will not contain any runtime information.
 	IsLocal() bool
 
 	// Logf adds a formatted log entry to the flare file associated with this effect.
