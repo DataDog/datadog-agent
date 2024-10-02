@@ -821,6 +821,42 @@ feature:
 		assert.Contains(t, err.Error(), "could not convert to float")
 	})
 
+	t.Run("errors on bad string to bool", func(t *testing.T) {
+		confYaml := `
+feature:
+  enabled: elderberries
+`
+
+		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig.SetKnown("feature")
+
+		feature := struct {
+			Enabled bool
+		}{}
+
+		err := UnmarshalKey(mockConfig, "feature", &feature)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "could not convert to bool")
+	})
+
+	t.Run("errors on empty string bool ", func(t *testing.T) {
+		confYaml := `
+feature:
+  enabled: ""
+`
+
+		mockConfig := mock.NewFromYAML(t, confYaml)
+		mockConfig.SetKnown("feature")
+
+		feature := struct {
+			Enabled bool
+		}{}
+
+		err := UnmarshalKey(mockConfig, "feature", &feature)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "could not convert to bool")
+	})
+
 	t.Run("errors on float to bool", func(t *testing.T) {
 		confYaml := `
 feature:
