@@ -238,7 +238,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			Hostname:           destinationHost,
 			Port:               destinationPort,
 			IPAddress:          destinationIP.String(),
-			ReverseDNSHostname: getReverseDnsForIP(destinationIP),
+			ReverseDNSHostname: getReverseDNSForIP(destinationIP),
 		},
 	}
 
@@ -302,7 +302,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			Hostname:           destinationHost,
 			Port:               destinationPort,
 			IPAddress:          destinationIP.String(),
-			ReverseDNSHostname: getReverseDnsForIP(destinationIP),
+			ReverseDNSHostname: getReverseDNSForIP(destinationIP),
 		},
 	}
 

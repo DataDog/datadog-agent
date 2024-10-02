@@ -21,8 +21,8 @@ func Test_getReverseDnsForIP(t *testing.T) {
 		}
 		defer func() { lookupAddrFn = net.DefaultResolver.LookupAddr }()
 
-		assert.Equal(t, "domain-a.com", getReverseDnsForIP(net.ParseIP("1.2.3.4")))
-		assert.Equal(t, "", getReverseDnsForIP(nil))
+		assert.Equal(t, "domain-a.com", getReverseDNSForIP(net.ParseIP("1.2.3.4")))
+		assert.Equal(t, "", getReverseDNSForIP(nil))
 	})
 	t.Run("reverse dns lookup failure", func(t *testing.T) {
 		lookupAddrFn = func(_ context.Context, _ string) ([]string, error) {
@@ -30,8 +30,8 @@ func Test_getReverseDnsForIP(t *testing.T) {
 		}
 		defer func() { lookupAddrFn = net.DefaultResolver.LookupAddr }()
 
-		assert.Equal(t, "1.2.3.4", getReverseDnsForIP(net.ParseIP("1.2.3.4")))
-		assert.Equal(t, "", getReverseDnsForIP(nil))
+		assert.Equal(t, "1.2.3.4", getReverseDNSForIP(net.ParseIP("1.2.3.4")))
+		assert.Equal(t, "", getReverseDNSForIP(nil))
 	})
 }
 

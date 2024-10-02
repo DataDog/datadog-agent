@@ -15,7 +15,7 @@ import (
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-func getReverseDnsForIP(destIP net.IP) string {
+func getReverseDNSForIP(destIP net.IP) string {
 	if destIP == nil {
 		return ""
 	}
