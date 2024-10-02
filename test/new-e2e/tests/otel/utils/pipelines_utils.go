@@ -436,7 +436,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "stanleyliu855/calendar-rest-go:0.15.0",
+						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.14",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
