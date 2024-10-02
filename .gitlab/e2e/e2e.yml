@@ -436,6 +436,13 @@ new-e2e-otel:
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestOTelAgentSampling
+      - EXTRA_PARAMS: --run TestOTelAgentMinimal
+      - EXTRA_PARAMS: --run "TestOTelAgentIA$"
+      - EXTRA_PARAMS: --run TestOTelAgentIAEKS
+
 
 .new-e2e_package_signing:
   variables:
