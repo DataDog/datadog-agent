@@ -738,30 +738,20 @@ func (c *LocalCDN) AddLayer(name string, content string) error {
 	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
 
 	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 
 	// Add at the end of the order file
 	orderPath := filepath.Join(c.DirPath, "configuration_order")
 	orderContent := orderConfig{}
 	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	err = json.Unmarshal(orderBytes, &orderContent)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	orderContent.Order = append(orderContent.Order, name)
 	orderBytes, err = json.Marshal(orderContent)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 
 	return nil
 }
@@ -776,9 +766,7 @@ func (c *LocalCDN) UpdateLayer(name string, content string) error {
 	jsonContent := fmt.Sprintf(`{"name": "%s","config": {%s}}`, name, content)
 
 	_, err := c.host.remote.WriteFile(layerPath, []byte(jsonContent))
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 
 	return nil
 }
@@ -790,21 +778,15 @@ func (c *LocalCDN) RemoveLayer(name string) error {
 
 	layerPath := filepath.Join(c.DirPath, name)
 	err := c.host.remote.Remove(layerPath)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 
 	// Remove from order file
 	orderPath := filepath.Join(c.DirPath, "configuration_order")
 	orderContent := orderConfig{}
 	orderBytes, err := c.host.remote.ReadFile(orderPath)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	err = json.Unmarshal(orderBytes, &orderContent)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	newOrder := []string{}
 	for _, layer := range orderContent.Order {
 		if layer != name {
@@ -813,13 +795,9 @@ func (c *LocalCDN) RemoveLayer(name string) error {
 	}
 	orderContent.Order = newOrder
 	orderBytes, err = json.Marshal(orderContent)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	return nil
 }
 
@@ -833,13 +811,9 @@ func (c *LocalCDN) Reorder(orderedLayerNames []string) error {
 		Order: orderedLayerNames,
 	}
 	orderBytes, err := json.Marshal(orderContent)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 	_, err = c.host.remote.WriteFile(orderPath, orderBytes)
-	if err != nil {
-		return err
-	}
+	require.NoError(c.host.t, err)
 
 	return nil
 }

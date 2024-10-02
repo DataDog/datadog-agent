@@ -310,7 +310,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		return fmt.Errorf("could not get cdn config: %w", err)
 	}
 	if config.Version != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", version, config.Version)
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version, version)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
