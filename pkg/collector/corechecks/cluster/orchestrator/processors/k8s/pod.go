@@ -36,7 +36,7 @@ type PodHandlers struct {
 	tagProvider podtagprovider.PodTagProvider
 }
 
-// NewPodHandlers
+// NewPodHandlers creates and returns a new PodHanlders object
 func NewPodHandlers(cfg config.Component, store workloadmeta.Component) *PodHandlers {
 	podHandlers := new(PodHandlers)
 

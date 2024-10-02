@@ -21,6 +21,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory(_ configcomp.Component, _ workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(_ workloadmeta.Component, _ configcomp.Component) optional.Option[func() check.Check] {
 	return optional.NewNoneOption[func() check.Check]()
 }

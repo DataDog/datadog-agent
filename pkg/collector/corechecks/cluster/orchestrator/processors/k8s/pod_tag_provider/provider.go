@@ -5,13 +5,14 @@
 
 //go:build orchestrator
 
+// Package podtagprovider implements a provider that supplies pod tags for cluster checks
 package podtagprovider
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
@@ -27,7 +28,7 @@ type PodTagProvider interface {
 // In case of CLC runner, the provider will calculate tags based on the pod resource on demand each time
 // In case of Node agent or Cluster agent, the provider will get pod tags by querying the tagger
 func NewPodTagProvider(cfg config.Component, store workloadmeta.Component) PodTagProvider {
-	if flavor.GetFlavor() != flavor.ClusterAgent && ddconfig.IsCLCRunner() {
+	if flavor.GetFlavor() != flavor.ClusterAgent && pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		// Running in a CLC Runner
 		return newCLCTagProvider(cfg, store)
 	}
