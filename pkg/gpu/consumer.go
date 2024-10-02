@@ -161,7 +161,7 @@ func (c *cudaEventConsumer) checkClosedProcesses() {
 
 	for key, handler := range c.streamHandlers {
 		if _, ok := seenPIDs[key.Pid]; !ok {
-			log.Debugf("Process %d ended, marking stream as ended", key.Pid)
+			log.Debugf("Process %d ended, marking stream %d as ended", key.Pid, key.Stream)
 			_ = handler.markEnd()
 		}
 	}
