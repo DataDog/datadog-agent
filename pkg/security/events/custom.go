@@ -156,7 +156,7 @@ func (ce *CustomEvent) GetWorkloadID() string {
 	return ""
 }
 
-// GetWorkloadID returns the workload id
+// GetFieldValue returns the field value
 func (ce *CustomEvent) GetFieldValue(_ eval.Field) (interface{}, error) {
 	return "", eval.ErrFieldNotFound{}
 }

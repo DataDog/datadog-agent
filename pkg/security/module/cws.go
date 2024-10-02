@@ -171,7 +171,7 @@ func (c *CWSConsumer) Start() error {
 	// we can now wait for self test events
 	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
 		if c.config.SelfTestSendReport {
-			c.ReportSelfTest(success, fails, testEvents)
+			c.reportSelfTest(success, fails, testEvents)
 		}
 
 		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
@@ -221,7 +221,7 @@ func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
 	return true, nil
 }
 
-func (c *CWSConsumer) ReportSelfTest(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),

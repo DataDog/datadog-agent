@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -28,6 +29,9 @@ const (
 	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
 	// flooding.
 	defaultBurst = 40
+
+	// maxUniqueToken maximum unique token for the token based rate limiter
+	maxUniqueToken = 500
 )
 
 var (
@@ -82,7 +86,7 @@ func (rl *RateLimiter) applyBaseLimitersFromDefault(limiters map[string]Limiter)
 }
 
 // Apply a set of rules
-func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID) error {
+func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()
 
@@ -95,6 +99,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	// override if there is more specific defs
 	rl.applyBaseLimitersFromDefault(newLimiters)
 
+	var err error
 	for id, rule := range ruleSet.GetRules() {
 		every, burst := defaultEvery, defaultBurst
 
@@ -103,19 +108,17 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 		}
 
 		if len(rule.Def.RateLimiterToken) > 0 {
-			limiter, err := NewTokenLimiter(200, burst, every, rule.Def.RateLimiterToken)
+			newLimiters[id], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
-				return err
+				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
+				newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 			}
-			newLimiters[id] = limiter
 		} else {
 			newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		}
 	}
 
 	rl.limiters = newLimiters
-
-	return nil
 }
 
 // Allow returns true if a specific rule shall be allowed to sent a new event

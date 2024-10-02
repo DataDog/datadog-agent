@@ -7,10 +7,10 @@
 package events
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // StdLimiter describes an object that applies limits on
