@@ -22,19 +22,19 @@ integration_tests_otel:
       when: never
     - when: always
 
-docker_image_build_otel:  
-  extends: .docker_build_job_definition_amd64
-  needs: ["integration_tests_otel"]
-  script:
-    # - python -m pip install requirements.txt
-    - inv check-otel-image-build
-  rules:
-    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
-      when: never
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
-      when: never
-    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
-      when: never
-    - when: always
+# docker_image_build_otel:  
+#   extends: .docker_build_job_definition_amd64
+#   needs: ["integration_tests_otel"]
+#   script:
+#     # - python -m pip install requirements.txt
+#     - inv check-otel-byoc-image-build
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+#       when: never
+#     - if: $CI_COMMIT_TAG
+#       when: never
+#     - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+#       when: never
+#     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+#       when: never
+#     - when: always

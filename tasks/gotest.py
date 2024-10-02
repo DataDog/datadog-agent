@@ -914,15 +914,15 @@ def check_otel_module_versions(ctx):
 
 
 @task
-def check_otel_image_build(ctx, python_command="python3", arch="amd64"):
+def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64"):
     """run image_build task and perform follow-on tests to ensure image builds correctly"""
     try:
-        otel_agent_build(ctx, goarch=arch)
+        otel_agent_build(ctx)
     except Exception as e:
         print(f"Error occurred during otel agent build command: {e}")
         raise
     try:
-        otel_agent_image_build(ctx, arch=arch, hide=True)
+        otel_agent_image_build(ctx, arch=arch)
     except Exception as e:
         print(f"Error occurred during image build command: {e}")
         raise
