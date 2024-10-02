@@ -479,7 +479,7 @@ def get_msm_info(ctx, release_version):
     iterable=['drivers'],
     help={
         'drivers': 'List of drivers to fetch (default: DDNPM, DDPROCMON, APMINJECT)',
-        'release_version': 'Release version to fetch drivers from (default: nightly-a7)',
+        'release_version': 'Release version to fetch drivers from (default: nightly)',
     },
 )
 def fetch_driver_msm(ctx, drivers=None, release_version=None):
@@ -490,7 +490,7 @@ def fetch_driver_msm(ctx, drivers=None, release_version=None):
     """
     ALLOWED_DRIVERS = ['DDNPM', 'DDPROCMON', 'APMINJECT']
     if not release_version:
-        release_version = 'nightly-a7'
+        release_version = 'nightly'
 
     msm_info = get_msm_info(ctx, release_version)
     if not drivers:

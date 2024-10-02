@@ -145,7 +145,7 @@ variables:
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_7: nightly-a7
+  RELEASE_VERSION_7: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding

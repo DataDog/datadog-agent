@@ -161,7 +161,7 @@ variables:
   BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION_7: nightly-a7
+  RELEASE_VERSION_7: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding

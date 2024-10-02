@@ -138,7 +138,7 @@ def trigger(_, git_ref=DEFAULT_BRANCH, release_version_7="dev-a7", repo_branch="
     use_release_entries = ""
     major_versions = []
 
-    if release_version_7 != "nightly-a7":
+    if release_version_7 != "nightly":
         use_release_entries = "--use-release-entries "
 
     if release_version_7 != "":
@@ -234,8 +234,8 @@ def run(
     Use --rc-build to mark the build as Release Candidate.
     Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
 
-    By default, the nightly release.json entries (nightly and nightly-a7) are used.
-    Use the --use-release-entries option to use the release-a6 and release-a7 release.json entries instead.
+    By default, the nightly release.json entries are used.
+    Use the --use-release-entries option to use the "release" release.json entries instead.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build

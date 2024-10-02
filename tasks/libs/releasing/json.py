@@ -322,7 +322,7 @@ def set_new_release_branch(branch):
 
     rj["base_branch"] = branch
 
-    for nightly in ["nightly", "nightly-a7"]:
+    for nightly in ["nightly"]:
         for field in RELEASE_JSON_FIELDS_TO_UPDATE:
             rj[nightly][field] = f"{branch}"
 
@@ -331,7 +331,7 @@ def set_new_release_branch(branch):
 
 def generate_repo_data(warning_mode, next_version, release_branch):
     repos = ["integrations-core"] if warning_mode else ALL_REPOS
-    previous_tags = find_previous_tags("release-a7", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
+    previous_tags = find_previous_tags("release", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
     for repo in repos:
         branch = release_branch

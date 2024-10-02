@@ -67,7 +67,7 @@ def trigger_macos(
     _,
     workflow_type="build",
     datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
+    release_version="nightly",
     major_version="7",
     python_runtimes="3",
     destination=".",

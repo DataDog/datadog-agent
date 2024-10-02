@@ -35,7 +35,7 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
-    release_version="nightly-a7",
+    release_version="nightly",
 ):
     """
     Build Cluster Agent

@@ -769,7 +769,7 @@ def check_omnibus_branches(ctx):
                 f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
                 hide='stdout',
             )
-            for version in ['nightly', 'nightly-a7']:
+            for version in ['nightly']:
                 commit = _get_release_json_value(f'{version}::{release_json_field}')
                 if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
                     raise Exit(
