@@ -75,7 +75,7 @@ $Env:CODECOV_TOKEN=$(cat "$tmpfile")
 Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination C:\mnt
 }
-& "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" -parameterName "$Env:API_KEY_ORG2" -tempFile "$tmpfile"
+& "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" -parameterName "$Env:AGENT_API_KEY_ORG2" -tempFile "$tmpfile"
 If ($LASTEXITCODE -ne "0") {
     exit $LASTEXITCODE
 }
