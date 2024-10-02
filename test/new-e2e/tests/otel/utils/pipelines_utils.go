@@ -8,6 +8,7 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"strings"
@@ -36,6 +37,7 @@ const (
 	version              = "1.0"
 	customAttribute      = "custom.attribute"
 	customAttributeValue = "true"
+	logBody              = "random date"
 )
 
 // OTelTestSuite is an interface for the OTel e2e test suite.
@@ -145,8 +147,11 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 			}
 		}
 		assert.True(s.T(), hasHostResource)
+
 		// Verify container tags from infraattributes processor
-		testInfraTags(s.T(), tags, iaParams)
+		if iaParams.InfraAttributes {
+			testInfraTags(s.T(), tags, iaParams)
+		}
 	}
 }
 
@@ -155,7 +160,6 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
-	logBody := "random date"
 	var logs []*aggregator.Log
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -174,7 +178,11 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
 		assert.Contains(s.T(), log.Message, logBody)
+		attrs := make(map[string]string)
+		err = json.Unmarshal([]byte(log.Message), &attrs)
+		assert.NoError(s.T(), err)
 		tags := getTagMapFromSlice(s.T(), log.Tags)
+		maps.Copy(tags, attrs)
 		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
@@ -183,8 +191,11 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 		assert.Equal(s.T(), tags["k8s.container.name"], tags["kube_container_name"])
 		assert.Equal(s.T(), tags["k8s.namespace.name"], tags["kube_namespace"])
 		assert.Equal(s.T(), tags["k8s.pod.name"], tags["pod_name"])
+
 		// Verify container tags from infraattributes processor
-		testInfraTags(s.T(), tags, iaParams)
+		if iaParams.InfraAttributes {
+			testInfraTags(s.T(), tags, iaParams)
+		}
 	}
 }
 
@@ -192,7 +203,6 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 func TestHosts(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	logBody := "random date"
 
 	var traces []*aggregator.TracePayload
 	var metrics []*aggregator.MetricSeries
@@ -362,6 +372,13 @@ func TestCalendarApp(s OTelTestSuite) {
 
 	s.T().Log("Starting calendar app")
 	createCalendarApp(ctx, s)
+
+	// Wait for calendar app to start
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, logs)
+	}, 10*time.Minute, 10*time.Second)
 }
 
 func createCalendarApp(ctx context.Context, s OTelTestSuite) {
@@ -436,12 +453,11 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.14",
+						Image:           "stanleyliu855/calendar-rest-go:0.16.0",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
 							ContainerPort: 9090,
-							Protocol:      "TCP",
 						}},
 						LivenessProbe: &corev1.Probe{
 							ProbeHandler: corev1.ProbeHandler{
@@ -492,8 +508,9 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 								"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
 								"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
 								"host.name=$(OTEL_K8S_NODE_NAME)," +
-								fmt.Sprintf("deployment.environment=%v", env) +
-								fmt.Sprintf("service.version=%v", version),
+								fmt.Sprintf("deployment.environment=%v,", env) +
+								fmt.Sprintf("service.version=%v,", version) +
+								fmt.Sprintf("%v=%v", customAttribute, customAttributeValue),
 						}},
 					},
 					},
