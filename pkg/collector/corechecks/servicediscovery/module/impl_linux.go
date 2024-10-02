@@ -548,7 +548,10 @@ func (s *discovery) updateServicesCPUStats(services []model.Service) error {
 
 	for i := range services {
 		service := &services[i]
-		serviceInfo := s.cache[int32(service.PID)]
+		serviceInfo, ok := s.cache[int32(service.PID)]
+		if !ok {
+			continue
+		}
 
 		_ = updateCPUCoresStats(service.PID, serviceInfo, s.lastGlobalCPUTime, globalCPUTime)
 		service.CPUCores = serviceInfo.cpuUsage
@@ -586,6 +589,9 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 
 		services = append(services, *service)
 	}
+
+	s.mux.Lock()
+	defer s.mux.Unlock()
 
 	s.cleanCache(alivePids)
 
