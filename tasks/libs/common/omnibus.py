@@ -121,7 +121,7 @@ def _get_environment_for_cache() -> dict:
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
-            "INSTALL_SCRIPT_API_KEY",
+            "INSTALL_SCRIPT_API_KEY_ORG2",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
