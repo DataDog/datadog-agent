@@ -102,8 +102,8 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 			every, burst = rule.Def.Every, 1
 		}
 
-		if len(rule.Def.UniqueID) > 0 {
-			limiter, err := NewTokenLimiter(200, burst, every, rule.Def.UniqueID)
+		if len(rule.Def.RateLimiterToken) > 0 {
+			limiter, err := NewTokenLimiter(200, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
 				return err
 			}
