@@ -57,7 +57,7 @@ type NetworkPathDestination struct {
 	IPAddress          string `json:"ip_address"`
 	Port               uint16 `json:"port"`
 	Service            string `json:"service,omitempty"`
-	ReverseDnsHostname string `json:"reverse_dns_hostname"`
+	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a
