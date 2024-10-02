@@ -8,7 +8,7 @@ import yaml
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import (
-    get_full_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
@@ -180,7 +180,7 @@ def generate_flake_finder_pipeline(ctx, n=3):
     """
 
     # Read gitlab config
-    config = get_full_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
