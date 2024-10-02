@@ -391,7 +391,7 @@ def manifest(
 def _otool_install_path_replacements(otool_output, install_path):
     """Returns a mapping of path replacements from `otool -l` output
     where references to `install_path` are replaced by `@rpath`."""
-    for otool_line in dylib_paths.splitlines():
+    for otool_line in otool_output.splitlines():
         if "name" not in otool_line:
             continue
         dylib_path = otool_line.strip().split(" ")[1]
@@ -406,8 +406,8 @@ def _replace_dylib_paths_with_rpath(ctx, otool_output, install_path, file):
         ctx.run(f"install_name_tool -change {dylib_path} {new_dylib_path} {file}")
 
 
-def _replace_dylib_id_path_with_rpath(ctx, otool_output, install_path, file):
-    for dylib_path, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
+def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
+    for _, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
@@ -433,7 +433,6 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
 def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
     # Collect mime types for all files inside the Agent installation
     files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
-    install_path = "/Users/runner/custom"
     for line in files.splitlines():
         if not line:
             continue
@@ -458,11 +457,11 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
 
             # if a dylib ID use our installation path we replace it with @rpath instead
             if install_path in dylib_id_paths:
-                _replace_dylib_id_path_with_rpath(ctx, dylib_id_paths, install_path, file)
+                _replace_dylib_id_paths_with_rpath(ctx, dylib_id_paths, install_path, file)
 
             # if a dylib use our installation path we replace it with @rpath instead
             if install_path in dylib_paths:
-                _replace_dylib_path_with_rpath(ctx, dylib_paths, install_path, file)
+                _replace_dylib_paths_with_rpath(ctx, dylib_paths, install_path, file)
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
