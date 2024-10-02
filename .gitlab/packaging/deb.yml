@@ -2,7 +2,6 @@
 .package_deb_common:
   stage: packaging
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -18,6 +17,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -88,7 +88,6 @@ agent_deb-arm64-a7:
 .package_ot_deb_common:
   extends: [.package_deb_common]
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -125,6 +124,9 @@ installer_deb-amd64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PROJECT: "installer"
+    # There are currently no files to check for in the installer so we
+    # explicitly disable the check
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -135,6 +137,7 @@ installer_deb-arm64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PROJECT: "installer"
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
   extends: [.package_deb_agent_7]
@@ -143,7 +146,6 @@ installer_deb-arm64:
     - when: on_success
   stage: packaging
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -159,6 +161,7 @@ installer_deb-arm64:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -194,6 +197,7 @@ dogstatsd_deb-x64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 
 dogstatsd_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -204,4 +208,5 @@ dogstatsd_deb-arm64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 

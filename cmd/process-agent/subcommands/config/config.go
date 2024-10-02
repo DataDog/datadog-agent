@@ -18,10 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -179,9 +180,9 @@ func getConfigValue(deps dependencies, args []string) error {
 	return nil
 }
 
-func getClient(cfg ddconfig.Reader) (settings.Client, error) {
+func getClient(cfg model.Reader) (settings.Client, error) {
 	httpClient := apiutil.GetClient(false)
-	ipcAddress, err := ddconfig.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	port := cfg.GetInt("process_config.cmd_port")
 	if port <= 0 {

@@ -98,8 +98,8 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 func (t *traceroute) Close() {}
 
 func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
-	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d (count: %d): retrieved traceroute in %s"
+	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, cfg.Protocol, runCount, time.Since(start)}
+	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d&protocol=%s (count: %d): retrieved traceroute in %s"
 	switch {
 	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)

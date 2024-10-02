@@ -20,6 +20,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -213,7 +214,11 @@ func (t *ebpfLessTracer) processConnection(
 	}
 
 	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
-		conn.LastUpdateEpoch = uint64(time.Now().UnixNano())
+		var ts int64
+		if ts, err = ddebpf.NowNanoseconds(); err != nil {
+			return fmt.Errorf("error getting last updated timestamp for connection: %w", err)
+		}
+		conn.LastUpdateEpoch = uint64(ts)
 		t.conns[key] = conn
 	}
 

@@ -16,19 +16,21 @@ import (
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
 func TestNewCollectorQueueSize(t *testing.T) {
@@ -42,7 +44,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			name:              "default queue size",
 			override:          false,
 			queueSize:         42,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
 		{
 			name:              "valid queue size override",
@@ -54,13 +56,13 @@ func TestNewCollectorQueueSize(t *testing.T) {
 			name:              "invalid negative queue size override",
 			override:          true,
 			queueSize:         -10,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
 		{
 			name:              "invalid 0 queue size override",
 			override:          true,
 			queueSize:         0,
-			expectedQueueSize: ddconfig.DefaultProcessQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueSize,
 		},
 	}
 
@@ -89,7 +91,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			name:              "default queue size",
 			override:          false,
 			queueSize:         2,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
 		{
 			name:              "valid queue size override",
@@ -101,13 +103,13 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 			name:              "invalid negative size override",
 			override:          true,
 			queueSize:         -2,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
 		{
 			name:              "invalid 0 queue size override",
 			override:          true,
 			queueSize:         0,
-			expectedQueueSize: ddconfig.DefaultProcessRTQueueSize,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessRTQueueSize,
 		},
 	}
 
@@ -136,7 +138,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			name:              "default queue size",
 			override:          false,
 			queueBytes:        42000,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
 		{
 			name:              "valid queue size override",
@@ -148,13 +150,13 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			name:              "invalid negative queue size override",
 			override:          true,
 			queueBytes:        -2,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
 		{
 			name:              "invalid 0 queue size override",
 			override:          true,
 			queueBytes:        0,
-			expectedQueueSize: ddconfig.DefaultProcessQueueBytes,
+			expectedQueueSize: pkgconfigsetup.DefaultProcessQueueBytes,
 		},
 	}
 
@@ -390,7 +392,7 @@ func newSubmitterDeps(t *testing.T) submitterDeps {
 	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, nil))
 }
 
-func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterDeps {
+func newSubmitterDepsWithConfig(t *testing.T, config pkgconfigmodel.Config) submitterDeps {
 	overrides := config.AllSettings()
 	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, overrides))
 }

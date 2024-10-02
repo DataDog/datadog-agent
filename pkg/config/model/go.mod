@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/config/model
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../pkg/config/structure/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket/

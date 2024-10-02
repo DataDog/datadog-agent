@@ -8,7 +8,6 @@
 package module
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -23,8 +22,9 @@ func TestInjectedEnvBasic(t *testing.T) {
 	curPid := os.Getpid()
 	proc, err := process.NewProcess(int32(curPid))
 	require.NoError(t, err)
-	envs := getInjectedEnvs(proc)
-	require.Nil(t, envs)
+	injectionMeta, ok := getInjectionMeta(proc)
+	require.Nil(t, injectionMeta)
+	require.False(t, ok)
 
 	// Provide an injected replacement for some already-present env variable
 	first := os.Environ()[0]
@@ -49,12 +49,10 @@ func TestInjectedEnvLimit(t *testing.T) {
 	full := []string{env}
 	createEnvsMemfd(t, full)
 
-	expected := []string{full[0][:memFdMaxSize]}
-
 	proc, err := process.NewProcess(int32(os.Getpid()))
 	require.NoError(t, err)
-	envs := getInjectedEnvs(proc)
-	require.Equal(t, expected, envs)
+	_, ok := getInjectionMeta(proc)
+	require.False(t, ok)
 }
 
 // createEnvsMemfd creates an memfd in the current process with the specified
@@ -62,16 +60,14 @@ func TestInjectedEnvLimit(t *testing.T) {
 func createEnvsMemfd(t *testing.T, envs []string) {
 	t.Helper()
 
-	var b bytes.Buffer
+	var injectionMeta InjectedProcess
 	for _, env := range envs {
-		_, err := b.WriteString(env)
-		require.NoError(t, err)
-
-		err = b.WriteByte(0)
-		require.NoError(t, err)
+		injectionMeta.InjectedEnv = append(injectionMeta.InjectedEnv, []byte(env))
 	}
+	encodedInjectionMeta, err := injectionMeta.MarshalMsg(nil)
+	require.NoError(t, err)
 
-	memfd, err := memfile(injectorMemFdName, b.Bytes())
+	memfd, err := memfile(injectorMemFdName, encodedInjectionMeta)
 	require.NoError(t, err)
 	t.Cleanup(func() { unix.Close(memfd) })
 }

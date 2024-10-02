@@ -6,11 +6,21 @@
 // Package tagger provides function to check if the tagger should use composite entity id and object store
 package tagger
 
-import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+import (
+	"sync"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+var useCompositeStore bool
+var doOnce sync.Once
 
 // ShouldUseCompositeStore indicates whether the tagger should use the default or composite implementation
 // of entity ID and object store.
 // TODO: remove this when we switch over fully to the composite implementation
 func ShouldUseCompositeStore() bool {
-	return pkgconfigsetup.Datadog().GetBool("tagger.tagstore_use_composite_entity_id")
+	doOnce.Do(func() {
+		useCompositeStore = pkgconfigsetup.Datadog().GetBool("tagger.tagstore_use_composite_entity_id")
+	})
+	return useCompositeStore
 }

@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 )
 
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
@@ -61,6 +63,17 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.Redis = o.Redis
 		oconf.Memcached = o.Memcached
 	}
+
+	// We check that endpoints contains stats, even though we know this version of the
+	// agent supports it. It's conceivable that the stats endpoint could be disabled at some point
+	// so this is defensive against that case.
+	canDropP0 := !r.conf.ProbabilisticSamplerEnabled && slices.Contains(all, "/v0.6/stats")
+
+	var spanKindsStatsComputed []string
+	if r.conf.ComputeStatsBySpanKind {
+		spanKindsStatsComputed = stats.KindsComputed
+	}
+
 	txt, err := json.MarshalIndent(struct {
 		Version                string        `json:"version"`
 		GitCommit              string        `json:"git_commit"`
@@ -72,15 +85,17 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
 		Config                 reducedConfig `json:"config"`
 		PeerTags               []string      `json:"peer_tags"`
+		SpanKindsStatsComputed []string      `json:"span_kinds_stats_computed"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
 		Endpoints:              all,
 		FeatureFlags:           r.conf.AllFeatures(),
-		ClientDropP0s:          true,
+		ClientDropP0s:          canDropP0,
 		SpanMetaStructs:        true,
 		LongRunningSpans:       true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
+		SpanKindsStatsComputed: spanKindsStatsComputed,
 		Config: reducedConfig{
 			DefaultEnv:             r.conf.DefaultEnv,
 			TargetTPS:              r.conf.TargetTPS,

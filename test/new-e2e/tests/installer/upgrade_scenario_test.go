@@ -87,7 +87,7 @@ const (
 	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
 )
 
-func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
+func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &upgradeScenarioSuite{
 		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch, method),
 	}

@@ -16,11 +16,12 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 func createCGroup(name string) (string, error) {
@@ -96,7 +97,6 @@ func TestCGroup(t *testing.T) {
 	})
 
 	t.Run("systemd", func(t *testing.T) {
-		t.Skip("unstable on some distribution")
 
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write

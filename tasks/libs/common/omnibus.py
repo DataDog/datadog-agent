@@ -95,7 +95,7 @@ def _get_environment_for_cache() -> dict:
             "BUILD_HOOK",
             "BUNDLE_MIRROR__RUBYGEMS__ORG",
             "BUCKET_BRANCH",
-            "CHANGELOG_COMMIT_SHA_SSM_NAME",
+            "CHANGELOG_COMMIT_SHA",
             "CLANG_LLVM_VER",
             "CHANNEL",
             "CHART",
@@ -121,7 +121,7 @@ def _get_environment_for_cache() -> dict:
             "HOSTNAME",
             "HOST_IP",
             "INFOPATH",
-            "INSTALL_SCRIPT_API_KEY_SSM_NAME",
+            "INSTALL_SCRIPT_API_KEY",
             "INTEGRATION_WHEELS_CACHE_BUCKET",
             "IRBRC",
             "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
@@ -159,11 +159,11 @@ def _get_environment_for_cache() -> dict:
             "USERDOMAIN",
             "USERNAME",
             "USERPROFILE",
-            "VCPKG_BLOB_SAS_URL_SSM_NAME",
+            "VCPKG_BLOB_SAS_URL",
             "VERSION",
             "VM_ASSETS",
             "WIN_S3_BUCKET",
-            "WINGET_PAT_SSM_NAME",
+            "WINGET_PAT",
             "WORKFLOW",
             "_",
             "build_before",
@@ -318,7 +318,7 @@ def send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
@@ -336,7 +336,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     else:
         aws_cmd = "aws"
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}

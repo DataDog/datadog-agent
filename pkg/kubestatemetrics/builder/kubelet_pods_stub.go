@@ -8,9 +8,24 @@
 package builder
 
 import (
+	"context"
+
 	"k8s.io/client-go/tools/cache"
 )
 
-func (b *Builder) startKubeletPodWatcher(_ cache.Store, _ string) {
-	// Do nothing
+// When the Kubelet flag is not set, we don't need a kubeletReflector, so we can
+// return a struct that does nothing
+
+type kubeletReflector struct{}
+
+func newKubeletReflector(_ []string) (kubeletReflector, error) {
+	return kubeletReflector{}, nil
+}
+
+func (kr *kubeletReflector) addStore(_ cache.Store) error {
+	return nil
+}
+
+func (kr *kubeletReflector) start(_ context.Context) error {
+	return nil
 }

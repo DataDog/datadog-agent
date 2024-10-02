@@ -309,6 +309,11 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
+// GetNetworkID is not implemented on this OS for Tracer
+func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
+	return "", ebpf.ErrNotImplemented
+}
+
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	if !c.EnableHTTPMonitoring && !c.EnableNativeTLSMonitoring {
 		return nil

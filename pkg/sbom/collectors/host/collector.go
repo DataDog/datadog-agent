@@ -35,6 +35,11 @@ func (c *Collector) Shutdown() {
 	c.closed = true
 }
 
+// channelSize defines the result channel size
+// It doesn't need more than 1 because the host collector should
+// not trigger multiple scans at the same time unlike for container-images.
+const channelSize = 1
+
 func init() {
 	collectors.RegisterCollector(collectors.HostCollector, &Collector{
 		resChan: make(chan sbom.ScanResult, channelSize),

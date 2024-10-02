@@ -38,6 +38,7 @@ type linuxTestSuite struct {
 var collectorConfig string
 
 func TestOTel(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 

@@ -428,6 +428,25 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "v2 annotations label logs",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"logs": [{"service":"any_service","source":"any_source"}]
+					}
+				}`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
+					ADIdentifiers: []string{adID},
+					InitConfig:    integration.Data("{}"),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

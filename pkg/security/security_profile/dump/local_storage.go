@@ -22,10 +22,11 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type dumpFiles struct {
@@ -73,20 +74,20 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 	}
 
 	var err error
-	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(_ string, files *[]string) {
-		if len(*files) == 0 {
+	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(_ string, filePaths *[]string) {
+		if len(*filePaths) == 0 {
 			return
 		}
 
 		// notify the security profile directory provider that we're about to delete a profile
 		if m.securityProfileManager != nil {
-			m.securityProfileManager.OnLocalStorageCleanup(*files)
+			m.securityProfileManager.OnLocalStorageCleanup(*filePaths)
 		}
 
 		// remove everything
-		for _, f := range *files {
-			if err := os.Remove(path.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f)); err != nil {
-				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", f, err)
+		for _, filePath := range *filePaths {
+			if err := os.Remove(filePath); err != nil {
+				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", filePath, err)
 			}
 		}
 
@@ -137,11 +138,11 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 			if !ok {
 				ad = &dumpFiles{
 					Name:  dumpName,
-					Files: make([]string, 1),
+					Files: make([]string, 0, 1),
 				}
 				localDumps[dumpName] = ad
 			}
-			ad.Files = append(ad.Files, f.Name())
+			ad.Files = append(ad.Files, filepath.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f.Name()))
 			if !ad.MTime.IsZero() && ad.MTime.Before(dumpInfo.ModTime()) {
 				ad.MTime = dumpInfo.ModTime()
 			}
@@ -183,34 +184,40 @@ func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, 
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		files, ok := storage.localDumps.Get(ad.Metadata.Name)
+		filePaths, ok := storage.localDumps.Get(ad.Metadata.Name)
 		if !ok {
 			storage.localDumps.Add(ad.Metadata.Name, &[]string{outputPath})
 		} else {
-			*files = append(*files, outputPath)
+			*filePaths = append(*filePaths, outputPath)
 		}
 	}
 
 	// create output file
 	_ = os.MkdirAll(request.OutputDirectory, 0400)
-	file, err := os.Create(outputPath)
+	tmpOutputPath := outputPath + ".tmp"
+
+	file, err := os.Create(tmpOutputPath)
 	if err != nil {
-		return fmt.Errorf("couldn't persist to file [%s]: %w", outputPath, err)
+		return fmt.Errorf("couldn't persist to file [%s]: %w", tmpOutputPath, err)
 	}
 	defer file.Close()
 
 	// set output file access mode
-	if err = os.Chmod(outputPath, 0400); err != nil {
-		return fmt.Errorf("couldn't set mod for file [%s]: %w", outputPath, err)
+	if err := os.Chmod(tmpOutputPath, 0400); err != nil {
+		return fmt.Errorf("couldn't set mod for file [%s]: %w", tmpOutputPath, err)
 	}
 
 	// persist data to disk
-	if _, err = file.Write(raw.Bytes()); err != nil {
-		return fmt.Errorf("couldn't write to file [%s]: %w", outputPath, err)
+	if _, err := file.Write(raw.Bytes()); err != nil {
+		return fmt.Errorf("couldn't write to file [%s]: %w", tmpOutputPath, err)
 	}
 
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("could not close file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpOutputPath, outputPath); err != nil {
+		return fmt.Errorf("could not rename file from [%s] to [%s]: %w", tmpOutputPath, outputPath, err)
 	}
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, ad.GetSelectorStr(), outputPath)

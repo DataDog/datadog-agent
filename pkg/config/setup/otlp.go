@@ -94,6 +94,5 @@ func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
 
 	// Debug settings
-	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
 	config.BindEnv(OTLPSection + ".debug.verbosity")
 }
