@@ -70,7 +70,7 @@ var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := NewEBPFProgram(&cfg.Config, libset)
+	ebpfProgram := GetEBPFProgram(&cfg.Config)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)

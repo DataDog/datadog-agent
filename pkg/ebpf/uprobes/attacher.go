@@ -131,16 +131,31 @@ func (r *AttachRule) getProbeOptions(probeID manager.ProbeIdentificationPair) (P
 	}, nil
 }
 
-// Validate checks whether the rule is valid, returns nil if it is, an error message otherwise
-func (r *AttachRule) Validate() error {
+// Validate checks whether the rule is valid and compatible with the given attacher config, returns nil if it is, an error message otherwise
+func (r *AttachRule) Validate(attacherConfig *AttacherConfig) error {
 	var result error
 
 	if r.Targets == 0 {
 		result = multierror.Append(result, errors.New("no targets specified"))
 	}
 
-	if r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex == nil {
-		result = multierror.Append(result, errors.New("no library name regex specified"))
+	if r.canTarget(AttachToSharedLibraries) {
+		if r.LibraryNameRegex == nil {
+			result = multierror.Append(result, errors.New("no library name regex specified"))
+		}
+
+		matchesAtLeastOneLib := false
+		for _, libSuffix := range sharedlibraries.LibsetToLibSuffixes[attacherConfig.SharedLibsLibset] {
+			libSuffixWithExt := libSuffix + ".so"
+			if r.LibraryNameRegex.MatchString(libSuffixWithExt) {
+				matchesAtLeastOneLib = true
+				break
+			}
+		}
+
+		if !matchesAtLeastOneLib {
+			result = multierror.Append(result, fmt.Errorf("no library name regex matches any library in libset %s", attacherConfig.SharedLibsLibset))
+		}
 	}
 
 	for _, selector := range r.ProbesSelector {
@@ -203,10 +218,6 @@ func (ac *AttacherConfig) SetDefaults() {
 	if ac.EbpfConfig == nil {
 		ac.EbpfConfig = ebpf.NewConfig()
 	}
-
-	if ac.SharedLibsLibset == "" {
-		ac.SharedLibsLibset = sharedlibraries.LibsetCrypto
-	}
 }
 
 // Validate checks whether the configuration is valid, returns nil if it is, an error message otherwise
@@ -222,7 +233,7 @@ func (ac *AttacherConfig) Validate() error {
 	}
 
 	for _, rule := range ac.Rules {
-		err := rule.Validate()
+		err := rule.Validate(ac)
 		if err != nil {
 			errs = append(errs, err.Error())
 		}
@@ -389,6 +400,8 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
+	var cleanupSharedLibs func()
+
 	procMonitor := monitor.GetProcessMonitor()
 	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
 	if err != nil {
@@ -412,10 +425,8 @@ func (ua *UprobeAttacher) Start() error {
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
-		err = ua.soWatcher.Start()
-		if err != nil {
-			return fmt.Errorf("error starting shared library program: %w", err)
-		}
+
+		cleanupSharedLibs = ua.soWatcher.Subscribe(ua.handleLibraryOpen)
 	}
 
 	if ua.config.PerformInitialScan {
@@ -442,17 +453,12 @@ func (ua *UprobeAttacher) Start() error {
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()
 			}
+			if cleanupSharedLibs != nil {
+				cleanupSharedLibs()
+			}
 			ua.wg.Done()
 			log.Infof("uprobe attacher %s stopped", ua.name)
 		}()
-
-		var sharedLibDataChan <-chan ebpf.DataEvent
-		var sharedLibLostChan <-chan uint64
-
-		if ua.soWatcher != nil {
-			sharedLibDataChan = ua.soWatcher.GetPerfHandler().DataChannel()
-			sharedLibLostChan = ua.soWatcher.GetPerfHandler().LostChannel()
-		}
 
 		for {
 			select {
@@ -461,14 +467,6 @@ func (ua *UprobeAttacher) Start() error {
 			case <-processSync.C:
 				// We always track process deletions in the scan, to avoid memory leaks.
 				_ = ua.Sync(ua.config.EnablePeriodicScanNewProcesses, true)
-			case event, ok := <-sharedLibDataChan:
-				if !ok {
-					return
-				}
-				_ = ua.handleLibraryOpen(&event)
-			case <-sharedLibLostChan:
-				// Nothing to do in this case
-				break
 			}
 		}
 	}()
@@ -542,13 +540,13 @@ func (ua *UprobeAttacher) handleProcessExit(pid uint32) {
 	_ = ua.DetachPID(pid)
 }
 
-func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
-	defer event.Done()
-
-	libpath := sharedlibraries.ToLibPath(event.Data)
+func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 	path := sharedlibraries.ToBytes(&libpath)
 
-	return ua.AttachLibrary(string(path), libpath.Pid)
+	err := ua.AttachLibrary(string(path), libpath.Pid)
+	if err != nil {
+		log.Errorf("error attaching to library %s (PID %d): %v", path, libpath.Pid, err)
+	}
 }
 
 func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, procInfo *ProcInfo) (func(utils.FilePath) error, func(utils.FilePath) error) {
