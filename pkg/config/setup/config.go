@@ -1529,7 +1529,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
-	config.BindEnvAndSetDefault("logs_config.tag_auto_multi_line_logs", false)
+	// Add a tag to logs that are multiline aggregated
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
