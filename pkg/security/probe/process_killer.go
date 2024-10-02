@@ -53,7 +53,6 @@ type ProcessKiller struct {
 }
 
 type processKillerStats struct {
-	actionPerformed int64
 	processesKilled int64
 }
 
@@ -158,16 +157,16 @@ func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
 	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
 }
 
-// KillAndReport kill and report
-func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.Rule, ev *model.Event, killFnc func(pid uint32, sig uint32) error) {
+// KillAndReport kill and report, returns true if we did try to kill
+func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.Rule, ev *model.Event, killFnc func(pid uint32, sig uint32) error) bool {
 	if !p.isRuleAllowed(rule) {
 		log.Warnf("unable to kill, the source is not allowed: %v", rule)
-		return
+		return false
 	}
 
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
-		return
+		return false
 	}
 
 	rsConfig := p.cfg.RuntimeSecurity
@@ -187,7 +186,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 					seclog.Warnf("disarming kill action of rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, disarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
 				}) {
 					seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
-					return
+					return false
 				}
 			}
 		}
@@ -198,7 +197,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 				seclog.Warnf("disarmed kill action of rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, disarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
 			}) {
 				seclog.Warnf("skipping kill action of rule `%s` because it has been disarmed", rule.ID)
-				return
+				return false
 			}
 		}
 	}
@@ -212,13 +211,13 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	pids, paths, err := p.getProcesses(scope, ev, entry)
 	if err != nil {
 		log.Errorf("unable to kill: %s", err)
-		return
+		return false
 	}
 
 	// if one pids is not allowed don't kill anything
 	if killAllowed, err := p.isKillAllowed(pids, paths); !killAllowed {
 		log.Warnf("unable to kill: %v", err)
-		return
+		return false
 	}
 
 	sig := model.SignalConstants[signal]
@@ -241,7 +240,6 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		stats = &processKillerStats{}
 		p.perRuleStats[rule.ID] = stats
 	}
-	stats.actionPerformed++
 	stats.processesKilled += processesKilled
 	p.perRuleStatsLock.Unlock()
 
@@ -259,6 +257,8 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
+
+	return true
 }
 
 // Reset resets the disarmer state
@@ -277,11 +277,6 @@ func (p *ProcessKiller) SendStats(statsd statsd.ClientInterface) {
 	for ruleID, stats := range p.perRuleStats {
 		ruleIDTag := []string{
 			"rule_id:" + string(ruleID),
-		}
-
-		if stats.actionPerformed > 0 {
-			_ = statsd.Count(metrics.MetricEnforcementKillActionPerformed, stats.actionPerformed, ruleIDTag, 1)
-			stats.actionPerformed = 0
 		}
 
 		if stats.processesKilled > 0 {

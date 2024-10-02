@@ -1015,11 +1015,17 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
-  ## @param integrations_logs_files_max_size - integer - optional - default: 100
-  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
-  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  ## @param integrations_logs_files_max_size - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
+  ## The max size in MB that an integration logs file is allowed to use
   #
   # integrations_logs_files_max_size
+
+  ## @param integrations_logs_total_usage - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
+  ## The total combined usage all integrations logs files can use
+  #
+  # integrations_logs_total_usage
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -1485,6 +1491,15 @@ api_key:
 #
 # process_config:
 
+  {{- if (eq .OS "linux")}}
+  ## @param run_in_core_agent - custom object - optional
+  ## Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
+  # run_in_core_agent:
+    ## @param enabled - boolean - optional - default: false
+    ## Enables process/container collection on the core Agent instead of the process Agent.
+    # enabled: false
+  {{ end }}
+
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
   # process_collection:
@@ -1727,7 +1742,7 @@ api_key:
   #  enabled: false
 {{- if (eq .OS "linux")}}
 
- 
+
   # container_image:
   #   enabled: false
 {{ end -}}

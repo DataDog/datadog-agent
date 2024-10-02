@@ -4,14 +4,14 @@
 
 publish_choco_7_x64:
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_manual]
-  stage: choco_deploy
+  stage: choco_and_install_script_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_choco_online_7_x64"]
   variables:
     ARCH: "x64"
   before_script:
     - $tmpfile = [System.IO.Path]::GetTempFileName()
-    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" "$Env:CHOCOLATEY_API_KEY" "$tmpfile")
+    - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$Env:CHOCOLATEY_API_KEY" -tempFile "$tmpfile")
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - $chocolateyApiKey=$(cat "$tmpfile")
     - Remove-Item "$tmpfile"

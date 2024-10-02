@@ -61,6 +61,7 @@ type BaseInstallerSuite struct {
 	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
+	outputDir              string
 }
 
 // Installer the Datadog Installer for testing.
@@ -87,7 +88,7 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
-	if instlr.GetInstallMethodFromEnv() != instlr.InstallMethodWindows {
+	if instlr.GetInstallMethodFromEnv(s.T()) != instlr.InstallMethodWindows {
 		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
 	}
 
@@ -115,10 +116,11 @@ func (s *BaseInstallerSuite) SetupSuite() {
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 
-	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	var err error
+	s.outputDir, err = runner.GetTestOutputDir(runner.GetProfile(), s.T())
 	s.Require().NoError(err, "should get output dir")
-	s.T().Logf("Output dir: %s", outputDir)
-	s.installer = NewDatadogInstaller(s.Env(), outputDir)
+	s.T().Logf("Output dir: %s", s.outputDir)
+	s.installer = NewDatadogInstaller(s.Env(), s.outputDir)
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -131,4 +133,9 @@ func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 // on the Windows Datadog installer `BaseInstallerSuite` object.
 func (s *BaseInstallerSuite) Require() *suiteasserts.SuiteAssertions {
 	return suiteasserts.New(s.BaseSuite.Require(), s)
+}
+
+// OutputDir returns the output directory for the test
+func (s *BaseInstallerSuite) OutputDir() string {
+	return s.outputDir
 }

@@ -1,5 +1,6 @@
 param (
     [string]$parameterName,
+    [string]$parameterField,
     [string]$tempFile
 )
 
@@ -10,15 +11,19 @@ $maxRetries = 10
 $ErrorActionPreference = "Continue"
 
 while ($retryCount -lt $maxRetries) {
-    $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> awsErrorFile.txt)
-    $error = Get-Content awsErrorFile.txt
+    if ($parameterField) {
+        $result = (vault kv get -field="$parameterField" kv/k8s/gitlab-runner/datadog-agent/"$parameterName" 2> errorFile.txt)
+    } else {
+        $result = (aws ssm get-parameter --region us-east-1 --name $parameterName --with-decryption --query "Parameter.Value" --output text 2> errorFile.txt)
+    } 
+    $error = Get-Content errorFile.txt
     if ($result) {
         "$result" | Out-File -FilePath "$tempFile" -Encoding ASCII
         exit 0
     }
     if ($error -match "Unable to locate credentials") {
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
-        Write-Error "Permanent error: unable to locate AWS credentials, not retrying"
+        Write-Error "Permanent error: unable to locate credentials, not retrying"
         exit 42
     }
 

@@ -423,6 +423,18 @@ func (s *packageAgentSuite) TestUpgrade_DisabledAgentDebRPM_to_OCI() {
 	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
 }
 
+func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
+	// create /opt/datadog-agent to simulate a disabled agent
+	s.host.Run("sudo mkdir -p /opt/datadog-agent")
+
+	// install OCI agent
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+
+	state := s.host.State()
+	s.assertUnits(state, false)
+	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
+}
+
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
