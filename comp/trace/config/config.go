@@ -75,6 +75,13 @@ func NewConfig(deps Dependencies) (Component, error) {
 		if setting != "api_key" {
 			return
 		}
+
+		if c.coreConfig.IsSet("apm_config.api_key") {
+			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
+			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
+			log.Warn("cannot refresh api_key on trace-agent while apm_config.api_key is set. apm_config.api_key is deprecated, use core api_key instead")
+			return
+		}
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
