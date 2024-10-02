@@ -29,6 +29,7 @@ from tasks.libs.civisibility import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.utils import experimental
 
 
@@ -296,7 +297,7 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
 
     # The before commit is the LCA commit between before and after
     before = before or DEFAULT_BRANCH
-    before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
+    before = get_common_ancestor(before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
     after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
@@ -320,8 +321,6 @@ def compute_gitlab_ci_config(
 ):
     """
     Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
-
-    The diff can be loaded using `MultiGitlabCIDiff.from_dict`.
     """
 
     before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)
