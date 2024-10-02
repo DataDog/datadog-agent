@@ -202,6 +202,7 @@ func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]strin
 	entity := t.store.getEntity(id)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+		return entity.GetTags(cardinality), nil
 	}
 
 	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
