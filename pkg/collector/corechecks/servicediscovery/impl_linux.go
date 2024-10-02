@@ -28,17 +28,19 @@ type linuxImpl struct {
 	time              timer
 
 	ignoreCfg map[string]bool
+	store     workloadmeta.Component
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
 }
 
-func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
+func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error) {
 	return &linuxImpl{
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
+		containerProvider: containerProvider,
 		ignoreProcs:       make(map[int]bool),
 		aliveServices:     make(map[int]*serviceInfo),
 		potentialServices: make(map[int]*serviceInfo),
