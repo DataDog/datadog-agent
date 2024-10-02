@@ -192,7 +192,7 @@ func TestFork1st(t *testing.T) {
 	}
 
 	// nothing
-	deleted, err = processList.DeleteProcess(pc.GetProcessCacheKey(&parent.ProcessContext.Process), "")
+	deleted, err = processList.DeleteCachedProcess(pc.GetProcessCacheKey(&parent.ProcessContext.Process), "")
 	assert.Equal(t, true, deleted)
 	stats.DeleteProcess(1)
 	stats.ValidateCounters(t, processList)

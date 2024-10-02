@@ -11,6 +11,7 @@ package processlist
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -20,6 +21,11 @@ import (
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
 	sync.Mutex
+
+	// represent the key used to retrieve the process from the cache
+	// if the owner is able to define a key we use it, otherwise we'll put
+	// a random generated uint64 cookie
+	Key interface{}
 
 	// mainly used by dump/profiles
 	ImageTags []string
@@ -47,9 +53,13 @@ type ProcessNode struct {
 	UserData interface{}
 }
 
-func NewProcessExecNodeFromEvent(event *model.Event) *ProcessNode {
-	exec := NewExecNodeFromEvent(event)
+func NewProcessExecNodeFromEvent(event *model.Event, processKey, execKey interface{}) *ProcessNode {
+	if processKey == nil {
+		processKey = rand.Uint64()
+	}
+	exec := NewExecNodeFromEvent(event, execKey)
 	process := &ProcessNode{
+		Key:           processKey,
 		CurrentExec:   exec,
 		PossibleExecs: []*ExecNode{exec},
 	}
@@ -133,6 +143,23 @@ func (pn *ProcessNode) UnlinkChild(owner ProcessListOwner, child *ProcessNode) b
 		return false
 	})
 	return removed
+}
+
+func (pn *ProcessNode) Walk(f func(node *ProcessNode) (stop bool)) (stop bool) {
+	pn.Lock()
+	defer pn.Unlock()
+
+	for _, child := range pn.Children {
+		stop = child.Walk(f)
+		if stop {
+			return stop
+		}
+		stop = f(child)
+		if stop {
+			return stop
+		}
+	}
+	return stop
 }
 
 // debug prints out recursively content of each node

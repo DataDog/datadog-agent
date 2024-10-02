@@ -115,7 +115,7 @@ type ProcessList struct {
 	// resolvers    *resolvers // eBPF, eBPF-less or windows
 
 	execCache    map[interface{}]*ExecNode
-	processCache map[interface{}]*ProcessNode
+	processCache map[interface{}]*ProcessNode // not sure it's useful
 
 	rootNodes []*ProcessNode
 }
@@ -184,8 +184,12 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 
 	// special case, on exit we remove the associated process and all its childs
 	if event.GetEventType() == model.ExitEventType {
+		// if we can get a key from a process we should be able to retrieve it
 		key := pl.owner.GetProcessCacheKey(&event.ProcessContext.Process)
-		return pl.deleteProcess(key, imageTag)
+		if key != nil {
+			return pl.deleteCachedProcess(key, imageTag)
+		}
+		return false, errors.New("process not found in cache")
 	}
 
 	// Process list take only care of execs
@@ -215,25 +219,29 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 // TODO
 func (pl *ProcessList) findOrInsertExec(event *model.Event, insertMissingProcesses bool, imageTag string) (exec *ExecNode, newNode bool, err error) {
 	// check if we already have the exec cached
-	key := pl.owner.GetExecCacheKey(&event.ProcessContext.Process)
-	exec, ok := pl.execCache[key]
-	if ok {
-		return exec, false, nil
+	execKey := pl.owner.GetExecCacheKey(&event.ProcessContext.Process)
+	if execKey != nil {
+		exec, ok := pl.execCache[execKey]
+		if ok {
+			return exec, false, nil
+		}
 	}
 
 	// check if we already have its related process
-	key = pl.owner.GetProcessCacheKey(&event.ProcessContext.Process)
-	process, ok := pl.processCache[key]
-	if ok {
-		exec := NewExecNodeFromEvent(event)
-		process.AppendExec(exec, true)
-		pl.addExecToCache(exec)
-		return exec, true, nil
+	processKey := pl.owner.GetProcessCacheKey(&event.ProcessContext.Process)
+	if processKey != nil {
+		process, ok := pl.processCache[processKey]
+		if ok {
+			exec := NewExecNodeFromEvent(event, processKey)
+			process.AppendExec(exec, true)
+			pl.addExecToCache(exec)
+			return exec, true, nil
+		}
 	}
 
 	// then, check if can be added as root node
 	if pl.owner.IsAValidRootNode(&event.ProcessContext.Process) {
-		process := NewProcessExecNodeFromEvent(event)
+		process := NewProcessExecNodeFromEvent(event, processKey, execKey)
 		pl.appendChild(process, true)
 		pl.addProcessToCache(process)
 		return process.CurrentExec, true, nil
@@ -244,7 +252,7 @@ func (pl *ProcessList) findOrInsertExec(event *model.Event, insertMissingProcess
 	if parentKey != nil {
 		parent, ok := pl.processCache[parentKey]
 		if ok {
-			process := NewProcessExecNodeFromEvent(event)
+			process := NewProcessExecNodeFromEvent(event, processKey, execKey)
 			parent.AppendChild(process, true)
 			pl.addProcessToCache(process)
 			return process.CurrentExec, true, nil
@@ -296,7 +304,43 @@ func (pl *ProcessList) Contains(event *model.Event, insertMissingProcesses bool,
 	return false, nil
 }
 
-func (pl *ProcessList) deleteProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
+func (pl *ProcessList) unlinkIfNoMoreImageTags(process *ProcessNode) bool {
+	if len(process.ImageTags) == 0 {
+		parents := process.GetPossibleParents()
+		for _, parent := range parents {
+			switch parent.(type) {
+			case *ProcessList:
+				// ProcessList is already lock, call directly the lock-free func
+				pl.unlinkChild(process)
+			default:
+				parent.UnlinkChild(pl.owner, process)
+			}
+		}
+		pl.removeProcessFromCache(process)
+		return true
+	}
+	return false
+}
+
+func (pl *ProcessList) deleteProcess(process *ProcessNode, imageTag string) (entryDeleted bool, err error) {
+	// remove imageTag from the list
+	process.ImageTags = slices.DeleteFunc(process.ImageTags, func(tag string) bool {
+		return tag == imageTag
+	})
+
+	// recursively remove childs:
+	children := process.GetChildren()
+	if children != nil {
+		for _, child := range *children {
+			pl.deleteProcess(child, imageTag)
+		}
+	}
+
+	// if there is no more versions for this node, unlink it from its parent(s)
+	return pl.unlinkIfNoMoreImageTags(process), nil
+}
+
+func (pl *ProcessList) deleteCachedProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
 	if key == nil {
 		return false, errors.New("no valid key provided")
 	}
@@ -317,34 +361,19 @@ func (pl *ProcessList) deleteProcess(key interface{}, imageTag string) (entryDel
 	if children != nil {
 		for _, child := range *children {
 			childkey := pl.owner.GetProcessCacheKey(&child.CurrentExec.Process)
-			pl.deleteProcess(childkey, imageTag)
+			pl.deleteCachedProcess(childkey, imageTag)
 		}
 	}
 
 	// if there is no more versions for this node, unlink it from its parent(s)
-	entryDeleted = false
-	if len(process.ImageTags) == 0 {
-		parents := process.GetPossibleParents()
-		for _, parent := range parents {
-			switch parent.(type) {
-			case *ProcessList:
-				// ProcessList is already lock, call directly the lock-free func
-				pl.unlinkChild(process)
-			default:
-				parent.UnlinkChild(pl.owner, process)
-			}
-		}
-		entryDeleted = true
-		pl.removeProcessFromCache(process)
-	}
-	return entryDeleted, nil
+	return pl.unlinkIfNoMoreImageTags(process), nil
 }
 
-func (pl *ProcessList) DeleteProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
+func (pl *ProcessList) DeleteCachedProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
 	pl.Lock()
 	defer pl.Unlock()
 
-	return pl.deleteProcess(key, imageTag)
+	return pl.deleteCachedProcess(key, imageTag)
 }
 
 func (pl *ProcessList) GetCurrentParent() ProcessNodeIface {
@@ -370,8 +399,7 @@ func (pl *ProcessList) GetCurrentSiblings() *[]*ProcessNode {
 }
 
 func (pl *ProcessList) addExecToCache(exec *ExecNode) {
-	key := pl.owner.GetExecCacheKey(&exec.Process)
-	pl.execCache[key] = exec
+	pl.execCache[exec.Key] = exec
 
 	// inc stat
 	pl.Stats.IncExec()
@@ -379,7 +407,9 @@ func (pl *ProcessList) addExecToCache(exec *ExecNode) {
 
 func (pl *ProcessList) removeExecFromCache(exec *ExecNode) {
 	key := pl.owner.GetExecCacheKey(&exec.Process)
-	delete(pl.execCache, key)
+	if key != nil {
+		delete(pl.execCache, key)
+	}
 
 	// dec stat
 	pl.Stats.DecExec()
@@ -392,8 +422,7 @@ func (pl *ProcessList) addProcessToCache(node *ProcessNode) {
 	}
 
 	// puts process in cache
-	key := pl.owner.GetProcessCacheKey(&node.CurrentExec.Process)
-	pl.processCache[key] = node
+	pl.processCache[node.Key] = node
 
 	// inc stat
 	pl.Stats.IncProcess()
@@ -407,7 +436,9 @@ func (pl *ProcessList) removeProcessFromCache(node *ProcessNode) {
 
 	// puts process in cache
 	key := pl.owner.GetProcessCacheKey(&node.CurrentExec.Process)
-	delete(pl.processCache, key)
+	if key != nil {
+		delete(pl.processCache, key)
+	}
 
 	// dec stat
 	pl.Stats.DecProcess()
@@ -470,6 +501,23 @@ func (pl *ProcessList) ToDOT() ([]byte, error) {
 func (pl *ProcessList) MatchesSelector(event *model.Event) bool {
 	// TODO
 	return true
+}
+
+func (pl *ProcessList) Walk(f func(node *ProcessNode) (stop bool)) (stop bool) {
+	pl.Lock()
+	defer pl.Unlock()
+
+	for _, root := range pl.rootNodes {
+		stop = f(root)
+		if stop {
+			return stop
+		}
+		stop = root.Walk(f)
+		if stop {
+			return stop
+		}
+	}
+	return stop
 }
 
 // debug prints out recursively content of each node

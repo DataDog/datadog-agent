@@ -10,9 +10,12 @@ package activitytree
 
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/exp/slices"
 
 	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
+	processresolver "github.com/DataDog/datadog-agent/pkg/security/process_list/process_resolver"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	activitytree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -28,8 +31,8 @@ type Stats struct {
 
 // ActivityTree contains a process tree and its activities. This structure has no locks.
 type ActivityTree struct {
-	Stats *Stats
-	// pathsReducer *PathsReducer
+	Stats        *Stats
+	pathsReducer *activitytree.PathsReducer
 
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
@@ -40,28 +43,88 @@ type ActivityTree struct {
 }
 
 // NewActivityTree returns a new ActivityTree instance
-func NewActivityTree( /* pathsReducer *PathsReducer */ ) *ActivityTree {
+func NewActivityTree(pathsReducer *activitytree.PathsReducer, differentiateArgs bool, DNSMatchMaxDepth int) *ActivityTree {
 	return &ActivityTree{
-		// pathsReducer: pathsReducer,
-		Stats:        &Stats{},
-		DNSNames:     utils.NewStringKeys(nil),
-		SyscallsMask: make(map[int]int),
+		pathsReducer:      pathsReducer,
+		Stats:             &Stats{},
+		DNSNames:          utils.NewStringKeys(nil),
+		SyscallsMask:      make(map[int]int),
+		differentiateArgs: differentiateArgs,
+		DNSMatchMaxDepth:  DNSMatchMaxDepth,
 	}
 }
 
+// /!\ for now, everything related to cache funcs are equal to the process resolver
+// TODO: if it's still the case when starting to replace parts of original code, remove
+// it from the interface and make it generic
+
+type processKey struct {
+	pid  uint32
+	nsid uint64
+}
+
+type execKey struct {
+	pid         uint32
+	nsid        uint64
+	execTime    int64
+	pathnameStr string
+}
+
+func (at *ActivityTree) GetProcessCacheKey(process *model.Process) interface{} {
+	if process.Pid != 0 {
+		return processKey{pid: process.Pid, nsid: process.NSID}
+	}
+	return nil
+}
+
+func (at *ActivityTree) GetExecCacheKey(process *model.Process) interface{} {
+	if process.Pid != 0 {
+		path := process.FileEvent.PathnameStr
+		if processresolver.IsBusybox(process.FileEvent.PathnameStr) {
+			path = process.Argv[0]
+		}
+		return execKey{
+			pid:         process.Pid,
+			nsid:        process.NSID,
+			execTime:    process.ExecTime.UnixMicro(),
+			pathnameStr: path,
+		}
+	}
+	return nil
+}
+
+func (at *ActivityTree) GetParentProcessCacheKey(event *model.Event) interface{} {
+	if event.ProcessContext.Pid != 1 && event.ProcessContext.PPid > 0 {
+		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
+	}
+	return nil
+}
+
 // IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func IsValidRootNode(entry *model.Process) bool {
-	// TODO
+func (at *ActivityTree) IsAValidRootNode(entry *model.Process) bool {
+	// TODO: check runc/containerid stuff
 	return true
 }
 
-func (at *ActivityTree) Matches(p1, p2 *processlist.ExecNode) bool {
-	// TODO
-	return true
+func (at *ActivityTree) ExecMatches(e1, e2 *processlist.ExecNode) bool {
+	if e1.FileEvent.PathnameStr == e2.FileEvent.PathnameStr {
+		if at.differentiateArgs {
+			return slices.Equal(e1.Process.Argv, e2.Process.Argv)
+		}
+		return true
+	}
+	return false
+}
+
+func (at *ActivityTree) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
+	if p1.CurrentExec == nil || p2.CurrentExec == nil {
+		return false
+	}
+	return at.ExecMatches(p1.CurrentExec, p2.CurrentExec)
 }
 
 // SendStats sends the tree statistics
 func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
+	// TODO
 	return nil
-	// return at.Stats.SendStats(client, at.treeType)
 }

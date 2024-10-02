@@ -11,6 +11,7 @@ package processlist
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -19,6 +20,11 @@ import (
 type ExecNode struct {
 	sync.Mutex
 	model.Process
+
+	// represent the key used to retrieve the exec from the cache
+	// if the owner is able to define a key we use it, otherwise we'll put
+	// a random generated uint64 cookie
+	Key interface{}
 
 	ProcessLink *ProcessNode
 
@@ -38,9 +44,13 @@ func NewEmptyExecNode() *ExecNode {
 	return &ExecNode{}
 }
 
-func NewExecNodeFromEvent(event *model.Event) *ExecNode {
+func NewExecNodeFromEvent(event *model.Event, key interface{}) *ExecNode {
+	if key == nil {
+		key = rand.Uint64()
+	}
 	exec := NewEmptyExecNode()
 	exec.Process = event.ProcessContext.Process
+	exec.Key = key
 	return exec
 }
 
