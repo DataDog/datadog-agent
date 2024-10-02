@@ -91,7 +91,9 @@ type ResourceName string
 
 // Resources name
 const (
-	ResourceCPU              ResourceName = "cpu"
+	ResourceCPU ResourceName = "cpu"
+	// Kubernetes GPU resource types by vendor as shown below
+	// https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
 	ResourceNvidiaGPU        ResourceName = "nvidia.com/gpu"
 	ResourceAMDGPU           ResourceName = "amd.com/gpu"
 	ResourceIntelGPUi915     ResourceName = "gpu.intel.com/i915"

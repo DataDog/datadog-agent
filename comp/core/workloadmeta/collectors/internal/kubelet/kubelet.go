@@ -399,15 +399,15 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 }
 
 func extractSimpleGPUName(gpuName kubelet.ResourceName) string {
-
 	simpleName := ""
-	if gpuName == kubelet.ResourceNvidiaGPU {
+	switch gpuName {
+	case kubelet.ResourceNvidiaGPU:
 		simpleName = "nvidia"
-	} else if gpuName == kubelet.ResourceAMDGPU {
+	case kubelet.ResourceAMDGPU:
 		simpleName = "amd"
-	} else if gpuName == kubelet.ResourceIntelGPUxe || gpuName == kubelet.ResourceIntelGPUi915 {
+	case kubelet.ResourceIntelGPUxe, kubelet.ResourceIntelGPUi915:
 		simpleName = "intel"
-	} else {
+	default:
 		simpleName = string(gpuName)
 	}
 

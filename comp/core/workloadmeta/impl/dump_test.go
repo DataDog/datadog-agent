@@ -89,6 +89,7 @@ Runtime: docker
 RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
+GPUType: nvidia
 `,
 				},
 			},
@@ -126,11 +127,11 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUType: nvidia
 Hostname: 
 Network IPs: 
 PID: 0
 Cgroup path: 
-GPU Type: nvidia
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -156,11 +157,11 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUType: nvidia
 Hostname: 
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-GPU Type: nvidia
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -186,11 +187,11 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUType: nvidia
 Hostname: 
 Network IPs: 
 PID: 1
 Cgroup path: /default/ctr-id
-GPU Type: nvidia
 `,
 				},
 			},

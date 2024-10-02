@@ -2063,6 +2063,33 @@ func TestHandleContainer(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "gpu tags",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				Resources: workloadmeta.ContainerResources{
+					GPUType: "nvidia",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"kube_gpu_type:nvidia",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -444,6 +444,9 @@ func (cr ContainerResources) String(bool) string {
 	if cr.MemoryLimit != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
 	}
+	if cr.GPUType != "" {
+		_, _ = fmt.Fprintln(&sb, "GPUType:", cr.GPUType)
+	}
 	return sb.String()
 }
 
@@ -587,7 +590,6 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
 		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
-		_, _ = fmt.Fprintln(&sb, "GPU Type:", c.Resources.GPUType)
 	}
 
 	if len(c.Ports) > 0 && verbose {
