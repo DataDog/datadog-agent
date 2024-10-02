@@ -635,6 +635,14 @@ func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.H
 		)
 		telemetryMap[key] = histogram
 	}
+	switch t := histogram.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when histogram was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Histogram:
+		// Correct type, proceed
+	}
 	return histogram.(telemetry.Histogram)
 }
 
@@ -653,6 +661,14 @@ func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Cou
 			telemetry.DefaultOptions,
 		)
 		telemetryMap[key] = counter
+	}
+	switch t := counter.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when counter was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Counter:
+		// Correct type, proceed
 	}
 	return counter.(telemetry.Counter)
 }
@@ -673,6 +689,14 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 		)
 		telemetryMap[key] = gauge
 	}
+	switch t := gauge.(type) {
+	default:
+		// Somehow the same metric was emitted with a different type
+		log.Errorf("EmitAgentTelemetry: metric %s for check %s was emitted with a different type %s when gauge was expected", metricName, checkName, t)
+		return nil
+	case telemetry.Gauge:
+		// Correct type, proceed
+	}
 	return gauge.(telemetry.Gauge)
 }
 
@@ -690,13 +714,19 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.flo
 	switch goMetricType {
 	case "counter":
 		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
-		counter.Add(goMetricValue)
+		if counter != nil {
+			counter.Add(goMetricValue)
+		}
 	case "histogram":
 		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
-		histogram.Observe(goMetricValue)
+		if histogram != nil {
+			histogram.Observe(goMetricValue)
+		}
 	case "gauge":
 		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
-		gauge.Add(goMetricValue)
+		if gauge != nil {
+			gauge.Add(goMetricValue)
+		}
 	default:
 		log.Warnf("EmitAgentTelemetry: unsupported metric type %s requested by %s for %s", goMetricType, goCheckName, goMetricName)
 	}
