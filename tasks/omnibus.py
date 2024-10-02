@@ -397,7 +397,7 @@ def _otool_install_path_replacements(otool_output, install_path):
         dylib_path = otool_line.strip().split(" ")[1]
         if install_path not in dylib_path:
             continue
-        new_dylib_path = dylib_path.replace(install_path, "@rpath")
+        new_dylib_path = dylib_path.replace(f"{install_path}/embedded/lib", "@rpath")
         yield dylib_path, new_dylib_path
 
 
