@@ -17,11 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// ExecNode defines an exec
 type ExecNode struct {
 	sync.Mutex
 	model.Process
 
-	// represent the key used to retrieve the exec from the cache
+	// Key represents the key used to retrieve the exec from the cache
 	// if the owner is able to define a key we use it, otherwise we'll put
 	// a random generated uint64 cookie
 	Key interface{}
@@ -38,12 +39,14 @@ type ExecNode struct {
 	// Syscalls   []int32
 }
 
-// NewExecNode returns a new ExecNode instance
+// NewEmptyExecNode returns a new empty ExecNode instance
 func NewEmptyExecNode() *ExecNode {
 	// TODO: init maps
 	return &ExecNode{}
 }
 
+// NewExecNodeFromEvent returns a new exec node from a given event, and if any, use
+// the provided key to assign it (otherwise it will choose a random one)
 func NewExecNodeFromEvent(event *model.Event, key interface{}) *ExecNode {
 	if key == nil {
 		key = rand.Uint64()
@@ -54,6 +57,8 @@ func NewExecNodeFromEvent(event *model.Event, key interface{}) *ExecNode {
 	return exec
 }
 
+// Insert will inserts the given event to the exec node, returns true if an entry were inserted
+// nolint: all
 func (e *ExecNode) Insert(event *model.Event, imageTag string) (newEntryAdded bool, err error) {
 	e.Lock()
 	defer e.Unlock()
@@ -62,7 +67,7 @@ func (e *ExecNode) Insert(event *model.Event, imageTag string) (newEntryAdded bo
 	return false, nil
 }
 
-// debug prints out recursively content of each node
+// Debug prints out recursively content of each node
 func (e *ExecNode) Debug(w io.Writer, prefix string) {
 	e.Lock()
 	defer e.Unlock()
@@ -81,8 +86,9 @@ func (e *ExecNode) Debug(w io.Writer, prefix string) {
 	// TODO: rest of events
 }
 
-// scrub args/envs
-func (pl *ExecNode) Scrub() error {
+// Scrub scrubs args and envs
+// nolint: all
+func (e *ExecNode) Scrub() error {
 	// TODO
 	return nil
 }

@@ -30,10 +30,11 @@ type ProcessNodeIface interface {
 	GetChildren() *[]*ProcessNode
 	GetCurrentSiblings() *[]*ProcessNode
 	AppendChild(child *ProcessNode, currentParent bool)
-	UnlinkChild(owner ProcessListOwner, child *ProcessNode) bool
+	UnlinkChild(owner Owner, child *ProcessNode) bool
 }
 
-type ProcessListOwner interface {
+// Owner defines the interface to implement prior to use ProcessList
+type Owner interface {
 	// is valid root node
 	IsAValidRootNode(event *model.Process) bool
 
@@ -54,6 +55,7 @@ type ProcessListOwner interface {
 	GetParentProcessCacheKey(event *model.Event) interface{}
 }
 
+// ProcessStats stores stats
 type ProcessStats struct {
 	// Total metric since startup
 	TotalProcessNodes int64
@@ -63,7 +65,7 @@ type ProcessStats struct {
 	// TotalSocketNodes  int64
 	// TotalIMDSNodes    int64
 
-	// Curent number of nodes per type
+	// Current number of nodes per type
 	CurrentProcessNodes int64
 	CurrentExecNodes    int64
 	// CurrentFileNodes    int64
@@ -72,24 +74,25 @@ type ProcessStats struct {
 	// CurrentIMDSNodes    int64
 }
 
-func (ps *ProcessStats) IncExec() {
+func (ps *ProcessStats) incExec() {
 	ps.TotalExecNodes++
 	ps.CurrentExecNodes++
 }
 
-func (ps *ProcessStats) IncProcess() {
+func (ps *ProcessStats) incProcess() {
 	ps.TotalProcessNodes++
 	ps.CurrentProcessNodes++
 }
 
-func (ps *ProcessStats) DecExec() {
+func (ps *ProcessStats) decExec() {
 	ps.CurrentExecNodes--
 }
 
-func (ps *ProcessStats) DecProcess() {
+func (ps *ProcessStats) decProcess() {
 	ps.CurrentProcessNodes--
 }
 
+// ProcessList defines a process graph/cache of processes and their related execs
 type ProcessList struct {
 	sync.Mutex
 
@@ -105,7 +108,7 @@ type ProcessList struct {
 	// /!\ QUESTION: we could want to save other event types to the process resolver too, WDYT?
 	validEventTypes []model.EventType // min: exec, plus dns, files, dns etc
 
-	owner ProcessListOwner
+	owner Owner
 
 	// internals
 	Stats        ProcessStats
@@ -120,7 +123,8 @@ type ProcessList struct {
 	rootNodes []*ProcessNode
 }
 
-func NewProcessList(selector cgroupModel.WorkloadSelector, validEventTypes []model.EventType, owner ProcessListOwner,
+// NewProcessList returns a new process list
+func NewProcessList(selector cgroupModel.WorkloadSelector, validEventTypes []model.EventType, owner Owner,
 	/* resolvers *resolvers,  */ statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber) *ProcessList {
 	execCache := make(map[interface{}]*ExecNode)
 	processCache := make(map[interface{}]*ProcessNode)
@@ -136,7 +140,9 @@ func NewProcessList(selector cgroupModel.WorkloadSelector, validEventTypes []mod
 	}
 }
 
-func NewProcessListFromFile(owner ProcessListOwner /* , resolvers *resolvers */) (*ProcessList, error) {
+// NewProcessListFromFile returns a new process list from a file
+// nolint: all
+func NewProcessListFromFile(owner Owner /* , resolvers *resolvers */) (*ProcessList, error) {
 	// TODO
 	return nil, nil
 }
@@ -172,7 +178,7 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 	return true, nil
 }
 
-// at least, look at event.Process and can look at event.ContainerContext depending on the selector
+// Insert tries to insert (or delete) the given event ot the process list graph, using cache if possible
 func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, imageTag string) (newEntryAdded bool, err error) {
 	pl.Lock()
 	defer pl.Unlock()
@@ -193,13 +199,13 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 	}
 
 	// Process list take only care of execs
-	exec, new, error := pl.findOrInsertExec(event, insertMissingProcesses, imageTag)
-	if error != nil {
-		return new, error
+	exec, newNode, err := pl.findOrInsertExec(event, insertMissingProcesses, imageTag)
+	if err != nil {
+		return newNode, err
 	}
 
 	if event.GetEventType() == model.ExecEventType || event.GetEventType() == model.ForkEventType {
-		return new, nil
+		return newNode, nil
 	}
 
 	// if we want to insert other event types, give them to the exec:
@@ -217,6 +223,7 @@ func (pl *ProcessList) Insert(event *model.Event, insertMissingProcesses bool, i
 // }
 
 // TODO
+// nolint: all
 func (pl *ProcessList) findOrInsertExec(event *model.Event, insertMissingProcesses bool, imageTag string) (exec *ExecNode, newNode bool, err error) {
 	// check if we already have the exec cached
 	execKey := pl.owner.GetExecCacheKey(&event.ProcessContext.Process)
@@ -267,6 +274,7 @@ func (pl *ProcessList) findOrInsertExec(event *model.Event, insertMissingProcess
 	return nil, false, nil
 }
 
+// GetCacheExec retrieve the cached exec matching the given key
 func (pl *ProcessList) GetCacheExec(key interface{}) *ExecNode {
 	pl.Lock()
 	defer pl.Unlock()
@@ -277,6 +285,7 @@ func (pl *ProcessList) GetCacheExec(key interface{}) *ExecNode {
 	return nil
 }
 
+// GetCacheProcess retrieve the cached process matching the given key
 func (pl *ProcessList) GetCacheProcess(key interface{}) *ProcessNode {
 	pl.Lock()
 	defer pl.Unlock()
@@ -287,14 +296,17 @@ func (pl *ProcessList) GetCacheProcess(key interface{}) *ProcessNode {
 	return nil
 }
 
+// GetExecCacheSize returns the exec cache size
 func (pl *ProcessList) GetExecCacheSize() int {
 	return len(pl.execCache)
 }
 
+// GetProcessCacheSize returns the process cache size
 func (pl *ProcessList) GetProcessCacheSize() int {
 	return len(pl.processCache)
 }
 
+// nolint: all
 func (pl *ProcessList) Contains(event *model.Event, insertMissingProcesses bool, imageTag string) (newEntryAdded bool, err error) {
 	pl.Lock()
 	defer pl.Unlock()
@@ -322,7 +334,9 @@ func (pl *ProcessList) unlinkIfNoMoreImageTags(process *ProcessNode) bool {
 	return false
 }
 
-func (pl *ProcessList) deleteProcess(process *ProcessNode, imageTag string) (entryDeleted bool, err error) {
+// TODO: delete if not useful
+// nolint: unused
+func (pl *ProcessList) deleteProcess(process *ProcessNode, imageTag string) (entryDeleted bool) {
 	// remove imageTag from the list
 	process.ImageTags = slices.DeleteFunc(process.ImageTags, func(tag string) bool {
 		return tag == imageTag
@@ -332,12 +346,12 @@ func (pl *ProcessList) deleteProcess(process *ProcessNode, imageTag string) (ent
 	children := process.GetChildren()
 	if children != nil {
 		for _, child := range *children {
-			pl.deleteProcess(child, imageTag)
+			_ = pl.deleteProcess(child, imageTag)
 		}
 	}
 
 	// if there is no more versions for this node, unlink it from its parent(s)
-	return pl.unlinkIfNoMoreImageTags(process), nil
+	return pl.unlinkIfNoMoreImageTags(process)
 }
 
 func (pl *ProcessList) deleteCachedProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
@@ -361,7 +375,9 @@ func (pl *ProcessList) deleteCachedProcess(key interface{}, imageTag string) (en
 	if children != nil {
 		for _, child := range *children {
 			childkey := pl.owner.GetProcessCacheKey(&child.CurrentExec.Process)
-			pl.deleteCachedProcess(childkey, imageTag)
+			if _, err := pl.deleteCachedProcess(childkey, imageTag); err != nil {
+				return false, err
+			}
 		}
 	}
 
@@ -369,6 +385,7 @@ func (pl *ProcessList) deleteCachedProcess(key interface{}, imageTag string) (en
 	return pl.unlinkIfNoMoreImageTags(process), nil
 }
 
+// DeleteCachedProcess deletes the process matching the provided key, and all its children
 func (pl *ProcessList) DeleteCachedProcess(key interface{}, imageTag string) (entryDeleted bool, err error) {
 	pl.Lock()
 	defer pl.Unlock()
@@ -376,14 +393,17 @@ func (pl *ProcessList) DeleteCachedProcess(key interface{}, imageTag string) (en
 	return pl.deleteCachedProcess(key, imageTag)
 }
 
+// GetCurrentParent returns nil (process list don't have parent)
 func (pl *ProcessList) GetCurrentParent() ProcessNodeIface {
 	return nil
 }
 
+// GetPossibleParents returns nil (process list don't have parent)
 func (pl *ProcessList) GetPossibleParents() []ProcessNodeIface {
 	return nil
 }
 
+// GetChildren returns the root nodes
 func (pl *ProcessList) GetChildren() *[]*ProcessNode {
 	pl.Lock()
 	defer pl.Unlock()
@@ -394,6 +414,7 @@ func (pl *ProcessList) GetChildren() *[]*ProcessNode {
 	return &pl.rootNodes
 }
 
+// GetCurrentSiblings returns nil (process list don't have siblings)
 func (pl *ProcessList) GetCurrentSiblings() *[]*ProcessNode {
 	return nil
 }
@@ -402,7 +423,7 @@ func (pl *ProcessList) addExecToCache(exec *ExecNode) {
 	pl.execCache[exec.Key] = exec
 
 	// inc stat
-	pl.Stats.IncExec()
+	pl.Stats.incExec()
 }
 
 func (pl *ProcessList) removeExecFromCache(exec *ExecNode) {
@@ -412,7 +433,7 @@ func (pl *ProcessList) removeExecFromCache(exec *ExecNode) {
 	}
 
 	// dec stat
-	pl.Stats.DecExec()
+	pl.Stats.decExec()
 }
 
 func (pl *ProcessList) addProcessToCache(node *ProcessNode) {
@@ -425,7 +446,7 @@ func (pl *ProcessList) addProcessToCache(node *ProcessNode) {
 	pl.processCache[node.Key] = node
 
 	// inc stat
-	pl.Stats.IncProcess()
+	pl.Stats.incProcess()
 }
 
 func (pl *ProcessList) removeProcessFromCache(node *ProcessNode) {
@@ -441,7 +462,7 @@ func (pl *ProcessList) removeProcessFromCache(node *ProcessNode) {
 	}
 
 	// dec stat
-	pl.Stats.DecProcess()
+	pl.Stats.decProcess()
 }
 
 func (pl *ProcessList) appendChild(node *ProcessNode, currentParrent bool) {
@@ -475,7 +496,7 @@ func (pl *ProcessList) unlinkChild(child *ProcessNode) bool {
 }
 
 // UnlinkChild unlinks a root node
-func (pl *ProcessList) UnlinkChild(owner ProcessListOwner, child *ProcessNode) bool {
+func (pl *ProcessList) UnlinkChild(_ Owner, child *ProcessNode) bool {
 	pl.Lock()
 	defer pl.Unlock()
 
@@ -483,26 +504,31 @@ func (pl *ProcessList) UnlinkChild(owner ProcessListOwner, child *ProcessNode) b
 }
 
 // marshall and save processes to the given file
+// nolint: all
 func (pl *ProcessList) SaveToFile(filePath, format string) error {
 	// TODO
 	return nil
 }
 
+// nolint: all
 func (pl *ProcessList) ToJSON() ([]byte, error) {
 	// TODO
 	return nil, nil
 }
 
+// nolint: all
 func (pl *ProcessList) ToDOT() ([]byte, error) {
 	// TODO
 	return nil, nil
 }
 
+// nolint: all
 func (pl *ProcessList) MatchesSelector(event *model.Event) bool {
 	// TODO
 	return true
 }
 
+// Walk walks recursively the process nodes
 func (pl *ProcessList) Walk(f func(node *ProcessNode) (stop bool)) (stop bool) {
 	pl.Lock()
 	defer pl.Unlock()
@@ -520,7 +546,7 @@ func (pl *ProcessList) Walk(f func(node *ProcessNode) (stop bool)) (stop bool) {
 	return stop
 }
 
-// debug prints out recursively content of each node
+// Debug prints out recursively content of each node
 func (pl *ProcessList) Debug(w io.Writer) {
 	pl.Lock()
 	defer pl.Unlock()
