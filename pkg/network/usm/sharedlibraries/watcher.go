@@ -69,8 +69,8 @@ type Watcher struct {
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := NewEBPFProgram(&cfg.Config)
+func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := NewEBPFProgram(&cfg.Config, libset)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
