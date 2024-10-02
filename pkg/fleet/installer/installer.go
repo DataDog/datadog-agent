@@ -60,6 +60,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
+	ListSSIProcesses(ctx context.Context) error
 	GarbageCollect(ctx context.Context) error
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
@@ -345,6 +346,18 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
 	return nil
+}
+
+// ListSSIProcesses prints a table with the list of running processes using
+// Single Step Instrumentation
+func (i *installerImpl) ListSSIProcesses(_ context.Context) error {
+	processes, err := repository.ListSsiProcesses()
+	if err != nil {
+		return err
+	}
+	table := repository.FormatInjectedProcesses(processes)
+	_, err = fmt.Print(table)
+	return err
 }
 
 // GarbageCollect removes unused packages.

@@ -115,6 +115,13 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// ListSSIProcesses prints a list of processes running that are instrumented by SSI
+func (i *InstallerExec) ListSSIProcesses(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "list-ssi-processes")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // InstrumentAPMInjector instruments the APM auto-injector.
 func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "apm instrument", method)

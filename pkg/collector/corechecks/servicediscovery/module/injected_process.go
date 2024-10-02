@@ -10,9 +10,15 @@ package module
 // InjectedProcess represents the data injected by the auto-injector into the
 // process.
 type InjectedProcess struct {
-	LocalHostname   string   `msgp:"local_hostname"`
-	InjectedEnv     [][]byte `msgp:"injected_envs"`
-	LanguageName    string   `msgp:"language_name"`
-	TracerVersion   string   `msgp:"tracer_version"`
-	InjectorVersion string   `msgp:"injector_version"`
+	LocalHostname      string   `msgp:"local_hostname"`
+	InjectedEnv        [][]byte `msgp:"injected_envs"`
+	LanguageName       string   `msgp:"language_name"`
+	TracerVersion      string   `msgp:"tracer_version"`
+	InjectorVersion    string   `msgp:"injector_version"`
+	LanguageVersion    string   `msgp:"language_version"`
+	RuntimeName        string   `msgp:"runtime_name"`
+	RuntimeVersion     string   `msgp:"runtime_version"`
+	InjectionCompleted bool     `msgp:"injection_completed"`
+	InjectionStatus    string   `msgp:"injection_status"`
+	Reason             string   `msgp:"reason"`
 }
