@@ -552,35 +552,6 @@ func (c *ntmConfig) UnmarshalExact(rawVal interface{}) error {
 	return c.logErrorNotImplemented("UnmarshalExact")
 }
 
-// ReadInConfig wraps Viper for concurrent access
-func (c *ntmConfig) ReadInConfig() error {
-	c.Lock()
-	defer c.Unlock()
-	// ReadInConfig reset configuration with the main config file
-	err := c.readInConfig()
-	if err != nil {
-		return err
-	}
-
-	type extraConf struct {
-		path    string
-		content []byte
-	}
-
-	// Read extra config files
-	// TODO: handle c.extraConfigFilePaths, read and merge files
-	return nil
-}
-
-func (c *ntmConfig) readInConfig() error {
-	return c.logErrorNotImplemented("readInConfig")
-}
-
-// ReadConfig wraps Viper for concurrent access
-func (c *ntmConfig) ReadConfig(in io.Reader) error {
-	return c.logErrorNotImplemented("ReadConfig")
-}
-
 // MergeConfig wraps Viper for concurrent access
 func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
