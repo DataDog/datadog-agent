@@ -50,7 +50,12 @@ if sys.platform == "win32":
     # This dir contains `aws.rb` which will execute if we just call `aws`,
     # so we need to be explicit about the executable extension/path
     # awscli v1 from Python env
-    AWS_CMD = "aws.cmd"
+    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
+    #       causes it to fail due to not searching the PATH, so we use shutil.which to looku
+    #       the full path.
+    #       If we remove the user provided awscli args from our invoke tasks
+    #       we could just use `aws.cmd` here and then remove the qoutes from the `ctx.run` calls.
+    AWS_CMD = shutil.which("aws.cmd") or "aws.cmd"
     # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
 else:
     AWS_CMD = "aws"
