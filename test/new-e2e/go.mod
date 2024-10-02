@@ -9,18 +9,36 @@ toolchain go1.22.6
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/datadog-agent/comp/api/def => ../../comp/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../comp/core/tagger/utils
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/tagger => ../../pkg/util/tagger
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
 	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
 )
@@ -283,7 +301,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.2 // indirect
