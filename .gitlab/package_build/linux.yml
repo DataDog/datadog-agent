@@ -27,6 +27,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    JEMALLOC_FORCE_BUILD: 1
   artifacts:
     expire_in: 2 weeks
     paths:
