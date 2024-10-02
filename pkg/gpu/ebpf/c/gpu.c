@@ -31,11 +31,21 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
 SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
     cuda_kernel_launch_t launch_data;
+    long read_ret = 0;
     __u64 shared_mem = 0;
     __u64 stream = 0;
 
-    shared_mem = PT_REGS_USER_PARM7(ctx);
-    stream = PT_REGS_USER_PARM8(ctx);
+    shared_mem = PT_REGS_USER_PARM7(ctx, read_ret);
+    if (read_ret != 0) {
+        log_debug("cudaLaunchKernel: failed to read shared_mem");
+        return 0;
+    }
+
+    stream = PT_REGS_USER_PARM8(ctx, read_ret);
+    if (read_ret != 0) {
+        log_debug("cudaLaunchKernel: failed to read stream");
+        return 0;
+    }
 
     bpf_memset(&launch_data, 0, sizeof(launch_data));
 
