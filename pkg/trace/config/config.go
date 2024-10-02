@@ -119,7 +119,7 @@ type ObfuscationConfig struct {
 
 func obfuscationMode(enabled bool) obfuscate.ObfuscationMode {
 	if enabled {
-		return "obfuscation_only"
+		return obfuscate.ObfuscateOnly
 	}
 	return ""
 }
