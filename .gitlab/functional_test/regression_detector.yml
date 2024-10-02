@@ -138,8 +138,11 @@ single-machine-performance-regression_detector:
     # because JSON does not permit (raw) newlines in strings. We use the "-z"
     # option with `sed` because that option treats its input as
     # NUL-character-separated (i.e., '\0'-separated, the zero-byte character),
-    # so `sed` does not interpret its input as newline-delimited.
-    - cat outputs/report.md | sed -z 's/\n/\\n/g' > report_as_json_string.txt
+    # so `sed` does not interpret its input as newline-delimited. We also need
+    # escape double quotes to distinguish literal quotes in the report from the
+    # double quotes that delimit the value of the "message" field in the
+    # payload.
+    - cat outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\"/g' > report_as_json_string.txt
     - cat report_as_json_string.txt
     # Transforming the Markdown report to a valid JSON string is easy to foul
     # up, so to make debugging easier, we store the payload in a variable to
