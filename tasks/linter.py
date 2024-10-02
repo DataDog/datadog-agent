@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 from glob import glob
 
+import yaml
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
@@ -14,10 +15,14 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    CONFIG_SPECIAL_JOBS,
+    MultiGitlabCIDiff,
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_preset_contexts,
+    get_special_jobs,
+    is_leaf_job,
     load_context,
     read_includes,
     retrieve_all_paths,
@@ -443,6 +448,61 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                     test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
             else:
                 test_gitlab_configuration(ctx, entry_point, input_config)
+
+
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+    """
+    Verifies that each added / modified job contains `needs` and also `rules`.
+
+    It is possible to declare a job not following these rules within `.special-jobs.yml`.
+
+    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+
+    - diff_file: Path to the diff file to build MultiGitlabCIDiff
+    """
+
+    # Load all the jobs from the files
+    if config_file:
+        with open(config_file) as f:
+            conf = yaml.safe_load(f)
+            jobs = []
+            main_config = conf[".gitlab-ci.yml"]
+            for file_jobs in conf.values():
+                for job_name, job_contents in file_jobs.items():
+                    if is_leaf_job(job_name, job_contents):
+                        jobs.append((job_name, job_contents))
+    else:
+        with open(diff_file) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+            jobs = [
+                (job, contents)
+                for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
+                if is_leaf_job(job, contents)
+            ]
+            main_config = diff.after
+
+    all_stages = set(main_config.get("stages", []))
+    error_msg, exception_jobs, exception_stages = get_special_jobs(jobs, all_stages=all_stages, lint=True)
+
+    # Verify the jobs
+    error_jobs = []
+    for job, contents in jobs:
+        to_ignore = job in exception_jobs or contents['stage'] in exception_stages
+        if to_ignore:
+            continue
+
+        if "needs" not in contents or "rules" not in contents:
+            error_jobs.append(job)
+
+    if error_jobs:
+        error_jobs = sorted(error_jobs)
+        error_jobs = '\n'.join(f'- {job}' for job in error_jobs)
+
+        error_msg += f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {CONFIG_SPECIAL_JOBS}\n"
+
+    if error_msg:
+        raise Exit(error_msg.strip(), code=1)
 
 
 @task

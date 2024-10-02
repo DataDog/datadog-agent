@@ -1,0 +1,8 @@
+---
+# TODO: Find a better name
+stages:
+  - notify
+  - wowidonotexist
+
+jobs:
+  - myjob...

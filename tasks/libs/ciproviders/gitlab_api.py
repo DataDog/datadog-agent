@@ -30,6 +30,8 @@ CONFIG_SPECIAL_OBJECTS = {
     "variables",
     "workflow",
 }
+# This file is used to set exceptions for jobs that do not require needs or rules
+CONFIG_SPECIAL_JOBS = ".special-jobs.yml"
 
 
 def get_gitlab_token():
@@ -381,7 +383,7 @@ class GitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=True, modified=True, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False):
         """
         Will iterate over all jobs in all files for the given states
 
@@ -528,7 +530,7 @@ class MultiGitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=True, modified=True, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False):
         """
         Will iterate over all jobs in all files for the given states
 
@@ -610,6 +612,14 @@ def clean_gitlab_ci_configuration(yml):
     return flatten(yml)
 
 
+def is_leaf_job(job_name, job_contents):
+    """
+    A 'leaf' job is a job that will be executed by gitlab-ci, that is a job that is not meant to be only extended (usually jobs starting with '.') or special gitlab objects (variables, stages...)
+    """
+
+    return not job_name.startswith('.') and ('script' in job_contents or 'trigger' in job_contents)
+
+
 def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
     """
     Filters gitlab-ci configuration jobs
@@ -620,7 +630,7 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_speci
 
     def filter_yaml(key, value):
         # Not a job
-        if key.startswith('.') or 'script' not in value and 'trigger' not in value:
+        if not is_leaf_job(key, value):
             # Exception for special objects if this option is enabled
             if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
                 return None
@@ -1185,3 +1195,33 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 
     return before_config, after_config, diff
+
+
+def get_special_jobs(jobs, all_stages=None, lint=False):
+    """
+    Parses the special jobs file and lints it.
+    """
+
+    with open(CONFIG_SPECIAL_JOBS) as f:
+        exceptions = yaml.safe_load(f)
+
+    error_msg = ''
+    exception_jobs = set(exceptions.get("jobs", []))
+    exception_stages = set(exceptions.get("stages", []))
+
+    if lint:
+        all_jobs = {job for job, _ in jobs}
+
+        # Verify the special jobs file
+        error_exception_jobs = [job for job in exception_jobs if job not in all_jobs]
+        error_exception_stages = [stage for stage in exception_stages if stage not in all_stages]
+
+        if error_exception_jobs:
+            error_exception_jobs = '\n'.join(f'- {job}' for job in error_exception_jobs)
+            error_msg += f"{color_message('Error', Color.RED)}: The {CONFIG_SPECIAL_JOBS} file contains jobs that are not present in the configuration:\n{error_exception_jobs}\n"
+
+        if error_exception_stages:
+            error_exception_stages = '\n'.join(f'- {stage}' for stage in error_exception_stages)
+            error_msg += f"{color_message('Error', Color.RED)}: The {CONFIG_SPECIAL_JOBS} file contains stages that are not present in the configuration:\n{error_exception_stages}\n"
+
+    return error_msg, exception_jobs, exception_stages
