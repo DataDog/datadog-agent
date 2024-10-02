@@ -16,10 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type iaEKSTestSuite struct {
+type iaEKSTestSuite14 struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
@@ -30,8 +31,9 @@ datadog:
     containerCollectAll: false
     containerCollectUsingFiles: false
 `
+
 	t.Parallel()
-	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+	e2e.Run(t, &iaEKSTestSuite14{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 
 var eksParams = utils.IAParams{
@@ -40,27 +42,27 @@ var eksParams = utils.IAParams{
 	Cardinality:     types.HighCardinality,
 }
 
-func (s *iaEKSTestSuite) SetupSuite() {
+func (s *iaEKSTestSuite14) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	utils.TestCalendarApp(s)
 }
 
-func (s *iaEKSTestSuite) TestOTLPTraces() {
+func (s *iaEKSTestSuite14) TestOTLPTraces() {
 	utils.TestTraces(s, eksParams)
 }
 
-func (s *iaEKSTestSuite) TestOTLPMetrics() {
+func (s *iaEKSTestSuite14) TestOTLPMetrics() {
 	utils.TestMetrics(s, eksParams)
 }
 
-func (s *iaEKSTestSuite) TestOTLPLogs() {
+func (s *iaEKSTestSuite14) TestOTLPLogs() {
 	utils.TestLogs(s, eksParams)
 }
 
-func (s *iaEKSTestSuite) TestHosts() {
+func (s *iaEKSTestSuite14) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaEKSTestSuite) TestPrometheusMetrics() {
+func (s *iaEKSTestSuite14) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
 }
