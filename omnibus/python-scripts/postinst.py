@@ -18,23 +18,20 @@ def main():
         if os.path.exists(install_directory):
             postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(install_directory)
             packages.create_python_installed_packages_file(postinst_python_installed_packages_file)
-            env_var = 'INSTALL_PYTHON_THIRD_PARTY_DEPS'
-            if env_var in os.environ:
-                env_var_value = os.environ[env_var].lower() in ['true', '1', 't', 'yes', 'y']
-                if env_var_value:
-                    diff_python_installed_packages_file = packages.diff_python_installed_packages_file(install_directory)
-                    if os.path.exists(diff_python_installed_packages_file):
-                        requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
-                        packages.install_diff_packages_file(f"{install_directory}/embedded/bin/pip", diff_python_installed_packages_file, requirements_agent_release_file)
-                        packages.cleanup_files(diff_python_installed_packages_file)
-                    else:
-                        print(f"File {diff_python_installed_packages_file} does not exist.")
+            flag_path = f"{install_directory}/.install_python_third_party_deps"
+            if os.path.exists(flag_path):
+                print(f"File '{flag_path}' found")
+                diff_python_installed_packages_file = packages.diff_python_installed_packages_file(install_directory)
+                if os.path.exists(diff_python_installed_packages_file):
+                    requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
+                    packages.install_diff_packages_file(f"{install_directory}/embedded/bin/pip", diff_python_installed_packages_file, requirements_agent_release_file)
+                    packages.cleanup_files(diff_python_installed_packages_file)
                 else:
-                    print(f"{env_var} is set to: {env_var_value}")
+                    print(f"File '{diff_python_installed_packages_file}' not found.")
             else:
-                print(f"{env_var} is not set.")
+                print(f"File '{flag_path}' not found: no third party integration will be installed.")
         else:
-            print(f"Directory {install_directory} does not exist.")
+            print(f"Directory '{install_directory}' not found.")
     except Exception as e:
         print(f"Error: {e}")
 
