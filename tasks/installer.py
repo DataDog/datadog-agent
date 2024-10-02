@@ -19,6 +19,7 @@ MAJOR_VERSION = '7'
 @task
 def build(
     ctx,
+    output_bin=None,
     bootstraper=False,
     rebuild=False,
     race=False,
@@ -55,10 +56,13 @@ def build(
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
+
     installer_bin_name = "installer"
     if bootstraper:
         installer_bin_name = "bootstraper"
     installer_bin = os.path.join(BIN_PATH, bin_name(installer_bin_name))
+    if output_bin:
+        installer_bin = output_bin
 
     if no_cgo:
         env["CGO_ENABLED"] = "0"
