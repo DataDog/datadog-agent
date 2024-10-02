@@ -19,6 +19,14 @@ func (os defaulObjectStore[T]) Get(entityID types.EntityID) (object T, found boo
 	return obj, found
 }
 
+// GetWithEntityIDStr implements ObjectStore#GetWithEntityIDStr
+func (os defaulObjectStore[T]) GetWithEntityIDStr(id string) (object T, found bool) {
+	// This store is only meant to be used with IDs of type "defaultEntityID"
+	// that's why we can call "NewDefaultEntityIDFromStr"
+	obj, found := os[types.NewDefaultEntityIDFromStr(id)]
+	return obj, found
+}
+
 // Set implements ObjectStore#Set
 func (os defaulObjectStore[T]) Set(entityID types.EntityID, object T) {
 	os[entityID] = object
