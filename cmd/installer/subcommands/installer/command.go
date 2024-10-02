@@ -46,6 +46,11 @@ const (
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 )
 
+// BootstrapCommand returns the bootstrap command.
+func BootstrapCommand() *cobra.Command {
+	return bootstrapCommand()
+}
+
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
@@ -161,7 +166,6 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 
 func newTelemetry(env *env.Env) *telemetry.Telemetry {
 	if env.APIKey == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
 	t, err := telemetry.NewTelemetry(env, "datadog-installer")

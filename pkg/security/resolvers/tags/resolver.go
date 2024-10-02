@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
@@ -72,6 +73,12 @@ func (t *DefaultResolver) Start(ctx context.Context) error {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id string) []string {
+	// container id for ecs task are composed of task id + container id.
+	// use only the container id part for the tag resolution.
+	if els := strings.Split(id, "-"); len(els) == 2 {
+		id = els[1]
+	}
+
 	entityID := types.NewEntityID(types.ContainerID, id)
 	tags, _ := t.tagger.Tag(entityID.String(), types.OrchestratorCardinality)
 	return tags

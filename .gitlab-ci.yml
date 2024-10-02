@@ -1,7 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/test_gitlab_configuration.yml
+  - .gitlab/.pre/gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -263,6 +263,7 @@ variables:
   AGENT_GITHUB_APP: agent-github-app
   MACOS_GITHUB_APP_1: macos-github-app-one
   MACOS_GITHUB_APP_2: macos-github-app-two
+  DOCKER_REGISTRY_RO: dockerhub-readonly
 
   DD_PKG_VERSION: "latest"
 
