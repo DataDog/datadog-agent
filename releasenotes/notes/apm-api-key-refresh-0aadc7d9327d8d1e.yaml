@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    APM: Enable API Key refreshes from Secrets Management on trace-agent.
+    APM: Enable API key refreshes from secrets management on trace-agent.
