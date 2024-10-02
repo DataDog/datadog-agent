@@ -758,7 +758,7 @@ func TestSQLQuantizer(t *testing.T) {
 	cases := []sqlTestCase{
 		{
 			`SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = $? AND "table"."thirdfield" = $?;`,
-			`SELECT "table"."field" FROM "table" WHERE "table"."otherfield" = ? AND "table"."thirdfield" = ?;`,
+			`SELECT table . field FROM table WHERE table . otherfield = ? AND table . thirdfield = ?`,
 		},
 		{
 			"select * from users where id = 42",
