@@ -9,6 +9,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -28,7 +30,8 @@ import (
 )
 
 const (
-	service              = "telemetrygen-job"
+	calendarService      = "calendar-rest-go"
+	telemetrygenService  = "telemetrygen-job"
 	env                  = "e2e"
 	version              = "1.0"
 	customAttribute      = "custom.attribute"
@@ -41,15 +44,22 @@ type OTelTestSuite interface {
 	Env() *environments.Kubernetes
 }
 
+// IAParams contains options for different infra attribute testing scenarios
+type IAParams struct {
+	// InfraAttributes indicates whether this test should check for infra attributes
+	InfraAttributes bool
+
+	// EKS indicates if this test should check for EKS specific properties
+	EKS bool
+
+	// Cardinality represents the tag cardinality used by this test
+	Cardinality types.TagCardinality
+}
+
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
-func TestTraces(s OTelTestSuite, infraAttributes bool) {
-	ctx := context.Background()
+func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	numTraces := 10
-
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTraces)})
 
 	var traces []*aggregator.TracePayload
 	s.T().Log("Waiting for traces")
@@ -62,93 +72,57 @@ func TestTraces(s OTelTestSuite, infraAttributes bool) {
 		tp := trace.TracerPayloads[0]
 		assert.NotEmpty(s.T(), tp.Chunks)
 		assert.NotEmpty(s.T(), tp.Chunks[0].Spans)
-		assert.Equal(s.T(), service, tp.Chunks[0].Spans[0].Service)
-		if infraAttributes {
+		assert.Equal(s.T(), calendarService, tp.Chunks[0].Spans[0].Service)
+		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
 			assert.True(s.T(), ok)
 			assert.NotNil(s.T(), ctags["kube_ownerref_kind"])
 		}
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
-	s.T().Log("Got traces", traces)
-	s.T().Log("num traces", len(traces))
-	trace := traces[0]
-	require.NotEmpty(s.T(), trace.TracerPayloads)
+	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := trace.TracerPayloads[0]
-	ctags, ok := getContainerTags(s.T(), tp)
-	require.True(s.T(), ok)
+	tp := traces[0].TracerPayloads[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), service, sp.Service)
+		assert.Equal(s.T(), calendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
 		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
 		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
-
-		// Verify container tags from infraattributes processor
-		assert.NotNil(s.T(), ctags["kube_container_name"])
-		assert.NotNil(s.T(), ctags["kube_namespace"])
-		assert.NotNil(s.T(), ctags["pod_name"])
+		ctags, ok := getContainerTags(s.T(), tp)
+		assert.True(s.T(), ok)
 		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
 		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
 		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
-	}
-	TestAPMStats(s, numTraces)
-}
 
-// TestAPMStats checks that APM stats are received with the correct number of hits per traces given
-func TestAPMStats(s OTelTestSuite, numTraces int) {
-	s.T().Log("Waiting for APM stats")
-	var stats []*aggregator.APMStatsPayload
-	var err error
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		stats, err = s.Env().FakeIntake.Client().GetAPMStats()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, stats)
-		hasStatsForService := false
-		for _, payload := range stats {
-			for _, csp := range payload.StatsPayload.Stats {
-				for _, bucket := range csp.Stats {
-					for _, cgs := range bucket.Stats {
-						if cgs.Service == service {
-							hasStatsForService = true
-							assert.EqualValues(c, cgs.Hits, numTraces)
-							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
-						}
-					}
-				}
-			}
+		// Verify container tags from infraattributes processor
+		if iaParams.InfraAttributes {
+			maps.Copy(ctags, sp.Meta)
+			testInfraTags(s.T(), ctags, iaParams)
 		}
-		assert.True(c, hasStatsForService)
-	}, 2*time.Minute, 10*time.Second)
-	s.T().Log("Got APM stats", stats)
+	}
 }
 
 // TestMetrics tests that OTLP metrics are received through OTel pipelines as expected
-func TestMetrics(s OTelTestSuite, infraAttributes bool) {
-	ctx := context.Background()
+func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	numMetrics := 10
-
-	s.T().Log("Starting telemetrygen")
-	createTelemetrygenJob(ctx, s, "metrics", []string{"--metrics", fmt.Sprint(numMetrics)})
 
 	var metrics []*aggregator.MetricSeries
 	s.T().Log("Waiting for metrics")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		tags := []string{fmt.Sprintf("service:%v", service)}
-		if infraAttributes {
-			tags = append(tags, "kube_ownerref_kind:job")
+		tags := []string{fmt.Sprintf("service:%v", calendarService)}
+		if iaParams.InfraAttributes {
+			tags = append(tags, "kube_ownerref_kind:replicaset")
 		}
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries](tags))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries](tags))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 	}, 5*time.Minute, 10*time.Second)
@@ -156,19 +130,13 @@ func TestMetrics(s OTelTestSuite, infraAttributes bool) {
 
 	for _, metricSeries := range metrics {
 		tags := getTagMapFromSlice(s.T(), metricSeries.Tags)
-		assert.Equal(s.T(), service, tags["service"])
+		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
-
-		// Verify container tags from infraattributes processor
-		assert.NotNil(s.T(), tags["kube_container_name"])
-		assert.NotNil(s.T(), tags["kube_namespace"])
-		assert.NotNil(s.T(), tags["pod_name"])
 		assert.Equal(s.T(), tags["k8s.container.name"], tags["kube_container_name"])
 		assert.Equal(s.T(), tags["k8s.namespace.name"], tags["kube_namespace"])
 		assert.Equal(s.T(), tags["k8s.pod.name"], tags["pod_name"])
-
 		hasHostResource := false
 		for _, resource := range metricSeries.Resources {
 			if resource.Type == "host" {
@@ -177,68 +145,54 @@ func TestMetrics(s OTelTestSuite, infraAttributes bool) {
 			}
 		}
 		assert.True(s.T(), hasHostResource)
+		// Verify container tags from infraattributes processor
+		testInfraTags(s.T(), tags, iaParams)
 	}
 }
 
 // TestLogs tests that OTLP logs are received through OTel pipelines as expected
-func TestLogs(s OTelTestSuite, infraAttributes bool) {
-	ctx := context.Background()
+func TestLogs(s OTelTestSuite, iaParams IAParams) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	numLogs := 10
-	logBody := "telemetrygen log"
 
-	s.T().Log("Starting telemetrygen")
-	ddtags := fmt.Sprintf("ddtags=\"k8s.namespace.name:$(OTEL_K8S_NAMESPACE),k8s.node.name:$(OTEL_K8S_NODE_NAME),k8s.pod.name:$(OTEL_K8S_POD_NAME),k8s.container.name:telemetrygen-job,%v:%v\"", customAttribute, customAttributeValue)
-	createTelemetrygenJob(ctx, s, "logs", []string{"--logs", fmt.Sprint(numLogs), "--body", logBody, "--telemetry-attributes", ddtags})
-
+	logBody := "random date"
 	var logs []*aggregator.Log
 	s.T().Log("Waiting for logs")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		if infraAttributes {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:job"}))
+		if iaParams.InfraAttributes {
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody), fakeintake.WithTags[*aggregator.Log]([]string{"kube_ownerref_kind:replicaset"}))
 		} else {
-			logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+			logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		}
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 5*time.Minute, 10*time.Second)
-	s.T().Log("Got logs", logs)
+	for _, l := range logs {
+		s.T().Log("Got log", l)
+	}
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
 		assert.Contains(s.T(), log.Message, logBody)
 		tags := getTagMapFromSlice(s.T(), log.Tags)
-		assert.Equal(s.T(), service, tags["service"])
+		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
 		assert.Equal(s.T(), customAttributeValue, tags[customAttribute])
 		assert.Equal(s.T(), tags["k8s.node.name"], log.HostName)
-
-		// Verify container tags from infraattributes processor
-		assert.NotNil(s.T(), tags["kube_container_name"])
-		assert.NotNil(s.T(), tags["kube_namespace"])
-		assert.NotNil(s.T(), tags["pod_name"])
 		assert.Equal(s.T(), tags["k8s.container.name"], tags["kube_container_name"])
 		assert.Equal(s.T(), tags["k8s.namespace.name"], tags["kube_namespace"])
 		assert.Equal(s.T(), tags["k8s.pod.name"], tags["pod_name"])
+		// Verify container tags from infraattributes processor
+		testInfraTags(s.T(), tags, iaParams)
 	}
 }
 
 // TestHosts verifies that OTLP traces, metrics, and logs have consistent hostnames
 func TestHosts(s OTelTestSuite) {
-	ctx := context.Background()
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	numTelemetry := 10
-	logBody := "telemetrygen log"
-
-	s.T().Log("Starting telemetrygen traces")
-	createTelemetrygenJob(ctx, s, "traces", []string{"--traces", fmt.Sprint(numTelemetry)})
-	s.T().Log("Starting telemetrygen metrics")
-	createTelemetrygenJob(ctx, s, "metrics", []string{"--metrics", fmt.Sprint(numTelemetry)})
-	s.T().Log("Starting telemetrygen logs")
-	createTelemetrygenJob(ctx, s, "logs", []string{"--logs", fmt.Sprint(numTelemetry), "--body", logBody})
+	logBody := "random date"
 
 	var traces []*aggregator.TracePayload
 	var metrics []*aggregator.MetricSeries
@@ -249,11 +203,11 @@ func TestHosts(s OTelTestSuite) {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
 
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", service)}))
+		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{fmt.Sprintf("service:%v", calendarService)}))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics)
 
-		logs, err = s.Env().FakeIntake.Client().FilterLogs(service, fakeintake.WithMessageContaining(logBody))
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
 	}, 2*time.Minute, 10*time.Second)
@@ -291,6 +245,34 @@ func TestSampling(s OTelTestSuite) {
 	TestAPMStats(s, numTraces)
 }
 
+// TestAPMStats checks that APM stats are received with the correct number of hits per traces given
+func TestAPMStats(s OTelTestSuite, numTraces int) {
+	s.T().Log("Waiting for APM stats")
+	var stats []*aggregator.APMStatsPayload
+	var err error
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		stats, err = s.Env().FakeIntake.Client().GetAPMStats()
+		assert.NoError(c, err)
+		assert.NotEmpty(c, stats)
+		hasStatsForService := false
+		for _, payload := range stats {
+			for _, csp := range payload.StatsPayload.Stats {
+				for _, bucket := range csp.Stats {
+					for _, cgs := range bucket.Stats {
+						if cgs.Service == telemetrygenService {
+							hasStatsForService = true
+							assert.EqualValues(c, cgs.Hits, numTraces)
+							assert.EqualValues(c, cgs.TopLevelHits, numTraces)
+						}
+					}
+				}
+			}
+		}
+		assert.True(c, hasStatsForService)
+	}, 2*time.Minute, 10*time.Second)
+	s.T().Log("Got APM stats", stats)
+}
+
 // TestPrometheusMetrics tests that expected prometheus metrics are scraped
 func TestPrometheusMetrics(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -316,14 +298,6 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
 
-	if s.Env().Agent == nil {
-		s.T().Log("AGENT NIL")
-	}
-
-	if s.Env().Agent != nil {
-		s.T().Log("LinuxNodeAgent.LabelSelectors", s.Env().Agent.LinuxNodeAgent.LabelSelectors)
-	}
-
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -338,7 +312,7 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 						{
 							Env: []corev1.EnvVar{{
 								Name:  "OTEL_SERVICE_NAME",
-								Value: service,
+								Value: telemetrygenService,
 							}, {
 								Name:      "OTEL_K8S_POD_ID",
 								ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
@@ -380,158 +354,20 @@ func createTelemetrygenJob(ctx context.Context, s OTelTestSuite, telemetry strin
 	require.NoError(s.T(), err, "Could not properly start job")
 }
 
-func createJavaCalendarApp(ctx context.Context, s OTelTestSuite) {
-	var replicas int32 = 1
+// TestCalendarApp tests that OTLP metrics are received through OTel pipelines as expected
+func TestCalendarApp(s OTelTestSuite) {
+	ctx := context.Background()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
 
-	name := fmt.Sprintf("calendar-java-otel-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
-	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
-	serviceSpec := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"helm.sh/chart":                "calendar-java-otel-0.1.0",
-				"app.kubernetes.io/name":       name,
-				"app.kubernetes.io/instance":   name,
-				"app.kubernetes.io/version":    "1.16.0",
-				"app.kubernetes.io/managed-by": "Helm",
-			},
-			Annotations: map[string]string{
-				"openshift.io/deployment.name": "openshift",
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Type: corev1.ServiceTypeClusterIP,
-			Ports: []corev1.ServicePort{
-				{
-					Port: 9090,
-					TargetPort: intstr.IntOrString{
-						StrVal: "http",
-					},
-					Protocol: "TCP",
-					Name:     "http",
-				},
-			},
-			Selector: map[string]string{
-				"app.kubernetes.io/name":     name,
-				"app.kubernetes.io/instance": name,
-			},
-		},
-	}
-	deploymentSpec := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				"helm.sh/chart":                "calendar-java-otel-0.1.0",
-				"app.kubernetes.io/name":       name,
-				"app.kubernetes.io/instance":   name,
-				"app.kubernetes.io/version":    "1.16.0",
-				"app.kubernetes.io/managed-by": "Helm",
-			},
-			Annotations: map[string]string{
-				"openshift.io/deployment.name": "openshift",
-			},
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app.kubernetes.io/name":     name,
-					"app.kubernetes.io/instance": name,
-				},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app.kubernetes.io/name":     name,
-						"app.kubernetes.io/instance": name,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-java-20240826",
-						ImagePullPolicy: "IfNotPresent",
-						Ports: []corev1.ContainerPort{{
-							Name:          "http",
-							ContainerPort: 9090,
-							Protocol:      "TCP",
-						}},
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/calendar",
-									Port: intstr.FromString("http"),
-								},
-							},
-						},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path: "/calendar",
-									Port: intstr.FromString("http"),
-								},
-							},
-						},
-						Env: []corev1.EnvVar{{
-							Name:  "OTEL_SERVICE_NAME",
-							Value: "calendar-java-otel",
-						}, {
-							Name:  "OTEL_CONTAINER_NAME",
-							Value: name,
-						}, {
-							Name:      "OTEL_K8S_NAMESPACE",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}},
-						}, {
-							Name:      "OTEL_K8S_NODE_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "spec.nodeName"}},
-						}, {
-							Name:      "OTEL_K8S_POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}},
-						}, {
-							Name:      "OTEL_K8S_POD_ID",
-							ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}},
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_ENDPOINT",
-							Value: otlpEndpoint,
-						}, {
-							Name:  "OTEL_EXPORTER_OTLP_PROTOCOL",
-							Value: "grpc",
-						}, {
-							Name: "OTEL_RESOURCE_ATTRIBUTES",
-							Value: "service.name=$(OTEL_SERVICE_NAME)," +
-								"k8s.namespace.name=$(OTEL_K8S_NAMESPACE)," +
-								"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
-								"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
-								"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
-								"k8s.container.name=calendar-java-otel," +
-								"host.name=$(OTEL_K8S_NODE_NAME)," +
-								"deployment.environment=$(OTEL_K8S_NAMESPACE)",
-						}},
-					},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := s.Env().KubernetesCluster.Client().CoreV1().Services("datadog").Create(ctx, serviceSpec, metav1.CreateOptions{})
-	require.NoError(s.T(), err, "Could not properly start service")
-	_, err = s.Env().KubernetesCluster.Client().AppsV1().Deployments("datadog").Create(ctx, deploymentSpec, metav1.CreateOptions{})
-	require.NoError(s.T(), err, "Could not properly start deployment")
+	s.T().Log("Starting calendar app")
+	createCalendarApp(ctx, s)
 }
 
-func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
+func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 	var replicas int32 = 1
 	name := fmt.Sprintf("calendar-rest-go-%v", strings.ReplaceAll(strings.ToLower(s.T().Name()), "/", "-"))
 
-	if s.Env().Agent == nil {
-		s.T().Log("AGENT NIL")
-	}
-
-	if s.Env().Agent != nil {
-		s.T().Log("LinuxNodeAgent.LabelSelectors", s.Env().Agent.LinuxNodeAgent.LabelSelectors)
-	}
-
 	otlpEndpoint := fmt.Sprintf("http://%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	serviceSpec := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -567,7 +403,7 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 	}
 	deploymentSpec := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "calendar-rest-go",
+			Name: name,
 			Labels: map[string]string{
 				"helm.sh/chart":                "calendar-rest-go-0.1.0",
 				"app.kubernetes.io/name":       name,
@@ -590,14 +426,17 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"app.kubernetes.io/name":     name,
-						"app.kubernetes.io/instance": name,
+						"helm.sh/chart":                "calendar-rest-go-0.1.0",
+						"app.kubernetes.io/name":       name,
+						"app.kubernetes.io/instance":   name,
+						"app.kubernetes.io/version":    "1.16.0",
+						"app.kubernetes.io/managed-by": "Helm",
 					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            name,
-						Image:           "datadog/opentelemetry-examples:calendar-go-rest-0.14",
+						Image:           "stanleyliu855/manual-container-metrics:1.0",
 						ImagePullPolicy: "IfNotPresent",
 						Ports: []corev1.ContainerPort{{
 							Name:          "http",
@@ -622,7 +461,7 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 						},
 						Env: []corev1.EnvVar{{
 							Name:  "OTEL_SERVICE_NAME",
-							Value: "calendar-rest-go",
+							Value: calendarService,
 						}, {
 							Name:  "OTEL_CONTAINER_NAME",
 							Value: name,
@@ -651,9 +490,10 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 								"k8s.node.name=$(OTEL_K8S_NODE_NAME)," +
 								"k8s.pod.name=$(OTEL_K8S_POD_NAME)," +
 								"k8s.pod.uid=$(OTEL_K8S_POD_ID)," +
-								"k8s.container.name=calendar-rest-go," +
+								"k8s.container.name=$(OTEL_CONTAINER_NAME)," +
 								"host.name=$(OTEL_K8S_NODE_NAME)," +
-								"deployment.environment=$(OTEL_K8S_NAMESPACE)",
+								fmt.Sprintf("deployment.environment=%v", env) +
+								fmt.Sprintf("service.version=%v", version),
 						}},
 					},
 					},
@@ -668,48 +508,29 @@ func createGoCalendarApp(ctx context.Context, s OTelTestSuite) {
 	require.NoError(s.T(), err, "Could not properly start deployment")
 }
 
-// TestCalendarJavaApp tests that OTLP metrics are received through OTel pipelines as expected
-func TestCalendarJavaApp(s OTelTestSuite) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
+func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
+	assert.NotNil(t, tags["kube_deployment"])
+	assert.NotNil(t, tags["kube_qos"])
+	assert.NotNil(t, tags["kube_replica_set"])
+	assert.NotNil(t, tags["pod_phase"])
+	assert.Equal(t, "replicaset", tags["kube_ownerref_kind"])
+	assert.Equal(t, tags["kube_app_instance"], tags["kube_app_name"])
+	assert.Contains(t, tags["k8s.pod.name"], tags["kube_replica_set"])
 
-	s.T().Log("Starting app")
-	createJavaCalendarApp(ctx, s)
-
-	var metrics []*aggregator.MetricSeries
-	var mn []string
-	s.T().Log("Waiting for metrics")
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
-		s.T().Log("CalendarJavaApp Metric Names", s.T().Name(), mn)
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar.api.hits", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-java-otel"}))
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-	}, 5*time.Minute, 10*time.Second)
-	s.T().Log("Got metrics", s.T().Name(), metrics)
-}
-
-// TestCalendarGoApp tests that OTLP metrics are received through OTel pipelines as expected
-func TestCalendarGoApp(s OTelTestSuite) {
-	ctx := context.Background()
-	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	require.NoError(s.T(), err)
-
-	s.T().Log("Starting app")
-	createGoCalendarApp(ctx, s)
-
-	var metrics []*aggregator.MetricSeries
-	var mn []string
-	s.T().Log("Waiting for metrics")
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		mn, err = s.Env().FakeIntake.Client().GetMetricNames()
-		s.T().Log("CalendarGoApp Metric Names", s.T().Name(), mn)
-		metrics, err = s.Env().FakeIntake.Client().FilterMetrics("calendar-rest-go.api.counter", fakeintake.WithTags[*aggregator.MetricSeries]([]string{"service.name:calendar-rest-go", "kube_ownerref_kind:replicaset"}))
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics)
-	}, 5*time.Minute, 10*time.Second)
-	s.T().Log("Got metrics", s.T().Name(), metrics)
+	if iaParams.EKS {
+		assert.NotNil(t, tags["container_id"])
+		assert.NotNil(t, tags["image_id"])
+		assert.NotNil(t, tags["image_name"])
+		assert.NotNil(t, tags["image_tag"])
+		assert.NotNil(t, tags["short_image"])
+	}
+	if iaParams.Cardinality == types.OrchestratorCardinality || iaParams.Cardinality == types.HighCardinality {
+		assert.Contains(t, tags["k8s.pod.name"], tags["kube_ownerref_name"])
+		assert.Equal(t, tags["kube_replica_set"], tags["kube_ownerref_name"])
+	}
+	if iaParams.Cardinality == types.HighCardinality && iaParams.EKS {
+		assert.NotNil(t, tags["display_container_name"])
+	}
 }
 
 func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {

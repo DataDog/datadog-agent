@@ -324,10 +324,6 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
-			if params.agentOptions != nil {
-				newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
-				params.agentOptions = append(newOpts, params.agentOptions...)
-			}
 		} else {
 			env.FakeIntake = nil
 		}
@@ -335,7 +331,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup))
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
 			kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", eksKubeProvider, params.agentOptions...)
 			if err != nil {
 				return err

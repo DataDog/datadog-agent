@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
@@ -26,28 +27,37 @@ type iaTestSuite struct {
 var iaConfig string
 
 func TestOTelAgentIA(t *testing.T) {
+	values := `
+datadog:
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+`
 	t.Parallel()
-	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 
-func (s *iaTestSuite) TestCalendarJavaApp() {
-	utils.TestCalendarJavaApp(s)
+var iaParams = utils.IAParams{
+	InfraAttributes: true,
+	EKS:             false,
+	Cardinality:     types.HighCardinality,
 }
 
-func (s *iaTestSuite) TestCalendarGoApp() {
-	utils.TestCalendarGoApp(s)
+func (s *iaTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s)
 }
 
 func (s *iaTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, true)
+	utils.TestTraces(s, iaParams)
 }
 
 func (s *iaTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, true)
+	utils.TestMetrics(s, iaParams)
 }
 
 func (s *iaTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, true)
+	utils.TestLogs(s, iaParams)
 }
 
 func (s *iaTestSuite) TestHosts() {

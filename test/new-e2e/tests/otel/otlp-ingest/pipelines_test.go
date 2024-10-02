@@ -43,16 +43,25 @@ agents:
 	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
+var otlpIngestParams = utils.IAParams{
+	InfraAttributes: false,
+}
+
+func (s *otlpIngestTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s)
+}
+
 func (s *otlpIngestTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, false)
+	utils.TestTraces(s, otlpIngestParams)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, false)
+	utils.TestMetrics(s, otlpIngestParams)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, false)
+	utils.TestLogs(s, otlpIngestParams)
 }
 
 func (s *otlpIngestTestSuite) TestHosts() {

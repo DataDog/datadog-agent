@@ -27,6 +27,10 @@ var completeConfig string
 
 func TestOTelAgentComplete(t *testing.T) {
 	values := `
+datadog:
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
 agents:
   containers:
     otelAgent:
@@ -38,16 +42,21 @@ agents:
 	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))
 }
 
+func (s *completeTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s)
+}
+
 func (s *completeTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, true)
+	utils.TestTraces(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, true)
+	utils.TestMetrics(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, true)
+	utils.TestLogs(s, minimalParams)
 }
 
 func (s *completeTestSuite) TestHosts() {
@@ -58,10 +67,10 @@ func (s *completeTestSuite) TestPrometheusMetrics() {
 	utils.TestPrometheusMetrics(s)
 }
 
-func (s *completeTestSuite) TestCalendarJavaApp() {
-	utils.TestCalendarJavaApp(s)
+func (s *completeTestSuite) TestOTelAgentInstalled() {
+	utils.TestOTelAgentInstalled(s)
 }
 
-func (s *completeTestSuite) TestCalendarGoApp() {
-	utils.TestCalendarGoApp(s)
+func (s *completeTestSuite) TestOTelFlare() {
+	utils.TestOTelFlare(s)
 }

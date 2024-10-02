@@ -8,13 +8,14 @@ package otelagent
 
 import (
 	_ "embed"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -23,28 +24,37 @@ type iaEKSTestSuite struct {
 }
 
 func TestOTelAgentIAEKS(t *testing.T) {
+	values := `
+datadog:
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+`
 	t.Parallel()
-	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSLinuxNodeGroup(), awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
+	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
 }
 
-func (s *iaEKSTestSuite) TestCalendarJavaApp() {
-	utils.TestCalendarJavaApp(s)
+var eksParams = utils.IAParams{
+	InfraAttributes: true,
+	EKS:             true,
+	Cardinality:     types.HighCardinality,
 }
 
-func (s *iaEKSTestSuite) TestCalendarGoApp() {
-	utils.TestCalendarGoApp(s)
+func (s *iaEKSTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s)
 }
 
 func (s *iaEKSTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, true)
+	utils.TestTraces(s, eksParams)
 }
 
 func (s *iaEKSTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, true)
+	utils.TestMetrics(s, eksParams)
 }
 
 func (s *iaEKSTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, true)
+	utils.TestLogs(s, eksParams)
 }
 
 func (s *iaEKSTestSuite) TestHosts() {

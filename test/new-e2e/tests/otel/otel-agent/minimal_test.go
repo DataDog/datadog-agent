@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
@@ -26,20 +27,37 @@ type minimalTestSuite struct {
 var minimalConfig string
 
 func TestOTelAgentMinimal(t *testing.T) {
+	values := `
+datadog:
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+`
 	t.Parallel()
-	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
+}
+
+var minimalParams = utils.IAParams{
+	InfraAttributes: true,
+	EKS:             false,
+	Cardinality:     types.LowCardinality,
+}
+
+func (s *minimalTestSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	utils.TestCalendarApp(s)
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, true)
+	utils.TestTraces(s, minimalParams)
 }
 
 func (s *minimalTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, true)
+	utils.TestMetrics(s, minimalParams)
 }
 
 func (s *minimalTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, true)
+	utils.TestLogs(s, minimalParams)
 }
 
 func (s *minimalTestSuite) TestHosts() {
@@ -56,12 +74,4 @@ func (s *minimalTestSuite) TestOTelAgentInstalled() {
 
 func (s *minimalTestSuite) TestOTelFlare() {
 	utils.TestOTelFlare(s)
-}
-
-func (s *minimalTestSuite) TestCalendarJavaApp() {
-	utils.TestCalendarJavaApp(s)
-}
-
-func (s *minimalTestSuite) TestCalendarGoApp() {
-	utils.TestCalendarGoApp(s)
 }

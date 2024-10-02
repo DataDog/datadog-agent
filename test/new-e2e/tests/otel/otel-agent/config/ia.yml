@@ -24,6 +24,7 @@ exporters:
 processors:
   batch:
   infraattributes:
+    cardinality: 2
 extensions:
   pprof:
   health_check:

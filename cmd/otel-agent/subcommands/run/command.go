@@ -167,7 +167,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
 		}),
 
-		fx.Provide(tagger.NewNodeRemoteTaggerParams),
+		fx.Provide(func() tagger.Params {
+			return tagger.NewNodeRemoteTaggerParamsWithFallback()
+		}),
 		taggerimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
