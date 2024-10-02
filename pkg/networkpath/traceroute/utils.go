@@ -15,17 +15,14 @@ import (
 
 var lookupAddrFn = net.DefaultResolver.LookupAddr
 
-// getDestinationHostname tries to convert the input destinationHost to hostname.
+// getReverseDnsForDestination tries to convert the input destinationHost to hostname.
 // When input destinationHost is an IP, a reverse DNS call is made to convert it into a hostname.
-func getDestinationHostname(destinationHost string) string {
+func getReverseDnsForDestination(destinationHost string) string {
 	destIP := net.ParseIP(destinationHost)
 	if destIP != nil {
-		reverseDNSHostname := getHostname(destinationHost)
-		if reverseDNSHostname != "" {
-			return reverseDNSHostname
-		}
+		return getHostname(destinationHost)
 	}
-	return destinationHost
+	return ""
 }
 
 func getHostname(ipAddr string) string {

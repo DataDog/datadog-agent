@@ -53,10 +53,11 @@ type NetworkPathSource struct {
 // NetworkPathDestination encapsulates information
 // about the destination of a path
 type NetworkPathDestination struct {
-	Hostname  string `json:"hostname"`
-	IPAddress string `json:"ip_address"`
-	Port      uint16 `json:"port"`
-	Service   string `json:"service,omitempty"`
+	Hostname           string `json:"hostname"`
+	IPAddress          string `json:"ip_address"`
+	Port               uint16 `json:"port"`
+	Service            string `json:"service,omitempty"`
+	ReverseDnsHostname string `json:"reverse_dns_hostname"`
 }
 
 // NetworkPath encapsulates data that defines a
