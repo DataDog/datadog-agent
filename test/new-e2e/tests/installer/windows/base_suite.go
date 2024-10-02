@@ -86,11 +86,12 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseInstallerSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
 
 	if instlr.GetInstallMethodFromEnv(s.T()) != instlr.InstallMethodWindows {
 		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
 	}
+
+	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {
