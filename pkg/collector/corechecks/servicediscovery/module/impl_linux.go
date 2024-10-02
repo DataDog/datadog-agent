@@ -590,9 +590,6 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		services = append(services, *service)
 	}
 
-	s.mux.Lock()
-	defer s.mux.Unlock()
-
 	s.cleanCache(alivePids)
 
 	if err = s.updateServicesCPUStats(services); err != nil {
