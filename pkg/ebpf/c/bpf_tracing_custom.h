@@ -41,7 +41,7 @@
 #define PT_REGS_USER_STACK_PARM(x, n)                                     \
     ({                                                                    \
         unsigned long p = 0;                                              \
-        bpf_probe_read_USER(&p, sizeof(p), ((unsigned long *)x->sp) + n); \
+        bpf_probe_read_user(&p, sizeof(p), ((unsigned long *)x->sp) + n); \
         p;                                                                \
     })
 
