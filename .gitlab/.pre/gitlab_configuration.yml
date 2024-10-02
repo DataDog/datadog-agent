@@ -47,3 +47,18 @@ compute_gitlab_ci_config:
     paths:
       - artifacts/
     expire_in: 1 day
+
+lint_gitlab_ci_jobs_needs_rules:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: [compute_gitlab_ci_config]
+  rules:
+    - !reference [.on_gitlab_changes]
+    - changes:
+        paths:
+          - .special-jobs.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  script:
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
+    - inv -e linter.gitlab_ci_jobs_needs_rules --config-file artifacts/after.gitlab-ci.yml # TODO: --diff-file artifacts/diff.gitlab-ci.yml
