@@ -91,8 +91,9 @@ func (c *cudaEventConsumer) Start() {
 					return
 				}
 
-				if len(batchData.Data) < gpuebpf.SizeofCudaEventHeader {
-					log.Errorf("Not enough data to parse header, data size=%d, expecting at least %d", len(batchData.Data), gpuebpf.SizeofCudaEventHeader)
+				dataLen := len(batchData.Data)
+				if dataLen < gpuebpf.SizeofCudaEventHeader {
+					log.Errorf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
 					continue
 				}
 
@@ -107,22 +108,22 @@ func (c *cudaEventConsumer) Start() {
 
 				switch header.Type {
 				case gpuebpf.CudaEventTypeKernelLaunch:
-					if len(batchData.Data) != gpuebpf.SizeofCudaKernelLaunch {
-						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting at least %d", len(batchData.Data), gpuebpf.SizeofCudaKernelLaunch)
+					if dataLen != gpuebpf.SizeofCudaKernelLaunch {
+						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaKernelLaunch)
 						continue
 					}
 					ckl := (*gpuebpf.CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
 					c.streamHandlers[streamKey].handleKernelLaunch(ckl)
 				case gpuebpf.CudaEventTypeMemory:
-					if len(batchData.Data) != gpuebpf.SizeofCudaMemEvent {
-						log.Errorf("Not enough data to parse memory event, data size=%d, expecting at least %d", len(batchData.Data), gpuebpf.SizeofCudaMemEvent)
+					if dataLen != gpuebpf.SizeofCudaMemEvent {
+						log.Errorf("Not enough data to parse memory event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaMemEvent)
 						continue
 					}
 					cme := (*gpuebpf.CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
 					c.streamHandlers[streamKey].handleMemEvent(cme)
 				case gpuebpf.CudaEventTypeSync:
-					if len(batchData.Data) != gpuebpf.SizeofCudaSync {
-						log.Errorf("Not enough data to parse sync event, data size=%d, expecting at least %d", len(batchData.Data), gpuebpf.SizeofCudaSync)
+					if dataLen != gpuebpf.SizeofCudaSync {
+						log.Errorf("Not enough data to parse sync event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSync)
 						continue
 					}
 					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
