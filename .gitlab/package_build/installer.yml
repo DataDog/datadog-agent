@@ -82,20 +82,20 @@ datadog-agent-oci-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
-# The bootstraper program
+# The bootstrapper program
 #
-bootstraper_build:
+bootstrapper_build:
   script:
     - !reference [.retrieve_linux_go_deps]
     - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    - GOOS=linux GOARCH=amd64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-amd64
-    - GOOS=linux GOARCH=arm64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-arm64
-    - GOOS=windows GOARCH=amd64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-amd64.exe
-    - GOOS=windows GOARCH=arm64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-arm64.exe
-    - GOOS=darwin GOARCH=amd64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-amd64
-    - GOOS=darwin GOARCH=arm64 inv -e installer.build --bootstrap --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-arm64
+    - GOOS=linux GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-amd64
+    - GOOS=linux GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-arm64
+    - GOOS=windows GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-amd64.exe
+    - GOOS=windows GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-arm64.exe
+    - GOOS=darwin GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-amd64
+    - GOOS=darwin GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-arm64
     - ls -la $OMNIBUS_PACKAGE_DIR
   variables:
     AGENT_MAJOR_VERSION: 7
