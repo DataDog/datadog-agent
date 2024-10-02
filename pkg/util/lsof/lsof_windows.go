@@ -13,11 +13,20 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// permissions required to read DLLs loaded by another process
+//
+//nolint:revive
+const (
+	PROCESS_QUERY_INFORMATION = 0x0400
+	PROCESS_VM_READ           = 0x0010
+)
+
 func openFiles(pid int) (Files, error) {
-	handle, err := windows.OpenProcess(windows.STANDARD_RIGHTS_ALL|windows.SPECIFIC_RIGHTS_ALL, false, uint32(pid))
+	handle, err := windows.OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, false, uint32(pid))
 	if err != nil {
 		return nil, err
 	}
+	defer windows.Close(handle)
 
 	ofl := &openFilesLister{
 		windows.EnumProcessModules,
@@ -83,15 +92,25 @@ func (ofl *openFilesLister) getDLLFile(process windows.Handle, hModule windows.H
 
 // listOpenDLL returns the list of DLLs opened by the process
 func (ofl *openFilesLister) listOpenDLL(process windows.Handle) ([]windows.Handle, error) {
-	var hModules [1024]windows.Handle
-	var cbNeeded uint32
+	var hModules []windows.Handle
+	var cbNeeded uint32 = 1024
 
-	if err := ofl.EnumProcessModules(process, &hModules[0], uint32(unsafe.Sizeof(hModules)), &cbNeeded); err != nil {
-		return nil, err
+	var h windows.Handle
+	handleTypeSize := uint32(unsafe.Sizeof(h))
+
+	// retry until the module slice is big enough
+	// the for loop is necessary in case new DLLs are loaded between calls to EnumProcessModules
+	// in most cases the initial 1024 should be enough
+	for cbNeeded > uint32(len(hModules)) {
+		hModules = make([]windows.Handle, cbNeeded)
+		if err := ofl.EnumProcessModules(process, &hModules[0], cbNeeded*handleTypeSize, &cbNeeded); err != nil {
+			return nil, err
+		}
+
+		cbNeeded /= handleTypeSize
 	}
 
-	nModules := int(cbNeeded / uint32(unsafe.Sizeof(hModules[0])))
-	return hModules[:nModules], nil
+	return hModules[:cbNeeded], nil
 }
 
 // getModulePath returns the path to the given module
