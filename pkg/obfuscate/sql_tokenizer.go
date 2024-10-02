@@ -475,8 +475,8 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 		case '$':
 			if isDigit(tkn.lastChar) || tkn.lastChar == '?' {
 				// TODO(knusbaum): Valid dollar quote tags start with alpha characters and contain no symbols.
-				// For some reason I cannot find this in the postgres documentation.
-				// See https://pgpedia.info/d/dollar-quoting.html instead.
+				// See: https://www.postgresql.org/docs/15/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+				// See also: https://pgpedia.info/d/dollar-quoting.html instead.
 				//
 				// Instances of $[integer] or $? are prepared statement variables.
 				// We may eventually want to expand this to check for symbols other than numbers and '?',
