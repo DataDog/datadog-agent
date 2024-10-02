@@ -442,7 +442,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// as of Agent 7.33, tasks have a name internally, but before that
 	// task_name already was task.Family, so we keep it for backwards
 	// compatibility
-	log.Infof("Addings tags. AccountInt: %d. AccountStr: %s. Region: %s.", task.AWSAccountID, strconv.Itoa(task.AWSAccountID), task.Region)
+	launchTypeFargate := task.LaunchType == workloadmeta.ECSLaunchTypeFargate
+	log.Infof("Addings tags. Is Fargate: %t. AccountInt: %d. AccountStr: %s. Region: %s.", launchTypeFargate, task.AWSAccountID, strconv.Itoa(task.AWSAccountID), task.Region)
 	taskTags.AddLow(tags.TaskName, task.Family)
 	taskTags.AddLow(tags.TaskFamily, task.Family)
 	taskTags.AddLow(tags.TaskVersion, task.Version)
