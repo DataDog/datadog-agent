@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package transform implements mappings from OTLP to DD semantics, and helpers
 package transform
 
 import (
@@ -14,7 +20,7 @@ import (
 	"strings"
 )
 
-// otelSpanToDDSpan converts an OTel span to a DD span.
+// OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
 // The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
 // to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
 func OtelSpanToDDSpanMinimal(
@@ -35,12 +41,14 @@ func OtelSpanToDDSpanMinimal(
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
 		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
+		Meta:     make(map[string]string, otelres.Attributes().Len()+otelspan.Attributes().Len()),
+		Metrics:  map[string]float64{},
 	}
 	spanKind := otelspan.Kind()
-	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(spanKind))
+	ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
 	code := traceutil.GetOTelStatusCode(otelspan)
 	if code != 0 {
-		traceutil.SetMetric(ddspan, traceutil.TagStatusCode, float64(code))
+		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
 	if otelspan.Status().Code() == ptrace.StatusCodeError {
 		ddspan.Error = 1
@@ -56,15 +64,13 @@ func OtelSpanToDDSpanMinimal(
 	}
 	for _, peerTagKey := range peerTagKeys {
 		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
+			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
 	return ddspan
 }
 
-// otelSpanToDDSpan converts an OTel span to a DD span.
-// The converted DD span only has the minimal number of fields for APM stats calculation and is only meant
-// to be used in OTLPTracesToConcentratorInputs. Do not use them for other purposes.
+// OtelSpanToDDSpan converts an OTel span to a DD span.
 func OtelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
@@ -78,49 +84,42 @@ func OtelSpanToDDSpan(
 
 	ddspan := OtelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys)
 
-	attr := otelres.Attributes()
-	rattr := make(map[string]string, attr.Len())
-	attr.Range(func(k string, v pcommon.Value) bool {
-		rattr[k] = v.AsString()
+	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		value := v.AsString()
+		if k == "analytics.event" {
+			if v, err := strconv.ParseBool(value); err == nil {
+				if v {
+					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 1
+				} else {
+					ddspan.Metrics[sampler.KeySamplingRateEventExtraction] = 0
+				}
+			}
+		} else if k != "service.name" && k != "operation.name" && k != "resource.name" && k != "span.type" {
+			ddspan.Meta[k] = value
+		}
 		return true
 	})
 
-	for k, v := range rattr {
-		if k == "service.name" || k == "operation.name" || k == "resource.name" || k == "span.type" {
-			continue
-		}
-		if k == "analytics.event" {
-			if v, err := strconv.ParseBool(v); err == nil {
-				if v {
-					traceutil.SetMetric(ddspan, sampler.KeySamplingRateEventExtraction, 1)
-				} else {
-					traceutil.SetMetric(ddspan, sampler.KeySamplingRateEventExtraction, 0)
-				}
-			}
-		} else {
-			traceutil.SetMeta(ddspan, k, v)
-		}
-	}
-
 	traceID := otelspan.TraceID()
-	traceutil.SetMeta(ddspan, "otel.trace_id", hex.EncodeToString(traceID[:]))
+	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if _, ok := ddspan.Meta["version"]; !ok {
-		if ver := rattr[semconv.AttributeServiceVersion]; ver != "" {
-			SetMetaOTLP(ddspan, "version", ver)
+		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
+			ddspan.Meta["version"] = serviceVersion.AsString()
 		}
 	}
 
 	if otelspan.Events().Len() > 0 {
-		traceutil.SetMeta(ddspan, "events", MarshalEvents(otelspan.Events()))
+		ddspan.Meta["events"] = MarshalEvents(otelspan.Events())
 	}
 	if otelspan.Links().Len() > 0 {
-		traceutil.SetMeta(ddspan, "_dd.span_links", MarshalLinks(otelspan.Links()))
+		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
 	}
 
 	var gotMethodFromNewConv bool
 	var gotStatusCodeFromNewConv bool
 
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
+		value := v.AsString()
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
 			SetMetricOTLP(ddspan, k, v.Double())
@@ -130,7 +129,7 @@ func OtelSpanToDDSpan(
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
 			if k != "http.method" && k != "http.status_code" {
-				traceutil.SetMeta(ddspan, k, v.AsString())
+				ddspan.Meta[k] = value
 			}
 		}
 
@@ -141,9 +140,9 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.request.method" {
 			gotMethodFromNewConv = true
-			traceutil.SetMeta(ddspan, "http.method", v.AsString())
+			ddspan.Meta["http.method"] = value
 		} else if k == "http.method" && !gotMethodFromNewConv {
-			traceutil.SetMeta(ddspan, "http.method", v.AsString())
+			ddspan.Meta["http.method"] = value
 		}
 
 		// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
@@ -153,26 +152,26 @@ func OtelSpanToDDSpan(
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
 		if k == "http.response.status_code" {
 			gotStatusCodeFromNewConv = true
-			traceutil.SetMeta(ddspan, "http.status_code", v.AsString())
+			ddspan.Meta["http.status_code"] = value
 		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
-			traceutil.SetMeta(ddspan, "http.status_code", v.AsString())
+			ddspan.Meta["http.status_code"] = value
 		}
 
 		return true
 	})
 
 	if otelspan.TraceState().AsRaw() != "" {
-		traceutil.SetMeta(ddspan, "w3c.tracestate", otelspan.TraceState().AsRaw())
+		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
 	if lib.Name() != "" {
-		traceutil.SetMeta(ddspan, semconv.OtelLibraryName, lib.Name())
+		ddspan.Meta[semconv.OtelLibraryName] = lib.Name()
 	}
 	if lib.Version() != "" {
-		traceutil.SetMeta(ddspan, semconv.OtelLibraryVersion, lib.Version())
+		ddspan.Meta[semconv.OtelLibraryVersion] = lib.Version()
 	}
-	traceutil.SetMeta(ddspan, semconv.OtelStatusCode, otelspan.Status().Code().String())
+	ddspan.Meta[semconv.OtelStatusCode] = otelspan.Status().Code().String()
 	if msg := otelspan.Status().Message(); msg != "" {
-		traceutil.SetMeta(ddspan, semconv.OtelStatusDescription, msg)
+		ddspan.Meta[semconv.OtelStatusDescription] = msg
 	}
 	Status2Error(otelspan.Status(), otelspan.Events(), ddspan)
 
@@ -286,7 +285,7 @@ func MarshalLinks(links ptrace.SpanLinkSlice) string {
 	return str.String()
 }
 
-// setMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
+// SetMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
 func SetMetaOTLP(s *pb.Span, k, v string) {
 	switch k {
 	case "operation.name":
@@ -310,7 +309,7 @@ func SetMetaOTLP(s *pb.Span, k, v string) {
 	}
 }
 
-// setMetricOTLP sets the k/v OTLP attribute pair as a metric on span s.
+// SetMetricOTLP sets the k/v OTLP attribute pair as a metric on span s.
 func SetMetricOTLP(s *pb.Span, k string, v float64) {
 	switch k {
 	case "sampling.priority":
@@ -320,7 +319,7 @@ func SetMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
-// status2Error checks the given status and events and applies any potential error and messages
+// Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
 func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
 	if status.Code() != ptrace.StatusCodeError {

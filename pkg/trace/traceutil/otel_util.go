@@ -28,6 +28,7 @@ var (
 )
 
 const (
+	// TagStatusCode is the tag key for http status code.
 	TagStatusCode = "http.status_code"
 )
 
@@ -245,6 +246,7 @@ func GetOTelOperationName(
 	return name
 }
 
+// GetOtelSource returns the source based on OTel span and resource attributes.
 func GetOtelSource(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator) (source.Source, bool) {
 	ctx := context.Background()
 	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet)
