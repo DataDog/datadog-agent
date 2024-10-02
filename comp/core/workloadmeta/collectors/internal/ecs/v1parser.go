@@ -44,6 +44,7 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 		taskID := arnParts[len(arnParts)-1]
 		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
 		taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.Arn)
+		log.Infof("Parsing V1 ECS Task. Region: %s. Account: %d. TaskARN %s", taskRegion, taskAccountID, task.Arn)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,

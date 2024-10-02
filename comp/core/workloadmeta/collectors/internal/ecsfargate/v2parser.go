@@ -47,6 +47,7 @@ func (c *collector) parseV2Task(task *v2.Task) []workloadmeta.CollectorEvent {
 
 	taskContainers, containerEvents := c.parseTaskContainers(task, seen)
 	taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.TaskARN)
+	log.Infof("Parsing V2 Fargate Task. Region: %s. Account: %d. TaskARN %s", taskRegion, taskAccountID, task.TaskARN)
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
 		EntityMeta: workloadmeta.EntityMeta{
