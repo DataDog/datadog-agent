@@ -10,6 +10,7 @@ package collectorimpl
 
 import (
 	"context"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -28,7 +29,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -48,7 +49,7 @@ import (
 )
 
 type collectorImpl struct {
-	log log.Component
+	log corelog.Component
 	set otelcol.CollectorSettings
 	col *otelcol.Collector
 }
@@ -59,18 +60,29 @@ type Requires struct {
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
 
-	// Log specifies the logging component.
-	Log                 log.Component
+	CollectorContrib collectorcontrib.Component
+	URIs             []string
+
+	// Below are dependencies required by Datadog exporter and other Agent functionalities
+	Log                 corelog.Component
 	Provider            confmap.Converter
 	Config              config.Component
-	CollectorContrib    collectorcontrib.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
 	LogsAgent           optional.Option[logsagentpipeline.Component]
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
-	URIs                []string
+}
+
+// RequiresNoAgent declares the input types to the constructor with no dependencies on Agent components
+type RequiresNoAgent struct {
+	// Lc specifies the compdef lifecycle settings, used for appending startup
+	// and shutdown hooks.
+	Lc compdef.Lifecycle
+
+	CollectorContrib collectorcontrib.Component
+	URIs             []string
 }
 
 // Provides declares the output types from the constructor
@@ -88,18 +100,18 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 	return c.converter
 }
 
-func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProviderSettings {
+func newConfigProviderSettings(uris []string, provider confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
 	converterFactories := []confmap.ConverterFactory{
 		expandconverter.NewFactory(),
 	}
 
 	if enhanced {
-		converterFactories = append(converterFactories, &converterFactory{converter: reqs.Provider})
+		converterFactories = append(converterFactories, &converterFactory{converter: provider})
 	}
 
 	return otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: reqs.URIs,
+			URIs: uris,
 			ProviderFactories: []confmap.ProviderFactory{
 				fileprovider.NewFactory(),
 				envprovider.NewFactory(),
@@ -124,10 +136,16 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Provider, false))
 }
 
-// NewComponent returns a new instance of the collector component.
+var buildInfo = component.BuildInfo{
+	Version:     "v0.104.0",
+	Command:     filepath.Base(os.Args[0]),
+	Description: "Datadog Agent OpenTelemetry Collector",
+}
+
+// NewComponent returns a new instance of the collector component with full Agent functionalities.
 func NewComponent(reqs Requires) (Provides, error) {
 	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
@@ -143,16 +161,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		}),
 	}
 	set := otelcol.CollectorSettings{
-		BuildInfo: component.BuildInfo{
-			Version:     "v0.104.0",
-			Command:     filepath.Base(os.Args[0]),
-			Description: "Datadog Agent OpenTelemetry Collector",
-		},
+		BuildInfo:      buildInfo,
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs, converterEnabled),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Provider, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -160,6 +174,39 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	c := &collectorImpl{
 		log: reqs.Log,
+		set: set,
+		col: col,
+	}
+
+	reqs.Lc.Append(compdef.Hook{
+		OnStart: c.start,
+		OnStop:  c.stop,
+	})
+	return Provides{
+		Comp: c,
+	}, nil
+}
+
+// NewComponentNoAgent returns a new instance of the collector component with no Agent functionalities.
+// It is used when there is no Datadog exporter in the OTel Agent config.
+func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
+	factories, err := reqs.CollectorContrib.OTelComponentFactories()
+	if err != nil {
+		return Provides{}, err
+	}
+
+	set := otelcol.CollectorSettings{
+		BuildInfo: buildInfo,
+		Factories: func() (otelcol.Factories, error) {
+			return factories, nil
+		},
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, nil, false),
+	}
+	col, err := otelcol.NewCollector(set)
+	if err != nil {
+		return Provides{}, err
+	}
+	c := &collectorImpl{
 		set: set,
 		col: col,
 	}
@@ -181,7 +228,11 @@ func (c *collectorImpl) start(ctx context.Context) error {
 	}
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
-			c.log.Errorf("Error running the collector pipeline: %v", err)
+			if c.log != nil {
+				c.log.Errorf("Error running the collector pipeline: %v", err)
+			} else {
+				log.Printf("Error running the collector pipeline: %v", err)
+			}
 		}
 	}()
 	return nil

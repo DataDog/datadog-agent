@@ -25,3 +25,13 @@ func Module() fxutil.Module {
 		fxutil.ProvideOptional[collector.Component](),
 	)
 }
+
+// ModuleNoAgent for OTel Agent with no Agent functionalities
+func ModuleNoAgent() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			collectorimpl.NewComponentNoAgent,
+		),
+		fxutil.ProvideOptional[collector.Component](),
+	)
+}

@@ -92,7 +92,23 @@ func (o *orchestratorinterfaceimpl) Reset() {
 }
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
-	err := fxutil.Run(
+	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	if err == agentConfig.ErrNoDDExporter {
+		return fxutil.Run(
+			fx.Provide(func() []string {
+				return append(params.ConfPaths, params.Sets...)
+			}),
+			collectorcontribFx.Module(),
+			collectorfx.ModuleNoAgent(),
+			fx.Options(opts...),
+			fx.Invoke(func(_ collectordef.Component) {
+			}),
+		)
+	} else if err != nil {
+		return err
+	}
+
+	return fxutil.Run(
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
@@ -108,12 +124,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
-			if err != nil {
-				return nil, err
-			}
-			pkgconfigenv.DetectFeatures(c)
-			return c, nil
+			pkgconfigenv.DetectFeatures(acfg)
+			return acfg, nil
 		}),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
@@ -197,10 +209,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		traceagentfx.Module(),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
