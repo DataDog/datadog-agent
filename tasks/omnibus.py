@@ -388,7 +388,9 @@ def manifest(
     )
 
 
-def _replace_dylib_path_with_rpath(ctx, dylib_paths, install_path, file):
+def _otool_install_path_replacements(otool_output, install_path):
+    """Returns a mapping of path replacements from `otool -l` output
+    where references to `install_path` are replaced by `@rpath`."""
     for otool_line in dylib_paths.splitlines():
         if "name" not in otool_line:
             continue
@@ -396,17 +398,16 @@ def _replace_dylib_path_with_rpath(ctx, dylib_paths, install_path, file):
         if install_path not in dylib_path:
             continue
         new_dylib_path = dylib_path.replace(install_path, "@rpath")
+        yield dylib_path, new_dylib_path
+
+
+def _replace_dylib_paths_with_rpath(ctx, otool_output, install_path, file):
+    for dylib_path, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
         ctx.run(f"install_name_tool -change {dylib_path} {new_dylib_path} {file}")
 
 
-def _replace_dylib_id_path_with_rpath(ctx, dylib_paths, install_path, file):
-    for otool_line in dylib_paths.splitlines():
-        if "name" not in otool_line:
-            continue
-        dylib_path = otool_line.strip().split(" ")[1]
-        if install_path not in dylib_path:
-            continue
-        new_dylib_path = dylib_path.replace(install_path, "@rpath")
+def _replace_dylib_id_path_with_rpath(ctx, otool_output, install_path, file):
+    for dylib_path, new_dylib_path in _otool_install_path_replacements(otool_output, install_path):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
