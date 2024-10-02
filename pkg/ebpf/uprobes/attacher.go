@@ -184,6 +184,9 @@ type AttacherConfig struct {
 	// EnableDetailedLogging makes the attacher log why it's attaching or not attaching to a process
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
+
+	// If shared libraries tracing is enabled, this is the name of the library set used to filter the events
+	SharedLibsLibset sharedlibraries.Libset
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -199,6 +202,10 @@ func (ac *AttacherConfig) SetDefaults() {
 
 	if ac.EbpfConfig == nil {
 		ac.EbpfConfig = ebpf.NewConfig()
+	}
+
+	if ac.SharedLibsLibset == "" {
+		ac.SharedLibsLibset = sharedlibraries.LibsetCrypto
 	}
 }
 
@@ -397,7 +404,7 @@ func (ua *UprobeAttacher) Start() error {
 			return errors.New("shared libraries tracing not supported for this platform")
 		}
 
-		ua.soWatcher = sharedlibraries.NewEBPFProgram(ua.config.EbpfConfig)
+		ua.soWatcher = sharedlibraries.NewEBPFProgram(ua.config.EbpfConfig, ua.config.SharedLibsLibset)
 
 		err := ua.soWatcher.Init()
 		if err != nil {

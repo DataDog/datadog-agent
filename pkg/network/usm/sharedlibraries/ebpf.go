@@ -38,10 +38,18 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
+// Libset represents the name of a set of shared libraries that share the same filtering eBPF program
+type Libset string
+
+const (
+	LibsetCrypto Libset = "crypto"
+)
+
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	cfg         *ddebpf.Config
 	perfHandler *ddebpf.PerfHandler
+	libset      Libset
 	*ddebpf.Manager
 }
 
@@ -62,11 +70,11 @@ func IsSupported(cfg *ddebpf.Config) bool {
 }
 
 // NewEBPFProgram creates a new EBPFProgram to monitor shared libraries
-func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
+func NewEBPFProgram(c *ddebpf.Config, libset Libset) *EbpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
-			Name: sharedLibrariesPerfMap,
+			Name: fmt.Sprintf("%s_%s", sharedLibrariesPerfMap, string(libset)),
 		},
 		PerfMapOptions: manager.PerfMapOptions{
 			PerfRingBufferSize: 8 * os.Getpagesize(),
@@ -82,7 +90,7 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 	}
 	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
-	probeIDs := getSysOpenHooksIdentifiers()
+	probeIDs := getSysOpenHooksIdentifiers(libset)
 	for _, identifier := range probeIDs {
 		mgr.Probes = append(mgr.Probes,
 			&manager.Probe{
@@ -96,6 +104,7 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 		cfg:         c,
 		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
+		libset:      libset,
 	}
 }
 
@@ -202,7 +211,7 @@ func sysOpenAt2Supported() bool {
 
 // getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
 // system calls.
-func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
+func getSysOpenHooksIdentifiers(libset Libset) []manager.ProbeIdentificationPair {
 	openatProbes := []string{openatSysCall}
 	if sysOpenAt2Supported() {
 		openatProbes = append(openatProbes, openat2SysCall)
@@ -216,7 +225,7 @@ func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 	for _, probe := range openatProbes {
 		for _, traceType := range traceTypes {
 			res = append(res, manager.ProbeIdentificationPair{
-				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s", traceType, probe),
+				EBPFFuncName: fmt.Sprintf("tracepoint__syscalls__sys_%s_%s_%s", traceType, probe, string(libset)),
 				UID:          probeUID,
 			})
 		}
