@@ -61,8 +61,6 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
-	ctx, cancelFnc := context.WithCancel(context.Background())
-
 	var selfTester *selftests.SelfTester
 	if cfg.SelfTestEnabled {
 		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
@@ -73,6 +71,13 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 	family, address := config.GetFamilyAddress(cfg.SocketPath)
 
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
+
 	c := &CWSConsumer{
 		config:       cfg,
 		probe:        evm.Probe,
@@ -80,7 +85,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester),
+		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
