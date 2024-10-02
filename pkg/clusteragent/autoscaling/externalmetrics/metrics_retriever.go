@@ -181,7 +181,9 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		} else {
 			datadogMetricFromStore.Valid = false
 			if globalError {
-				if mr.splitBatchBackoffOnErrors {
+				if rateLimitErr != nil { //Don't need to increment retries on rate limit regardless of whether splitting batches is enabled since rate limits are not split
+					datadogMetricFromStore.Error = NewRateLimitError(rateLimitErr)
+				} else if mr.splitBatchBackoffOnErrors {
 					incrementRetries(datadogMetricFromStore)
 					datadogMetricFromStore.Error = NewInvalidMetricGlobalErrorWithRetries(len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))
 				} else {
@@ -193,10 +195,6 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				datadogMetricFromStore.Error = NewInvalidMetricNotFoundError(query)
 				log.Error(datadogMetricFromStore.Error)
 			}
-		}
-		// If there is a rate limit error, apply the rate limit error to all datadogMetrics
-		if rateLimitErr != nil {
-			datadogMetricFromStore.Error = NewRateLimitError(rateLimitErr)
 		}
 
 		datadogMetricFromStore.UpdateTime = currentTime
