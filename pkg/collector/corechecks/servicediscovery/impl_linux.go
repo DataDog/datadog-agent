@@ -146,6 +146,7 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
+		IsContainer:        service.IsContainer,
 	}
 
 	return serviceInfo{

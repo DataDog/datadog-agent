@@ -20,6 +20,7 @@ type Service struct {
 	CommandLine        []string `json:"cmdline"`
 	StartTimeSecs      uint64   `json:"start_time"`
 	CPUCores           float64  `json:"cpu_cores"`
+	IsContainer        bool     `json:"is_container"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.

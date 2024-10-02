@@ -79,6 +79,7 @@ var (
 		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
 		StartTimeSecs:      procLaunchedSeconds,
+		IsContainer:        false,
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                procTestService1.pid,
@@ -91,6 +92,7 @@ var (
 		CPUCores:           1.5,
 		CommandLine:        []string{"test-service-1"},
 		StartTimeSecs:      procLaunchedSeconds,
+		IsContainer:        false,
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
@@ -126,6 +128,36 @@ var (
 		Ports:         []uint16{5432},
 		CommandLine:   []string{"test-service-1"},
 		StartTimeSecs: procLaunchedSeconds,
+	}
+)
+
+var (
+	portTCP8080Container = model.Service{
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		GeneratedName:      "test-service-1-generated",
+		DDService:          "test-service-1",
+		DDServiceInjected:  true,
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		RSS:                100 * 1024 * 1024,
+		CPUCores:           1.5,
+		CommandLine:        []string{"test-service-1"},
+		StartTimeSecs:      procLaunchedSeconds,
+		IsContainer:        true,
+	}
+	portTCP8080UpdatedRSSContainer = model.Service{
+		PID:                procTestService1.pid,
+		GeneratedName:      "test-service-1-generated",
+		DDService:          "test-service-1",
+		DDServiceInjected:  true,
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		RSS:                200 * 1024 * 1024,
+		CPUCores:           1.5,
+		CommandLine:        []string{"test-service-1"},
+		StartTimeSecs:      procLaunchedSeconds,
+		IsContainer:        true,
 	}
 )
 
@@ -232,6 +264,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -254,6 +287,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -276,6 +310,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -294,6 +329,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -312,6 +348,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						IsContainer:          false,
 					},
 				},
 			},
@@ -388,6 +425,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -444,6 +482,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 			},
@@ -501,6 +540,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						IsContainer:          false,
 					},
 				},
 				{
@@ -521,6 +561,150 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  102,
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "injected",
+					},
+				},
+			},
+		},
+		{
+			name: "containerised_services",
+			checkRun: []*checkRun{
+				{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
+						portTCP5000,
+						portTCP8080Container,
+						portTCP8081,
+					}},
+					time: calcTime(0),
+				},
+				{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
+						portTCP5000,
+						portTCP8080Container,
+						portTCP8081,
+					}},
+					time: calcTime(1 * time.Minute),
+				},
+				{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
+						portTCP5000,
+						portTCP8080UpdatedRSSContainer,
+						portTCP8081,
+					}},
+					time: calcTime(20 * time.Minute),
+				},
+				{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
+						portTCP5000,
+					}},
+					time: calcTime(21 * time.Minute),
+				},
+			},
+			wantEvents: []*event{
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:  "1",
+						ServiceName:          "test-service-1",
+						GeneratedServiceName: "test-service-1-generated",
+						DDService:            "test-service-1",
+						ServiceNameSource:    "injected",
+						ServiceType:          "web_service",
+						HostName:             host,
+						Env:                  "",
+						StartTime:            calcTime(0).Unix(),
+						LastSeen:             calcTime(1 * time.Minute).Unix(),
+						Ports:                []uint16{8080},
+						PID:                  99,
+						CommandLine:          []string{"test-service-1"},
+						APMInstrumentation:   "none",
+						RSSMemory:            100 * 1024 * 1024,
+						CPUCores:             1.5,
+						IsContainer:          true,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:  "1",
+						ServiceName:          "test-service-1",
+						GeneratedServiceName: "test-service-1-generated",
+						DDService:            "test-service-1",
+						ServiceNameSource:    "injected",
+						ServiceType:          "web_service",
+						HostName:             host,
+						Env:                  "",
+						StartTime:            calcTime(0).Unix(),
+						LastSeen:             calcTime(20 * time.Minute).Unix(),
+						Ports:                []uint16{8080},
+						PID:                  99,
+						CommandLine:          []string{"test-service-1"},
+						APMInstrumentation:   "none",
+						RSSMemory:            200 * 1024 * 1024,
+						CPUCores:             1.5,
+						IsContainer:          true,
+					},
+				},
+				{
+					RequestType: "end-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:  "1",
+						ServiceName:          "test-service-1",
+						GeneratedServiceName: "test-service-1-generated",
+						DDService:            "test-service-1",
+						ServiceNameSource:    "injected",
+						ServiceType:          "web_service",
+						HostName:             host,
+						Env:                  "",
+						StartTime:            calcTime(0).Unix(),
+						LastSeen:             calcTime(20 * time.Minute).Unix(),
+						Ports:                []uint16{8080},
+						PID:                  99,
+						CommandLine:          []string{"test-service-1"},
+						APMInstrumentation:   "none",
+						RSSMemory:            200 * 1024 * 1024,
+						CPUCores:             1.5,
+						IsContainer:          true,
+					},
+				},
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:  "1",
+						ServiceName:          "python-service",
+						GeneratedServiceName: "python-service",
+						ServiceType:          "web_service",
+						HostName:             host,
+						Env:                  "",
+						StartTime:            calcTime(0).Unix(),
+						LastSeen:             calcTime(1 * time.Minute).Unix(),
+						Ports:                []uint16{5000},
+						PID:                  500,
+						ServiceLanguage:      "python",
+						CommandLine:          pythonCommandLine,
+						IsContainer:          false,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion:  "1",
+						ServiceName:          "python-service",
+						GeneratedServiceName: "python-service",
+						ServiceType:          "web_service",
+						HostName:             host,
+						Env:                  "",
+						StartTime:            calcTime(0).Unix(),
+						LastSeen:             calcTime(20 * time.Minute).Unix(),
+						Ports:                []uint16{5000},
+						PID:                  500,
+						ServiceLanguage:      "python",
+						CommandLine:          pythonCommandLine,
+						IsContainer:          false,
 					},
 				},
 			},

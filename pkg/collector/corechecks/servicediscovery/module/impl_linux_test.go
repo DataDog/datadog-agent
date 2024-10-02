@@ -232,6 +232,7 @@ func TestBasic(t *testing.T) {
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
 		assertStat(t, serviceMap[pid])
+		require.False(t, serviceMap[pid].IsContainer)
 	}
 }
 
@@ -672,6 +673,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
 		assertCPU(t, url, pid)
+		assert.True(collect, svcMap[pid].IsContainer)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -788,6 +790,7 @@ func TestNamespaces(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range pids {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		require.False(t, serviceMap[pid].IsContainer)
 	}
 }
 
@@ -825,6 +828,7 @@ func TestDocker(t *testing.T) {
 
 	require.Contains(t, portMap, pid1111)
 	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
+	require.True(t, portMap[pid1111].IsContainer)
 }
 
 // Check that the cache is cleaned when procceses die.
