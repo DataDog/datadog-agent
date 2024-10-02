@@ -37,13 +37,13 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     __u64 stream = 0;
 
     shared_mem = PT_REGS_USER_PARM7(ctx, read_ret);
-    if (read_ret != 0) {
+    if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read shared_mem");
         return 0;
     }
 
     stream = PT_REGS_USER_PARM8(ctx, read_ret);
-    if (read_ret != 0) {
+    if (read_ret < 0) {
         log_debug("cudaLaunchKernel: failed to read stream");
         return 0;
     }
