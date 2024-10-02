@@ -18,6 +18,7 @@ from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.git import get_common_ancestor, get_current_branch
 from tasks.libs.common.utils import retry_function
 
@@ -386,7 +387,7 @@ class GitlabCIDiff:
 
         Returns a tuple of (job_name, contents, state)
 
-        Note that the contents is the contents after modification or before removal
+        Note that the contents of the job is the contents after modification if modified or before removal if removed
         """
 
         if added:
@@ -1160,3 +1161,27 @@ def gitlab_configuration_is_modified(ctx):
             return True
 
     return False
+
+
+def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
+    """
+    Computes the full configs and the diff between two git references.
+    The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
+    """
+
+    before_name = before or "merge base"
+    after_name = after or "local files"
+
+    # The before commit is the LCA commit between before and after
+    before = before or DEFAULT_BRANCH
+    before = get_common_ancestor(ctx, before, after or "HEAD")
+
+    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
+    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
+
+    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
+    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
+
+    diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
+
+    return before_config, after_config, diff

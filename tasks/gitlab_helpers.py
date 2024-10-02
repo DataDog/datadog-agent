@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 
 from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
-    MultiGitlabCIDiff,
+    compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
@@ -28,8 +28,6 @@ from tasks.libs.civisibility import (
     get_test_link_to_job_on_main,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
-from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.utils import experimental
 
 
@@ -284,30 +282,6 @@ def print_entry_points(ctx):
     print(len(entry_points), 'entry points:')
     for entry_point, config in entry_points.items():
         print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')
-
-
-def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
-    """
-    Computes the full configs and the diff between two git references.
-    The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
-    """
-
-    before_name = before or "merge base"
-    after_name = after or "local files"
-
-    # The before commit is the LCA commit between before and after
-    before = before or DEFAULT_BRANCH
-    before = get_common_ancestor(ctx, before, after or "HEAD")
-
-    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
-
-    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
-
-    diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
-
-    return before_config, after_config, diff
 
 
 @task
