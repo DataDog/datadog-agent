@@ -130,7 +130,7 @@ def trigger_macos(
 @task
 def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     """
-    Check every package in `pkg` has an owner
+    Run multiple checks on the provided CODEOWNERS file
     """
 
     base = os.path.dirname(os.path.abspath(__file__))
@@ -154,11 +154,15 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
 
 
 def _has_packages_without_owner(owners, folder="pkg"):
+    """
+    Check every package in `pkg` has an owner
+    """
+
     error = False
 
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
-        if not any(owner[1].rstrip('/') == path for owner in owners.paths):
+        if all(owner[1].rstrip('/') != path for owner in owners.paths):
             if not error:
                 print(
                     color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr
@@ -170,33 +174,51 @@ def _has_packages_without_owner(owners, folder="pkg"):
 
 
 def _has_orphans_in_codeowner(owners):
-    error = False
+    """
+    Check that every rule in codeowners file point to an existing file/directory
+    """
+
+    err_invalid_rule_path = False
+    err_orphans_path = False
 
     for rule in owners.paths:
-        # Get the static part of the rule path, removing matching subpath (such as '*')
-        static_root = _get_static_root(rule[1])
+        try:
+            # Get the static part of the rule path, removing matching subpath (such as '*')
+            static_root = _get_static_root(rule[1])
+        except Exception:
+            err_invalid_rule_path = True
+            print(
+                color_message(
+                    f"[UNSUPPORTED] The following rule's path does not start with '/' anchor: {rule[1]}", "red"
+                ),
+                file=sys.stderr,
+            )
+            continue
+
         if not _is_pattern_in_fs(static_root, rule[0]):
-            if not error:
+            if not err_orphans_path:
                 print(
                     color_message(
                         "The following rules are outdated: they don't point to existing file/directory", "red"
                     ),
                     file=sys.stderr,
                 )
-                error = True
+                err_orphans_path = True
             print(color_message(f"\t- {rule[1]}\t{rule[2]}", "orange"), file=sys.stderr)
 
-    return error
+    return err_invalid_rule_path or err_orphans_path
 
 
 def _get_static_root(pattern):
-    result = "./"
+    """
+    _get_static_root returns the longest prefix path from the pattern without any wildcards.
+    """
+    result = "."
 
     if not pattern.startswith("/"):
-        # TODO
-        return result
+        raise Exception()
 
-    # We remove the '\' anchor character from the path
+    # We remove the '/' anchor character from the path
     pattern = pattern[1:]
 
     for elem in pattern.split("/"):
