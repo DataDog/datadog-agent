@@ -4804,6 +4804,14 @@ func (ev *Event) GetPacketSourcePort() uint16 {
 	return ev.RawPacket.NetworkContext.Source.Port
 }
 
+// GetPacketTlsVersion returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketTlsVersion() uint16 {
+	if ev.GetEventType().String() != "packet" {
+		return uint16(0)
+	}
+	return ev.RawPacket.TLSContext.Version
+}
+
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
 	if ev.BaseEvent.ProcessContext == nil {

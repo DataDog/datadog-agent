@@ -3663,6 +3663,11 @@
           "name": "packet.source.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.tls.version",
+          "definition": "TLS version",
+          "property_doc_link": "packet-tls-version-doc"
         }
       ]
     },
@@ -10145,6 +10150,18 @@
       "definition": "Payload of the l3/l4 packet",
       "prefixes": [
         "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.tls.version",
+      "link": "packet-tls-version-doc",
+      "type": "int",
+      "definition": "TLS version",
+      "prefixes": [
+        "packet.tls"
       ],
       "constants": "",
       "constants_link": "",

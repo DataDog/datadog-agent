@@ -587,10 +587,15 @@ func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerConte
 	return nil, false
 }
 
+// TLSContext represents a tls context
+type TLSContext struct {
+	Version uint16 `field:"version"` // SECLDoc[version] Definition:`TLS version`
+}
+
 // RawPacketEvent represents a packet event
 type RawPacketEvent struct {
 	NetworkContext
 
-	Payload string `field:"payload"` // SECLDoc[payload] Definition:`Payload of the l3/l4 packet`
-
+	TLSContext TLSContext `field:"tls"`     // SECLDoc[tls] Definition:`TLS context`
+	Payload    string     `field:"payload"` // SECLDoc[payload] Definition:`Payload of the l3/l4 packet`
 }

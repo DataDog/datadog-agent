@@ -4492,6 +4492,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "packet.tls.version":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.TLSContext.Version)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -18006,6 +18015,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.size",
 		"packet.source.ip",
 		"packet.source.port",
+		"packet.tls.version",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -20073,6 +20083,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.RawPacket.NetworkContext.Source.IPNet, nil
 	case "packet.source.port":
 		return int(ev.RawPacket.NetworkContext.Source.Port), nil
+	case "packet.tls.version":
+		return int(ev.RawPacket.TLSContext.Version), nil
 	case "process.ancestors.args":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -26576,6 +26588,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "packet", nil
 	case "packet.source.port":
 		return "packet", nil
+	case "packet.tls.version":
+		return "packet", nil
 	case "process.ancestors.args":
 		return "", nil
 	case "process.ancestors.args_flags":
@@ -29346,6 +29360,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "packet.source.ip":
 		return reflect.Struct, nil
 	case "packet.source.port":
+		return reflect.Int, nil
+	case "packet.tls.version":
 		return reflect.Int, nil
 	case "process.ancestors.args":
 		return reflect.String, nil
@@ -34983,6 +34999,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.Source.Port"}
 		}
 		ev.RawPacket.NetworkContext.Source.Port = uint16(rv)
+		return nil
+	case "packet.tls.version":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RawPacket.TLSContext.Version"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RawPacket.TLSContext.Version"}
+		}
+		ev.RawPacket.TLSContext.Version = uint16(rv)
 		return nil
 	case "process.ancestors.args":
 		if ev.BaseEvent.ProcessContext == nil {

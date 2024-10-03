@@ -1320,7 +1320,7 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = size
 
-	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true})
+	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
 	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
 		if rl, ok := layer.(*layers.IPv4); ok {
 			e.L3Protocol = unix.ETH_P_IP
@@ -1351,7 +1351,13 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 		}
 	}
 
-	fmt.Printf("########################: %+v\n", e)
+	if layer := packet.Layer(layers.LayerTypeTLS); layer != nil {
+		if rl, ok := layer.(*layers.TLS); ok {
+			if len(rl.AppData) > 0 {
+				e.TLSContext.Version = uint16(rl.AppData[0].Version)
+			}
+		}
+	}
 
 	return len(data), nil
 }

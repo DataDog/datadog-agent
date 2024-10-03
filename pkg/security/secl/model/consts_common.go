@@ -325,6 +325,15 @@ var (
 		"COREDUMPED": ExitCoreDumped,
 		"SIGNALED":   ExitSignaled,
 	}
+
+	sslVersionContants = map[string]uint16{
+		"SSL_2_0": 0x0200,
+		"SSL_3_0": 0x0300,
+		"TLS_1_0": 0x0301,
+		"TLS_1_1": 0x0302,
+		"TLS_1_2": 0x0303,
+		"TLS_1_3": 0x0304,
+	}
 )
 
 var (
@@ -420,6 +429,12 @@ func initExitCauseConstants() {
 func initBoolConstants() {
 	for k, v := range BooleanConstants {
 		seclConstants[k] = v
+	}
+}
+
+func initSSLVersionConstants() {
+	for k, v := range sslVersionContants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 }
 
