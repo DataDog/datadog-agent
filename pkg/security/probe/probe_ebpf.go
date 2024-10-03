@@ -366,7 +366,7 @@ func (p *EBPFProbe) Setup() error {
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.playSnapshot()
+	p.PlaySnapshot()
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -374,8 +374,9 @@ func (p *EBPFProbe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
-// playSnapshot plays a snapshot
-func (p *EBPFProbe) playSnapshot() {
+// PlaySnapshot plays a snapshot
+func (p *EBPFProbe) PlaySnapshot() {
+	seclog.Debugf("playing the snapshot")
 	// Get the snapshotted data
 	var events []*model.Event
 
