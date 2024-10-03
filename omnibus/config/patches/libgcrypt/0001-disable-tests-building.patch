@@ -13,15 +13,15 @@ index d60804ee..980d6b84 100644
 +++ b/Makefile.am
 @@ -41,8 +41,8 @@ doc =
  endif
- 
- 
+
+
 -DIST_SUBDIRS = m4 compat mpi cipher random src doc tests
 -SUBDIRS =         compat mpi cipher random src $(doc) tests
-+DIST_SUBDIRS = m4 compat mpi cipher random src doc
-+SUBDIRS =         compat mpi cipher random src $(doc)
- 
++DIST_SUBDIRS = m4 compat mpi cipher random src
++SUBDIRS =         compat mpi cipher random src
+
  EXTRA_DIST = autogen.sh autogen.rc README.GIT LICENSES			   \
  	     ChangeLog-2011 build-aux/ChangeLog-2011 doc/ChangeLog-2011	   \
--- 
+--
 2.34.1
 
