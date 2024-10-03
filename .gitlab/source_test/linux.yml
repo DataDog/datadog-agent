@@ -172,7 +172,7 @@ new-e2e-unit-tests:
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
