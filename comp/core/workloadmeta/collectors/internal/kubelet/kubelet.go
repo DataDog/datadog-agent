@@ -398,6 +398,22 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 	return env
 }
 
+func extractSimpleGPUName(gpuName kubelet.ResourceName) string {
+	simpleName := ""
+	switch gpuName {
+	case kubelet.ResourceNvidiaGPU:
+		simpleName = "nvidia"
+	case kubelet.ResourceAMDGPU:
+		simpleName = "amd"
+	case kubelet.ResourceIntelGPUxe, kubelet.ResourceIntelGPUi915:
+		simpleName = "intel"
+	default:
+		simpleName = string(gpuName)
+	}
+
+	return simpleName
+}
+
 func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResources {
 	resources := workloadmeta.ContainerResources{}
 	if cpuReq, found := spec.Resources.Requests[kubelet.ResourceCPU]; found {
@@ -406,6 +422,15 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 
 	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
 		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+	}
+
+	// extract GPU resource info from the possible GPU sources
+	for _, gpuResource := range kubelet.GetGPUResourceNames() {
+		if gpuReq, found := spec.Resources.Requests[gpuResource]; found {
+			resources.GPURequest = pointer.Ptr(uint64(gpuReq.Value()))
+			resources.GPUType = extractSimpleGPUName(gpuResource)
+			break
+		}
 	}
 
 	return resources
