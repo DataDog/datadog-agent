@@ -53,23 +53,6 @@
   - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN) || exit $?; export CODECOV_TOKEN
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
-.linux_lint:
-  stage: source_test
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    FLAVORS: '--flavor base'
-    KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: 16Gi
-    KUBERNETES_MEMORY_LIMIT: 16Gi
-  script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
-    - inv -e rtloader.install
-    - inv -e install-tools
-    - inv -e linter.go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
-
-
 .linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -98,11 +81,6 @@ tests_deb-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
-lint_linux-x64:
-  extends:
-    - .linux_lint
-    - .linux_x64
-
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
@@ -113,13 +91,6 @@ tests_flavor_iot_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavor iot'
-
-lint_flavor_iot_linux-x64:
-  extends:
-    - .linux_lint
-    - .linux_x64
-  variables:
     FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_deb-x64:
@@ -134,13 +105,6 @@ tests_flavor_dogstatsd_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavor dogstatsd'
 
-lint_flavor_dogstatsd_linux-x64:
-  extends:
-    - .linux_lint
-    - .linux_x64
-  variables:
-    FLAVORS: '--flavor dogstatsd'
-
 tests_flavor_heroku_deb-x64:
   extends:
     - .rtloader_tests
@@ -151,13 +115,6 @@ tests_flavor_heroku_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavor heroku'
-
-lint_flavor_heroku_linux-x64:
-  extends:
-    - .linux_lint
-    - .linux_x64
-  variables:
     FLAVORS: '--flavor heroku'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
@@ -213,12 +170,6 @@ tests_deb-arm64-py3:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-
-lint_linux-arm64:
-  extends:
-    - .linux_lint
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests

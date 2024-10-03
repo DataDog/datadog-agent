@@ -587,6 +587,11 @@ void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_
     AS_TYPE(RtLoader, rtloader)->setObfuscateMongoDBStringCb(cb);
 }
 
+void set_emit_agent_telemetry_cb(rtloader_t *rtloader, cb_emit_agent_telemetry_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setEmitAgentTelemetryCb(cb);
+}
+
 /*
  * _util API
  */
