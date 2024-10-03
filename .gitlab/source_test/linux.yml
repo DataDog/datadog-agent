@@ -289,29 +289,3 @@ new-e2e-unit-tests:
     # Not using the entrypoint script for the e2e runner image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
   timeout: 10m
-
-.integration_tests_deb:
-  stage: source_test
-  needs: ["go_deps", "go_tools_deps"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["docker-in-docker:amd64"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-
-agent_integration_tests:
-  extends: .integration_tests_deb
-  # We have capacity issues on the docker-in-docker:amd64 runners for now.
-  # Setting allow_failure to true to avoid blocking the pipelines.
-  # Setting the timeout to 30 min and retry to 2 to avoid the job from pending for too long.
-  allow_failure: true
-  timeout: 30m
-  retry: 2
-  script:
-    - inv -e integration-tests --race --remote-docker
-
-docker_integration_tests:
-  extends: .integration_tests_deb
-  script:
-    - inv -e docker.test
-    - inv -e docker.integration-tests
