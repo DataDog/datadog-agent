@@ -110,7 +110,6 @@ func (t *Tailer) readForever() {
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
 			}
-			fmt.Println("wacktest", msg.ParsingExtra.Tags)
 			t.decoder.InputChan <- msg
 		}
 	}
