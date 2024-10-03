@@ -1218,9 +1218,7 @@ func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfig
 		require.Equal(t, validatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
 	for i := 0; i < len(mutatingWebhooks.Webhooks); i++ {
-		if !reflect.DeepEqual(mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data)) {
-			return fmt.Errorf("the webhook CA bundle doesn't match the secret. CA bundle: %v, Secret: %v", mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, s)
-		}
+		require.Equal(t, mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
 	return nil
 }
