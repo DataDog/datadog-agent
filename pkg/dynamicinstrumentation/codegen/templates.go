@@ -76,39 +76,50 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 // The length of strings aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var stringRegisterHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the string kind to output buffer
-param_type = {{.Kind}};
+param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
 
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}+1]);
+
+{{.StringLengthText}}
 
 // Limit string length
-__u16 string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
+__u16 string_size_{{.Parameter.ID}} = param_size;
+if (string_size_{{.Parameter.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.Parameter.ID}} = MAX_STRING_SIZE;
 }
-bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.ID}}), &string_size_{{.ID}});
+bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.Parameter.ID}}), &string_size_{{.Parameter.ID}});
 outputOffset += 3;
+`
+
+var stringLengthRegisterTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}]);
 `
 
 // The length of strings aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var stringStackHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the string kind to output buffer
-param_type = {{.Kind}};
+param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
+
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
+{{.StringLengthText}}
+
 // Limit string length
-__u16 string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
+__u16 string_size_{{.Parameter.ID}} = param_size;
+if (string_size_{{.Parameter.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.Parameter.ID}} = MAX_STRING_SIZE;
 }
-bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.ID}}), &string_size_{{.ID}});
+bpf_probe_read(&event->output[outputOffset+1], sizeof(string_size_{{.Parameter.ID}}), &string_size_{{.Parameter.ID}});
 outputOffset += 3;
+`
+
+var stringLengthStackTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}));
 `
 
 var sliceRegisterTemplateText = `
@@ -127,31 +138,32 @@ outputOffset += MAX_SLICE_SIZE;`
 var stringRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}+1]);
 
-__u16 string_size_read_{{.ID}} = param_size;
-if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_read_{{.ID}} = MAX_STRING_SIZE;
+// We limit string length variable again in case the verifier forgot about it (which often happens)
+__u16 string_size_{{.ID}}_new;
+string_size_{{.ID}}_new = string_size_{{.ID}};
+if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
+    string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 
 // Read contents of string
-bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)ctx->regs[{{.Location.Register}}]);
-outputOffset += string_size_read_{{.ID}};
+bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)ctx->regs[{{.Location.Register}}]);
+outputOffset += string_size_{{.ID}}_new;
 `
 
 var stringStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-// Read string length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
-// Limit string length
-__u16 string_size_read_{{.ID}} = param_size;
-if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_read_{{.ID}} = MAX_STRING_SIZE;
+
+// We limit string length variable again in case the verifier forgot about it (which often happens)
+__u16 string_size_{{.ID}}_new;
+string_size_{{.ID}}_new = string_size_{{.ID}};
+if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
+    string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 // Read contents of string
 bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->regs[29]+{{.Location.StackOffset}}));
-bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)(ret_addr));
-outputOffset += string_size_read_{{.ID}};
+bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)(ret_addr));
+outputOffset += string_size_{{.ID}}_new;
 `
 
 var pointerRegisterTemplateText = `

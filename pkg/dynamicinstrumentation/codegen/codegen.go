@@ -52,20 +52,28 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	return nil
 }
 
+var templateFunctions = template.FuncMap{
+	// Register index we get from bininspect starts at 0,
+	// but the PT_REGS_PARM macros start at 1
+	"macroCorrect": func(i int) int {
+		return i + 1
+	},
+}
+
 func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	switch param.Kind {
 	case uint(reflect.String):
 		if param.Location.InReg {
-			return template.New("string_reg_header_template").Parse(stringRegisterHeaderTemplateText)
+			return template.New("string_reg_header_template").Funcs(templateFunctions).Parse(stringRegisterHeaderTemplateText)
 		}
-		return template.New("string_stack_header_template").Parse(stringStackHeaderTemplateText)
+		return template.New("string_stack_header_template").Funcs(templateFunctions).Parse(stringStackHeaderTemplateText)
 	case uint(reflect.Slice):
 		if param.Location.InReg {
-			return template.New("slice_reg_header_template").Parse(sliceRegisterHeaderTemplateText)
+			return template.New("slice_reg_header_template").Funcs(templateFunctions).Parse(sliceRegisterHeaderTemplateText)
 		}
-		return template.New("slice_stack_header_template").Parse(sliceStackHeaderTemplateText)
+		return template.New("slice_stack_header_template").Funcs(templateFunctions).Parse(sliceStackHeaderTemplateText)
 	default:
-		return template.New("header_template").Parse(headerTemplateText)
+		return template.New("header_template").Funcs(templateFunctions).Parse(headerTemplateText)
 	}
 }
 
@@ -82,6 +90,10 @@ func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
 		return generateSliceHeader(&param, out)
+	}
+
+	if reflect.Kind(param.Kind) == reflect.String {
+		return generateStringHeader(&param, out)
 	}
 
 	tmplt, err := resolveHeaderTemplate(&param)
@@ -132,15 +144,15 @@ func generateParameterText(param *ditypes.Parameter, out io.Writer) error {
 
 func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	if param.Type == "main.triggerVerifierErrorForTesting" {
-		return template.New("trigger_verifier_error_template").Parse(forcedVerifierErrorTemplate)
+		return template.New("trigger_verifier_error_template").Funcs(templateFunctions).Parse(forcedVerifierErrorTemplate)
 	}
 	notSupported := param.NotCaptureReason == ditypes.Unsupported
 	cutForFieldLimit := param.NotCaptureReason == ditypes.FieldLimitReached
 
 	if notSupported {
-		return template.New("unsupported_type_template").Parse(unsupportedTypeTemplateText)
+		return template.New("unsupported_type_template").Funcs(templateFunctions).Parse(unsupportedTypeTemplateText)
 	} else if cutForFieldLimit {
-		return template.New("cut_field_limit_template").Parse(cutForFieldLimitTemplateText)
+		return template.New("cut_field_limit_template").Funcs(templateFunctions).Parse(cutForFieldLimitTemplateText)
 	}
 
 	if param.Location.InReg {
@@ -156,16 +168,16 @@ func resolveRegisterParameterTemplate(param *ditypes.Parameter) (*template.Templ
 
 	if needsDereference {
 		// Register Pointer
-		return template.New("pointer_register_template").Parse(pointerRegisterTemplateText)
+		return template.New("pointer_register_template").Funcs(templateFunctions).Parse(pointerRegisterTemplateText)
 	} else if stringType {
 		// Register String
-		return template.New("string_register_template").Parse(stringRegisterTemplateText)
+		return template.New("string_register_template").Funcs(templateFunctions).Parse(stringRegisterTemplateText)
 	} else if sliceType {
 		// Register Slice
-		return template.New("slice_register_template").Parse(sliceRegisterTemplateText)
+		return template.New("slice_register_template").Funcs(templateFunctions).Parse(sliceRegisterTemplateText)
 	} else if !needsDereference {
 		// Register Normal Value
-		return template.New("register_template").Parse(normalValueRegisterTemplateText)
+		return template.New("register_template").Funcs(templateFunctions).Parse(normalValueRegisterTemplateText)
 	}
 	return nil, errors.New("no template created: invalid or unsupported type")
 }
@@ -177,16 +189,16 @@ func resolveStackParameterTemplate(param *ditypes.Parameter) (*template.Template
 
 	if needsDereference {
 		// Stack Pointer
-		return template.New("pointer_stack_template").Parse(pointerStackTemplateText)
+		return template.New("pointer_stack_template").Funcs(templateFunctions).Parse(pointerStackTemplateText)
 	} else if stringType {
 		// Stack String
-		return template.New("string_stack_template").Parse(stringStackTemplateText)
+		return template.New("string_stack_template").Funcs(templateFunctions).Parse(stringStackTemplateText)
 	} else if sliceType {
 		// Stack Slice
-		return template.New("slice_stack_template").Parse(sliceStackTemplateText)
+		return template.New("slice_stack_template").Funcs(templateFunctions).Parse(sliceStackTemplateText)
 	} else if !needsDereference {
 		// Stack Normal Value
-		return template.New("stack_template").Parse(normalValueStackTemplateText)
+		return template.New("stack_template").Funcs(templateFunctions).Parse(normalValueStackTemplateText)
 	}
 	return nil, errors.New("no template created: invalid or unsupported type")
 }
@@ -223,10 +235,64 @@ func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("could not execute template for generating slice header: %w", err)
 	}
+
 	return nil
+}
+
+func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
+	if stringParam == nil {
+		return errors.New("nil string parameter when generating header code")
+	}
+	if len(stringParam.ParameterPieces) != 1 {
+		return errors.New("invalid string parameter when generating header code")
+	}
+
+	x := []byte{}
+	buf := bytes.NewBuffer(x)
+	err := generateStringLengthHeader(stringParam.ParameterPieces[0], buf)
+	if err != nil {
+		return err
+	}
+
+	stringHeaderWrapper := stringHeaderWrapper{
+		Parameter:        stringParam,
+		StringLengthText: buf.String(),
+	}
+
+	stringTemplate, err := resolveHeaderTemplate(stringParam)
+	if err != nil {
+		return err
+	}
+
+	err = stringTemplate.Execute(out, stringHeaderWrapper)
+	if err != nil {
+		return fmt.Errorf("could not execute template for generating string header: %w", err)
+	}
+	return nil
+}
+
+func generateStringLengthHeader(stringLengthParamPiece ditypes.Parameter, buf *bytes.Buffer) error {
+	var (
+		tmplte *template.Template
+		err    error
+	)
+	if stringLengthParamPiece.Location.InReg {
+		tmplte, err = template.New("string_register_length_header").Parse(stringLengthRegisterTemplateText)
+	} else {
+		tmplte, err = template.New("string_stack_length_header").Parse(stringLengthStackTemplateText)
+	}
+	if err != nil {
+		return err
+	}
+	return tmplte.Execute(buf, stringLengthParamPiece)
 }
 
 type sliceHeaderWrapper struct {
 	Parameter           *ditypes.Parameter
 	SliceTypeHeaderText string
+}
+
+type stringHeaderWrapper struct {
+	Parameter        *ditypes.Parameter
+	StringLengthText string
 }

@@ -158,7 +158,7 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 	}
 
 	for {
-		if len(stack) == 0 || locationCounter == len(locations) {
+		if len(stack) == 0 || locationCounter >= len(locations) {
 			return
 		}
 		current := stack[len(stack)-1]
@@ -181,9 +181,18 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 
 			if reflect.Kind(current.Kind) == reflect.String {
 				// Strings actually have two locations (pointer, length)
-				// but are shortened to a single one for parsing. The missing
-				// location is taken into account in bpf code, but we need
-				// to make sure it's not assigned to something else here.
+				// but are shortened to a single one for parsing. The location
+				// of the length is stored as a piece of the overall string
+				// which contains the location of the string's address.
+				if len(locations) <= locationCounter+1 {
+					return
+				}
+				stringLength := ditypes.Parameter{}
+				stringLengthLocation := locations[locationCounter+1]
+				stringLength.Location.InReg = stringLengthLocation.InReg
+				stringLength.Location.Register = stringLengthLocation.Register
+				stringLength.Location.StackOffset = stringLengthLocation.StackOffset
+				current.ParameterPieces = append(current.ParameterPieces, stringLength)
 				locationCounter++
 			} else if reflect.Kind(current.Kind) == reflect.Slice {
 				// slices actually have three locations (array, length, capacity)
