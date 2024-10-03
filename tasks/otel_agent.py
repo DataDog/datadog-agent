@@ -40,13 +40,20 @@ def build(ctx):
 
 
 @task
-def image_build(ctx, arch="amd64", base_version="latest", tag=OT_AGENT_TAG, push=False, no_cache=False):
+def image_build(
+    ctx,
+    arch="amd64",
+    base_version="latest",
+    tag=OT_AGENT_TAG,
+    push=False,
+    no_cache=False,
+    docker_file="Dockerfile",
+    build_context="Dockerfiles/agent",
+):
     """
     Build the otel agent container image
     """
-
-    build_context = os.path.join("Dockerfiles", "agent")
-    dockerfile = os.path.join("Dockerfiles", "agent-ot", "Dockerfile")
+    dockerfile = os.path.join("Dockerfiles", "agent-ot", docker_file)
 
     otel_binary = os.path.join(BIN_DIR, BIN_NAME)
     config_file = os.path.join(BIN_DIR, "dist", CFG_NAME)

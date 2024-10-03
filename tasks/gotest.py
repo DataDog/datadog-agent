@@ -34,9 +34,8 @@ from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
 from tasks.libs.releasing.json import _get_release_json_value
-from tasks.libs.releasing.version import get_version
 from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
-from tasks.otel_agent import OT_AGENT_IMAGE_NAME, OT_AGENT_TAG
+from tasks.otel_agent import OT_AGENT_IMAGE_NAME
 from tasks.otel_agent import build as otel_agent_build
 from tasks.otel_agent import image_build as otel_agent_image_build
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
@@ -914,7 +913,7 @@ def check_otel_module_versions(ctx):
 
 
 @task
-def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64"):
+def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64", tag="byoc-ot"):
     """run image_build task and perform follow-on tests to ensure image builds correctly"""
     try:
         otel_agent_build(ctx)
@@ -922,16 +921,25 @@ def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64"):
         print(f"Error occurred during otel agent build command: {e}")
         raise
     try:
-        otel_agent_image_build(ctx, arch=arch)
+        otel_agent_image_build(
+            ctx,
+            arch=arch,
+            base_version="7.57.0-v1.0-ot-beta-jmx",
+            tag=tag,
+            docker_file="Dockerfile.agent-otel",
+            build_context="comp/otelcol/collector-contrib/impl",
+        )
     except Exception as e:
         print(f"Error occurred during image build command: {e}")
         raise
     env = {
         "OT_AGENT_IMAGE_NAME": OT_AGENT_IMAGE_NAME,
-        "OT_AGENT_TAG": OT_AGENT_TAG,
-        "EXPECTED_VERSION": get_version(ctx),
+        "OT_AGENT_TAG": tag,
+        # "EXPECTED_VERSION": get_version(ctx),
     }
-    result = ctx.run(f"docker image inspect {OT_AGENT_IMAGE_NAME}:{OT_AGENT_TAG}", env=env, hide=True)
+    # TODO: uncomment expected version code once https://github.com/DataDog/datadog-agent/pull/29334
+    # is merged to otel beta branch
+    result = ctx.run(f"docker image inspect {OT_AGENT_IMAGE_NAME}:{tag}", env=env, hide=True)
     if "Error" in result.stdout and "No such image" in result.stdout:
         raise Exit(message=f"Build failed; docker build stdout below:\n{result.stdout}", code=1)
 
