@@ -61,6 +61,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'go mod .*', Result()),
             (r'grep .*', Result()),
             (r'aws ssm .*', Result()),
+            (r'vault kv get .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
