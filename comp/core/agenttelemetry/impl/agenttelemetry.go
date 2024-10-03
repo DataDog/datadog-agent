@@ -13,37 +13,38 @@
 package agenttelemetryimpl
 
 import (
-	"bytes"
 	"context"
-	"embed"
 	"encoding/json"
-	"reflect"
+	"fmt"
+	"net/http"
 	"strconv"
-	"strings"
 
+	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
 )
 
-// Embed one or more rendering templated into this binary as a resource
-// to be used at runtime.
-
-//go:embed status_templates
-var templatesFS embed.FS
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentTelemetryProvider),
+	)
+}
 
 type atel struct {
-	cfgComp    config.Component
-	logComp    log.Component
-	telComp    telemetry.Component
-	statusComp status.Component
+	cfgComp config.Component
+	logComp log.Component
+	telComp telemetry.Component
 
 	enabled bool
 	sender  sender
@@ -54,16 +55,21 @@ type atel struct {
 	cancel    context.CancelFunc
 }
 
-// Requires defines the dependencies for the agenttelemtry component
-type Requires struct {
-	compdef.In
+type provides struct {
+	fx.Out
+
+	Comp     agenttelemetry.Component
+	Endpoint api.AgentEndpointProvider
+}
+
+type dependencies struct {
+	fx.In
 
 	Log       log.Component
 	Config    config.Component
 	Telemetry telemetry.Component
-	Status    status.Component
 
-	Lifecycle compdef.Lifecycle
+	Lc fx.Lifecycle
 }
 
 // Interfacing with runner.
@@ -100,7 +106,6 @@ func createAtel(
 	cfgComp config.Component,
 	logComp log.Component,
 	telComp telemetry.Component,
-	statusComp status.Component,
 	sender sender,
 	runner runner) *atel {
 	// Parse Agent Telemetry Configuration configuration
@@ -127,32 +132,28 @@ func createAtel(
 	}
 
 	return &atel{
-		enabled:    true,
-		cfgComp:    cfgComp,
-		logComp:    logComp,
-		telComp:    telComp,
-		statusComp: statusComp,
-		sender:     sender,
-		runner:     runner,
-		atelCfg:    atelCfg,
+		enabled: true,
+		cfgComp: cfgComp,
+		logComp: logComp,
+		telComp: telComp,
+		sender:  sender,
+		runner:  runner,
+		atelCfg: atelCfg,
 	}
 }
 
-// NewComponent creates a new agent telemetry component.
-func NewComponent(req Requires) agenttelemetry.Component {
-	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
+func newAgentTelemetryProvider(deps dependencies) provides {
 	a := createAtel(
-		req.Config,
-		req.Log,
-		req.Telemetry,
-		req.Status,
+		deps.Config,
+		deps.Log,
+		deps.Telemetry,
 		nil,
 		nil,
 	)
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		req.Lifecycle.Append(compdef.Hook{
+		deps.Lc.Append(fx.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()
 			},
@@ -162,7 +163,10 @@ func NewComponent(req Requires) agenttelemetry.Component {
 		})
 	}
 
-	return a
+	return provides{
+		Comp:     a,
+		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+	}
 }
 
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
@@ -308,22 +312,13 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	}
 }
 
-func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
+func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
 	// If no metrics are configured nothing to report
 	if len(p.metricsMap) == 0 {
 		return
 	}
 
 	a.logComp.Debugf("Collect Agent Metric telemetry for profile %s", p.Name)
-
-	// Gather all prom metrircs. Currently Gather() does not allow filtering by
-	// matric name, so we need to gather all metrics and filter them on our own.
-	//	pms, err := a.telemetry.Gather(false)
-	pms, err := a.telComp.Gather(false)
-	if err != nil {
-		a.logComp.Errorf("failed to get filtered telemetry metrics: %s", err)
-		return
-	}
 
 	// ... and filter them according to the profile configuration
 	var metrics []*agentmetric
@@ -342,198 +337,79 @@ func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
 	// Send the metrics if any were filtered
 	a.logComp.Debugf("Reporting Agent Metric telemetry for profile %s", p.Name)
 
-	err = a.sender.sendAgentMetricPayloads(session, metrics)
-	if err != nil {
-		a.logComp.Errorf("failed to get filtered telemetry metrics: %s", err)
-	}
+	a.sender.sendAgentMetricPayloads(session, metrics)
 }
 
-// renderAgentStatus renders (transform) input status JSON object into output status using the template
-func (a *atel) renderAgentStatus(p *Profile, inputStatus map[string]interface{}, statusOutput map[string]interface{}) {
-	// Render template if needed
-	if p.Status.Template == "none" {
-		return
-	}
-
-	templateName := "agent-telemetry-" + p.Status.Template + ".tmpl"
-	var b = new(bytes.Buffer)
-	err := status.RenderText(templatesFS, templateName, b, inputStatus)
+func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
+	// Gather all prom metrircs. Currently Gather() does not allow filtering by
+	// matric name, so we need to gather all metrics and filter them on our own.
+	//	pms, err := a.telemetry.Gather(false)
+	pms, err := a.telComp.Gather(false)
 	if err != nil {
-		a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
-		return
-	}
-	if len(b.Bytes()) == 0 {
-		a.logComp.Debug("Agent status rendering to agent telemetry payloads return empty payload")
-		return
+		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
+		return nil, err
 	}
 
-	// Convert byte slice to JSON object
-	if err := json.Unmarshal(b.Bytes(), &statusOutput); err != nil {
-		a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
-		return
+	session := a.sender.startSession(a.cancelCtx)
+	for _, p := range profiles {
+		a.reportAgentMetrics(session, pms, p)
 	}
-}
-
-func (a *atel) addAgentStatusExtra(p *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
-	for _, builder := range p.statusExtraBuilder {
-		// Evaluate JQ expression against the agent status JSON object
-		jqResult := builder.jqSource.Run(fullStatus)
-		jqValue, ok := jqResult.Next()
-		if !ok {
-			a.logComp.Errorf("Failed to apply JQ expression for JSON path '%s' to Agent Status payload. Error unknown",
-				strings.Join(builder.jpathTarget, "."))
-			continue
-		}
-
-		// Validate JQ expression result
-		if err, ok := jqValue.(error); ok {
-			a.logComp.Errorf("Failed to apply JQ expression for JSON path '%s' to Agent Status payload. Error: %s",
-				strings.Join(builder.jpathTarget, "."), err.Error())
-			continue
-		}
-
-		// Validate JQ expression result type
-		var attrVal interface{}
-		switch jqValueType := jqValue.(type) {
-		case int:
-			attrVal = jqValueType
-		case float64:
-			attrVal = jqValueType
-		case bool:
-			attrVal = jqValueType
-		case nil:
-			a.logComp.Errorf("JQ expression return 'nil' value for JSON path '%s'", strings.Join(builder.jpathTarget, "."))
-			continue
-		case string:
-			a.logComp.Errorf("string value (%v) for JSON path '%s' for extra status atttribute is not currently allowed",
-				strings.Join(builder.jpathTarget, "."), attrVal)
-			continue
-		default:
-			a.logComp.Errorf("'%v' value (%v) for JSON path '%s' for extra status atttribute is not currently allowed",
-				reflect.TypeOf(jqValueType), reflect.ValueOf(jqValueType), strings.Join(builder.jpathTarget, "."))
-			continue
-		}
-
-		// Add resulting value to the agent status telemetry payload (recursively creating missing JSON objects)
-		curNode := statusOutput
-		for i, p := range builder.jpathTarget {
-			// last element is the attribute name
-			if i == len(builder.jpathTarget)-1 {
-				curNode[p] = attrVal
-				break
-			}
-
-			existSubNode, ok := curNode[p]
-
-			// if the node doesn't exist, create it
-			if !ok {
-				newSubNode := make(map[string]interface{})
-				curNode[p] = newSubNode
-				curNode = newSubNode
-			} else {
-				existSubNodeCasted, ok := existSubNode.(map[string]interface{})
-				if !ok {
-					a.logComp.Errorf("JSON path '%s' points to non-object element", strings.Join(builder.jpathTarget[:i], "."))
-					break
-				}
-				curNode = existSubNodeCasted
-			}
-		}
-	}
-}
-
-// Render Agent Status JSON object (using template if needed and adding extra attributes if specified in
-// the profile). The rendered JSON object is then sent to the telemetry server. The "rendering" of the
-// Agent Status JSON object may appear odd and flawed. For example ...
-//   - Agent Status, generally speaking, is moving into direction when multitudes of its providers are
-//     starting self-"rendering". Accordingly, its JSON representation is not fixed and certainly
-//     not-public and is subject to change, which may break both template and JQ style of rendering
-//     of Agent Telemetry (and which is implemented in this function). It is certainly a concern but
-//     its potential impact is minimized since Agent Telemetry is an internal feature. It is also
-//     the price of flexibility and decoupling rendering from the code.
-//   - There are a number of inefficiencies in the current implementation massaging Agent Status JSON
-//     object into JSON, then to bytes and JSON again. It should not be a big issue since the operations
-//     will be very infrequent and resulting objects relatively small.
-//   - In some way, the current implementation can be thought of as an architectural shortcut since
-//     Agent Status, arguably is not purely telemetry data (however it can be argue that it is also can
-//     be think of as quintessential Agent telemetry data) and perhaps more explicit Agent telemetry
-//     interfaces should be implemented where its loosely coupled "providers" supply their own internal
-//     telemetry to be emitted.
-func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
-	// If no status is configured nothing to report
-	if p.Status == nil {
-		return
-	}
-
-	a.logComp.Debugf("Collect Agent Status telemetry for profile %s", p.Name)
-
-	// Current "agent-telemetry-basic.tmpl" uses only "runneStats" and "dogstatsdStats" JSON sections
-	// These JSON sections are populated via "collector" and "DogStatsD" status providers sections
-	minimumReqSections := []string{"collector", "DogStatsD"}
-	statusBytes, err := a.statusComp.GetStatusBySections(minimumReqSections, "json", false)
-	if err != nil {
-		a.logComp.Errorf("failed to get agent status: %s", err)
-		return
-	}
-
-	var statusJSON = make(map[string]interface{})
-	err = json.Unmarshal(statusBytes, &statusJSON)
-	if err != nil {
-		a.logComp.Errorf("failed to unmarshall agent status: %s", err)
-		return
-	}
-
-	// Render Agent Status JSON object (using template if needed and adding extra attributes)
-	var statusPayloadJSON = make(map[string]interface{})
-	a.renderAgentStatus(p, statusJSON, statusPayloadJSON)
-	a.addAgentStatusExtra(p, statusJSON, statusPayloadJSON)
-	if len(statusPayloadJSON) == 0 {
-		a.logComp.Debug("No Agent Status telemetry collected")
-		return
-	}
-
-	a.logComp.Debugf("Reporting Agent Status telemetry for profile %s", p.Name)
-
-	// Send the Agent Telemetry status payload
-	err = a.sender.sendAgentStatusPayload(session, statusPayloadJSON)
-	if err != nil {
-		a.logComp.Errorf("failed to send agent status: %s", err)
-		return
-	}
+	return session, nil
 }
 
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
-	if a.sender == nil {
-		a.logComp.Errorf("Agent telemetry sender is not initialized")
+	a.logComp.Info("Starting agent telemetry run")
+
+	session, err := a.loadPayloads(profiles)
+	if err != nil {
+		a.logComp.Errorf("failed to load agent telemetry session: %s", err)
 		return
 	}
 
-	a.logComp.Info("Starting agent telemetry run")
-
-	session := a.sender.startSession(a.cancelCtx)
-
-	for _, p := range profiles {
-		a.reportAgentMetrics(session, p)
-		a.reportAgentStatus(session, p)
-	}
-
-	err := a.sender.flushSession(session)
+	err = a.sender.flushSession(session)
 	if err != nil {
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
 	}
 }
 
-// TODO: implement when CLI tool will be implemented
+func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
+	a.logComp.Info("Dumping agent telemetry payload")
+
+	payload, err := a.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, a.logComp.Error(err.Error()), 500)
+		return
+	}
+
+	w.Write(payload)
+}
+
 func (a *atel) GetAsJSON() ([]byte, error) {
-	return nil, nil
+	session, err := a.loadPayloads(a.atelCfg.Profiles)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
+	}
+	payload := session.flush()
+
+	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
+	}
+
+	jsonPayloadScrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
+	}
+
+	return jsonPayloadScrubbed, nil
 }
 
 // start is called by FX when the application starts.
 func (a *atel) start() error {
-	a.logComp.Info("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
+	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
 

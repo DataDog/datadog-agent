@@ -13,6 +13,7 @@ package agenttelemetryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -63,12 +62,8 @@ func (s *senderMock) startSession(_ context.Context) *senderSession {
 func (s *senderMock) flushSession(_ *senderSession) error {
 	return nil
 }
-func (s *senderMock) sendAgentStatusPayload(_ *senderSession, _ map[string]interface{}) error {
-	return nil
-}
-func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) error {
+func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) {
 	s.sentMetrics = append(s.sentMetrics, metrics...)
-	return nil
 }
 
 // Runner mock (TODO: use use mock.Mock)
@@ -147,10 +142,6 @@ func makeLogMock(t *testing.T) log.Component {
 	return logmock.New(t)
 }
 
-func makeStatusMock(t *testing.T) status.Component {
-	return fxutil.Test[status.Mock](t, fx.Options(statusimpl.MockModule()))
-}
-
 func makeSenderImpl(t *testing.T, c string) sender {
 	o := convertYamlStrToMap(t, c)
 	cfg := makeCfgMock(t, o)
@@ -190,7 +181,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, makeStatusMock(t), sndr, runner)
+	atel := createAtel(cfg, log, tel, sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}
@@ -271,10 +262,10 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// default configuration has 1 job with 2 profiles (more configurations needs to be tested)
+	// default configuration has 1 job with 4 profiles (more configurations needs to be tested)
 	// will be improved in future by providing deterministic configuration
 	assert.Equal(t, 1, len(r.(*runnerMock).jobs))
-	assert.Equal(t, 2, len(r.(*runnerMock).jobs[0].profiles))
+	assert.Equal(t, 4, len(r.(*runnerMock).jobs[0].profiles))
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -520,6 +511,177 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	assert.Contains(t, metrics, "total:6:")
 	m4 := metrics["total:6:"]
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
+}
+
+func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.bar
+                aggregate_tags:
+                  - tag1
+        - name: bar
+          metric:
+            metrics:
+              - name: foo.foo
+                aggregate_tags:
+                  - tag1
+    `
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	counter1 := tel.NewCounter("bar", "bar", []string{"tag1", "tag2", "tag3"}, "")
+	counter1.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
+	counter2 := tel.NewCounter("foo", "foo", []string{"tag1", "tag2", "tag3"}, "")
+	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
+
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+
+	payloadJSON, err := a.GetAsJSON()
+	assert.NoError(t, err)
+	var payload map[string]interface{}
+	err = json.Unmarshal(payloadJSON, &payload)
+	assert.NoError(t, err)
+
+	// -----------------------
+	// for 2 profiles there are2 metrics, but 1 payload (test is currently payload schema dependent, improve in future)
+
+	// Single payload whcich has sub-payloads for each metric
+	requestType, ok := payload["request_type"]
+	assert.Equal(t, "agent-metrics", requestType)
+	metricsPayload, ok := payload["payload"].(map[string]interface{})
+	assert.True(t, ok)
+	metrics, ok := metricsPayload["metrics"].(map[string]interface{})
+	assert.True(t, ok)
+	// 2 metrics
+	_, ok = metrics["bar.bar"]
+	assert.True(t, ok)
+	_, ok = metrics["foo.foo"]
+	assert.True(t, ok)
+}
+
+func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.bar
+                aggregate_tags:
+                  - tag1
+    `
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	counter1 := tel.NewCounter("bar", "bar", []string{"tag1", "tag2", "tag3"}, "")
+	counter1.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
+	counter1.AddWithTags(20, map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"})
+
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+
+	payloadJSON, err := a.GetAsJSON()
+	assert.NoError(t, err)
+	var payload map[string]interface{}
+	err = json.Unmarshal(payloadJSON, &payload)
+	assert.NoError(t, err)
+
+	// -----------------------
+	// for 1 profiles there are 2 metrics in 1 payload (test is currently payload schema dependent, improve in future)
+
+	// One payloads each has the same metric (different tags)
+	requestType, ok := payload["request_type"]
+	assert.Equal(t, "message-batch", requestType)
+	metricPayloads, ok := payload["payload"].([]interface{})
+	assert.True(t, ok)
+
+	// ---------
+	// 2 metrics
+	// 1-st
+	payload1, ok := metricPayloads[0].(map[string]interface{})
+	requestType1, ok := payload1["request_type"]
+	assert.True(t, ok)
+	assert.Equal(t, "agent-metrics", requestType1)
+	metricsPayload1, ok := payload1["payload"].(map[string]interface{})
+	assert.True(t, ok)
+	metrics1, ok := metricsPayload1["metrics"].(map[string]interface{})
+	assert.True(t, ok)
+	_, ok11 := metrics1["bar.bar"]
+	_, ok12 := metrics1["foo.foo"]
+	assert.True(t, (ok11 && !ok12) || (!ok11 && ok12))
+
+	// 2-nd
+	payload2, ok := metricPayloads[1].(map[string]interface{})
+	requestType2, ok := payload2["request_type"]
+	assert.True(t, ok)
+	assert.Equal(t, "agent-metrics", requestType2)
+	metricsPayload2, ok := payload2["payload"].(map[string]interface{})
+	assert.True(t, ok)
+	metrics2, ok := metricsPayload2["metrics"].(map[string]interface{})
+	assert.True(t, ok)
+	_, ok21 := metrics2["bar.bar"]
+	_, ok22 := metrics2["foo.foo"]
+	assert.True(t, (ok21 && !ok22) || (!ok21 && ok22))
+
+}
+
+func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foobar
+          metric:
+            metrics:
+              - name: bar.bar
+                aggregate_tags:
+                  - tag1
+              - name: foo.foo
+                aggregate_tags:
+                  - tag1
+    `
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	counter1 := tel.NewCounter("bar", "bar", []string{"tag1", "tag2", "tag3"}, "")
+	counter1.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
+	counter2 := tel.NewCounter("foo", "foo", []string{"tag1", "tag2", "tag3"}, "")
+	counter2.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
+
+	o := convertYamlStrToMap(t, c)
+	s := makeSenderImpl(t, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, o, s, nil, r)
+
+	payloadJSON, err := a.GetAsJSON()
+	assert.NoError(t, err)
+	var payload map[string]interface{}
+	err = json.Unmarshal(payloadJSON, &payload)
+	assert.NoError(t, err)
+
+	// -----------------------
+	// for 2 profiles there are2 metrics, but 1 payload (test is currently payload schema dependent, improve in future)
+
+	// Single payload whcich has sub-payloads for each metric
+	requestType, ok := payload["request_type"]
+	assert.Equal(t, "agent-metrics", requestType)
+	metricsPayload, ok := payload["payload"].(map[string]interface{})
+	assert.True(t, ok)
+	metrics, ok := metricsPayload["metrics"].(map[string]interface{})
+	assert.True(t, ok)
+	// 2 metrics
+	_, ok = metrics["bar.bar"]
+	assert.True(t, ok)
+	_, ok = metrics["foo.foo"]
+	assert.True(t, ok)
 }
 
 func TestSenderConfigNoConfig(t *testing.T) {
