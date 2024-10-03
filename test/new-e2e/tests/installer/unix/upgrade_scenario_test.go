@@ -103,6 +103,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 	s.executeAgentGoldenPath()
@@ -118,7 +119,6 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
-
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
@@ -147,6 +147,7 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -170,6 +171,7 @@ func (s *upgradeScenarioSuite) TestExperimentFailure() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -195,6 +197,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	// Temporary catalog to wait for the installer to be ready
 	s.setCatalog(testCatalog)
@@ -225,6 +228,7 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 	beforeStatus := s.getInstallerStatus()
@@ -244,6 +248,7 @@ func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -272,6 +277,7 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -297,6 +303,7 @@ func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 	s.executeInstallerGoldenPath()
@@ -312,6 +319,7 @@ func (s *upgradeScenarioSuite) TestInstallerBackendFailure() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -339,6 +347,7 @@ func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
