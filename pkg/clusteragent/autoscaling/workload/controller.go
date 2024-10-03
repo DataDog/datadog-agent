@@ -250,11 +250,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// and compare it with the one in the PodAutoscaler. If they differ, we should update the PodAutoscaler
 		// otherwise store the Generation
 		if podAutoscalerInternal.Generation() != podAutoscaler.Generation {
-			if podAutoscalerInternal.CreationTimestamp().IsZero() {
-				podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
-				return autoscaling.Requeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, nil, podAutoscalerInternal, podAutoscaler)
-			}
-
 			localHash, err := autoscaling.ObjectHash(podAutoscalerInternal.Spec())
 			if err != nil {
 				c.store.Unlock(key)
@@ -276,6 +271,9 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			podAutoscalerInternal.SetGeneration(podAutoscaler.Generation)
+			if podAutoscalerInternal.CreationTimestamp().IsZero() {
+				podAutoscalerInternal.UpdateCreationTimestamp(podAutoscaler.CreationTimestamp.Time)
+			}
 		}
 	}
 
@@ -423,7 +421,7 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscalerInternal) error {
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
 	key := podAutoscalerInternal.ID()
-	if !podAutoscalerInternal.CreationTimestamp().IsZero() && !c.limitHeap.Exists(key) {
+	if !c.limitHeap.Exists(key) {
 		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects)
 	}
 

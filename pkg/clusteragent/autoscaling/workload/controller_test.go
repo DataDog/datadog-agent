@@ -611,20 +611,94 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	dpa2Time := testTime.Add(1 * time.Hour)
 
 	dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, dpaTime, dpaSpec, expectedStatus)
-	dpa1, dpaTyped1 := newFakePodAutoscaler("default", "dpa-1", 1, dpa1Time, dpaSpec, expectedStatus)
-	dpa2, dpaTyped2 := newFakePodAutoscaler("default", "dpa-2", 1, dpa2Time, dpaSpec, expectedStatus)
+	dpa1, dpaTyped1 := newFakePodAutoscaler("default", "dpa-1", 1, dpa1Time, dpa1Spec, expectedStatus)
+	dpa2, dpaTyped2 := newFakePodAutoscaler("default", "dpa-2", 1, dpa2Time, dpa2Spec, expectedStatus)
 
 	f.Actions = nil
 	f.InformerObjects = append(f.InformerObjects, dpa, dpa1, dpa2)
 	f.Objects = append(f.Objects, dpaTyped, dpaTyped1, dpaTyped2)
 
-	// Check that DatadogPodAutoscaler object is inserted into heap
+	// DPA object with exceeds max autoscalers error
+	expectedDPAError := &datadoghq.DatadogPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DatadogPodAutoscaler",
+			APIVersion: "datadoghq.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "dpa-1",
+			Namespace:         "default",
+			Generation:        1,
+			UID:               dpa1.GetUID(),
+			CreationTimestamp: dpa1.GetCreationTimestamp(),
+		},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Kind:       "",
+				Name:       "",
+				APIVersion: "",
+			},
+			Owner: "",
+		},
+		Status: datadoghq.DatadogPodAutoscalerStatus{
+			Conditions: []datadoghq.DatadogPodAutoscalerCondition{
+				{
+					Type:               datadoghq.DatadogPodAutoscalerErrorCondition,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(testTime),
+					Reason:             "Autoscaler disabled as maximum number per cluster reached (100)",
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerActiveCondition,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
+					Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToApply,
+					Status:             corev1.ConditionUnknown,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+			},
+		},
+	}
+	expectedUnstructuredError, err := autoscaling.ToUnstructured(expectedDPAError)
+	assert.NoError(t, err)
+	// dpa1, dpaTyped1 = newFakePodAutoscaler("default", "dpa-1", 1, dpa1Time, dpa1Spec, errorStatus)
+	f.ExpectUpdateStatusAction(expectedUnstructuredError)
 	f.RunControllerSync(true, "default/dpa-1")
+	// f.RunControllerSync(true, "default/dpa-1")
 	assert.Equal(t, 1, f.autoscalingHeap.MaxHeap.Len())
 	assert.Equal(t, "default/dpa-1", f.autoscalingHeap.MaxHeap.Peek().Key)
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to be in heap")
 
 	// Check that multiple objects can be inserted with ordering preserved
+	f.Actions = nil
+	expectedDPAError.CreationTimestamp = dpa2.GetCreationTimestamp()
+	expectedDPAError.Name = "dpa-2"
+	expectedDPAError.UID = dpa2.GetUID()
+	expectedUnstructuredError, err = autoscaling.ToUnstructured(expectedDPAError)
+	assert.NoError(t, err)
+	f.ExpectUpdateStatusAction(expectedUnstructuredError)
+
 	f.RunControllerSync(true, "default/dpa-2")
 	assert.Equal(t, 2, f.autoscalingHeap.MaxHeap.Len())
 	assert.Equal(t, "default/dpa-2", f.autoscalingHeap.MaxHeap.Peek().Key)
@@ -632,6 +706,14 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
 
 	// Check that heap ordering is preserved and limit is not exceeeded
+	f.Actions = nil
+	expectedDPAError.CreationTimestamp = dpa.GetCreationTimestamp()
+	expectedDPAError.Name = "dpa-0"
+	expectedDPAError.UID = dpa.GetUID()
+	expectedUnstructuredError, err = autoscaling.ToUnstructured(expectedDPAError)
+	assert.NoError(t, err)
+	f.ExpectUpdateStatusAction(expectedUnstructuredError)
+
 	f.RunControllerSync(true, "default/dpa-0")
 	assert.Equal(t, 2, f.autoscalingHeap.MaxHeap.Len())
 	assert.Equal(t, "default/dpa-1", f.autoscalingHeap.MaxHeap.Peek().Key)
@@ -642,6 +724,7 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	// Check that when object (dpa1) is deleted, heap is updated accordingly
 	dpaInternal1.Deleted = true
 	f.store.Set("default/dpa-1", dpaInternal1.Build(), controllerID)
+	f.Actions = nil
 	f.ExpectDeleteAction("default", "dpa-1")
 	f.RunControllerSync(true, "default/dpa-1")
 	assert.Len(t, f.store.GetAll(), 3)
@@ -652,50 +735,15 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 
 	f.RunControllerSync(true, "default/dpa-1")
 
-	// dpa-2 status currently has an error, it will get resolved in next reconcile
-	errorStatus := datadoghq.DatadogPodAutoscalerStatus{
-		Conditions: []datadoghq.DatadogPodAutoscalerCondition{
-			{
-				Type:               datadoghq.DatadogPodAutoscalerErrorCondition,
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: metav1.NewTime(testTime),
-				Reason:             "Autoscaler disabled as maximum number per cluster reached (100)",
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerActiveCondition,
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition,
-				Status:             corev1.ConditionUnknown,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition,
-				Status:             corev1.ConditionUnknown,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition,
-				Status:             corev1.ConditionFalse,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition,
-				Status:             corev1.ConditionUnknown,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-			{
-				Type:               datadoghq.DatadogPodAutoscalerVerticalAbleToApply,
-				Status:             corev1.ConditionUnknown,
-				LastTransitionTime: metav1.NewTime(testTime),
-			},
-		},
-	}
-	dpa2, dpaTyped2 = newFakePodAutoscaler("default", "dpa-2", 0, dpa2Time, dpaSpec, errorStatus)
-	f.InformerObjects = append(f.InformerObjects, dpa2)
-	f.Objects = append(f.Objects, dpaTyped2)
+	f.Actions = nil
+	expectedDPAError.CreationTimestamp = dpa2.GetCreationTimestamp()
+	expectedDPAError.Name = "dpa-2"
+	expectedDPAError.UID = dpa2.GetUID()
+	expectedUnstructuredError, err = autoscaling.ToUnstructured(expectedDPAError)
+	f.InformerObjects = append(f.InformerObjects, expectedUnstructuredError)
+	f.Objects = append(f.Objects, expectedDPAError)
+	assert.NoError(t, err)
+
 	f.RunControllerSync(true, "default/dpa-2")
 	assert.Len(t, f.store.GetAll(), 2)
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-0"], "Expected dpa-0 to be in heap")
