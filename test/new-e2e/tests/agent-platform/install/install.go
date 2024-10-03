@@ -38,7 +38,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
-		commandLine = fmt.Sprintf(" DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
+		commandLine = fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
 	}
 
 	if params.Flavor != "" {
