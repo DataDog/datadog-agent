@@ -254,6 +254,9 @@ var defaultProfiles = `
         - name: logs.network_errors
         - name: logs.dropped
         - name: logs.sender_latency
+        - name: logs.bytes_sent
+        - name: logs.encoded_bytes_sent
+        - name: logs.bytes_missed
         - name: logs.destination_http_resp
           aggregate_tags:
             - status_code
