@@ -5,27 +5,24 @@
 
 //go:build kubeapiserver
 
-// Package mutate contains mutating webhooks registered in the admission
+// Package validate contains validating webhooks registered in the admission
 // controller.
 //
-// The general idea of mutating webhooks is to intercept requests to the
-// Kubernetes API server and modify the Kubernetes objects before the operation
-// specified in the request is applied. For example, a mutating webhook can be
-// configured to receive all the requests about creating or updating a pod, and
-// modify the pod to enforce some defaults. A typical example is to intercept
-// requests to create a pod and add some environment variables or volumes to the
-// pod to enable some functionality automatically. This saves the user from
-// having to add environment variables or volumes manually on each pod in their
-// cluster.
-// To learn more about mutating webhooks, see the official Kubernetes documentation:
+// The general idea of validating webhooks is to intercept requests to the
+// Kubernetes API server and either admit or refuse the Kubernetes request before the operation
+// specified in the request is applied. For example, a validating webhook can be
+// configured to receive all the requests about creating or updating a pod, and refuse pod creation
+// if they don't respect specific rules. Validating webhooks can be used to
+// enforce security policies, best practices, etc.
+// To learn more about validating webhooks, see the official Kubernetes documentation:
 // https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/
 //
-// In general, each mutating webhook should be implemented in its own Go
+// In general, each validating webhook should be implemented in its own Go
 // package. If there are some related webhooks that share some code, they can be
 // grouped in the same package. For example, the CWS webhooks are all in the
 // same package.
 //
-// Each mutating webhook needs to implement the "Webhook" interface.
+// Each validating webhook needs to implement the "Webhook" interface.
 // Here's a brief description of each function and what they are used for:
 // - Name: it's the name of the webhook. It's used to identify it. The name
 // appears in some telemetry tags.
@@ -48,9 +45,9 @@
 // in the "common" package.
 // - WebhookFunc: the function that runs the logic of the webhook and returns the admission response.
 //
-// As any other feature, mutating webhooks can be configured using the Datadog
+// As any other feature, validating webhooks can be configured using the Datadog
 // configuration. When adding new configuration parameters, please try to follow
-// the convention of the other mutating webhooks. The configuration parameters
+// the convention of the other validating webhooks. The configuration parameters
 // for a webhook should be under the "admission_controller.name_of_the_webhook"
 // key.
 //
@@ -62,12 +59,12 @@
 // webhooks are executed is the order in which they are returned by the
 // "generateWebhooks" function in the "webhook" package.
 //
-// Mutating webhooks emit telemetry metrics. Each webhook can define its own
-// metrics as needed but some metrics like "mutation_attempts" or
+// Validating webhooks emit telemetry metrics. Each webhook can define its own
+// metrics as needed but some metrics like "validation_attempts" or
 // "webhooks_received" are common to all webhooks and defined in common code, so
 // new webhooks can use them without having to define them again.
 //
 // When implementing a new webhook keep performance in mind. For instance, if
 // the webhook reacts upon the creation of a new pod, it could slow down the pod
 // creation process.
-package mutate
+package validate
