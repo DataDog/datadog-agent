@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -2446,7 +2447,7 @@ func assertTagInfoEqual(t *testing.T, expected *types.TagInfo, item *types.TagIn
 
 func assertTagInfoListEqual(t *testing.T, expectedUpdates []*types.TagInfo, updates []*types.TagInfo) {
 	t.Helper()
-	assert.Equal(t, len(expectedUpdates), len(updates))
+	require.Equal(t, len(expectedUpdates), len(updates))
 	for i := 0; i < len(expectedUpdates); i++ {
 		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
 	}
