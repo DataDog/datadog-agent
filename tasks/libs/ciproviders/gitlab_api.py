@@ -1204,7 +1204,7 @@ def get_special_jobs(lint=False, all_jobs=None, all_stages=None):
 
     - lint: If True, will lint the file to verify that each job / stage is present in the configuration
     - all_jobs: All the jobs in the configuration
-    - all_stages: All the jobs in the configuration
+    - all_stages: All the stages in the configuration
     """
 
     with open(CONFIG_SPECIAL_JOBS) as f:
