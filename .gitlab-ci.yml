@@ -1,13 +1,15 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/test_gitlab_configuration.yml
+  - .gitlab/.pre/gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
   - .gitlab/check_merge/do_not_merge.yml
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
+  - .gitlab/powershell_script_signing/powershell_script_signing.yml
+  - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
@@ -90,9 +92,9 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
+  - choco_and_install_script_build
   - trigger_release
-  - choco_build
-  - choco_deploy
+  - choco_and_install_script_deploy
   - internal_image_deploy
   - install_script_testing
   - e2e_pre_test
@@ -142,6 +144,7 @@ variables:
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
   WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
   WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
+  WINDOWS_POWERSHELL_DIR: $CI_PROJECT_DIR/signed_scripts
   DEB_RPM_TESTING_BUCKET_BRANCH: testing # branch of the DEB_TESTING_S3_BUCKET and RPM_TESTING_S3_BUCKET repos to release to, 'testing'
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
@@ -170,15 +173,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_WINBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_ARMBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45605580-5f42ffba
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -196,7 +199,7 @@ variables:
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
-  # List of parameters retrieved from AWS SSM
+  # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE: ci.datadog-agent.agent-qa-profile  # agent-devx-infra
   API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
@@ -252,6 +255,15 @@ variables:
   SSH_PUBLIC_KEY_RSA: ci.datadog-agent.ssh_public_key_rsa  # agent-devx-loops
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
+  # End aws ssm variables
+  # Start vault variables
+  # End vault variables
+
+  ATLASSIAN_WRITE: atlassian-write
+  AGENT_GITHUB_APP: agent-github-app
+  MACOS_GITHUB_APP_1: macos-github-app-one
+  MACOS_GITHUB_APP_2: macos-github-app-two
+  DOCKER_REGISTRY_RO: dockerhub-readonly
 
   DD_PKG_VERSION: "latest"
 

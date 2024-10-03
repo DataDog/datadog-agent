@@ -355,70 +355,8 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestActionKillDisarm(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
-	})
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "kill_action_disarm_executable",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
-			Actions: []*rules.ActionDefinition{
-				{
-					Kill: &rules.KillDefinition{
-						Signal: "SIGKILL",
-					},
-				},
-			},
-		},
-		{
-			ID:         "kill_action_disarm_container",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
-			Actions: []*rules.ActionDefinition{
-				{
-					Kill: &rules.KillDefinition{
-						Signal: "SIGKILL",
-					},
-				},
-			},
-		},
-	}
-
-	sleep := which(t, "sleep")
-	const (
-		enforcementDisarmerContainerPeriod  = 10 * time.Second
-		enforcementDisarmerExecutablePeriod = 10 * time.Second
-	)
-
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		enforcementDisarmerContainerEnabled:     true,
-		enforcementDisarmerContainerMaxAllowed:  1,
-		enforcementDisarmerContainerPeriod:      enforcementDisarmerContainerPeriod,
-		enforcementDisarmerExecutableEnabled:    true,
-		enforcementDisarmerExecutableMaxAllowed: 1,
-		enforcementDisarmerExecutablePeriod:     enforcementDisarmerExecutablePeriod,
-		eventServerRetention:                    1 * time.Nanosecond,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
+func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester string, containerPeriod, executablePeriod time.Duration) {
+	t.Helper()
 
 	testKillActionSuccess := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
 		test.msgSender.flush()
@@ -518,7 +456,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that the kill action is re-armed after both executable cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerExecutablePeriod + 5*time.Second + 1*time.Second)
+		time.Sleep(executablePeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
@@ -556,12 +494,170 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that the kill action is re-armed after both container cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerContainerPeriod + 5*time.Second + 1*time.Second)
+		time.Sleep(containerPeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
 			_ = cmd.Run()
 		})
 	})
+}
+
+func TestActionKillDisarm(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	})
+
+	sleep := which(t, "sleep")
+
+	const (
+		enforcementDisarmerContainerPeriod  = 10 * time.Second
+		enforcementDisarmerExecutablePeriod = 10 * time.Second
+	)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_action_disarm_executable",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+		{
+			ID:         "kill_action_disarm_container",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		enforcementDisarmerContainerEnabled:     true,
+		enforcementDisarmerContainerMaxAllowed:  1,
+		enforcementDisarmerContainerPeriod:      enforcementDisarmerContainerPeriod,
+		enforcementDisarmerExecutableEnabled:    true,
+		enforcementDisarmerExecutableMaxAllowed: 1,
+		enforcementDisarmerExecutablePeriod:     enforcementDisarmerExecutablePeriod,
+		eventServerRetention:                    1 * time.Nanosecond,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testActionKillDisarm(t, test, sleep, syscallTester, enforcementDisarmerContainerPeriod, enforcementDisarmerExecutablePeriod)
+}
+
+func TestActionKillDisarmFromRule(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	})
+
+	sleep := which(t, "sleep")
+
+	const (
+		enforcementDisarmerContainerPeriod  = 10 * time.Second
+		enforcementDisarmerExecutablePeriod = 10 * time.Second
+	)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_action_disarm_executable",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+						Disarmer: &rules.KillDisarmerDefinition{
+							Executable: &rules.KillDisarmerParamsDefinition{
+								MaxAllowed: 1,
+								Period:     enforcementDisarmerExecutablePeriod,
+							},
+							Container: &rules.KillDisarmerParamsDefinition{
+								MaxAllowed: 1,
+								Period:     enforcementDisarmerContainerPeriod,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			ID:         "kill_action_disarm_container",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+						Disarmer: &rules.KillDisarmerDefinition{
+							Executable: &rules.KillDisarmerParamsDefinition{
+								MaxAllowed: 1,
+								Period:     enforcementDisarmerExecutablePeriod,
+							},
+							Container: &rules.KillDisarmerParamsDefinition{
+								MaxAllowed: 1,
+								Period:     enforcementDisarmerContainerPeriod,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		enforcementDisarmerContainerEnabled:     true,
+		enforcementDisarmerContainerMaxAllowed:  9999,
+		enforcementDisarmerContainerPeriod:      1 * time.Hour,
+		enforcementDisarmerExecutableEnabled:    true,
+		enforcementDisarmerExecutableMaxAllowed: 9999,
+		enforcementDisarmerExecutablePeriod:     1 * time.Hour,
+		eventServerRetention:                    1 * time.Nanosecond,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testActionKillDisarm(t, test, sleep, syscallTester, enforcementDisarmerContainerPeriod, enforcementDisarmerExecutablePeriod)
 }
 
 func TestActionHash(t *testing.T) {
@@ -593,7 +689,6 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -695,5 +790,4 @@ func TestActionHash(t *testing.T) {
 
 		<-done
 	})
-
 }

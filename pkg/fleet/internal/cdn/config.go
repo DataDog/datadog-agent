@@ -36,8 +36,9 @@ func newConfig(layers ...*layer) (_ *Config, err error) {
 		SystemProbeConfig:   map[string]interface{}{},
 	}
 
-	// Merge all layers in order
-	for _, l := range layers {
+	// Merge all layers in reverse order (first layer has precedence)
+	for i := len(layers) - 1; i >= 0; i-- {
+		l := layers[i]
 		layerIDs = append(layerIDs, l.ID)
 		if l.AgentConfig != nil {
 			agentConfig, err := merge(mergedLayer.AgentConfig, l.AgentConfig)

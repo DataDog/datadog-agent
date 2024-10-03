@@ -72,6 +72,7 @@ type RuleDefinition struct {
 	OverrideOptions        OverrideOptions     `yaml:"override_options,omitempty" json:"override_options,omitempty"`
 	Actions                []*ActionDefinition `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Every                  time.Duration       `yaml:"every,omitempty" json:"every,omitempty"`
+	RateLimiterToken       []string            `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string              `yaml:"group_id,omitempty" json:"group_id,omitempty"`
 }
@@ -138,10 +139,23 @@ type SetDefinition struct {
 	TTL    time.Duration `yaml:"ttl" json:"ttl,omitempty"`
 }
 
+// KillDisarmerParamsDefinition describes the parameters of a kill action disarmer
+type KillDisarmerParamsDefinition struct {
+	MaxAllowed int           `yaml:"max_allowed" json:"max_allowed,omitempty" jsonschema:"description=The maximum number of allowed kill actions within the period,example=5"`
+	Period     time.Duration `yaml:"period" json:"period,omitempty" jsonschema:"description=The period of time during which the maximum number of allowed kill actions is calculated,example=1m"`
+}
+
+// KillDisarmerDefinition describes the 'disarmer' section of a kill action
+type KillDisarmerDefinition struct {
+	Container  *KillDisarmerParamsDefinition `yaml:"container" json:"container,omitempty"`
+	Executable *KillDisarmerParamsDefinition `yaml:"executable" json:"executable,omitempty"`
+}
+
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	Signal string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
-	Scope  string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Signal   string                  `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
+	Scope    string                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Disarmer *KillDisarmerDefinition `yaml:"disarmer" json:"disarmer,omitempty"`
 }
 
 // CoreDumpDefinition describes the 'coredump' action
