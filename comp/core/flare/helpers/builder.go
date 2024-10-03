@@ -211,6 +211,10 @@ func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) e
 }
 
 func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) error {
+	if fb.closed() {
+		return nil
+	}
+
 	if shouldScrub {
 		var err error
 
@@ -252,7 +256,17 @@ func (fb *builder) AddFileWithoutScrubbing(destFile string, content []byte) erro
 	return fb.addFile(false, destFile, content)
 }
 
+func (fb *builder) closed() bool {
+	fb.Lock()
+	defer fb.Unlock()
+	return fb.isClosed
+}
+
 func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {
+	if fb.closed() {
+		return nil
+	}
+
 	content, err := os.ReadFile(srcFile)
 	if err != nil {
 		return fb.logError("error reading file '%s' to be copy to '%s': %s", srcFile, destFile, err)
