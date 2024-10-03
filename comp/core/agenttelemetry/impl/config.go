@@ -261,17 +261,17 @@ var defaultProfiles = `
         - name: oracle.activity_latency
         - name: oracle.statement_metrics
         - name: oracle.statement_plan_errors
-		- name: postgres.schema_tables_elapsed_ms
-		- name: postgres.schema_tables_count
-		- name: postgres.collect_relations_autodiscovery_ms
-		- name: postgres.collect_stat_autodiscovery_ms
-		- name: postgres.get_new_pg_stat_activity_ms
-		- name: postgres.get_new_pg_stat_activity_count
-		- name: postgres.get_active_connections_ms
-		- name: postgres.get_active_connections_count
-		- name: postgres.collect_activity_snapshot_ms
-		- name: postgres.collect_statement_samples_ms
-		- name: postgres.collect_statement_samples_count
+        - name: postgres.schema_tables_elapsed_ms
+        - name: postgres.schema_tables_count
+        - name: postgres.collect_relations_autodiscovery_ms
+        - name: postgres.collect_stat_autodiscovery_ms
+        - name: postgres.get_new_pg_stat_activity_ms
+        - name: postgres.get_new_pg_stat_activity_count
+        - name: postgres.get_active_connections_ms
+        - name: postgres.get_active_connections_count
+        - name: postgres.collect_activity_snapshot_ms
+        - name: postgres.collect_statement_samples_ms
+        - name: postgres.collect_statement_samples_count
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
