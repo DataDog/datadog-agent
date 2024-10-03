@@ -99,6 +99,16 @@ func (spm *SecurityProfileManagers) AddActivityDumpHandler(handler dump.Activity
 	}
 }
 
+// DumpActivity handles an activity dump request
+func (spm *SecurityProfileManagers) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	if spm.activityDumpManager == nil {
+		return &api.ActivityDumpMessage{
+			Error: ErrActivityDumpManagerDisabled.Error(),
+		}, ErrActivityDumpManagerDisabled
+	}
+	return spm.activityDumpManager.DumpActivity(params)
+}
+
 // ListActivityDumps returns the list of active dumps
 func (spm *SecurityProfileManagers) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if spm.activityDumpManager == nil {

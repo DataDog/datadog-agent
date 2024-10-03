@@ -798,7 +798,7 @@ func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.Proces
 
 	}
 
-	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
+	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.EnvBlock, start.CmdLine, start.OwnerSidString)
 	if err != nil {
 		log.Errorf("error in resolver %v", err)
 		return false
@@ -1259,7 +1259,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
-	p.processKiller.Reset()
+	p.processKiller.Apply(rs)
 
 	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 	if err != nil {
@@ -1362,7 +1362,7 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			}) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
@@ -1431,4 +1431,9 @@ func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers)
 	}
 
 	return nil
+}
+
+// PlaySnapshot plays a snapshot
+func (p *WindowsProbe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
 }

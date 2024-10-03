@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -466,16 +467,15 @@ func TestJSONPatchCorrectness(t *testing.T) {
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
 			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
-			request := admission.MutateRequest{
+			request := admission.Request{
 				Raw:       podJSON,
 				Namespace: "bar",
 			}
-			jsonPatch, err := webhook.MutateFunc()(&request)
-			assert.NoError(t, err)
+			admissionResponse := webhook.WebhookFunc()(&request)
 
 			expected, err := os.ReadFile(tt.file)
 			assert.NoError(t, err)
-			assert.JSONEq(t, string(expected), string(jsonPatch))
+			assert.JSONEq(t, string(expected), string(admissionResponse.Patch))
 		})
 	}
 }
@@ -501,14 +501,13 @@ func BenchmarkJSONPatch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		request := admission.MutateRequest{
+		request := admission.Request{
 			Raw:       podJSON,
 			Namespace: "bar",
 		}
-		jsonPatch, err := webhook.MutateFunc()(&request)
-		if err != nil {
-			b.Fatal(err)
-		}
+		admissionResponse := webhook.WebhookFunc()(&request)
+		jsonPatch, err := json.Marshal(admissionResponse.Patch)
+		require.NoError(b, err)
 
 		if len(jsonPatch) < 100 {
 			b.Fatal("Empty JSONPatch")
