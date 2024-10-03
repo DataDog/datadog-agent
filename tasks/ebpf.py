@@ -6,7 +6,7 @@ import shutil
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.git import get_commit_sha, get_current_branch, get_common_ancestor
+from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.types.arch import Arch
 
 try:
@@ -20,11 +20,10 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from invoke.runners import Result
 from invoke.tasks import task
 
 if TYPE_CHECKING:
