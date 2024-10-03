@@ -67,13 +67,23 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Waiting for traces")
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		traces, err = s.Env().FakeIntake.Client().GetTraces()
-		assert.NoError(c, err)
-		assert.NotEmpty(c, traces)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, traces) {
+			return
+		}
 		trace := traces[0]
-		assert.NotEmpty(s.T(), trace.TracerPayloads)
+		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+			return
+		}
 		tp := trace.TracerPayloads[0]
-		assert.NotEmpty(s.T(), tp.Chunks)
-		assert.NotEmpty(s.T(), tp.Chunks[0].Spans)
+		if !assert.NotEmpty(s.T(), tp.Chunks) {
+			return
+		}
+		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+			return
+		}
 		assert.Equal(s.T(), calendarService, tp.Chunks[0].Spans[0].Service)
 		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
