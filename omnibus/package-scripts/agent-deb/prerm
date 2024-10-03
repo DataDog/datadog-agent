@@ -158,9 +158,16 @@ remove_apm_remote_config()
     fi
 }
 
-if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
-    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
-fi
+case "$1" in
+    upgrade)
+        # We're upgrading.
+        if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
+            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
+        fi
+    ;;
+    *)
+    ;;
+esac
 stop_agent
 deregister_agent
 remove_custom_integrations
