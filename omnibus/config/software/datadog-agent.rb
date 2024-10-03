@@ -66,6 +66,7 @@ build do
 
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
+  default_install_dir = "/opt/datadog-agent"
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
@@ -81,7 +82,7 @@ build do
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{default_install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{default_install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{default_install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
 
@@ -89,7 +90,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
-    command "inv -e agent.build --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{default_install_dir}/embedded --python-home-2=#{default_install_dir}/embedded --python-home-3=#{default_install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
 
     if heroku_target?
       command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
