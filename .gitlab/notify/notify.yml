@@ -95,8 +95,6 @@ notify_gitlab_ci_changes:
   tags: ["arch:amd64"]
   rules:
     - !reference [.compute_gitlab_ci_config_rules]
-    - if: $CI_PIPELINE_SOURCE != "push"
-      when: never
     - changes:
         paths:
           - .gitlab-ci.yml
