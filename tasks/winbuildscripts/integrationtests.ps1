@@ -15,7 +15,7 @@ $Env:PATH="$UT_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Pyt
 & .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e install-tools
-& inv -e integration-tests --timeout 30m
+& inv -e integration-tests
 $err = $LASTEXITCODE
 if($err -ne 0){
     Write-Host -ForegroundColor Red "test failed $err"

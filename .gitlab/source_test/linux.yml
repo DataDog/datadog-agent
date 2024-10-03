@@ -306,7 +306,7 @@ agent_integration_tests:
   timeout: 30m
   retry: 2
   script:
-    - inv -e integration-tests --timeout 30m --race --remote-docker
+    - inv -e integration-tests --race --remote-docker
 
 docker_integration_tests:
   extends: .integration_tests_deb
