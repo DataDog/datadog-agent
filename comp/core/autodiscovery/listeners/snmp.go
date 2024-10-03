@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var snmpAutodiscoveryVar = expvar.NewMap("snmpAutodiscovery")
 
 const (
 	defaultWorkers           = 2
@@ -219,6 +222,10 @@ func (l *SNMPListener) checkDevices() {
 		go worker(l, jobs)
 	}
 
+	for _, subnet := range subnets {
+		snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
+	}
+
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
@@ -228,6 +235,7 @@ func (l *SNMPListener) checkDevices() {
 			subnet = &subnets[i]
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
+			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
 				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
@@ -248,6 +256,7 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
+			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return fmt.Sprintf("%d", len(subnet.devices)) }))
 		}
 
 		select {

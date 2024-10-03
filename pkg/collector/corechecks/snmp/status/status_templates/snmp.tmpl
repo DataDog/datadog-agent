@@ -1,0 +1,29 @@
+{{- if .snmpProfiles }}
+  Profiles
+  ========
+  {{- range $key, $value := .snmpProfiles }}
+  {{$key}}: {{$value}}
+  {{- end }}
+{{- end }}
+{{- if or .autodiscoverySubnets .discoverySubnets }}
+  Autodiscovery
+  =============
+  {{- range $key, $value := .autodiscoverySubnets }}
+  {{- if eq $value "scanning" }}
+  Subnet {{$key}} scanning...
+  {{- else if eq $value "1" }}
+  Subnet {{$key}} scanned with {{$value}} device
+  {{- else }}
+  Subnet {{$key}} scanned with {{$value}} devices
+  {{- end }}
+  {{- end }}
+  {{- range $key, $value := .discoverySubnets}}
+  {{- if eq $value "scanning" }}
+  Subnet {{$key}} scanning...
+  {{- else if eq $value "1" }}
+  Subnet {{$key}} scanned with {{$value}} device
+  {{- else }}
+  Subnet {{$key}} scanned with {{$value}} devices
+  {{- end }}
+  {{- end }}
+{{- end }}

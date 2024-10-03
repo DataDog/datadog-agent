@@ -23,12 +23,12 @@ type Provider struct{}
 
 // Name returns the name
 func (Provider) Name() string {
-	return "SNMP Profiles"
+	return "SNMP"
 }
 
 // Section return the section
 func (Provider) Section() string {
-	return "SNMP Profiles"
+	return "SNMP"
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {
@@ -48,6 +48,26 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 		json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
 		stats["snmpProfiles"] = profiles
 	}
+
+	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
+
+	if autodiscoveryVar != nil {
+		autodiscoverySubnets := make(map[string]string)
+		autodiscoveryJSON := []byte(autodiscoveryVar.String())
+		json.Unmarshal(autodiscoveryJSON, &autodiscoverySubnets) //nolint:errcheck
+
+		stats["autodiscoverySubnets"] = autodiscoverySubnets
+	}
+
+	discoveryVar := expvar.Get("snmpDiscovery")
+
+	if discoveryVar != nil {
+		discoverySubnets := make(map[string]string)
+		discoveryJSON := []byte(discoveryVar.String())
+		json.Unmarshal(discoveryJSON, &discoverySubnets) //nolint:errcheck
+
+		stats["discoverySubnets"] = discoverySubnets
+	}
 }
 
 // JSON populates the status map
@@ -59,10 +79,10 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "profiles.tmpl", buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "snmp.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "profilesHTML.tmpl", buffer, p.getStatusInfo())
+	return status.RenderHTML(templatesFS, "snmpHTML.tmpl", buffer, p.getStatusInfo())
 }
