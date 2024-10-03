@@ -38,11 +38,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
-		commandLine += fmt.Sprintf(" DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
-	}
-
-	if params.InstallPythonThirdPartyDeps {
-		commandLine += " INSTALL_PYTHON_THIRD_PARTY_DEPS=true"
+		commandLine = fmt.Sprintf(" DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
 	}
 
 	if params.Flavor != "" {
@@ -50,7 +46,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	}
 
 	if params.Upgrade {
-		commandLine += " DD_UPGRADE=true "
+		commandLine += "DD_UPGRADE=true "
 	}
 
 	var apikey string

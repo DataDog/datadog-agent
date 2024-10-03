@@ -16,13 +16,12 @@ import "os"
 
 // Params struct containing install params
 type Params struct {
-	PipelineID                  string
-	MajorVersion                string
-	Arch                        string
-	Flavor                      string
-	Upgrade                     bool
-	APIKey                      string
-	InstallPythonThirdPartyDeps bool
+	PipelineID   string
+	MajorVersion string
+	Arch         string
+	Flavor       string
+	Upgrade      bool
+	APIKey       string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -49,13 +48,6 @@ func applyOption(instance *Params, options ...Option) *Params {
 func WithMajorVersion(majorVersion string) Option {
 	return func(p *Params) {
 		p.MajorVersion = majorVersion
-	}
-}
-
-// WithInstallPythonThirdPartyDeps set the INSTALL_PYTHON_THIRD_PARTY_DEPS environment variable
-func WithInstallPythonThirdPartyDeps(InstallPythonThirdPartyDeps bool) Option {
-	return func(p *Params) {
-		p.InstallPythonThirdPartyDeps = InstallPythonThirdPartyDeps
 	}
 }
 

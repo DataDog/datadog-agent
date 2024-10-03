@@ -192,7 +192,7 @@ func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.Test
 	defer VMclient.Host.MustExecute("sudo chmod +t /tmp")
 	VMclient.Host.MustExecute("sudo chmod -t /tmp")
 
-	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithUpgrade(true), installparams.WithInstallPythonThirdPartyDeps(true))
+	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithUpgrade(true))
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 
