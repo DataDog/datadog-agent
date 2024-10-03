@@ -32,6 +32,7 @@ func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 	closeFunc := func() {
 		closed = true
 		r.Close()
+		r.Flush()
 	}
 
 	// TODO: ensure rate limiters are removed once probes are removed
