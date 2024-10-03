@@ -8,21 +8,25 @@ package agenttelemetryimpl
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
 	"strconv"
 
 	"golang.org/x/exp/maps"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
 )
-
-// Embed one or more rendering templated into this binary as a resource
-// to be used at runtime.
 
 type atel struct {
 	cfgComp config.Component
@@ -38,7 +42,7 @@ type atel struct {
 	cancel    context.CancelFunc
 }
 
-// Requires defines the dependencies for the agenttelemtry component
+// Requires defines the dependencies for the agenttelemetry component
 type Requires struct {
 	compdef.In
 
@@ -46,7 +50,15 @@ type Requires struct {
 	Config    config.Component
 	Telemetry telemetry.Component
 
-	Lifecycle compdef.Lifecycle
+	Lc compdef.Lifecycle
+}
+
+// Provides defines the output of the agenttelemetry component
+type Provides struct {
+	compdef.Out
+
+	Comp     agenttelemetry.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // Interfacing with runner.
@@ -120,19 +132,18 @@ func createAtel(
 }
 
 // NewComponent creates a new agent telemetry component.
-func NewComponent(req Requires) agenttelemetry.Component {
-	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
+func NewComponent(deps Requires) Provides {
 	a := createAtel(
-		req.Config,
-		req.Log,
-		req.Telemetry,
+		deps.Config,
+		deps.Log,
+		deps.Telemetry,
 		nil,
 		nil,
 	)
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		req.Lifecycle.Append(compdef.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()
 			},
@@ -142,7 +153,10 @@ func NewComponent(req Requires) agenttelemetry.Component {
 		})
 	}
 
-	return a
+	return Provides{
+		Comp:     a,
+		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
+	}
 }
 
 func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
@@ -288,22 +302,13 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	}
 }
 
-func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
+func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
 	// If no metrics are configured nothing to report
 	if len(p.metricsMap) == 0 {
 		return
 	}
 
 	a.logComp.Debugf("Collect Agent Metric telemetry for profile %s", p.Name)
-
-	// Gather all prom metrircs. Currently Gather() does not allow filtering by
-	// matric name, so we need to gather all metrics and filter them on our own.
-	//	pms, err := a.telemetry.Gather(false)
-	pms, err := a.telComp.Gather(false)
-	if err != nil {
-		a.logComp.Errorf("failed to get filtered telemetry metrics: %s", err)
-		return
-	}
 
 	// ... and filter them according to the profile configuration
 	var metrics []*agentmetric
@@ -322,38 +327,77 @@ func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
 	// Send the metrics if any were filtered
 	a.logComp.Debugf("Reporting Agent Metric telemetry for profile %s", p.Name)
 
-	err = a.sender.sendAgentMetricPayloads(session, metrics)
+	a.sender.sendAgentMetricPayloads(session, metrics)
+}
+
+func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
+	// Gather all prom metrircs. Currently Gather() does not allow filtering by
+	// matric name, so we need to gather all metrics and filter them on our own.
+	//	pms, err := a.telemetry.Gather(false)
+	pms, err := a.telComp.Gather(false)
 	if err != nil {
-		a.logComp.Errorf("failed to get filtered telemetry metrics: %s", err)
+		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
+		return nil, err
 	}
+
+	session := a.sender.startSession(a.cancelCtx)
+	for _, p := range profiles {
+		a.reportAgentMetrics(session, pms, p)
+	}
+	return session, nil
 }
 
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
-	if a.sender == nil {
-		a.logComp.Errorf("Agent telemetry sender is not initialized")
+	a.logComp.Info("Starting agent telemetry run")
+	session, err := a.loadPayloads(profiles)
+	if err != nil {
+		a.logComp.Errorf("failed to load agent telemetry session: %s", err)
 		return
 	}
 
-	a.logComp.Info("Starting agent telemetry run")
-
-	session := a.sender.startSession(a.cancelCtx)
-
-	for _, p := range profiles {
-		a.reportAgentMetrics(session, p)
-	}
-
-	err := a.sender.flushSession(session)
+	err = a.sender.flushSession(session)
 	if err != nil {
 		a.logComp.Errorf("failed to flush agent telemetry session: %s", err)
 		return
 	}
 }
 
-// TODO: implement when CLI tool will be implemented
+func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
+	if !a.enabled {
+		httputils.SetJSONError(w, errors.New("agent-telemetry is not enabled. See https://docs.datadoghq.com/data_security/agent/?tab=datadogyaml#telemetry-collection for more info"), 400)
+		return
+	}
+
+	a.logComp.Info("Showing agent telemetry payload")
+	payload, err := a.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, a.logComp.Error(err.Error()), 500)
+		return
+	}
+
+	w.Write(payload)
+}
+
 func (a *atel) GetAsJSON() ([]byte, error) {
-	return nil, nil
+	session, err := a.loadPayloads(a.atelCfg.Profiles)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load agent telemetry payload: %w", err)
+	}
+	payload := session.flush()
+
+	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
+	}
+
+	jsonPayloadScrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
+	}
+
+	return jsonPayloadScrubbed, nil
 }
 
 // start is called by FX when the application starts.
