@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Agent flare now includes system-probe telemetry data via ``system_probe_telemetry.txt``.
+    Agent flare now includes system-probe telemetry data via ``system-probe/system_probe_telemetry.log``.
