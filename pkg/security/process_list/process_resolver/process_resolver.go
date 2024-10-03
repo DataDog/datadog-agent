@@ -49,6 +49,7 @@ type execKey struct {
 	pathnameStr string
 }
 
+// GetProcessCacheKey returns the process unique identifier
 func (pr *ProcessResolver) GetProcessCacheKey(process *model.Process) interface{} {
 	if process.Pid != 0 {
 		return processKey{pid: process.Pid, nsid: process.NSID}
@@ -56,6 +57,7 @@ func (pr *ProcessResolver) GetProcessCacheKey(process *model.Process) interface{
 	return nil
 }
 
+// GetExecCacheKey returns the exec unique identifier
 func (pr *ProcessResolver) GetExecCacheKey(process *model.Process) interface{} {
 	if process.Pid != 0 {
 		path := process.FileEvent.PathnameStr
@@ -72,6 +74,7 @@ func (pr *ProcessResolver) GetExecCacheKey(process *model.Process) interface{} {
 	return nil
 }
 
+// GetParentProcessCacheKey returns the parent process unique identifier
 func (pr *ProcessResolver) GetParentProcessCacheKey(event *model.Event) interface{} {
 	if event.ProcessContext.Pid != 1 && event.ProcessContext.PPid > 0 {
 		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
@@ -79,20 +82,23 @@ func (pr *ProcessResolver) GetParentProcessCacheKey(event *model.Event) interfac
 	return nil
 }
 
-// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+// IsAValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func (pr *ProcessResolver) IsAValidRootNode(entry *model.Process) bool {
 	return entry.Pid == 1
 }
 
+// ExecMatches returns true if both exec nodes matches
 func (pr *ProcessResolver) ExecMatches(e1, e2 *processlist.ExecNode) bool {
 	return e1.FileEvent.PathnameStr == e2.FileEvent.PathnameStr
 }
 
+// ProcessMatches returns true if both process nodes matches
 func (pr *ProcessResolver) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
 	return p1.CurrentExec.Pid == p2.CurrentExec.Pid && p1.CurrentExec.NSID == p2.CurrentExec.NSID
 }
 
 // SendStats sends the tree statistics
+// nolint: all
 func (pr *ProcessResolver) SendStats(client statsd.ClientInterface) error {
 	// TODO
 	return nil

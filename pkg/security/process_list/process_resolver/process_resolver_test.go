@@ -150,11 +150,11 @@ func TestFork1st(t *testing.T) {
 
 	// parent
 	parent := newFakeExecEvent(0, 1, "/bin/parent")
-	new, err := processList.Insert(parent, true, "")
+	inserted, err := processList.Insert(parent, true, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, true, new)
+	assert.Equal(t, true, inserted)
 	stats.AddProcess(1)
 	stats.ValidateCounters(t, processList)
 	if !isProcessAndExecPresent(processList, pc, parent) {
@@ -164,11 +164,11 @@ func TestFork1st(t *testing.T) {
 	// parent
 	//     \ child
 	child := newFakeExecEvent(1, 2, "/bin/child")
-	new, err = processList.Insert(child, true, "")
+	inserted, err = processList.Insert(child, true, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, true, new)
+	assert.Equal(t, true, inserted)
 	stats.AddProcess(1)
 	stats.ValidateCounters(t, processList)
 	if checkParentality(processList, pc, parent, child) == false {
@@ -205,14 +205,35 @@ func TestFork1st(t *testing.T) {
 // TODO: tests from pkg/security/resolvers/process/resolver_test.go to add:
 //
 
-func TestFork2nd(t *testing.T)            {}
-func TestForkExec(t *testing.T)           {}
-func TestForkExecExec(t *testing.T)       {}
-func TestOrphanExec(t *testing.T)         {}
-func TestForkReuse(t *testing.T)          {}
-func TestForkForkExec(t *testing.T)       {}
-func TestExecBomb(t *testing.T)           {}
-func TestExecLostFork(t *testing.T)       {}
-func TestExecLostExec(t *testing.T)       {}
-func TestIsExecExecRuntime(t *testing.T)  {}
+// nolint: all
+func TestFork2nd(t *testing.T) {}
+
+// nolint: all
+func TestForkExec(t *testing.T) {}
+
+// nolint: all
+func TestForkExecExec(t *testing.T) {}
+
+// nolint: all
+func TestOrphanExec(t *testing.T) {}
+
+// nolint: all
+func TestForkReuse(t *testing.T) {}
+
+// nolint: all
+func TestForkForkExec(t *testing.T) {}
+
+// nolint: all
+func TestExecBomb(t *testing.T) {}
+
+// nolint: all
+func TestExecLostFork(t *testing.T) {}
+
+// nolint: all
+func TestExecLostExec(t *testing.T) {}
+
+// nolint: all
+func TestIsExecExecRuntime(t *testing.T) {}
+
+// nolint: all
 func TestIsExecExecSnapshot(t *testing.T) {}

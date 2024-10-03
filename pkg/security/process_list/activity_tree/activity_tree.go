@@ -70,6 +70,7 @@ type execKey struct {
 	pathnameStr string
 }
 
+// GetProcessCacheKey returns the process unique identifier
 func (at *ActivityTree) GetProcessCacheKey(process *model.Process) interface{} {
 	if process.Pid != 0 {
 		return processKey{pid: process.Pid, nsid: process.NSID}
@@ -77,6 +78,7 @@ func (at *ActivityTree) GetProcessCacheKey(process *model.Process) interface{} {
 	return nil
 }
 
+// GetExecCacheKey returns the exec unique identifier
 func (at *ActivityTree) GetExecCacheKey(process *model.Process) interface{} {
 	if process.Pid != 0 {
 		path := process.FileEvent.PathnameStr
@@ -93,6 +95,7 @@ func (at *ActivityTree) GetExecCacheKey(process *model.Process) interface{} {
 	return nil
 }
 
+// GetParentProcessCacheKey returns the parent process unique identifier
 func (at *ActivityTree) GetParentProcessCacheKey(event *model.Event) interface{} {
 	if event.ProcessContext.Pid != 1 && event.ProcessContext.PPid > 0 {
 		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
@@ -100,12 +103,14 @@ func (at *ActivityTree) GetParentProcessCacheKey(event *model.Event) interface{}
 	return nil
 }
 
-// IsValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+// IsAValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
+// nolint: all
 func (at *ActivityTree) IsAValidRootNode(entry *model.Process) bool {
 	// TODO: check runc/containerid stuff
 	return true
 }
 
+// ExecMatches returns true if both exec matches
 func (at *ActivityTree) ExecMatches(e1, e2 *processlist.ExecNode) bool {
 	if e1.FileEvent.PathnameStr == e2.FileEvent.PathnameStr {
 		if at.differentiateArgs {
@@ -116,6 +121,7 @@ func (at *ActivityTree) ExecMatches(e1, e2 *processlist.ExecNode) bool {
 	return false
 }
 
+// ProcessMatches returns true if both process nodes matches
 func (at *ActivityTree) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
 	if p1.CurrentExec == nil || p2.CurrentExec == nil {
 		return false
@@ -124,6 +130,7 @@ func (at *ActivityTree) ProcessMatches(p1, p2 *processlist.ProcessNode) bool {
 }
 
 // SendStats sends the tree statistics
+// nolint: all
 func (at *ActivityTree) SendStats(client statsd.ClientInterface) error {
 	// TODO
 	return nil

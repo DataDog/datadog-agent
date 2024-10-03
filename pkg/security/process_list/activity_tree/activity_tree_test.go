@@ -10,6 +10,7 @@ package activitytree
 
 import "testing"
 
-func TestDum(t *testing.T) {
+// nolint: all
+func TestDummy(t *testing.T) {
 
 }
