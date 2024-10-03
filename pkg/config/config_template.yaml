@@ -1369,7 +1369,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","sqllexer","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -2917,6 +2917,28 @@ api_key:
   ## Set to true to enable the admission controller in the cluster-agent.
   #
   # enabled: false
+
+  ## @param validation - custom object - optional
+  ## The admission controller's validation configuration.
+  #
+  # validation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable validation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
+
+  ## @param mutation - custom object - optional
+  ## The admission controller's mutation configuration.
+  #
+  # mutation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_MUTATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable mutation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
 
   ## @param mutate_unlabelled - boolean - optional - default: false
   ## @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false
