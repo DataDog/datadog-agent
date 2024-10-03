@@ -42,8 +42,13 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
-  - "github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/..."
 
 additional:
   # list here paths to additional licenses
   golang/go: "raw.githubusercontent.com/golang/go/go1.22.7/LICENSE"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/net: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes/probev4: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/probes/probev6: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"
+  github.com/insomniacslk/dublin-traceroute/go/dublintraceroute/results: "raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING"

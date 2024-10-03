@@ -372,3 +372,7 @@ github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
+
+# Copyright information is in the COPYING file
+# https://raw.githubusercontent.com/insomniacslk/dublin-traceroute/refs/heads/master/COPYING
+github.com/insomniacslk/dublin-traceroute/*: Copyright (c) 2015-present Andrea Barberio
