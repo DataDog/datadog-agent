@@ -367,7 +367,16 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	metricTypeStr := C.GoString(metricType)
 
 	// Check that arguments passed over the bridge successfully
-	if checkName != "test_check" || metricName != "test_metric" || metricValue != 1.0 || (metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram") {
-		panic("unexpected arguments")
+	if checkName != "test_check" {
+		panic(fmt.Sprintf("unexpected check name: %s"), checkName)
+	}
+	if metricName != "test_metrics" {
+		panic(fmt.Sprintf("unexpected metric name: %s"), metricName)
+	}
+	if metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram" {
+		panic(fmt.Sprintf("unexpected metric type: %s"), metricTypeStr)
+	}
+	if metricValue != 1.0 {
+		panic(fmt.Sprintf("unexpected metric value: %d"), metricValue)
 	}
 }
