@@ -194,7 +194,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 }
 
 func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallback) {
-	flareStepTimeout := time.Duration(f.config.GetInt("flare_provider_timeout")) * time.Second
+	flareStepTimeout := f.config.GetDuration("flare_provider_timeout") * time.Second
 	timer := time.NewTimer(flareStepTimeout)
 	defer timer.Stop()
 
@@ -211,9 +211,8 @@ func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallb
 			if err == nil {
 				f.log.Debugf("flare provider '%s' completed in %s", providerName, duration)
 			} else {
-				errMsg := fmt.Sprintf("flare provider '%s' failed after %s: %s", providerName, duration, err)
+				errMsg := f.log.Errorf("flare provider '%s' failed after %s: %s", providerName, duration, err)
 				_ = fb.Logf("%s", errMsg)
-				f.log.Error(errMsg)
 			}
 
 			done <- struct{}{}

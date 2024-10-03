@@ -108,7 +108,7 @@ func NewFlareBuilder(localFlare bool) (types.FlareBuilder, error) {
 // builder implements the FlareBuilder interface
 type builder struct {
 	sync.Mutex
-	done bool
+	isClosed bool
 
 	// tmpDir is the temp directory to store data before being archived
 	tmpDir string
@@ -151,7 +151,7 @@ func (fb *builder) Save() (string, error) {
 
 	fb.Lock()
 	defer fb.Unlock()
-	fb.done = true
+	fb.isClosed = true
 
 	archiveName := getArchiveName()
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
@@ -188,6 +188,12 @@ func (fb *builder) logError(format string, params ...interface{}) error {
 }
 
 func (fb *builder) Logf(format string, params ...interface{}) error {
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.isClosed {
+		return nil
+	}
 	_, err := fb.logFile.WriteString(fmt.Sprintf(format, params...) + "\n")
 	if err != nil {
 		return fb.logError("error writing log: %v", err)
@@ -223,7 +229,7 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 	fb.Lock()
 	defer fb.Unlock()
 
-	if fb.done {
+	if fb.isClosed {
 		return nil
 	}
 
@@ -269,7 +275,7 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 	fb.Lock()
 	defer fb.Unlock()
 
-	if fb.done {
+	if fb.isClosed {
 		return nil
 	}
 
