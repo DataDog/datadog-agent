@@ -117,6 +117,9 @@ func (s *batchStrategy) Start() {
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushBuffer(s.outputChan)
 			case <-s.flushChan:
+				if s.serverless && s.buffer.IsEmpty() {
+					s.strategyChan <- struct{}{}
+				}
 				// flush payloads on demand, used for infrequently running serverless functions
 				s.flushBuffer(s.outputChan)
 			}
@@ -146,9 +149,6 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
-		if s.serverless {
-			s.strategyChan <- struct{}{}
-		}
 		return
 	}
 	messages := s.buffer.GetMessages()
