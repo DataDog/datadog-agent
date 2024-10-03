@@ -32,7 +32,7 @@ import (
 
 func TestGoDI(t *testing.T) {
 	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Error(err)
+		require.NoError(t, rlimit.RemoveMemlock())
 	}
 
 	if features.HaveMapType(ebpf.RingBuf) != nil {
@@ -40,6 +40,7 @@ func TestGoDI(t *testing.T) {
 	}
 
 	sampleServicePath := BuildSampleService(t)
+	t.Log(sampleServicePath)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
@@ -119,7 +120,6 @@ func TestGoDI(t *testing.T) {
 		}
 		time.Sleep(time.Second * 2)
 		doCapture = false
-
 	}
 }
 
