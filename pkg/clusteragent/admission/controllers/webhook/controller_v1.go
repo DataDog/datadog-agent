@@ -195,14 +195,14 @@ func (c *ControllerV1) reconcile() error {
 				log.Infof("Mutating Webhook %s was not found, creating it", c.config.getWebhookName())
 				err := c.createMutatingWebhook(secret)
 				if err != nil {
-					_ = log.Errorf("Failed to create Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+					log.Errorf("Failed to create Mutating Webhook %s: %v", c.config.getWebhookName(), err)
 				}
 			}
 		} else {
 			log.Debugf("Mutating Webhook %s was found, updating it", c.config.getWebhookName())
 			err := c.updateMutatingWebhook(secret, mutatingWebhook)
 			if err != nil {
-				_ = log.Errorf("Failed to update Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+				log.Errorf("Failed to update Mutating Webhook %s: %v", c.config.getWebhookName(), err)
 			}
 		}
 	}
@@ -214,14 +214,14 @@ func (c *ControllerV1) reconcile() error {
 				log.Infof("Validating Webhook %s was not found, creating it", c.config.getWebhookName())
 				err := c.createValidatingWebhook(secret)
 				if err != nil {
-					_ = log.Errorf("Failed to create Validating Webhook %s: %v", c.config.getWebhookName(), err)
+					log.Errorf("Failed to create Validating Webhook %s: %v", c.config.getWebhookName(), err)
 				}
 			}
 		} else {
 			log.Debugf("Validating Webhook %s was found, updating it", c.config.getWebhookName())
 			err := c.updateValidatingWebhook(secret, validatingWebhook)
 			if err != nil {
-				_ = log.Errorf("Failed to update Validating Webhook %s: %v", c.config.getWebhookName(), err)
+				log.Errorf("Failed to update Validating Webhook %s: %v", c.config.getWebhookName(), err)
 			}
 		}
 	}
