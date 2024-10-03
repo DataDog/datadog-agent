@@ -370,7 +370,7 @@ func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricTyp
 	if checkName != "test_check" {
 		panic(fmt.Sprintf("unexpected check name: %s", checkName))
 	}
-	if metricName != "test_metrics" {
+	if metricName != "test_metric" {
 		panic(fmt.Sprintf("unexpected metric name: %s", metricName))
 	}
 	if metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram" {
