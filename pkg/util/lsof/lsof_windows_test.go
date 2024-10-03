@@ -88,6 +88,13 @@ func TestGetDLLFiles(t *testing.T) {
 			Size:     -1,
 			Name:     "C:/some/other/path",
 		},
+		{
+			Fd:       "3",
+			Type:     "DLL",
+			FilePerm: "<unknown>",
+			Size:     -1,
+			Name:     "<error: some error>",
+		},
 	}
 
 	files, err := ofl.getDLLFiles(procHandle)
@@ -128,8 +135,7 @@ func TestGetDLLFile(t *testing.T) {
 				}, nil
 			},
 		}
-		file, err := ofl.getDLLFile(expectedProc, expectedModule)
-		require.NoError(t, err)
+		file := ofl.getDLLFile(expectedProc, expectedModule)
 		expected := File{
 			Fd:       fmt.Sprintf("%d", expectedModule),
 			FilePerm: "-r--------",
@@ -154,21 +160,22 @@ func TestGetDLLFile(t *testing.T) {
 			},
 		}
 
-		file, err := ofl.getDLLFile(42, 43)
-		require.NoError(t, err)
+		file := ofl.getDLLFile(42, 43)
 		assert.EqualValues(t, -1, file.Size)
 		assert.Equal(t, "<unknown>", file.FilePerm)
 	})
 
-	t.Run("error", func(t *testing.T) {
+	t.Run("path error", func(t *testing.T) {
 		someError := errors.New("some error")
 		ofl := &openFilesLister{
 			GetModuleFileNameEx: func(_, _ windows.Handle, _ *uint16, _ uint32) error {
 				return someError
 			},
 		}
-		_, err := ofl.getDLLFile(42, 43)
-		require.ErrorIs(t, err, someError)
+		file := ofl.getDLLFile(42, 43)
+		require.Contains(t, file.Name, someError.Error())
+		assert.EqualValues(t, -1, file.Size)
+		assert.Equal(t, "<unknown>", file.FilePerm)
 	})
 }
 

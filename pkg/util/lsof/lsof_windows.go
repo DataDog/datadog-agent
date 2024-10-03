@@ -54,40 +54,38 @@ func (ofl *openFilesLister) getDLLFiles(process windows.Handle) (Files, error) {
 
 	var files Files
 	for _, hModule := range hModules {
-		file, err := ofl.getDLLFile(process, hModule)
-		if err != nil {
-			continue
-		}
+		file := ofl.getDLLFile(process, hModule)
 		files = append(files, file)
 	}
 
 	return files, nil
 }
 
-func (ofl *openFilesLister) getDLLFile(process windows.Handle, hModule windows.Handle) (File, error) {
-	// get DLL file path
-	modPath, err := ofl.getModulePath(process, hModule)
-	if err != nil {
-		return File{}, err
-	}
-
-	// try to get some permissions and file size
-	filePerms := "<unknown>"
-	var fileSize int64 = -1
-	fileInfo, err := ofl.Stat(modPath)
-	if err == nil {
-		fileSize = fileInfo.Size()
-		filePerms = fileInfo.Mode().Perm().String()
-	}
-
+func (ofl *openFilesLister) getDLLFile(process windows.Handle, hModule windows.Handle) File {
 	file := File{
 		Fd:       fmt.Sprintf("%d", hModule),
 		Type:     "DLL",
-		FilePerm: filePerms,
-		Size:     fileSize,
-		Name:     modPath,
+		FilePerm: "<unknown>",
+		Size:     -1,
 	}
-	return file, nil
+
+	// get DLL file path
+	modPath, err := ofl.getModulePath(process, hModule)
+	if err != nil {
+		file.Name = fmt.Sprintf("<error: %s>", err)
+		return file
+	}
+
+	file.Name = modPath
+
+	// try to get some permissions and file size
+	fileStat, err := ofl.Stat(modPath)
+	if err == nil {
+		file.Size = fileStat.Size()
+		file.FilePerm = fileStat.Mode().Perm().String()
+	}
+
+	return file
 }
 
 // listOpenDLL returns the list of DLLs opened by the process
