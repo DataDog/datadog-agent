@@ -506,9 +506,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 		}
 		admissionResponse := webhook.WebhookFunc()(&request)
 		jsonPatch, err := json.Marshal(admissionResponse.Patch)
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 
 		if len(jsonPatch) < 100 {
 			b.Fatal("Empty JSONPatch")
