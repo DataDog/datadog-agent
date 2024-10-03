@@ -28,6 +28,11 @@ import (
 
 // team: agent-apm
 
+const (
+	APIKeyConfigKey          = "api_key"
+	APMConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
+)
+
 // Dependencies defines the trace config component deps.
 // These include the core config configuration and component config params.
 type Dependencies struct {
@@ -72,14 +77,14 @@ func NewConfig(deps Dependencies) (Component, error) {
 
 	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any) {
 		log.Debugf("OnUpdate: %s", setting)
-		if setting != "api_key" {
+		if setting != APIKeyConfigKey {
 			return
 		}
 
-		if c.coreConfig.IsSet("apm_config.api_key") {
+		if c.coreConfig.IsSet(APMConfigAPIKeyConfigKey) {
 			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
 			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
-			log.Warn("cannot refresh api_key on trace-agent while apm_config.api_key is set. apm_config.api_key is deprecated, use core api_key instead")
+			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
 			return
 		}
 		oldAPIKey, ok1 := oldValue.(string)
