@@ -1,6 +1,6 @@
 
 .linux_lint:
-  stage: source_test
+  stage: lint
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavor base'

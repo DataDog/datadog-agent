@@ -1,7 +1,7 @@
 
 
 .lint_windows_base:
-  stage: source_test
+  stage: lint
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
