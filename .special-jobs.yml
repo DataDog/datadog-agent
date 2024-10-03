@@ -5,7 +5,6 @@ stages:
   - notify
   - deploy_containers
 
-EXECUTOR_JOB_SECTION_ATTEMPTS:
 jobs:
   - build_clang_arm64
   - build_clang_x64

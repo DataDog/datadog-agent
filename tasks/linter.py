@@ -454,55 +454,87 @@ def gitlab_ci(ctx, test="all", custom_context=None):
 def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
     Verifies that each added / modified job contains `needs` and also `rules`.
-
     It is possible to declare a job not following these rules within `.special-jobs.yml`.
+    All configurations are checked (even downstream ones).
 
     SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
 
-    - diff_file: Path to the diff file to build MultiGitlabCIDiff
+    - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+    - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
     """
+
+    assert (
+        diff_file or config_file and not (diff_file and config_file)
+    ), "You must provide either a diff file or a config file and not both"
 
     # Load all the jobs from the files
     if config_file:
         with open(config_file) as f:
             conf = yaml.safe_load(f)
-            jobs = []
-            main_config = conf[".gitlab-ci.yml"]
-            for file_jobs in conf.values():
-                for job_name, job_contents in file_jobs.items():
-                    if is_leaf_job(job_name, job_contents):
-                        jobs.append((job_name, job_contents))
+
+        all_configs = conf
+
+        jobs = []
+        for file_jobs in conf.values():
+            for job_name, job_contents in file_jobs.items():
+                if is_leaf_job(job_name, job_contents):
+                    jobs.append((job_name, job_contents))
     else:
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
-            jobs = [
-                (job, contents)
-                for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
-                if is_leaf_job(job, contents)
-            ]
-            main_config = diff.after
 
-    all_stages = set(main_config.get("stages", []))
-    error_msg, exception_jobs, exception_stages = get_special_jobs(jobs, all_stages=all_stages, lint=True)
+        all_configs = diff.after
+        jobs = [
+            (job, contents)
+            for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
+            if is_leaf_job(job, contents)
+        ]
+
+        if not jobs:
+            print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+            return
+
+    # All jobs / stages from all gitlab config entry points
+    all_jobs = set()
+    for config in all_configs.values():
+        all_jobs.update({job for job in config if is_leaf_job(job, config[job])})
+
+    all_stages = set()
+    for config in all_configs.values():
+        all_stages.update(config.get("stages", []))
+
+    error_msg, exception_jobs, exception_stages = get_special_jobs(lint=True, all_jobs=all_jobs, all_stages=all_stages)
 
     # Verify the jobs
     error_jobs = []
+    n_ignored = 0
     for job, contents in jobs:
+        error = "needs" not in contents or "rules" not in contents
         to_ignore = job in exception_jobs or contents['stage'] in exception_stages
+
         if to_ignore:
+            if error:
+                n_ignored += 1
             continue
 
-        if "needs" not in contents or "rules" not in contents:
-            error_jobs.append(job)
+        if error:
+            error_jobs.append((job, contents['stage']))
 
     if error_jobs:
         error_jobs = sorted(error_jobs)
-        error_jobs = '\n'.join(f'- {job}' for job in error_jobs)
+        error_jobs = '\n'.join(f'- {job} ({stage} stage)' for job, stage in error_jobs)
 
         error_msg += f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {CONFIG_SPECIAL_JOBS}\n"
 
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {CONFIG_SPECIAL_JOBS})'
+        )
+
     if error_msg:
         raise Exit(error_msg.strip(), code=1)
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have "needs" and "rules"')
 
 
 @task

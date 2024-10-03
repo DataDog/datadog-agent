@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
+from pathlib import Path
 
 import gitlab
 import yaml
@@ -31,7 +32,7 @@ CONFIG_SPECIAL_OBJECTS = {
     "workflow",
 }
 # This file is used to set exceptions for jobs that do not require needs or rules
-CONFIG_SPECIAL_JOBS = ".special-jobs.yml"
+CONFIG_SPECIAL_JOBS = Path(".special-jobs.yml")
 
 
 def get_gitlab_token():
@@ -1197,21 +1198,23 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     return before_config, after_config, diff
 
 
-def get_special_jobs(jobs, all_stages=None, lint=False):
+def get_special_jobs(lint=False, all_jobs=None, all_stages=None):
     """
     Parses the special jobs file and lints it.
+
+    - lint: If True, will lint the file to verify that each job / stage is present in the configuration
+    - all_jobs: All the jobs in the configuration
+    - all_stages: All the jobs in the configuration
     """
 
     with open(CONFIG_SPECIAL_JOBS) as f:
-        exceptions = yaml.safe_load(f)
+        exceptions = yaml.safe_load(f) or {}
 
     error_msg = ''
     exception_jobs = set(exceptions.get("jobs", []))
     exception_stages = set(exceptions.get("stages", []))
 
     if lint:
-        all_jobs = {job for job, _ in jobs}
-
         # Verify the special jobs file
         error_exception_jobs = [job for job in exception_jobs if job not in all_jobs]
         error_exception_stages = [stage for stage in exception_stages if stage not in all_stages]
