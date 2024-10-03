@@ -58,7 +58,7 @@ func TestReadShouldFailWithError(t *testing.T) {
 	tailer.Stop()
 }
 
-func TestAvoidDuplicateTags(t *testing.T) {
+func TestDuplicateTags(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 	logsConfig := &config.LogsConfig{
@@ -73,8 +73,6 @@ func TestAvoidDuplicateTags(t *testing.T) {
 
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	// Getting tags from Origin adds tags from the log config, we want to ensure that the tags
-	// are not added before that
 	assert.Equal(t, []string{"test:tag"}, msg.Tags())
 
 	tailer.Stop()
