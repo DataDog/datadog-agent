@@ -72,6 +72,7 @@ type RuleDefinition struct {
 	OverrideOptions        OverrideOptions     `yaml:"override_options,omitempty" json:"override_options,omitempty"`
 	Actions                []*ActionDefinition `yaml:"actions,omitempty" json:"actions,omitempty"`
 	Every                  time.Duration       `yaml:"every,omitempty" json:"every,omitempty"`
+	RateLimiterToken       []string            `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string              `yaml:"group_id,omitempty" json:"group_id,omitempty"`
 }

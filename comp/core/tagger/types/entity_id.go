@@ -111,6 +111,11 @@ func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 	return newDefaultEntityID(plainStringID), nil
 }
 
+// NewDefaultEntityIDFromStr constructs a default EntityID from a plain string id
+func NewDefaultEntityIDFromStr(plainStringID string) EntityID {
+	return newDefaultEntityID(plainStringID)
+}
+
 const (
 	// ContainerID is the prefix `container_id`
 	ContainerID EntityIDPrefix = "container_id"

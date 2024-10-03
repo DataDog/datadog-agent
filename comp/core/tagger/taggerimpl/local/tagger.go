@@ -75,13 +75,13 @@ func (t *Tagger) Stop() error {
 }
 
 // getTags returns a read only list of tags for a given entity.
-func (t *Tagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
-	if entityID.GetID() == "" {
+func (t *Tagger) getTags(entityID string, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+	if entityID == "" {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
-	cachedTags := t.tagStore.LookupHashed(entityID, cardinality)
+	cachedTags := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
 
 	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
@@ -89,16 +89,14 @@ func (t *Tagger) getTags(entityID types.EntityID, cardinality types.TagCardinali
 
 // AccumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
 func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags, err := t.getTags(id, cardinality)
+	tags, err := t.getTags(entityID, cardinality)
 	tb.AppendHashed(tags)
 	return err
 }
 
 // Tag returns a copy of the tags for a given entity
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	tags, err := t.getTags(id, cardinality)
+	tags, err := t.getTags(entityID, cardinality)
 	if err != nil {
 		return nil, err
 	}
@@ -130,13 +128,8 @@ func (t *Tagger) List() types.TaggerListResponse {
 // Subscribe returns a channel that receives a slice of events whenever an entity is
 // added, modified or deleted. It can send an initial burst of events only to the new
 // subscriber, without notifying all of the others.
-func (t *Tagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return t.tagStore.Subscribe(cardinality)
-}
-
-// Unsubscribe ends a subscription to entity events and closes its channel.
-func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
-	t.tagStore.Unsubscribe(ch)
+func (t *Tagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return t.tagStore.Subscribe(subscriptionID, filter)
 }
 
 // ReplayTagger returns the replay tagger instance

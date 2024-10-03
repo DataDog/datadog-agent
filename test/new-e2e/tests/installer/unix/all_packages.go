@@ -7,8 +7,8 @@
 package installer
 
 import (
-	"fmt"
 	"os"
+	"testing"
 )
 
 // InstallMethodOption is the type for the install method to use for the tests
@@ -24,7 +24,7 @@ const (
 )
 
 // GetInstallMethodFromEnv returns the install method to use for the tests
-func GetInstallMethodFromEnv() InstallMethodOption {
+func GetInstallMethodFromEnv(t *testing.T) InstallMethodOption {
 	supportedValues := []string{string(InstallMethodAnsible), string(InstallMethodInstallScript), string(InstallMethodWindows)}
 	envValue := os.Getenv("FLEET_INSTALL_METHOD")
 	switch envValue {
@@ -35,6 +35,8 @@ func GetInstallMethodFromEnv() InstallMethodOption {
 	case "windows":
 		return InstallMethodWindows
 	default:
-		panic(fmt.Sprintf("unsupported install method: %s. Supported values are: %v", envValue, supportedValues))
+		t.Logf("FLEET_INSTALL_METHOD is not set or has an unsupported value. Supported values are: %v", supportedValues)
+		t.Log("Using default install method: install_script")
+		return InstallMethodInstallScript
 	}
 }
