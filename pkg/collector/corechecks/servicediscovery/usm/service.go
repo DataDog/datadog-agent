@@ -19,6 +19,7 @@ import (
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
@@ -124,15 +125,7 @@ func NewDetectionContext(args []string, envs map[string]string, fs fs.SubFS) Det
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
 func workingDirFromEnvs(envs map[string]string) (string, bool) {
-	return extractEnvVar(envs, "PWD")
-}
-
-func extractEnvVar(envs map[string]string, name string) (string, bool) {
-	value, ok := envs[name]
-	if !ok {
-		return "", false
-	}
-	return value, len(value) > 0
+	return targetenvs.WorkingDir(envs)
 }
 
 // abs returns the path itself if already absolute or the absolute path by joining cwd with path
@@ -184,18 +177,6 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"gunicorn": newGunicornDetector,
 }
 
-func serviceNameInjected(envs map[string]string) bool {
-	if env, ok := envs["DD_INJECTION_ENABLED"]; ok {
-		values := strings.Split(env, ",")
-		for _, v := range values {
-			if v == "service_name" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
 func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
 	dc := DetectionContext{
@@ -212,9 +193,9 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 	// We always return a service name from here on
 	success = true
 
-	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
+	if value, ok := targetenvs.ChooseServiceName(dc.envs); ok {
 		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(envs)
+		metadata.DDServiceInjected = targetenvs.ServiceNameInjectionEnabled(envs)
 	}
 
 	exe := cmd[0]
@@ -326,24 +307,6 @@ func normalizeExeName(exe string) string {
 		}
 	}
 	return exe
-}
-
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
-// returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs map[string]string) (string, bool) {
-	if val, ok := envs["DD_SERVICE"]; ok {
-		return val, true
-	}
-	if val, ok := envs["DD_TAGS"]; ok && strings.Contains(val, "service:") {
-		parts := strings.Split(val, ",")
-		for _, p := range parts {
-			if strings.HasPrefix(p, "service:") {
-				return strings.TrimPrefix(p, "service:"), true
-			}
-		}
-	}
-
-	return "", false
 }
 
 func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {

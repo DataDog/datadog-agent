@@ -187,6 +187,15 @@ func (t *TextScannerIterator) Text() string {
 	return t.scanner.Text()
 }
 
+// Bytes returns the recent token of scan
+func (t *TextScannerIterator) Bytes() []byte {
+	return t.scanner.Bytes()
+}
+
+// Err returns the recent error
+func (t *TextScannerIterator) Err() error {
+	return t.scanner.Err()
+}
 func matchesOnePrefix(text string, prefixes []string) bool {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(text, prefix) {

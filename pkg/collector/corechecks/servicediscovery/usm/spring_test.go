@@ -16,6 +16,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -345,7 +346,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 				spFullPath,
 			},
 			envs: map[string]string{
-				"SPRING_APPLICATION_NAME": "found",
+				targetenvs.EnvSpringApplicationName: "found",
 			},
 			expected: "found",
 		},

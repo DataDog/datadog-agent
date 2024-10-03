@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,21 +32,21 @@ func TestInjected(t *testing.T) {
 		{
 			name: "injected",
 			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "tracer",
+				targetenvs.EnvInjectionEnabled: "tracer",
 			},
 			result: true,
 		},
 		{
 			name: "one of injected",
 			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "service_name,tracer",
+				targetenvs.EnvInjectionEnabled: "service_name,tracer",
 			},
 			result: true,
 		},
 		{
 			name: "not injected but with env variable",
 			envs: map[string]string{
-				"DD_INJECTION_ENABLED": "service_name",
+				targetenvs.EnvInjectionEnabled: "service_name",
 			},
 		},
 		{
@@ -54,7 +55,7 @@ func TestInjected(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := isInjected(d.envs)
+			result := targetenvs.TracerInjectionEnabled(d.envs)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -86,7 +87,7 @@ func Test_javaDetector(t *testing.T) {
 			name: "CATALINA_OPTS",
 			args: []string{"java"},
 			envs: map[string]string{
-				"CATALINA_OPTS": "-javaagent:dd-java-agent.jar",
+				targetenvs.EnvJavaDetectorCatalinaOpts: "-javaagent:dd-java-agent.jar",
 			},
 			result: Provided,
 		},
@@ -176,7 +177,7 @@ func Test_pythonDetector(t *testing.T) {
 func TestDotNetDetector(t *testing.T) {
 	for _, test := range []struct {
 		name   string
-		env    map[string]string
+		envs   map[string]string
 		maps   string
 		result Instrumentation
 	}{
@@ -186,15 +187,15 @@ func TestDotNetDetector(t *testing.T) {
 		},
 		{
 			name: "profiling disabled",
-			env: map[string]string{
-				"CORECLR_ENABLE_PROFILING": "0",
+			envs: map[string]string{
+				targetenvs.EnvDotNetDetector: "0",
 			},
 			result: None,
 		},
 		{
 			name: "profiling enabled",
-			env: map[string]string{
-				"CORECLR_ENABLE_PROFILING": "1",
+			envs: map[string]string{
+				targetenvs.EnvDotNetDetector: "1",
 			},
 			result: Provided,
 		},
@@ -218,8 +219,8 @@ func TestDotNetDetector(t *testing.T) {
 		},
 		{
 			name: "in maps, env misleading",
-			env: map[string]string{
-				"CORECLR_ENABLE_PROFILING": "0",
+			envs: map[string]string{
+				targetenvs.EnvDotNetDetector: "0",
 			},
 			maps: `
 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
@@ -230,7 +231,7 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, test.env, nil)
+				result = dotNetDetector(0, nil, test.envs, nil)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}

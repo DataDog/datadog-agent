@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -37,70 +38,6 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
-
-var (
-	detectorMap = map[language.Language]detector{
-		language.DotNet: dotNetDetector,
-		language.Java:   javaDetector,
-		language.Node:   nodeDetector,
-		language.Python: pythonDetector,
-		language.Go:     goDetector,
-	}
-
-	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
-)
-
-// JavaDetectorEnvs list of environment variables used for Java detection
-var JavaDetectorEnvs = []string{
-	// These are the environment variables that are used to pass options to the JVM
-	"JAVA_TOOL_OPTIONS",
-	"_JAVA_OPTIONS",
-	"JDK_JAVA_OPTIONS",
-	// I'm pretty sure these won't be necessary, as they should be parsed before the JVM sees them
-	// but there's no harm in including them
-	"JAVA_OPTIONS",
-	"CATALINA_OPTS",
-	"JDPA_OPTS",
-}
-
-const (
-	// EnvCoreClrEnableProfiling - environment variable specific to .net application
-	EnvCoreClrEnableProfiling = "CORECLR_ENABLE_PROFILING"
-)
-
-// DotNetDetectorEnvs list of environment variables used for .net detection
-var DotNetDetectorEnvs = []string{
-	EnvCoreClrEnableProfiling,
-}
-
-// Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
-	// first check to see if the DD_INJECTION_ENABLED is set to tracer
-	if isInjected(envs) {
-		return Injected
-	}
-
-	// different detection for provided instrumentation for each
-	if detect, ok := detectorMap[lang]; ok {
-		return detect(pid, args, envs, contextMap)
-	}
-
-	return None
-}
-
-func isInjected(envs map[string]string) bool {
-	if val, ok := envs["DD_INJECTION_ENABLED"]; ok {
-		parts := strings.Split(val, ",")
-		for _, v := range parts {
-			if v == "tracer" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 const (
 	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
 	// are looking for are for example
@@ -116,9 +53,37 @@ const (
 	ddTraceGoMaxLength = 100
 )
 
+type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
+
+var (
+	detectorMap = map[language.Language]detector{
+		language.DotNet: dotNetDetector,
+		language.Java:   javaDetector,
+		language.Node:   nodeDetector,
+		language.Python: pythonDetector,
+		language.Go:     goDetector,
+	}
+
+	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
+)
+
+// Detect attempts to detect the type of APM instrumentation for the given service.
+func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
+	// first check to see if the DD_INJECTION_ENABLED is set to tracer
+	if targetenvs.TracerInjectionEnabled(envs) {
+		return Injected
+	}
+	// different detection for provided instrumentation for each
+	if detect, ok := detectorMap[lang]; ok {
+		return detect(pid, args, envs, contextMap)
+	}
+
+	return None
+}
+
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
-// unstripped binaries.
+// non stripped binaries.
 func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
 
@@ -240,13 +205,10 @@ func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorCo
 		}
 	}
 	// also don't instrument if the javaagent is there in the environment variable JAVA_TOOL_OPTIONS and friends
-	for _, name := range JavaDetectorEnvs {
-		if val, ok := envs[name]; ok {
-			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
-				return Provided
-			}
-		}
+	if targetenvs.FindJava(envs) {
+		return Provided
 	}
+
 	return None
 }
 
@@ -278,10 +240,8 @@ func dotNetDetectorFromMapsReader(reader io.Reader) Instrumentation {
 //
 // 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267 /home/foo/.../publish/Datadog.Trace.dll
 func dotNetDetector(pid int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	for _, name := range DotNetDetectorEnvs {
-		if val, ok := envs[name]; ok && val == "1" {
-			return Provided
-		}
+	if targetenvs.DotNetEnabled(envs) {
+		return Provided
 	}
 
 	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")

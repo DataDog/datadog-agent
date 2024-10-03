@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
@@ -383,7 +384,7 @@ func TestAPMInstrumentationInjected(t *testing.T) {
 	url := setupDiscoveryModule(t)
 
 	createEnvsMemfd(t, []string{
-		"DD_INJECTION_ENABLED=service_name,tracer",
+		targetenvs.EnvInjectionEnabled + "=service_name,tracer",
 	})
 
 	listener, err := net.Listen("tcp", "")
@@ -498,7 +499,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 			commandline: []string{"dotnet", "foo.dll"},
 			language:    language.DotNet,
 			env: []string{
-				apm.EnvCoreClrEnableProfiling + "=1",
+				targetenvs.EnvDotNetDetector + "=1",
 			},
 		},
 		"java": {
@@ -853,7 +854,7 @@ func TestCache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		cmd := exec.CommandContext(ctx, "sleep", "100")
 		name := fmt.Sprintf("foo%d", i)
-		env := fmt.Sprintf("DD_SERVICE=%s", name)
+		env := fmt.Sprintf("%s=%s", targetenvs.EnvDdService, name)
 		cmd.Env = append(cmd.Env, env)
 		err = cmd.Start()
 		require.NoError(t, err)

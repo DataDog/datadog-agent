@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/golang/mock/gomock"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -165,7 +166,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
-	t.Setenv("DD_DISCOVERY_ENABLED", "true")
+	t.Setenv(targetenvs.EnvDiscoveryEnabled, "true")
 
 	type checkRun struct {
 		servicesResp *model.ServicesResponse

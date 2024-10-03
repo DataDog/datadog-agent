@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -106,48 +106,27 @@ func memfile(name string, b []byte) (int, error) {
 	return fd, nil
 }
 
-func TestEnvScanner(t *testing.T) {
+func TestTargetEnvs(t *testing.T) {
 	curPid := os.Getpid()
 	proc, err := process.NewProcess(int32(curPid))
 	require.NoError(t, err)
 
-	envMapGood, err := getEnvs(proc)
-	require.NoError(t, err)
-
-	// extract environment variables using scanner
-	envMapCurr, err := getEnvsUsingScan(proc, false)
-	require.NoError(t, err)
-	require.Equal(t, envMapGood, envMapCurr)
-
-	// test extraction of target variables
-	expectedMap := map[string]string{
-		envVarDdService:               "service1",
-		envVarDdTags:                  "tag1,tag2,tag3",
-		envVarDdInjectionEnabled:      "true",
-		envVarDiscoveryEnabled:        "true",
-		envVarOtelServiceName:         "service2",
-		apm.EnvCoreClrEnableProfiling: "1",
-	}
-	var expectedEnvs []string
-	for k, v := range expectedMap {
-		expectedEnvs = append(expectedEnvs, fmt.Sprintf("%s=%s", k, v))
-	}
-
+	expectedEnvs, expectedMap := targetenvs.GetExpectedEnvs()
 	createEnvsMemfd(t, expectedEnvs)
 
-	envMapCurr, err = getEnvsUsingScan(proc, true)
+	envs, err := getTargetEnvs(proc)
 	require.NoError(t, err)
-	require.Equal(t, envMapCurr, expectedMap)
+	require.Equal(t, envs, expectedMap)
 }
 
 func BenchmarkGetEnvs(b *testing.B) {
+	proc, err := customNewProcess(int32(os.Getpid()))
+	if err != nil {
+		return
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		proc, err := customNewProcess(int32(os.Getpid()))
-		if err != nil {
-			return
-		}
 		_, err = getEnvs(proc)
 		if err != nil {
 			return
@@ -155,15 +134,15 @@ func BenchmarkGetEnvs(b *testing.B) {
 	}
 }
 
-func BenchmarkGetEnvsScan(b *testing.B) {
+func BenchmarkGetEnvsTarget(b *testing.B) {
+	proc, err := customNewProcess(int32(os.Getpid()))
+	if err != nil {
+		return
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		proc, err := customNewProcess(int32(os.Getpid()))
-		if err != nil {
-			return
-		}
-		_, err = getEnvsUsingScan(proc, true)
+		_, err = getTargetEnvs(proc)
 		if err != nil {
 			return
 		}
