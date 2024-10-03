@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.22.0
+go 1.22.5
+
+toolchain go1.22.6
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -32,8 +34,8 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240808172947-94712f9a273b
-	github.com/aws/aws-sdk-go-v2 v1.30.3
+	github.com/DataDog/test-infra-definitions v0.0.0-20241003134706-f3aa4172342a
+	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
@@ -46,12 +48,12 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.13.0
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.6
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
-	github.com/pulumi/pulumi/sdk/v3 v3.126.0
-	github.com/samber/lo v1.39.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.47.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
+	github.com/pulumi/pulumi/sdk/v3 v3.131.0
+	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -88,12 +90,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.19 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.13 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.17 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.30.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.42.1
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.32.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.45.2
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.14 // indirect
@@ -102,7 +104,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.13 // indirect
-	github.com/aws/smithy-go v1.20.3 // indirect
+	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -197,9 +199,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.9.1 // indirect
-	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.4.5 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.3 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.0.17 // indirect
@@ -217,7 +219,6 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
-	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
@@ -264,3 +265,5 @@ require (
 )
 
 require github.com/hairyhenderson/go-codeowners v0.5.0
+
+require github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
