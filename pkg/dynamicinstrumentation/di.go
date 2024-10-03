@@ -143,8 +143,8 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	}
 
 	goDI.Close = func() {
-		goDI.ConfigManager.Stop()
 		closeRingbuffer()
+		goDI.ConfigManager.Stop()
 		close(diagnostics.Diagnostics.Updates)
 	}
 
@@ -178,7 +178,10 @@ func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {
 	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
 	diLog := uploader.NewDILog(procInfo, event)
 	if diLog != nil {
-		goDI.lu.Enqueue(diLog)
+		err := goDI.lu.Enqueue(diLog)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
 

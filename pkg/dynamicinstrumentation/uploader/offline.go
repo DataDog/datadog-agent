@@ -10,13 +10,13 @@ package uploader
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // OfflineSerializer is used for serializing events and printing instead of
@@ -47,7 +47,10 @@ func NewOfflineDiagnosticSerializer(dm *diagnostics.DiagnosticManager, outputPat
 	}
 	go func() {
 		for diagnostic := range dm.Updates {
-			ds.Enqueue(diagnostic)
+			err = ds.Enqueue(diagnostic)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 	}()
 	return ds, nil
@@ -67,18 +70,16 @@ func NewOfflineSerializer[T any](outputPath string) (*OfflineSerializer[T], erro
 }
 
 // Enqueue writes data to the offline serializer
-func (s *OfflineSerializer[T]) Enqueue(item *T) bool {
+func (s *OfflineSerializer[T]) Enqueue(item *T) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bs, err := json.Marshal(item)
 	if err != nil {
-		log.Info("Failed to marshal item", item)
-		return false
+		return fmt.Errorf("Failed to marshal item: %v", item)
 	}
-
 	_, err = s.outputFile.WriteString(string(bs) + "\n")
 	if err != nil {
-		log.Error(err)
+		return err
 	}
-	return true
+	return nil
 }

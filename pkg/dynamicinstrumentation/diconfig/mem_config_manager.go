@@ -145,6 +145,7 @@ func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
 	return &ConfigWriter{
 		updateChannel:  make(chan []byte, 1),
 		configCallback: onConfigUpdate,
+		stopChannel:    make(chan bool),
 	}
 }
 

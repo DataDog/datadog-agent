@@ -10,6 +10,7 @@ package uploader
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -41,9 +42,9 @@ func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.
 	}
 	go func() {
 		for diagnostic := range dm.Updates {
-			ok := ds.Enqueue(diagnostic)
-			if !ok {
-				log.Errorf("diagnostic update not enqueued: %s", pretty.Sprint(diagnostic))
+			err = ds.Enqueue(diagnostic)
+			if err != nil {
+				log.Errorf("diagnostic update not enqueued %v: %s", err, pretty.Sprint(diagnostic))
 			}
 		}
 	}()
@@ -59,19 +60,17 @@ func NewWriterSerializer[T any](writer io.Writer) (*WriterSerializer[T], error) 
 	}, nil
 }
 
-func (s *WriterSerializer[T]) Enqueue(item *T) bool {
+func (s *WriterSerializer[T]) Enqueue(item *T) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bs, err := json.Marshal(item)
 	if err != nil {
-		log.Error("Failed to marshal item", item)
-		return false
+		return fmt.Errorf("Failed to marshal item %v", item)
 	}
 
 	_, err = s.output.Write(bs)
 	if err != nil {
-		log.Error(err)
-		return false
+		return err
 	}
-	return true
+	return nil
 }
