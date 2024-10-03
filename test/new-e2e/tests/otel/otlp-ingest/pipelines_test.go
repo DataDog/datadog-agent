@@ -32,6 +32,9 @@ datadog:
           enabled: true
     logs:
       enabled: true
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
 agents:
   containers:
     agent:
