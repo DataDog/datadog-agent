@@ -26,21 +26,25 @@ lint_shell:
 lint_filename:
   extends: .lint
   script:
+    - echo "linting filename"
     - inv -e linter.filenames
 
 lint_copyrights:
   extends: .lint
   script:
+    - echo "linting copyrights"
     - inv -e linter.copyrights
 
 lint_codeowners:
   extends: .lint
   script:
+    - echo "linting codeowners"
     - inv -e github.lint-codeowner
 
 lint_components:
   extends: .lint
   script:
+    - echo "linting components"
     - inv -e lint-components lint-fxutil-oneshot-test
 
 

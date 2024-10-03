@@ -31,8 +31,7 @@ jobs:
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Set label on external contributor PRs
         run: |
-          gh issue edit "$NUMBER"
-          inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
+          echo "hello, world"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
