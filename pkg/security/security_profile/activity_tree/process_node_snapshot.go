@@ -69,6 +69,10 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
+	fileFDs = slices.DeleteFunc(fileFDs, func(fd process.OpenFilesStat) bool {
+		return !strings.HasPrefix(fd.Path, "/")
+	})
+
 	var (
 		isSampling = false
 		preAlloc   = len(fileFDs)
