@@ -17,7 +17,6 @@ from invoke.exceptions import Exit, ParseError
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -593,29 +592,28 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for the Agent
     """
-    if install_deps:
-        deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, timeout=timeout)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     tests = [
         {
@@ -644,12 +642,13 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
+        "timeout_opt": f"-timeout {timeout}" if timeout else "",
     }
 
     # since Go 1.13, the -exec flag of go test could add some parameters such as -test.timeout
@@ -659,7 +658,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod")
     if remote_docker:
         test_args["exec_opts"] = f"-exec \"{os.getcwd()}/test/integration/dockerize_tests.sh\""
 
-    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+    go_cmd = 'go test {timeout_opt} -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
 
     prefixes = [
         "./test/integration/config_providers/...",
