@@ -10,7 +10,9 @@ import (
 	"embed"
 	"encoding/json"
 	"expvar"
+	"fmt"
 	"io"
+	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -23,12 +25,12 @@ type Provider struct{}
 
 // Name returns the name
 func (Provider) Name() string {
-	return "SNMP Profiles"
+	return "SNMP"
 }
 
 // Section return the section
 func (Provider) Section() string {
-	return "SNMP Profiles"
+	return "SNMP"
 }
 
 func (p Provider) getStatusInfo() map[string]interface{} {
@@ -48,6 +50,50 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 		json.Unmarshal(snmpProfileErrorsJSON, &profiles) //nolint:errcheck
 		stats["snmpProfiles"] = profiles
 	}
+
+	autodiscoveryVar := expvar.Get("snmpAutodiscovery")
+
+	if autodiscoveryVar != nil {
+		stats["autodiscoverySubnets"] = getSubnetsStatus(autodiscoveryVar)
+	}
+
+	discoveryVar := expvar.Get("snmpDiscovery")
+
+	if discoveryVar != nil {
+
+		stats["discoverySubnets"] = getSubnetsStatus(discoveryVar)
+	}
+}
+
+func getSubnetsStatus(discoveryVar expvar.Var) map[string]string {
+	discoverySubnets := make(map[string]map[string]int)
+	discoveryJSON := []byte(discoveryVar.String())
+	json.Unmarshal(discoveryJSON, &discoverySubnets) //nolint:errcheck
+
+	devicesScannedInSubnet := discoverySubnets["devicesScannedInSubnet"]
+	devicesFoundInSubnet := discoverySubnets["devicesFoundInSubnet"]
+	discoverySubnetsStatus := make(map[string]string)
+
+	for subnet, devicesScanned := range devicesScannedInSubnet {
+		_, ipNet, _ := net.ParseCIDR(subnet)
+
+		ones, bits := ipNet.Mask.Size()
+		ipsCount := 1 << (bits - ones)
+
+		if ipsCount != devicesScanned {
+			discoverySubnetsStatus[subnet] = "scanning"
+			continue
+		}
+	}
+
+	for subnet, devicesFound := range devicesFoundInSubnet {
+		if discoverySubnetsStatus[subnet] == "scanning" {
+			continue
+		}
+		discoverySubnetsStatus[subnet] = fmt.Sprintf("%d", devicesFound)
+	}
+
+	return discoverySubnetsStatus
 }
 
 // JSON populates the status map
@@ -59,10 +105,10 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "profiles.tmpl", buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "snmp.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
 func (p Provider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "profilesHTML.tmpl", buffer, p.getStatusInfo())
+	return status.RenderHTML(templatesFS, "snmpHTML.tmpl", buffer, p.getStatusInfo())
 }

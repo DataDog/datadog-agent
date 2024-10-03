@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
@@ -20,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	autodiscoveryVar          = expvar.NewMap("snmpAutodiscovery")
+	devicesScannedInSubnetVar = expvar.Map{}
+	devicesFoundInSubnetVar   = expvar.Map{}
 )
 
 const (
@@ -63,6 +70,13 @@ type snmpSubnet struct {
 type snmpJob struct {
 	subnet    *snmpSubnet
 	currentIP net.IP
+}
+
+func init() {
+	devicesScannedInSubnetVar.Init()
+	devicesFoundInSubnetVar.Init()
+	autodiscoveryVar.Set("devicesScannedInSubnet", &devicesScannedInSubnetVar)
+	autodiscoveryVar.Set("devicesFoundInSubnet", &devicesFoundInSubnetVar)
 }
 
 // NewSNMPListener creates a SNMPListener
@@ -140,6 +154,10 @@ var worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 }
 
 func (l *SNMPListener) checkDevice(job snmpJob) {
+	devicesScannedCounter := devicesScannedInSubnetVar.Get(job.subnet.config.Network)
+	if devicesScannedCounter != nil {
+		devicesScannedCounter.(*expvar.Int).Add(1)
+	}
 	deviceIP := job.currentIP.String()
 	params, err := job.subnet.config.BuildSNMPParams(deviceIP)
 	if err != nil {
@@ -164,6 +182,11 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 			l.deleteService(entityID, job.subnet)
 		} else {
 			log.Debugf("SNMP get to %s success: %v", deviceIP, value.Variables[0].Value)
+
+			devicesFoundCounter := devicesFoundInSubnetVar.Get(job.subnet.config.Network)
+			if devicesFoundCounter != nil {
+				devicesFoundCounter.(*expvar.Int).Add(1)
+			}
 			l.createService(entityID, job.subnet, deviceIP, true)
 		}
 	}
@@ -225,6 +248,8 @@ func (l *SNMPListener) checkDevices() {
 		for i := range subnets {
 			// Use `&subnets[i]` to pass the correct pointer address to snmpJob{}
 			subnet = &subnets[i]
+			devicesScannedInSubnetVar.Set(subnet.config.Network, &expvar.Int{})
+			devicesFoundInSubnetVar.Set(subnet.config.Network, &expvar.Int{})
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
