@@ -1203,8 +1203,8 @@ def get_special_jobs(lint=False, all_jobs=None, all_stages=None):
     Parses the special jobs file and lints it.
 
     - lint: If True, will lint the file to verify that each job / stage is present in the configuration
-    - all_jobs: All the jobs in the configuration
-    - all_stages: All the stages in the configuration
+    - all_jobs: All the jobs in the configuration used to verify that the specified jobs are present within the full configuration
+    - all_stages: All the stages in the configuration used to verify that the specified stages are present within the full configuration
     """
 
     with open(CONFIG_SPECIAL_JOBS) as f:
