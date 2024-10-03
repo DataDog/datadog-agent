@@ -405,7 +405,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				"helm.sh/chart":                "calendar-rest-go-0.1.0",
 				"app.kubernetes.io/name":       name,
 				"app.kubernetes.io/instance":   name,
-				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/version":    "0.15",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
 			Annotations: map[string]string{
@@ -437,7 +437,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 				"helm.sh/chart":                "calendar-rest-go-0.1.0",
 				"app.kubernetes.io/name":       name,
 				"app.kubernetes.io/instance":   name,
-				"app.kubernetes.io/version":    "1.16.0",
+				"app.kubernetes.io/version":    "0.15",
 				"app.kubernetes.io/managed-by": "Helm",
 			},
 			Annotations: map[string]string{
@@ -458,7 +458,7 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite) {
 						"helm.sh/chart":                "calendar-rest-go-0.1.0",
 						"app.kubernetes.io/name":       name,
 						"app.kubernetes.io/instance":   name,
-						"app.kubernetes.io/version":    "1.16.0",
+						"app.kubernetes.io/version":    "0.15",
 						"app.kubernetes.io/managed-by": "Helm",
 					},
 				},
