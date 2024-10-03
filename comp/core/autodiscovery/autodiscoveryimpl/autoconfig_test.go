@@ -35,8 +35,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -86,7 +87,7 @@ func (l *MockListener) fakeFactory(listeners.Config, *acTelemetry.Store) (listen
 	return l, nil
 }
 
-var mockListenenerConfig = config.Listeners{
+var mockListenenerConfig = pkgconfigsetup.Listeners{
 	Name: "mock",
 }
 
@@ -173,14 +174,15 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 }
 
@@ -218,7 +220,7 @@ func (suite *AutoConfigTestSuite) TestAddListener() {
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
-	ac.AddListeners([]config.Listeners{mockListenenerConfig})
+	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
 	ac.m.Lock()
 	require.Len(suite.T(), ac.listeners, 1)
@@ -255,7 +257,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
-	ac.AddListeners([]config.Listeners{mockListenenerConfig})
+	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
 	ac.Stop()
 
@@ -300,7 +302,7 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}
 	listeners.Register("retry", retryFactory.make, ac.serviceListenerFactories)
 
-	configs := []config.Listeners{
+	configs := []pkgconfigsetup.Listeners{
 		{Name: "noerr"},
 		{Name: "fail"},
 		{Name: "retry"},

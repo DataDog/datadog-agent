@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -60,7 +61,7 @@ var (
 	fetchSecurityConfig    = configFetcher.SecurityAgentConfig
 	fetchProcessConfig     = func(cfg model.Reader) (string, error) { return configFetcher.ProcessAgentConfig(cfg, true) }
 	fetchTraceConfig       = configFetcher.TraceAgentConfig
-	fetchSystemProbeConfig = configFetcher.SystemProbeConfig
+	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
 
 type agentMetadata map[string]interface{}

@@ -124,8 +124,8 @@ func TestActionKill(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigusr2")]`); err != nil {
-					t.Error(err)
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGUSR2')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
@@ -176,11 +176,11 @@ func TestActionKill(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
-					t.Error(err)
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
-				if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
-					t.Error(err)
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
@@ -325,11 +325,11 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		validateMessageSchema(t, string(msg.Data))
 
 		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
-			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
-				t.Error(err)
+			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
-			if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
-				t.Error(err)
+			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
 		})
 
@@ -346,7 +346,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 
 		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
 			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
-				t.Error(errors.New("unexpected rule action"))
+				t.Errorf("unexpected rule action %s", string(msg.Data))
 			}
 		})
 
@@ -455,11 +455,11 @@ func TestActionKillDisarm(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
-					t.Error(err)
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
-				if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
-					t.Error(err)
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
@@ -489,7 +489,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
-					t.Error(errors.New("unexpected rule action"))
+					t.Errorf("unexpected rule action %s", string(msg.Data))
 				}
 			})
 
@@ -562,4 +562,138 @@ func TestActionKillDisarm(t *testing.T) {
 			_ = cmd.Run()
 		})
 	})
+}
+
+func TestActionHash(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping in docker, not  sharing the same pid ns and doesn't have a container ID")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "hash_action",
+			Expression: `open.file.path == "{{.Root}}/test-hash-action" && open.flags&O_CREAT == O_CREAT`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Hash: &rules.HashDefinition{},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, _, err := test.Path("test-hash-action")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan bool, 10)
+
+	t.Run("open-process-exit", func(t *testing.T) {
+		test.msgSender.flush()
+		test.WaitSignal(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					"slow-write", "2", testFile, "aaa",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action")
+		})
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		<-done
+	})
+
+	t.Run("open-timeout", func(t *testing.T) {
+		test.msgSender.flush()
+		test.WaitSignal(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					// exceed the file hasher timeout, use fork to force an event that will trigger the flush mechanism
+					"slow-write", "2", testFile, "aaa", ";", "sleep", "4", ";", "fork", ";", "sleep", "1",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action")
+		})
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'timeout')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		<-done
+	})
+
 }

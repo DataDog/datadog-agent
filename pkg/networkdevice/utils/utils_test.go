@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func Test_CopyStrings(t *testing.T) {
@@ -28,8 +29,8 @@ func Test_BoolToFloat64(t *testing.T) {
 }
 
 func Test_getAgentTags(t *testing.T) {
-	config.Datadog().SetWithoutSource("hostname", "my-host")
-	defer config.Datadog().SetWithoutSource("hostname", "")
+	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-host")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
 
 	assert.Equal(t, []string{
 		"agent_host:my-host",

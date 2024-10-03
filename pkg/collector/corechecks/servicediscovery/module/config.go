@@ -12,7 +12,7 @@ import (
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const discoveryNS = "discovery"

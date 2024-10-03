@@ -18,8 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,7 +68,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	var dbPath string
-	dbPath = config.Datadog().GetString("podman_db_path")
+	dbPath = pkgconfigsetup.Datadog().GetString("podman_db_path")
 
 	// We verify the user-provided path exists to prevent the collector entering a failing loop.
 	if dbPath != "" && !dbIsAccessible(dbPath) {
@@ -161,7 +161,11 @@ func convertToEvent(container *podman.Container) workloadmeta.CollectorEvent {
 		log.Warnf("Could not get env vars for container %s", containerID)
 	}
 
-	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, container.Config.RawImageName)
+	imageName := container.Config.RawImageName
+	if imageName == "" {
+		imageName = container.Config.RootfsImageName
+	}
+	image, err := workloadmeta.NewContainerImage(container.Config.ContainerRootFSConfig.RootfsImageID, imageName)
 	if err != nil {
 		log.Warnf("Could not get image for container %s", containerID)
 	}

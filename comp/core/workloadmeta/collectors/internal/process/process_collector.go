@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -50,7 +50,7 @@ type collector struct {
 // NewCollector returns a new local process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe())
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(pkgconfigsetup.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
@@ -81,7 +81,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// If process collection is disabled, the collector will gather the basic process and container data
 	// necessary for language detection.
-	if !config.Datadog().GetBool("process_config.process_collection.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
 			c.containerProvider = proccontainers.GetSharedContainerProvider(store)

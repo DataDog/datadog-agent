@@ -18,8 +18,8 @@ import (
 	"github.com/skydive-project/go-debouncer"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -53,16 +53,16 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
-		client.WithDirectorRootOverride(config.Datadog().GetString("site"), config.Datadog().GetString("remote_configuration.director_root")),
+		client.WithDirectorRootOverride(pkgconfigsetup.Datadog().GetString("site"), pkgconfigsetup.Datadog().GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, err

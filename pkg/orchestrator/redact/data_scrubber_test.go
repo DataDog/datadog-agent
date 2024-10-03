@@ -181,6 +181,8 @@ type testCase struct {
 func setupSensitiveCmdLines() []testCase {
 	return []testCase{
 		// in case the "keyword" is part of the command itself
+		{[]string{"process --password=\"Data Source another_password=12345\""}, []string{"process", "--password=********"}},
+		{[]string{"process --password:'Data Source another_pass=12345'"}, []string{"process", "--password:********"}},
 		{[]string{"agent", "-password////:123"}, []string{"agent", "-password////:********"}},
 		{[]string{"agent", "-password", "1234"}, []string{"agent", "-password", "********"}},
 		{[]string{"agent --password > /password/secret; agent --password echo >> /etc"}, []string{"agent", "--password", "********", "/password/secret;", "agent", "--password", "********", ">>", "/etc"}},
@@ -197,8 +199,8 @@ func setupSensitiveCmdLines() []testCase {
 		{[]string{""}, []string{""}},
 		{[]string{"", ""}, []string{"", ""}},
 		// in case the "password" only consist of whitespaces we can assume that it is not something we need to mask
-		{[]string{"agent password    "}, []string{"agent", "password", "", "", "", ""}},
-		{[]string{"agent", "password", ""}, []string{"agent", "password", ""}},
+		{[]string{"agent password    "}, []string{"agent", "password"}},
+		{[]string{"agent", "password", ""}, []string{"agent", "password"}},
 		{[]string{"agent", "password"}, []string{"agent", "password"}},
 		{[]string{"agent", "-password"}, []string{"agent", "-password"}},
 		{[]string{"agent -password"}, []string{"agent", "-password"}},
@@ -216,7 +218,7 @@ func setupSensitiveCmdLines() []testCase {
 		{[]string{"agent", "-PASSWORD", "1234"}, []string{"agent", "-PASSWORD", "********"}},
 		{[]string{"agent", "--PASSword", "1234"}, []string{"agent", "--PASSword", "********"}},
 		{[]string{"agent", "--PaSsWoRd=1234"}, []string{"agent", "--PaSsWoRd=********"}},
-		{[]string{"java -password      1234"}, []string{"java", "-password", "", "", "", "", "", "********"}},
+		{[]string{"java -password      1234"}, []string{"java", "-password", "********"}},
 		{[]string{"process-agent --config=datadog.yaml --pid=process-agent.pid"}, []string{"process-agent", "--config=********", "--pid=********"}},
 		{[]string{"1-password --config=12345"}, []string{"1-password", "--config=********"}}, // not working
 		{[]string{"java kafka password 1234"}, []string{"java", "kafka", "password", "********"}},
@@ -244,36 +246,35 @@ func setupCmdlinesWithWildCards() []testCase {
 		{[]string{"spidly --befpass=2043 onebefpass 1234 --befpassCustom=1234"},
 			[]string{"spidly", "--befpass=********", "onebefpass", "********", "--befpassCustom=1234"}},
 		{[]string{"spidly   --befpass=2043   onebefpass   1234   --befpassCustom=1234"},
-			[]string{"spidly", "", "", "--befpass=********", "", "", "onebefpass", "", "", "********", "", "", "--befpassCustom=1234"}},
+			[]string{"spidly", "--befpass=********", "onebefpass", "********", "--befpassCustom=1234"}},
 
 		{[]string{"spidly", "--afterpass=2043", "afterpass_1", "1234", "--befafterpass_1=1234"},
 			[]string{"spidly", "--afterpass=********", "afterpass_1", "********", "--befafterpass_1=1234"}},
 		{[]string{"spidly --afterpass=2043 afterpass_1 1234 --befafterpass_1=1234"},
 			[]string{"spidly", "--afterpass=********", "afterpass_1", "********", "--befafterpass_1=1234"}},
 		{[]string{"spidly   --afterpass=2043   afterpass_1   1234   --befafterpass_1=1234"},
-			[]string{"spidly", "", "", "--afterpass=********", "", "", "afterpass_1", "", "", "********", "", "", "--befafterpass_1=1234"}},
+			[]string{"spidly", "--afterpass=********", "afterpass_1", "********", "--befafterpass_1=1234"}},
 
 		{[]string{"spidly", "both", "1234", "-dd_both", "1234", "bothafter", "1234", "--dd_bothafter=1234"},
 			[]string{"spidly", "both", "********", "-dd_both", "********", "bothafter", "********", "--dd_bothafter=********"}},
 		{[]string{"spidly both 1234 -dd_both 1234 bothafter 1234 --dd_bothafter=1234"},
 			[]string{"spidly", "both", "********", "-dd_both", "********", "bothafter", "********", "--dd_bothafter=********"}},
 		{[]string{"spidly   both   1234   -dd_both   1234   bothafter   1234   --dd_bothafter=1234"},
-			[]string{"spidly", "", "", "both", "", "", "********", "", "", "-dd_both", "", "", "********", "", "", "bothafter", "", "", "********", "", "", "--dd_bothafter=********"}},
+			[]string{"spidly", "both", "********", "-dd_both", "********", "bothafter", "********", "--dd_bothafter=********"}},
 
 		{[]string{"spidly", "middle", "1234", "-mile", "1234", "--mill=1234"},
 			[]string{"spidly", "middle", "********", "-mile", "********", "--mill=1234"}},
 		{[]string{"spidly middle 1234 -mile 1234 --mill=1234"},
 			[]string{"spidly", "middle", "********", "-mile", "********", "--mill=1234"}},
 		{[]string{"spidly   middle   1234   -mile   1234   --mill=1234"},
-			[]string{"spidly", "", "", "middle", "", "", "********", "", "", "-mile", "", "", "********", "", "", "--mill=1234"}},
+			[]string{"spidly", "middle", "********", "-mile", "********", "--mill=1234"}},
 
 		{[]string{"spidly", "--passwd=1234", "password", "1234", "-mypassword", "1234", "--passwords=12345,123456", "--mypasswords=1234,123456"},
 			[]string{"spidly", "--passwd=********", "password", "********", "-mypassword", "********", "--passwords=********", "--mypasswords=********"}},
 		{[]string{"spidly --passwd=1234 password 1234 -mypassword 1234 --passwords=12345,123456 --mypasswords=1234,123456"},
 			[]string{"spidly", "--passwd=********", "password", "********", "-mypassword", "********", "--passwords=********", "--mypasswords=********"}},
 		{[]string{"spidly   --passwd=1234   password   1234   -mypassword   1234   --passwords=12345,123456   --mypasswords=1234,123456"},
-			[]string{"spidly", "", "", "--passwd=********", "", "", "password", "", "", "********", "", "", "-mypassword", "", "", "********",
-				"", "", "--passwords=********", "", "", "--mypasswords=********"}},
+			[]string{"spidly", "--passwd=********", "password", "********", "-mypassword", "********", "--passwords=********", "--mypasswords=********"}},
 
 		{[]string{"run-middle password 12345"}, []string{"run-middle", "password", "********"}},
 		{[]string{"generate-password -password 12345"}, []string{"generate-password", "-password", "********"}},

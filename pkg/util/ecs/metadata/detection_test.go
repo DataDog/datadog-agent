@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
@@ -36,7 +36,7 @@ func TestLocateECSHTTP(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.Error(t, err)
@@ -74,11 +74,11 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
-	config.SetFeatures(t, env.Docker)
+	env.SetFeatures(t, env.Docker)
 
 	ctx := context.Background()
-	config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
-	defer config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
+	pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
+	defer pkgconfigsetup.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)

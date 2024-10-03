@@ -20,10 +20,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -147,13 +147,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	err := util.SetAuthToken(pkgconfig.Datadog())
+	err := util.SetAuthToken(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog().GetInt("security_agent.cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))
 
 	return settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

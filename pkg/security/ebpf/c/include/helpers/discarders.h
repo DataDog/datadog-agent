@@ -222,25 +222,25 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
     return 0;
 }
 
-discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
+int __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->event_type, params->now);
     if (!inode_params) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
     bool are_revisions_equal = inode_params->mount_revision == get_mount_discarder_revision(params->discarder.path_key.mount_id);
     if (!are_revisions_equal) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
     u32 revision = get_discarders_revision();
     if (inode_params->params.revision != revision) {
-        return NOT_DISCARDED;
+        return 0;
     }
 
-    return DISCARDED;
+    return 1;
 }
 
 int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode) {
@@ -281,6 +281,18 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
     }
 
     return 0;
+}
+
+static __attribute__((always_inline)) int is_discarded_by_pid() {
+    return is_runtime_discarded() && is_runtime_request();
+}
+
+int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct syscall_cache_t *syscall) {
+    if (syscall->state == ACCEPTED) {
+        return 0;
+    }
+
+    return syscall->type;
 }
 
 #endif

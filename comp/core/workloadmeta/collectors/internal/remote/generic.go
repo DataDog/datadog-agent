@@ -25,7 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -148,7 +148,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfig.Datadog())
+		token, err := security.FetchAuthToken(pkgconfigsetup.Datadog())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
@@ -179,7 +179,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfig.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := pkgconfigsetup.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {

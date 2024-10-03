@@ -31,24 +31,24 @@ type defaultEntityID string
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	parts := strings.SplitN(string(de), separator, 2)
+	separatorIndex := strings.Index(string(de), separator)
 
-	if len(parts) != 2 {
+	if separatorIndex == -1 {
 		return ""
 	}
 
-	return parts[1]
+	return string(de[separatorIndex+len(separator):])
 }
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	parts := strings.SplitN(string(de), separator, 2)
+	separatorIndex := strings.Index(string(de), separator)
 
-	if len(parts) != 2 {
+	if separatorIndex == -1 {
 		return ""
 	}
 
-	return EntityIDPrefix(parts[0])
+	return EntityIDPrefix(de[:separatorIndex])
 }
 
 // String implements EntityID#String
@@ -56,7 +56,7 @@ func (de defaultEntityID) String() string {
 	return string(de)
 }
 
-func newDefaultEntityID(id string) EntityID {
+func newDefaultEntityID(id string) defaultEntityID {
 	return defaultEntityID(id)
 }
 
@@ -109,6 +109,11 @@ func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
 	}
 	return newDefaultEntityID(plainStringID), nil
+}
+
+// NewDefaultEntityIDFromStr constructs a default EntityID from a plain string id
+func NewDefaultEntityIDFromStr(plainStringID string) EntityID {
+	return newDefaultEntityID(plainStringID)
 }
 
 const (
