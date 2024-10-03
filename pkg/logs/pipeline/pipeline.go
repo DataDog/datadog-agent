@@ -26,13 +26,14 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan  chan *message.Message
-	flushChan  chan struct{}
-	processor  *processor.Processor
-	strategy   sender.Strategy
-	sender     *sender.Sender
-	serverless bool
-	flushWg    *sync.WaitGroup
+	InputChan    chan *message.Message
+	flushChan    chan struct{}
+	processor    *processor.Processor
+	strategy     sender.Strategy
+	strategyChan chan struct{}
+	sender       *sender.Sender
+	serverless   bool
+	flushWg      *sync.WaitGroup
 }
 
 // NewPipeline returns a new Pipeline
@@ -47,9 +48,13 @@ func NewPipeline(outputChan chan *message.Payload,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
-	var senderDoneChan chan *sync.WaitGroup
-	var flushWg *sync.WaitGroup
+	var (
+		strategyChan   chan struct{}
+		senderDoneChan chan *sync.WaitGroup
+		flushWg        *sync.WaitGroup
+	)
 	if serverless {
+		strategyChan = make(chan struct{})
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
@@ -73,7 +78,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, strategyChan, endpoints, serverless, flushWg, pipelineID)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
@@ -112,6 +117,7 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 
 	if p.serverless {
+		<-p.strategyChan
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
 		p.flushWg.Wait()
 	}
@@ -151,13 +157,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, strategyChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, strategyChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }

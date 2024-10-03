@@ -419,6 +419,7 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 		strategy = sender.NewBatchStrategy(inputChan,
 			senderInput,
 			make(chan struct{}),
+			make(chan struct{}),
 			false,
 			nil,
 			sender.ArraySerializer,

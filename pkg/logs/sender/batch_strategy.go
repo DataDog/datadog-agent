@@ -23,12 +23,13 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
-	outputChan chan *message.Payload
-	flushChan  chan struct{}
-	serverless bool
-	flushWg    *sync.WaitGroup
-	buffer     *MessageBuffer
+	inputChan    chan *message.Message
+	outputChan   chan *message.Payload
+	flushChan    chan struct{}
+	strategyChan chan struct{}
+	serverless   bool
+	flushWg      *sync.WaitGroup
+	buffer       *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName    string
 	serializer      Serializer
@@ -42,6 +43,7 @@ type batchStrategy struct {
 func NewBatchStrategy(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
+	strategyChan chan struct{},
 	serverless bool,
 	flushWg *sync.WaitGroup,
 	serializer Serializer,
@@ -50,12 +52,13 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, strategyChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
+	strategyChan chan struct{},
 	serverless bool,
 	flushWg *sync.WaitGroup,
 	serializer Serializer,
@@ -70,6 +73,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		inputChan:       inputChan,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
+		strategyChan:    strategyChan,
 		serverless:      serverless,
 		flushWg:         flushWg,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
@@ -142,6 +146,9 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 // to the next stage of the pipeline.
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
+		if s.serverless {
+			s.strategyChan <- struct{}{}
+		}
 		return
 	}
 	messages := s.buffer.GetMessages()
@@ -167,6 +174,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	if s.serverless {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
 		s.flushWg.Add(1)
+		s.strategyChan <- struct{}{}
 	}
 
 	outputChan <- &message.Payload{
