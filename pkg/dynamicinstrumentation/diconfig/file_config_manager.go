@@ -9,8 +9,11 @@ package diconfig
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func NewFileConfigManager(configFile string) (*ReaderConfigManager, error) {
@@ -25,12 +28,18 @@ func NewFileConfigManager(configFile string) (*ReaderConfigManager, error) {
 		return nil, fmt.Errorf("failed to watch config file %s: %s", configFile, err)
 	}
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
 	go func() {
 		for {
 			select {
 			case rawBytes := <-updateChan:
-				cm.ConfigReader.Read(rawBytes)
-			default:
+				cm.ConfigWriter.Write(rawBytes)
+			case <-c:
+				log.Info("stopping file config manager")
+				fw.Stop()
+				return
 			}
 		}
 	}()

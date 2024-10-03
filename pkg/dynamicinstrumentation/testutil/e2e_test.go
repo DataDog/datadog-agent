@@ -8,10 +8,9 @@
 package testutil
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"reflect"
@@ -33,7 +32,7 @@ import (
 
 func TestGoDI(t *testing.T) {
 	if err := rlimit.RemoveMemlock(); err != nil {
-		t.Error(err)
+		require.NoError(t, rlimit.RemoveMemlock())
 	}
 
 	if features.HaveMapType(ebpf.RingBuf) != nil {
@@ -41,17 +40,32 @@ func TestGoDI(t *testing.T) {
 	}
 
 	sampleServicePath := BuildSampleService(t)
+	t.Log(sampleServicePath)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
 		"DD_SERVICE=go-di-sample-service",
 		"DD_DYNAMIC_INSTRUMENTATION_OFFLINE=true",
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	stdoutPipe, err1 := cmd.StdoutPipe()
+	require.NoError(t, err1)
+	go func() {
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			t.Log(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			t.Log(err)
+		}
+	}()
+
+	// send stderr to stdout pipe
+	cmd.Stderr = cmd.Stdout
+
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() {
-		log.Println(cmd.Process.Kill())
+		t.Log(cmd.Process.Kill())
 	})
 
 	eventOutputWriter := &eventOutputTestWriter{
@@ -74,13 +88,14 @@ func TestGoDI(t *testing.T) {
 
 	GoDI, err = dynamicinstrumentation.RunDynamicInstrumentation(opts)
 	require.NoError(t, err)
+	t.Cleanup(GoDI.Close)
 
 	// Give DI time to start up
 	time.Sleep(time.Second * 5)
 
 	cm, ok := GoDI.ConfigManager.(*diconfig.ReaderConfigManager)
 	if !ok {
-		t.Error("Config manager is of wrong type")
+		t.Fatal("Config manager is of wrong type")
 	}
 
 	cfgTemplate, err := template.New("config_template").Parse(configTemplateText)
@@ -91,20 +106,21 @@ func TestGoDI(t *testing.T) {
 	for function, expectedCaptureValue := range expectedCaptures {
 		// Generate config for this function
 		buf = bytes.NewBuffer(b)
-		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "main.")
+		functionWithoutPackagePrefix, _ := strings.CutPrefix(function, "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.")
+		t.Log("Instrumenting ", functionWithoutPackagePrefix)
 		err = cfgTemplate.Execute(buf, configDataType{functionWithoutPackagePrefix})
 		require.NoError(t, err)
 		eventOutputWriter.doCompare = false
 		eventOutputWriter.expectedResult = expectedCaptureValue
 
 		// Read the configuration via the config manager
-		_, err := cm.ConfigReader.Read(buf.Bytes())
+		_, err := cm.ConfigWriter.Write(buf.Bytes())
 		time.Sleep(time.Second * 5)
 		if err != nil {
 			t.Errorf("could not read new configuration: %s", err)
 		}
 
-		fmt.Printf("\n\n")
+		t.Logf("\n\n")
 	}
 }
 
@@ -124,8 +140,8 @@ func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
 	actual := snapshot.Debugger.Captures.Entry.Arguments
 	scrubPointerValues(actual)
 	if !reflect.DeepEqual(e.expectedResult, actual) {
-		e.t.Error("Unexpected ", funcName)
-		pretty.Log(actual)
+		e.t.Error("Unexpected ", funcName, pretty.Sprint(actual))
+		e.t.Log("Expected: ", pretty.Sprint(e.expectedResult))
 	}
 
 	return len(p), nil
@@ -155,14 +171,14 @@ var configTemplateText = `
             "type": "LOG_PROBE",
             "language": "go",
             "where": {
-                "typeName": "main",
+                "typeName": "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample",
                 "methodName": "{{.FunctionName}}"
             },
             "tags": [],
-            "template": "Executed main.{{.FunctionName}}, it took {@duration}ms",
+            "template": "Executed github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.{{.FunctionName}}, it took {@duration}ms",
             "segments": [
                 {
-                "str": "Executed main.{{.FunctionName}}, it took "
+                "str": "Executed github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.{{.FunctionName}}, it took "
                 },
                 {
                 "dsl": "@duration",

@@ -21,34 +21,34 @@ func capturedValue(t string, v string) *ditypes.CapturedValue {
 }
 
 var basicCaptures = fixtures{
-	"main.test_single_bool":   {"x": capturedValue("bool", "true")},
-	"main.test_single_int":    {"x": capturedValue("int", "-1512")},
-	"main.test_single_uint":   {"x": capturedValue("uint", "1512")},
-	"main.test_single_int8":   {"x": capturedValue("int8", "-8")},
-	"main.test_single_int16":  {"x": capturedValue("int16", "-16")},
-	"main.test_single_int32":  {"x": capturedValue("int32", "-32")},
-	"main.test_single_int64":  {"x": capturedValue("int64", "-64")},
-	"main.test_single_uint8":  {"x": capturedValue("uint8", "8")},
-	"main.test_single_uint16": {"x": capturedValue("uint16", "16")},
-	"main.test_single_uint32": {"x": capturedValue("uint32", "32")},
-	"main.test_single_uint64": {"x": capturedValue("uint64", "64")},
-	"main.test_single_byte":   {"x": capturedValue("uint8", "97")},
-	"main.test_single_rune":   {"x": capturedValue("int32", "ă")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_bool":   {"x": capturedValue("bool", "true")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int":    {"x": capturedValue("int", "-1512")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint":   {"x": capturedValue("uint", "1512")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int8":   {"x": capturedValue("int8", "-8")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int16":  {"x": capturedValue("int16", "-16")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int32":  {"x": capturedValue("int32", "-32")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_int64":  {"x": capturedValue("int64", "-64")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint8":  {"x": capturedValue("uint8", "8")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint16": {"x": capturedValue("uint16", "16")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint32": {"x": capturedValue("uint32", "32")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_uint64": {"x": capturedValue("uint64", "64")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_byte":   {"x": capturedValue("uint8", "97")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_rune":   {"x": capturedValue("int32", "1")},
 
 	// everything with float errors out
-	// "main.test_single_float32": {"x": capturedValue("float", "1.32")},
-	// "main.test_single_float64": {"x": capturedValue("float", "-1.646464")},
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_float32": {"x": capturedValue("float", "1.32")},
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_float64": {"x": capturedValue("float", "-1.646464")},
 }
 
 var multiParamCaptures = fixtures{
-	"main.test_multiple_simple_params": {
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_simple_params": {
 		"a": capturedValue("bool", "false"),
 		"b": capturedValue("uint8", "42"),
 		"c": capturedValue("int32", "122"),
 		"d": capturedValue("uint", "1337"),
 		"e": capturedValue("string", "xyz"),
 	},
-	"main.test_multiple_composite_params": {
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_composite_params": {
 		"a": {Type: "array", Fields: fieldMap{
 			"a_0": capturedValue("string", "one"),
 			"a_1": capturedValue("string", "two"),
@@ -81,7 +81,7 @@ var multiParamCaptures = fixtures{
 			}},
 		}},
 	},
-	"main.test_combined_byte": {
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_combined_byte": {
 		"w": capturedValue("uint8", "2"),
 		"x": capturedValue("uint8", "3"),
 		"y": capturedValue("uint8", "3.0"),
@@ -89,35 +89,35 @@ var multiParamCaptures = fixtures{
 }
 
 var stringCaptures = fixtures{
-	"main.test_single_string": {"x": capturedValue("string", "abc")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string": {"x": capturedValue("string", "abc")},
 }
 
 var arrayCaptures = fixtures{
-	"main.test_byte_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_byte_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]uint8[0]": capturedValue("uint8", "1"),
 		"[2]uint8[1]": capturedValue("uint8", "1"),
 	}}},
-	"main.test_rune_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_rune_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]int32[0]": capturedValue("int32", "1"),
 		"[2]int32[1]": capturedValue("int32", "2"),
 	}}},
-	"main.test_string_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]string[0]": capturedValue("string", "one"),
 		"[2]string[1]": capturedValue("string", "two"),
 	}}},
-	"main.test_int_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]int[0]": capturedValue("int", "1"),
 		"[2]int[1]": capturedValue("int", "2"),
 	}}},
-	"main.test_int8_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_int8_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]int8[0]": capturedValue("int8", "1"),
 		"[2]int8[1]": capturedValue("int8", "2"),
 	}}},
-	"main.test_uint_array": {"x": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_array": {"x": {Type: "array", Fields: fieldMap{
 		"[2]uint[0]": capturedValue("uint", "1"),
 		"[2]uint[1]": capturedValue("uint", "2"),
 	}}},
-	"main.test_array_of_arrays": {"a": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays": {"a": {Type: "array", Fields: fieldMap{
 		"[2][2]int[0]": {Type: "array", Fields: fieldMap{
 			"[2]int[0]": capturedValue("int", "1"),
 			"[2]int[1]": capturedValue("int", "2"),
@@ -127,17 +127,17 @@ var arrayCaptures = fixtures{
 			"[2]int[1]": capturedValue("int", "4"),
 		}},
 	}}},
-	"main.test_array_of_structs": {"a": {Type: "array", Fields: fieldMap{
-		"[2]main.nestedStruct[0]": {Type: "struct", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_structs": {"a": {Type: "array", Fields: fieldMap{
+		"[2]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct[0]": {Type: "struct", Fields: fieldMap{
 			"anotherInt":    capturedValue("int", "42"),
 			"anotherString": capturedValue("string", "foo"),
 		}},
-		"[2]main.nestedStruct[1]": {Type: "struct", Fields: fieldMap{
+		"[2]github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.nestedStruct[1]": {Type: "struct", Fields: fieldMap{
 			"anotherInt":    capturedValue("int", "24"),
 			"anotherString": capturedValue("string", "bar"),
 		}},
 	}}},
-	"main.test_array_of_arrays_of_arrays": {"b": {Type: "array", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_array_of_arrays_of_arrays": {"b": {Type: "array", Fields: fieldMap{
 		"[2][2][2]int[0]": {Type: "array", Fields: fieldMap{
 			"[2][2]int[0]": {Type: "array", Fields: fieldMap{
 				"[2]int[0]": capturedValue("int", "1"),
@@ -162,12 +162,12 @@ var arrayCaptures = fixtures{
 }
 
 var structCaptures = fixtures{
-	"main.test_string_struct": {"t": {Type: "struct", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_string_struct": {"t": {Type: "struct", Fields: fieldMap{
 		"a": capturedValue("string", "a"),
 		"b": capturedValue("string", "bb"),
 		"c": capturedValue("string", "ccc"),
 	}}},
-	// "main.test_lots_of_fields": {"l": {Type: "struct", Fields: fieldMap{
+	// "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_lots_of_fields": {"l": {Type: "struct", Fields: fieldMap{
 	// 	"a": capturedValue("uint8", "1"),
 	// 	"b": capturedValue("uint8", "2"),
 	// 	"c": capturedValue("uint8", "3"),
@@ -195,12 +195,12 @@ var structCaptures = fixtures{
 	// 	"y": capturedValue("CutFieldLimit", "reached field limit"),
 	// 	"z": capturedValue("CutFieldLimit", "reached field limit"),
 	// }}},
-	"main.test_nonembedded_struct": {"x": {Type: "struct", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct": {"x": {Type: "struct", Fields: fieldMap{
 		"aBool":  capturedValue("bool", "true"),
 		"aInt":   capturedValue("int", "1"),
 		"aInt16": capturedValue("int16", "2"),
 	}}},
-	"main.test_struct_pointer": {"x": {Type: "ptr", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": {"x": {Type: "ptr", Fields: fieldMap{
 		"": {
 			Type: "struct", Fields: fieldMap{
 				"aBool":  capturedValue("bool", "true"),
@@ -208,7 +208,7 @@ var structCaptures = fixtures{
 				"aInt16": capturedValue("int16", "2"),
 			}},
 	}}},
-	"main.test_multiple_embedded_struct": {"b": {Type: "struct", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_multiple_embedded_struct": {"b": {Type: "struct", Fields: fieldMap{
 		"aBool":  capturedValue("bool", "true"),
 		"aInt16": capturedValue("int16", "42"),
 		"aInt32": capturedValue("int32", "31"),
@@ -227,18 +227,18 @@ var structCaptures = fixtures{
 // TODO: this doesn't work yet:
 // could not determine locations of variables from debug information could not inspect param "x" on function: no location field in parameter entry
 var genericCaptures = fixtures{
-	"main.typeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.typeWithGenerics[go.shape.string].Guess": {"value": capturedValue("string", "generics work")},
 }
 
 // TODO: check how map entries should be represented, likely that entries have key / value pair fields
 // instead of having the keys hardcoded as string field names
 // maps are no supported at the moment so this fails anyway
 var mapCaptures = fixtures{
-	"main.test_map_string_to_int": {"m": {Type: "map", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_map_string_to_int": {"m": {Type: "map", Fields: fieldMap{
 		"foo": capturedValue("int", "1"),
 		"bar": capturedValue("int", "2"),
 	}}},
-	"main.test_map_string_to_struct": {"m": {Type: "map", Fields: fieldMap{
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_map_string_to_struct": {"m": {Type: "map", Fields: fieldMap{
 		"foo": {Type: "struct", Fields: fieldMap{
 			"anotherInt":    capturedValue("int", "3"),
 			"anotherString": capturedValue("string", "four"),

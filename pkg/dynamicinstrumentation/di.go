@@ -145,6 +145,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	goDI.Close = func() {
 		goDI.ConfigManager.Stop()
 		closeRingbuffer()
+		close(diagnostics.Diagnostics.Updates)
 	}
 
 	return goDI, nil

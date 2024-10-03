@@ -33,13 +33,6 @@ func main() {
 			tracer.WithDebugMode(true))
 	}
 
-	go func() {
-		err := sample.StartHTTPServer()
-		if err != nil {
-			log.Info(err)
-		}
-	}()
-
 	ticker := time.NewTicker(time.Second / 2)
 	for range ticker.C {
 		sample.ExecuteOther()
@@ -51,7 +44,6 @@ func main() {
 		sample.ExecuteStructFuncs()
 		sample.ExecuteStackAndInlining()
 		sample.ExecutePointerFuncs()
-		sample.SendHTTPRequest()
 
 		// unsupported for MVP, should not cause crashes
 		sample.ExecuteGenericFuncs()

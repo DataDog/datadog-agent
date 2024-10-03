@@ -23,7 +23,7 @@ import (
 // which are read from memory
 type ReaderConfigManager struct {
 	sync.Mutex
-	ConfigReader *ConfigReader
+	ConfigWriter *ConfigWriter
 	procTracker  *proctracker.ProcessTracker
 
 	callback configUpdateCallback
@@ -46,12 +46,12 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 		return nil, err
 	}
 
-	reader := NewConfigReader(cm.updateServiceConfigs)
+	reader := NewConfigWriter(cm.updateServiceConfigs)
 	err = reader.Start()
 	if err != nil {
 		return nil, err
 	}
-	cm.ConfigReader = reader
+	cm.ConfigWriter = reader
 	return cm, nil
 }
 
@@ -60,14 +60,14 @@ func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
 }
 
 func (cm *ReaderConfigManager) Stop() {
-	cm.ConfigReader.Stop()
+	cm.ConfigWriter.Stop()
 	cm.procTracker.Stop()
 }
 
 func (cm *ReaderConfigManager) update() error {
 	var updatedState = ditypes.NewDIProcs()
 	for serviceName, configsByID := range cm.configs {
-		for pid, proc := range cm.ConfigReader.Processes {
+		for pid, proc := range cm.ConfigWriter.Processes {
 			// If a config exists relevant to this proc
 			if proc.ServiceName == serviceName {
 				procCopy := *proc
@@ -116,7 +116,7 @@ func (cm *ReaderConfigManager) updateProcessInfo(procs ditypes.DIProcs) {
 	cm.Lock()
 	defer cm.Unlock()
 	log.Info("Updating procs", procs)
-	cm.ConfigReader.UpdateProcesses(procs)
+	cm.ConfigWriter.UpdateProcesses(procs)
 	err := cm.update()
 	if err != nil {
 		log.Info(err)
@@ -131,31 +131,29 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 	}
 }
 
-type ConfigReader struct {
-	io.Reader
+type ConfigWriter struct {
+	io.Writer
 	updateChannel  chan ([]byte)
 	Processes      map[ditypes.PID]*ditypes.ProcessInfo
-	configCallback configReaderCallback
+	configCallback ConfigWriterCallback
 	stopChannel    chan (bool)
 }
 
-type configReaderCallback func(configsByService)
+type ConfigWriterCallback func(configsByService)
 
-func NewConfigReader(onConfigUpdate configReaderCallback) *ConfigReader {
-	return &ConfigReader{
-		updateChannel:  make(chan []byte),
+func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
+	return &ConfigWriter{
+		updateChannel:  make(chan []byte, 1),
 		configCallback: onConfigUpdate,
 	}
 }
 
-func (r *ConfigReader) Read(p []byte) (n int, e error) {
-	go func() {
-		r.updateChannel <- p
-	}()
+func (r *ConfigWriter) Write(p []byte) (n int, e error) {
+	r.updateChannel <- p
 	return 0, nil
 }
 
-func (r *ConfigReader) Start() error {
+func (r *ConfigWriter) Start() error {
 	go func() {
 	configUpdateLoop:
 		for {
@@ -176,14 +174,14 @@ func (r *ConfigReader) Start() error {
 	return nil
 }
 
-func (cu *ConfigReader) Stop() {
+func (cu *ConfigWriter) Stop() {
 	cu.stopChannel <- true
 }
 
-// UpdateProcesses is the callback interface that ConfigReader uses to consume the map of ProcessInfo's
+// UpdateProcesses is the callback interface that ConfigWriter uses to consume the map of ProcessInfo's
 // such that it's used whenever there's an update to the state of known service processes on the machine.
 // It simply overwrites the previous state of known service processes with the new one
-func (cu *ConfigReader) UpdateProcesses(procs ditypes.DIProcs) {
+func (cu *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
 	current := procs
 	old := cu.Processes
 	if !reflect.DeepEqual(current, old) {

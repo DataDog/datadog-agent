@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/kr/pretty"
 )
 
 type WriterSerializer[T any] struct {
@@ -40,7 +41,10 @@ func NewWriterDiagnosticSerializer(dm *diagnostics.DiagnosticManager, writer io.
 	}
 	go func() {
 		for diagnostic := range dm.Updates {
-			ds.Enqueue(diagnostic)
+			ok := ds.Enqueue(diagnostic)
+			if !ok {
+				log.Errorf("diagnostic update not enqueued: %s", pretty.Sprint(diagnostic))
+			}
 		}
 	}()
 	return ds, nil
@@ -67,6 +71,7 @@ func (s *WriterSerializer[T]) Enqueue(item *T) bool {
 	_, err = s.output.Write(bs)
 	if err != nil {
 		log.Error(err)
+		return false
 	}
 	return true
 }
