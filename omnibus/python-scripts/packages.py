@@ -10,14 +10,16 @@ DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by inst
 
 def run_command(command):
     """
-    Execute a shell command and return its output.
+    Execute a shell command and return its output and errors.
     """
     try:
         print(f"Running command: '{command}'")
-        subprocess.run(command, shell=True, text=True, capture_output=True, check=True)
+        result = subprocess.run(command, shell=True, text=True, capture_output=True, check=True)
+        return result.stdout, result.stderr
     except subprocess.CalledProcessError as e:
         print(f"Command '{e.cmd}' failed with return code: {e.returncode}")
         print(f"Error: {e.stderr}")
+        return e.stdout, e.stderr
 
 def extract_version(specifier):
     """
