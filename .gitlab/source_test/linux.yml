@@ -301,6 +301,10 @@ new-e2e-unit-tests:
 
 agent_integration_tests:
   extends: .integration_tests_deb
+  # We have capacity issues on the docker-in-docker:amd64 runners for now.
+  # Setting the timeout to 30 min and retry to 2 to avoid the job to pend for too long.
+  timeout: 30m
+  retry: 2
   script:
     - inv -e integration-tests --timeout 30m --race --remote-docker
 
