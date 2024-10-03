@@ -337,4 +337,4 @@ notify_ebpf_complexity_changes:
     - !reference [.setup_agent_github_app]
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
   script:
-    - inv -e ebpf.generate-complexity-summary-for-pr --branch-name $CI_COMMIT_REF_NAME
+    - inv -e ebpf.generate-complexity-summary-for-pr
