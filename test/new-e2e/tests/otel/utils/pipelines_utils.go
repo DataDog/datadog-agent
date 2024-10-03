@@ -177,12 +177,14 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 
 	require.NotEmpty(s.T(), logs)
 	for _, log := range logs {
-		assert.Contains(s.T(), log.Message, logBody)
-		attrs := make(map[string]string)
+		tags := getTagMapFromSlice(s.T(), log.Tags)
+		attrs := make(map[string]interface{})
 		err = json.Unmarshal([]byte(log.Message), &attrs)
 		assert.NoError(s.T(), err)
-		tags := getTagMapFromSlice(s.T(), log.Tags)
-		maps.Copy(tags, attrs)
+		for k, v := range attrs {
+			tags[k] = fmt.Sprint(v)
+		}
+		assert.Contains(s.T(), log.Message, logBody)
 		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])

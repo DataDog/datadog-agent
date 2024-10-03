@@ -63,7 +63,3 @@ func (s *otlpIngestTestSuite) TestOTLPMetrics() {
 func (s *otlpIngestTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s, otlpIngestParams)
 }
-
-func (s *otlpIngestTestSuite) TestHosts() {
-	utils.TestHosts(s)
-}

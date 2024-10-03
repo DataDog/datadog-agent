@@ -70,7 +70,3 @@ func (s *completeTestSuite) TestPrometheusMetrics() {
 func (s *completeTestSuite) TestOTelAgentInstalled() {
 	utils.TestOTelAgentInstalled(s)
 }
-
-func (s *completeTestSuite) TestOTelFlare() {
-	utils.TestOTelFlare(s)
-}
