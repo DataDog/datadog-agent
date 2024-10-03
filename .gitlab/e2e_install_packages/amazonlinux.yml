@@ -138,7 +138,7 @@ new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64:
   variables:
     FLAVOR: datadog-agent
 
-new-e2e-agent-platform-upgrade7-persisting-integrations-amazonlinux-x64:
+new-e2e-platform-integrations-upgrade7-persisting-integrations-amazonlinux-x64:
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade_persisting_integrations
