@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package gpu defines the agent corecheck for
 // the GPU integration
 package gpu
@@ -27,14 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-// CheckName defines the name of the
-// GPU check
-const CheckName = "gpu"
-
-// CheckConfig holds the configuration for the GPU check
-type CheckConfig struct {
-}
 
 // Check doesn't need additional fields
 type Check struct {
