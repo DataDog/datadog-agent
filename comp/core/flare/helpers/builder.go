@@ -372,6 +372,10 @@ func (fb *builder) RegisterFilePerm(path string) {
 func (fb *builder) RegisterDirPerm(path string) {
 	fb.Lock()
 	defer fb.Unlock()
+	if fb.isClosed {
+		return
+	}
+
 	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
 		if f != nil {
 			fb.permsInfos.add(src)
