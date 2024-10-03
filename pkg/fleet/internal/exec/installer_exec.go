@@ -108,6 +108,27 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 	return cmd.Run()
 }
 
+// InstallConfigExperiment installs an experiment.
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// RemoveConfigExperiment removes an experiment.
+func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "remove-config-experiment", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// PromoteConfigExperiment promotes an experiment to stable.
+func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
