@@ -331,8 +331,8 @@ func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.Metri
 }
 
 func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
-	// Gather all prom metrics. Currently Gather() does not allow filtering by
-	// metric name, so we need to gather all metrics and filter them on our own.
+	// Gather all prom metrircs. Currently Gather() does not allow filtering by
+	// matric name, so we need to gather all metrics and filter them on our own.
 	//	pms, err := a.telemetry.Gather(false)
 	pms, err := a.telComp.Gather(false)
 	if err != nil {
@@ -392,12 +392,12 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
 	}
 
-	jsonPayloadScrubbed, err := scrubber.ScrubJSONString(string(jsonPayload))
+	jsonPayloadScrubbed, err := scrubber.ScrubBytes(jsonPayload)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
 	}
 
-	return []byte(jsonPayloadScrubbed), nil
+	return jsonPayloadScrubbed, nil
 }
 
 // start is called by FX when the application starts.
