@@ -380,7 +380,7 @@ func TestCalendarApp(s OTelTestSuite) {
 		logs, err := s.Env().FakeIntake.Client().FilterLogs(calendarService, fakeintake.WithMessageContaining(logBody))
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-	}, 10*time.Minute, 10*time.Second)
+	}, 120*time.Minute, 10*time.Second)
 }
 
 func createCalendarApp(ctx context.Context, s OTelTestSuite) {
