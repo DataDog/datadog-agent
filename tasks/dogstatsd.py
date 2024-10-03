@@ -170,7 +170,7 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for dogstatsd
     """

@@ -576,7 +576,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
+def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     """
     Run integration tests for the Agent
     """
@@ -588,7 +588,7 @@ def integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeou
         return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, timeout=timeout)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout="10m"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),
@@ -626,7 +626,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", timeout="10m"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout="10m"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", timeout=""):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test")),

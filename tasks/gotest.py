@@ -395,7 +395,7 @@ def test(
 
 
 @task
-def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout="10m"):
+def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
     """
     Run all the available integration tests
     """
