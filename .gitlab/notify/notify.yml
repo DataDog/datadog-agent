@@ -104,7 +104,6 @@ notify_gitlab_ci_changes:
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - !reference [.setup_agent_github_app]
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
