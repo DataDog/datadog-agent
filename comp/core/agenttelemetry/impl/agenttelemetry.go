@@ -19,10 +19,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -37,7 +37,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newAgentTelemetryProvider),
+		compdef.Provide(newAgentTelemetryProvider),
 	)
 }
 
@@ -56,20 +56,20 @@ type atel struct {
 }
 
 type provides struct {
-	fx.Out
+	compdef.Out
 
 	Comp     agenttelemetry.Component
 	Endpoint api.AgentEndpointProvider
 }
 
 type dependencies struct {
-	fx.In
+	compdef.In
 
 	Log       log.Component
 	Config    config.Component
 	Telemetry telemetry.Component
 
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 }
 
 // Interfacing with runner.
