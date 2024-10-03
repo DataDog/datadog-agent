@@ -278,6 +278,20 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
+	showAgentTelemetryCommand := &cobra.Command{
+		Use:   "show-telemetry",
+		Short: "Print agent telemetry payloads sent by the agent.",
+		Long:  `.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("agent-telemetry")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+	diagnoseCommand.AddCommand(showAgentTelemetryCommand)
+
 	return []*cobra.Command{diagnoseCommand}
 }
 
