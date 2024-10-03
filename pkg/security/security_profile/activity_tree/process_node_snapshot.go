@@ -69,6 +69,8 @@ func (pn *ProcessNode) snapshotAllFiles(p *process.Process, stats *Stats, newEve
 		seclog.Warnf("error while listing files (pid: %v): %s", p.Pid, err)
 	}
 
+	// filter out fd corresponding to anon inodes, pipes, sockets, etc. when snapshotting process opened files
+	// the goal is to avoid sampling opened files for processes that mostly open files not present on the filesystem
 	fileFDs = slices.DeleteFunc(fileFDs, func(fd process.OpenFilesStat) bool {
 		return !strings.HasPrefix(fd.Path, "/")
 	})
