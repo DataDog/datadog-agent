@@ -7,7 +7,6 @@
 package sender
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -177,7 +176,6 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		s.readyWg.Done()
 	}
 
-	fmt.Println("======================== payload sent to sender ========================")
 	outputChan <- &message.Payload{
 		Messages:      messages,
 		Encoded:       encodedPayload,
