@@ -398,7 +398,7 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 }
 
 func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
-	req, err := http.NewRequest(http.MethodGet, telemetryUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
 	if err != nil {
 		return nil, err
 	}
