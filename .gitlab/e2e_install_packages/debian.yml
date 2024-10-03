@@ -132,8 +132,7 @@ new-e2e-agent-platform-step-by-step-debian-a7-x64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
-  rules:
-    !reference [.on_deploy]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -144,8 +143,7 @@ new-e2e-agent-platform-step-by-step-debian-a7-arm64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_arm64
     - .new-e2e_agent_a7
-  rules:
-    !reference [.on_deploy]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -156,8 +154,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a6_x86_64
     - .new-e2e_agent_a6
-  rules:
-    !reference [.on_deploy]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -168,8 +165,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-arm64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a6_arm64
     - .new-e2e_agent_a6
-  rules:
-    !reference [.on_deploy]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -187,6 +183,16 @@ new-e2e-agent-platform-install-script-upgrade7-debian-x86_64:
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
+    - .new-e2e_os_debian
+    - .new-e2e_debian_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-upgrade7-persisting-integrations-debian-x86_64:
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade_persisting_integrations
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x86_64
     - .new-e2e_agent_a7
