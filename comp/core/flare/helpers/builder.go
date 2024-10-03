@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -106,6 +107,9 @@ func NewFlareBuilder(localFlare bool) (types.FlareBuilder, error) {
 
 // builder implements the FlareBuilder interface
 type builder struct {
+	sync.Mutex
+	done bool
+
 	// tmpDir is the temp directory to store data before being archived
 	tmpDir string
 	// flareDir is the top directory to add file to. This is the equivalent to tmpDir/<hostname>
@@ -137,8 +141,17 @@ func getArchiveName() string {
 func (fb *builder) Save() (string, error) {
 	defer fb.clean()
 
-	_ = fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit)
+	_ = fb.AddFileFromFunc("permissions.log", func() ([]byte, error) {
+		fb.Lock()
+		defer fb.Unlock()
+		return fb.permsInfos.commit()
+	})
+
 	_ = fb.logFile.Close()
+
+	fb.Lock()
+	defer fb.Unlock()
+	fb.done = true
 
 	archiveName := getArchiveName()
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
@@ -207,6 +220,13 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 		}
 	}
 
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.done {
+		return nil
+	}
+
 	f, err := fb.PrepareFilePath(destFile)
 	if err != nil {
 		return err
@@ -227,13 +247,6 @@ func (fb *builder) AddFileWithoutScrubbing(destFile string, content []byte) erro
 }
 
 func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {
-	fb.permsInfos.add(srcFile)
-
-	path, err := fb.PrepareFilePath(destFile)
-	if err != nil {
-		return err
-	}
-
 	content, err := os.ReadFile(srcFile)
 	if err != nil {
 		return fb.logError("error reading file '%s' to be copy to '%s': %s", srcFile, destFile, err)
@@ -251,6 +264,20 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 		if err != nil {
 			return fb.logError("error scrubbing content for file '%s': %s", destFile, err)
 		}
+	}
+
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.done {
+		return nil
+	}
+
+	fb.permsInfos.add(srcFile)
+
+	path, err := fb.PrepareFilePath(destFile)
+	if err != nil {
+		return err
 	}
 
 	err = os.WriteFile(path, content, filePerm)
@@ -274,7 +301,7 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	if err != nil {
 		return fb.logError("error getting absolute path for '%s': %s", srcDir, err)
 	}
-	fb.permsInfos.add(srcDir)
+	fb.RegisterFilePerm(srcDir)
 
 	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
 		if f == nil {
@@ -317,13 +344,17 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 }
 
 func (fb *builder) RegisterFilePerm(path string) {
+	fb.Lock()
+	defer fb.Unlock()
 	fb.permsInfos.add(path)
 }
 
 func (fb *builder) RegisterDirPerm(path string) {
+	fb.Lock()
+	defer fb.Unlock()
 	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
 		if f != nil {
-			fb.RegisterFilePerm(src)
+			fb.permsInfos.add(src)
 		}
 		return nil
 	})

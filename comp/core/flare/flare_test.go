@@ -6,9 +6,12 @@
 package flare
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -21,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -55,4 +59,47 @@ func TestFlareCreation(t *testing.T) {
 
 	assert.Len(t, f.Comp.(*flare).providers, 1)
 	assert.NotNil(t, f.Comp.(*flare).providers[0])
+}
+
+func TestRunProviders(t *testing.T) {
+	deps := fxutil.Test[dependencies](
+		t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
+		fx.Provide(func() diagnosesendermanager.Component { return nil }),
+		fx.Provide(func() Params { return Params{} }),
+		collector.NoneModule(),
+		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+		fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
+		// provider a nil FlareCallback
+		fx.Provide(fx.Annotate(
+			func() types.FlareCallback { return nil },
+			fx.ResultTags(`group:"flare"`),
+		)),
+	)
+	deps.Config.Set("flare_provider_timeout", 1, model.SourceAgentRuntime)
+	f := newFlare(deps)
+
+	var firstRan atomic.Bool
+	var secondRan atomic.Bool
+	var secondDone atomic.Bool
+	providers := []types.FlareCallback{
+		func(_ types.FlareBuilder) error {
+			firstRan.Store(true)
+			return nil
+		},
+		func(_ types.FlareBuilder) error {
+			secondRan.Store(true)
+			time.Sleep(10 * time.Second)
+			secondRan.Store(true)
+			return nil
+		},
+	}
+
+	f.Comp.(*flare).runProviders(nil, providers)
+	require.True(t, firstRan.Load())
+	require.True(t, secondRan.Load())
+	require.False(t, secondDone.Load())
 }
