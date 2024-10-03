@@ -568,22 +568,16 @@ func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string,
 		return nil, false
 	}
 	splits := strings.Split(ctags, ",")
-	m := make(map[string]string)
-	for _, s := range splits {
-		kv := strings.SplitN(s, ":", 2)
-		if !assert.Len(t, kv, 2, "malformed container tag: %v", s) {
-			continue
-		}
-		m[kv[0]] = kv[1]
-	}
-	return m, true
+	return getTagMapFromSlice(t, splits), true
 }
 
 func getTagMapFromSlice(t *testing.T, tagSlice []string) map[string]string {
 	m := make(map[string]string)
 	for _, s := range tagSlice {
 		kv := strings.SplitN(s, ":", 2)
-		require.Len(t, kv, 2, "malformed tag: %v", s)
+		if !assert.Len(t, kv, 2, "malformed tag: %v", s) {
+			continue
+		}
 		m[kv[0]] = kv[1]
 	}
 	return m
