@@ -35,13 +35,13 @@ import (
 // We will mock these files for now since this is the first release that will generate them
 // Once we have a release that generates these files we can remove this workaround and stop mocking these files
 
-//go:embed fixtures/diff_python_installed_packages.txt
+//go:embed fixtures/diff.txt
 var diffPythonInstalledPackages string
 
-//go:embed fixtures/postinst_python_installed_packages.txt
+//go:embed fixtures/postinst.txt
 var postinstPythonInstalledPackages string
 
-//go:embed fixtures/requirements-agent-release.txt
+//go:embed fixtures/requirements.txt
 var requirementsAgentRelease string
 
 var (
