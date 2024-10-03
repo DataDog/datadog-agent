@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import time
 from collections import Counter
 from functools import lru_cache
@@ -18,6 +19,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
@@ -126,48 +128,129 @@ def trigger_macos(
 
 
 @task
-def lint_codeowner(_):
+def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     """
-    Check every package in `pkg` has an owner
+    Run multiple checks on the provided CODEOWNERS file
     """
 
     base = os.path.dirname(os.path.abspath(__file__))
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = _get_code_owners(root_folder)
+    exit_code = 0
 
-    # make sure each root package has an owner
-    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
-    if len(pkgs_without_owner) > 0:
-        raise Exit(
-            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
-            code=1,
-        )
+    # Getting GitHub CODEOWNER file content
+    owners = read_owners(owners_file)
+
+    # Define linters
+    linters = [_has_packages_without_owner, _has_orphans_in_codeowner]
+
+    # Execute linters
+    for linter in linters:
+        if linter(owners):
+            exit_code = 1
+
+    raise Exit(code=exit_code)
 
 
-def _find_packages_without_owner(owners, folder):
-    pkg_without_owners = []
+def _has_packages_without_owner(owners, folder="pkg"):
+    """
+    Check every package in `pkg` has an owner
+    """
+
+    error = False
+
     for x in os.listdir(folder):
         path = os.path.join("/" + folder, x)
-        if path not in owners:
-            pkg_without_owners.append(path)
-    return pkg_without_owners
+        if all(owner[1].rstrip('/') != path for owner in owners.paths):
+            if not error:
+                print(
+                    color_message("The following packages don't have owner in CODEOWNER file", "red"), file=sys.stderr
+                )
+                error = True
+            print(color_message(f"\t- {path}", "orange"), file=sys.stderr)
+
+    return error
 
 
-def _get_code_owners(root_folder):
-    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
-    owners = {}
-    with open(code_owner_path) as f:
-        for line in f:
-            line = line.strip()
-            line = line.split("#")[0]  # remove comment
-            if len(line) > 0:
-                parts = line.split()
-                path = os.path.normpath(parts[0])
-                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
-                owners[path] = parts[1:]
-    return owners
+def _has_orphans_in_codeowner(owners):
+    """
+    Check that every rule in codeowners file point to an existing file/directory
+    """
+
+    err_invalid_rule_path = False
+    err_orphans_path = False
+
+    for rule in owners.paths:
+        try:
+            # Get the static part of the rule path, removing matching subpath (such as '*')
+            static_root = _get_static_root(rule[1])
+        except Exception:
+            err_invalid_rule_path = True
+            print(
+                color_message(
+                    f"[UNSUPPORTED] The following rule's path does not start with '/' anchor: {rule[1]}", "red"
+                ),
+                file=sys.stderr,
+            )
+            continue
+
+        if not _is_pattern_in_fs(static_root, rule[0]):
+            if not err_orphans_path:
+                print(
+                    color_message(
+                        "The following rules are outdated: they don't point to existing file/directory", "red"
+                    ),
+                    file=sys.stderr,
+                )
+                err_orphans_path = True
+            print(color_message(f"\t- {rule[1]}\t{rule[2]}", "orange"), file=sys.stderr)
+
+    return err_invalid_rule_path or err_orphans_path
+
+
+def _get_static_root(pattern):
+    """
+    _get_static_root returns the longest prefix path from the pattern without any wildcards.
+    """
+    result = "."
+
+    if not pattern.startswith("/"):
+        raise Exception()
+
+    # We remove the '/' anchor character from the path
+    pattern = pattern[1:]
+
+    for elem in pattern.split("/"):
+        if '*' in elem:
+            return result
+        result = os.path.join(result, elem)
+    return result
+
+
+def _is_pattern_in_fs(path, pattern):
+    """
+    Checks if a given pattern matches any file within the specified path.
+
+    Args:
+        path (str): The file or directory path to search within.
+        pattern (re.Pattern): The compiled regular expression pattern to match against file paths.
+
+    Returns:
+        bool: True if the pattern matches any file path within the specified path, False otherwise.
+    """
+    if os.path.isfile(path):
+        return True
+    elif os.path.isdir(path):
+        for root, _, files in os.walk(path):
+            for name in files:
+                # file_path is the relative path from the root of the repo, without "./" at the begining
+                file_path = os.path.join(root, name)[2:]
+
+                # Check if the file path matches any of the regex patterns
+                if pattern.match(file_path):
+                    return True
+    return False
 
 
 @task
