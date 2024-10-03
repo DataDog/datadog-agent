@@ -960,7 +960,7 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     char *metric_name = NULL;
     double metric_value;
     char *metric_type = NULL;
-    if (!PyArg_ParseTuple(args, "ssfs", &check_name, &metric_name, &metric_value, &metric_type)) {
+    if (!PyArg_ParseTuple(args, "ssds", &check_name, &metric_name, &metric_value, &metric_type)) {
         PyGILState_Release(gstate);
         return NULL;
     }
