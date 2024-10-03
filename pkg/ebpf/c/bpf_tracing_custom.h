@@ -54,11 +54,11 @@
 
 #define PT_REGS_USER_PARM7(x, ret) ({ \
     ret = 0;                          \
-    PT_REGS_PARM7(x)                  \
+    PT_REGS_PARM7(x);                 \
 })
 #define PT_REGS_USER_PARM8(x, ret) ({ \
     ret = 0;                          \
-    PT_REGS_PARM8(x)                  \
+    PT_REGS_PARM8(x);                 \
 })
 
 #define PT_REGS_USER_PARM9(x, ret) PT_REGS_USER_STACK_PARM(__PT_REGS_CAST(x), 0, ret)
