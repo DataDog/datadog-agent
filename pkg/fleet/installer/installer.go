@@ -249,12 +249,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 
-	switch runtime.GOOS {
-	case "windows":
-		return nil // TODO: start config experiment for Windows
-	default:
-		return i.startExperiment(ctx, pkg.Name)
-	}
+	return i.startExperiment(ctx, pkg.Name)
 }
 
 // RemoveExperiment removes an experiment.
@@ -332,7 +327,12 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 
-	return i.startExperiment(ctx, pkg)
+	switch runtime.GOOS {
+	case "windows":
+		return nil // TODO: start config experiment for Windows
+	default:
+		return i.startExperiment(ctx, pkg)
+	}
 }
 
 // RemoveConfigExperiment removes an experiment.
