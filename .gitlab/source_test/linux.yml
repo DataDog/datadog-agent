@@ -302,7 +302,9 @@ new-e2e-unit-tests:
 agent_integration_tests:
   extends: .integration_tests_deb
   # We have capacity issues on the docker-in-docker:amd64 runners for now.
+  # Setting allow_failure to true to avoid blocking the pipelines.
   # Setting the timeout to 30 min and retry to 2 to avoid the job from pending for too long.
+  allow_failure: true
   timeout: 30m
   retry: 2
   script:
