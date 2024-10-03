@@ -1736,7 +1736,7 @@ api_key:
   #  enabled: false
 {{- if (eq .OS "linux")}}
 
- 
+
   # container_image:
   #   enabled: false
 {{ end -}}
@@ -2911,6 +2911,28 @@ api_key:
   ## Set to true to enable the admission controller in the cluster-agent.
   #
   # enabled: false
+
+  ## @param validation - custom object - optional
+  ## The admission controller's validation configuration.
+  #
+  # validation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable validation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
+
+  ## @param mutation - custom object - optional
+  ## The admission controller's mutation configuration.
+  #
+  # mutation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_MUTATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable mutation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
 
   ## @param mutate_unlabelled - boolean - optional - default: false
   ## @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false
