@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes the telemetry type for Oracle row collection.
+    Fixes the telemetry type for Oracle metrics.
