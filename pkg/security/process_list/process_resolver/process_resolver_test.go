@@ -136,10 +136,7 @@ func isProcessOrExecPresent(pl *processlist.ProcessList, pc *ProcessResolver, ev
 
 	// then exec
 	cachedExec := pl.GetCacheExec(pc.GetExecCacheKey(&event.ProcessContext.Process))
-	if cachedExec != nil {
-		return true
-	}
-	return false
+	return cachedExec != nil
 }
 
 func TestFork1st(t *testing.T) {
@@ -193,6 +190,9 @@ func TestFork1st(t *testing.T) {
 
 	// nothing
 	deleted, err = processList.DeleteCachedProcess(pc.GetProcessCacheKey(&parent.ProcessContext.Process), "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	assert.Equal(t, true, deleted)
 	stats.DeleteProcess(1)
 	stats.ValidateCounters(t, processList)
