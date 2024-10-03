@@ -32,7 +32,7 @@ CONFIG_SPECIAL_OBJECTS = {
     "workflow",
 }
 # This file is used to set exceptions for jobs that do not require needs or rules
-CONFIG_SPECIAL_JOBS = Path(".special-jobs.yml")
+CONFIG_SPECIAL_JOBS = Path(".ci-needs-rules-allowlist.yml")
 
 
 def get_gitlab_token():
@@ -1211,8 +1211,8 @@ def get_special_jobs(lint=False, all_jobs=None, all_stages=None):
         exceptions = yaml.safe_load(f) or {}
 
     error_msg = ''
-    exception_jobs = set(exceptions.get("jobs", []))
-    exception_stages = set(exceptions.get("stages", []))
+    exception_jobs = set(exceptions.get("allowed-jobs", []))
+    exception_stages = set(exceptions.get("allowed-stages", []))
 
     if lint:
         # Verify the special jobs file

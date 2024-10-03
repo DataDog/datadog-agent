@@ -1,11 +1,12 @@
 ---
-stages:
+# Lists stages and jobs that are allowed to not have both needs / rules
+allowed-stages:
   - .pre
   - lint
   - notify
   - deploy_containers
 
-jobs:
+allowed-jobs:
   - build_clang_arm64
   - build_clang_x64
   - build_dogstatsd_static-binary_x64

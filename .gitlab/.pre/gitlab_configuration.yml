@@ -61,7 +61,7 @@ lint_gitlab_ci_jobs_needs_rules:
     - !reference [.on_gitlab_changes]
     - changes:
         paths:
-          - .special-jobs.yml
+          - .ci-needs-rules-allowlist.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
     - inv -e linter.gitlab-ci-jobs-needs-rules --diff-file artifacts/diff.gitlab-ci.yml
