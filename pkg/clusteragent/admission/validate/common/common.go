@@ -27,13 +27,13 @@ type ValidationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool
 func Validate(rawPod []byte, ns string, webhookName string, v ValidationFunc, dc dynamic.Interface) (bool, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
-		return false, fmt.Errorf("failed to decode raw object: %v", err)
+		return false, fmt.Errorf("failed to decode raw object: %w", err)
 	}
 
 	validated, err := v(&pod, ns, dc)
 	if err != nil {
 		metrics.ValidationAttempts.Inc(webhookName, metrics.StatusError, strconv.FormatBool(false), err.Error())
-		return false, fmt.Errorf("failed to validate pod: %v", err)
+		return false, fmt.Errorf("failed to validate pod: %w", err)
 	}
 
 	metrics.ValidationAttempts.Inc(webhookName, metrics.StatusSuccess, strconv.FormatBool(validated), "")

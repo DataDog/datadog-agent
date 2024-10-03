@@ -92,9 +92,7 @@ func TestCreateWebhookV1(t *testing.T) {
 		return err == nil
 	}, waitFor, tick)
 
-	if err := validateV1(validatingWebhookConfiguration, mutatingWebhookConfiguration, secret); err != nil {
-		t.Fatalf("Invalid Webhook: %v", err)
-	}
+	validateV1(t, validatingWebhookConfiguration, mutatingWebhookConfiguration, secret)
 
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
@@ -163,9 +161,7 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 		return err == nil && !reflect.DeepEqual(oldMutatingWebhookConfiguration, newMutatingWebhookConfiguration)
 	}, waitFor, tick)
 
-	if err := validateV1(newValidatingWebhookConfiguration, newMutatingWebhookConfiguration, secret); err != nil {
-		t.Fatalf("Invalid Webhook: %v", err)
-	}
+	validateV1(t, newValidatingWebhookConfiguration, newMutatingWebhookConfiguration, secret)
 
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
@@ -1210,20 +1206,16 @@ func (f *fixtureV1) populateMutatingWebhooksCache(webhooks ...*admiv1.MutatingWe
 	}
 }
 
-func validateV1(validatingWebhooks *admiv1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) error {
+func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) {
 	// Validate the number of webhooks.
 	if len(validatingWebhooks.Webhooks) != 0 {
 		return fmt.Errorf("validatingWebhooks should contain 1 entries, got %d", len(validatingWebhooks.Webhooks))
 	}
-	if len(mutatingWebhooks.Webhooks) != 3 {
-		return fmt.Errorf("mutatingWebhooks should contain 3 entries, got %d", len(validatingWebhooks.Webhooks))
-	}
+	require.Len(t, mutatingWebhooks.Webhooks, 3)
 
 	// Validate the CA bundle for webhooks.
 	for i := 0; i < len(validatingWebhooks.Webhooks); i++ {
-		if !reflect.DeepEqual(validatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data)) {
-			return fmt.Errorf("the webhook CA bundle doesn't match the secret. CA bundle: %v, Secret: %v", validatingWebhooks.Webhooks[i].ClientConfig.CABundle, s)
-		}
+		require.Equal(t, validatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
 	for i := 0; i < len(mutatingWebhooks.Webhooks); i++ {
 		if !reflect.DeepEqual(mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data)) {
