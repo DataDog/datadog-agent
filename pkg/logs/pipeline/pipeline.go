@@ -27,7 +27,7 @@ import (
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
 	InputChan    chan *message.Message
-	flushChan    chan struct{}
+	flushChan    chan *sync.WaitGroup
 	processor    *processor.Processor
 	strategy     sender.Strategy
 	strategyChan chan struct{}
@@ -48,13 +48,9 @@ func NewPipeline(outputChan chan *message.Payload,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
-	var (
-		strategyChan   chan struct{}
-		senderDoneChan chan *sync.WaitGroup
-		flushWg        *sync.WaitGroup
-	)
+	var senderDoneChan chan *sync.WaitGroup
+	var flushWg *sync.WaitGroup
 	if serverless {
-		strategyChan = make(chan struct{})
 		senderDoneChan = make(chan *sync.WaitGroup)
 		flushWg = &sync.WaitGroup{}
 	}
@@ -63,7 +59,7 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
-	flushChan := make(chan struct{})
+	flushChan := make(chan *sync.WaitGroup)
 
 	var logsSender *sender.Sender
 
@@ -78,7 +74,7 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, strategyChan, endpoints, serverless, flushWg, pipelineID)
+	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
@@ -113,11 +109,14 @@ func (p *Pipeline) Stop() {
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
-	p.flushChan <- struct{}{}
+	readyWg := &sync.WaitGroup{}
+	readyWg.Add(1)
+	p.flushChan <- readyWg
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 
 	if p.serverless {
-		<-p.strategyChan
+		// The ready WaitGroup ensures that the strategy has incremented the flush WaitGroup before we wait on it
+		readyWg.Wait()
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
 		p.flushWg.Wait()
 	}
@@ -157,13 +156,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, strategyChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
+func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan *sync.WaitGroup, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, strategyChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
 	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
 }
