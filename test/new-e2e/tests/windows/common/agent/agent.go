@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -20,6 +21,7 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	infraCommon "github.com/DataDog/test-infra-definitions/common"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,13 +74,23 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 		p.LocalInstallLogFile = filepath.Join(os.TempDir(), "install.log")
 	}
 
+	downloadBackOff := p.DownloadMSIBackOff
+	if downloadBackOff == nil {
+		// 5s, 7s, 11s, 17s, 25s, 38s, 60s, 60s...for up to 5 minutes
+		downloadBackOff = backoff.NewExponentialBackOff(
+			backoff.WithInitialInterval(5*time.Second),
+			backoff.WithMaxInterval(60*time.Second),
+			backoff.WithMaxElapsedTime(5*time.Minute),
+		)
+	}
+
 	args := p.toArgs()
 
 	remoteMSIPath, err := windowsCommon.GetTemporaryFile(host)
 	if err != nil {
 		return "", err
 	}
-	err = windowsCommon.PutOrDownloadFile(host, p.Package.URL, remoteMSIPath)
+	err = windowsCommon.PutOrDownloadFileWithRetry(host, p.Package.URL, remoteMSIPath, downloadBackOff)
 	if err != nil {
 		return "", err
 	}

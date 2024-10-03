@@ -12,7 +12,7 @@ type FilterPolicy struct {
 	Mode PolicyMode
 }
 
-// Bytes returns the binary representation of a FilterPolicy
-func (f *FilterPolicy) Bytes() ([]byte, error) {
+// MarshalBinary returns the binary representation of a FilterPolicy
+func (f *FilterPolicy) MarshalBinary() ([]byte, error) {
 	return []byte{uint8(f.Mode)}, nil
 }

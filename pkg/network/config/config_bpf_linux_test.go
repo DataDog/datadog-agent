@@ -14,11 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -39,11 +36,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 		opts := eventmonitor.Opts{}
 		telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-		wmeta := fxutil.Test[workloadmeta.Component](t,
-			core.MockBundle(),
-			wmmock.MockModule(workloadmeta.NewParams()),
-		)
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, telemetry)
 		require.NoError(t, err)
 		require.NoError(t, evm.Init())
 	} else {

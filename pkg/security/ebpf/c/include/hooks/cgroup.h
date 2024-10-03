@@ -9,6 +9,8 @@
 #include "structs/dentry_resolver.h"
 #include "maps.h"
 
+#define ROOT_CGROUP_PROCS_FILE_INO 2
+
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
     struct qstr parent_qstr;
@@ -47,6 +49,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
+    // from cgroups(7):
+    // Writing the value 0 to a cgroup.procs file causes the writing process to be moved to the corresponding cgroup.
+    // in this case we want to grab the tgid of the process that wrote to the file
+    if (pid == 0) {
+        pid = bpf_get_current_pid_tgid() >> 32;
+    }
+
 #ifdef DEBUG_CGROUP
     bpf_printk("trace__cgroup_write %d\n", pid);
 #endif
@@ -63,7 +72,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
-            if (old_entry->container.container_id[0] != '\0') {
+            if ((old_entry->container.container_id[0] != '\0') && old_entry->container.cgroup_context.cgroup_flags && (old_entry->container.cgroup_context.cgroup_flags != CGROUP_MANAGER_SYSTEMD)) {
                 return 0;
             }
 
@@ -78,9 +87,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     struct dentry *container_d;
     struct qstr container_qstr;
     char *container_id;
-    u32 container_flags = 0;
+    u32 cgroup_flags = 0;
 
-    struct dentry_resolver_input_t cgroup_dentry_resolver;
+    struct dentry_resolver_input_t cgroup_dentry_resolver = {0};
     struct dentry_resolver_input_t *resolver = &cgroup_dentry_resolver;
 
     u32 key = 0;
@@ -111,7 +120,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         container_id = (void *)container_qstr.name;
 
         if (is_docker_cgroup(ctx, container_d)) {
-            container_flags = CGROUP_MANAGER_DOCKER;
+            cgroup_flags = CGROUP_MANAGER_DOCKER;
         }
 
         break;
@@ -135,13 +144,18 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         resolver->dentry = container_d;
 
         if (is_docker_cgroup(ctx, container_d)) {
-            container_flags = CGROUP_MANAGER_DOCKER;
+            cgroup_flags = CGROUP_MANAGER_DOCKER;
         }
 
         break;
     }
     default:
         // ignore
+        return 0;
+    }
+
+    // if the process is being moved to the root cgroup then we don't want to track it
+    if (resolver->key.ino == ROOT_CGROUP_PROCS_FILE_INO) {
         return 0;
     }
 
@@ -152,22 +166,22 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     if ((*prefix)[0] == 'd' && (*prefix)[1] == 'o' && (*prefix)[2] == 'c' && (*prefix)[3] == 'k' && (*prefix)[4] == 'e'
         && (*prefix)[5] == 'r' && (*prefix)[6] == '-') {
         container_id += 7; // skip "docker-"
-        container_flags = CGROUP_MANAGER_DOCKER;
+        cgroup_flags = CGROUP_MANAGER_DOCKER;
     }
     else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == 'o' && (*prefix)[4] == '-') {
         container_id += 5; // skip "crio-"
-        container_flags = CGROUP_MANAGER_CRIO;
+        cgroup_flags = CGROUP_MANAGER_CRIO;
     }
     else if ((*prefix)[0] == 'l' && (*prefix)[1] == 'i' && (*prefix)[2] == 'b' && (*prefix)[3] == 'p' && (*prefix)[4] == 'o'
         && (*prefix)[5] == 'd' && (*prefix)[6] == '-') {
         container_id += 7; // skip "libpod-"
-        container_flags = CGROUP_MANAGER_PODMAN;
+        cgroup_flags = CGROUP_MANAGER_PODMAN;
     }
     else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == '-' && (*prefix)[4] == 'c'
         && (*prefix)[5] == 'o' && (*prefix)[6] == 'n' && (*prefix)[7] == 't' && (*prefix)[8] == 'a' && (*prefix)[9] == 'i'
         && (*prefix)[10] == 'n' && (*prefix)[11] == 'e' && (*prefix)[12] == 'r' && (*prefix)[13] == 'd' && (*prefix)[14] == '-') {
         container_id += 15; // skip "cri-containerd-"
-        container_flags = CGROUP_MANAGER_CRI;
+        cgroup_flags = CGROUP_MANAGER_CRI;
     }
 
 #ifdef DEBUG_CGROUP
@@ -175,20 +189,21 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 #endif
 
     int length = bpf_probe_read_str(prefix, sizeof(cgroup_prefix_t), container_id) & 0xff;
-    if (container_flags == 0 && (
+    if (cgroup_flags == 0 && (
         (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e')
         ||
         (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e')
     )) {
-        container_flags = CGROUP_MANAGER_SYSTEMD;
+        cgroup_flags = CGROUP_MANAGER_SYSTEMD;
+    } else if (cgroup_flags != 0) {
+        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
     }
-    bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
-    new_entry.container.cgroup_context.cgroup_flags = container_flags;
+    new_entry.container.cgroup_context.cgroup_flags = cgroup_flags;
     new_entry.container.cgroup_context.cgroup_file = resolver->key;
 
 #ifdef DEBUG_CGROUP
-    bpf_printk("container flags=%d, inode=%d: prefix=%s\n", container_flags, new_entry.container.cgroup_context.cgroup_file.ino, prefix);
+    bpf_printk("cgroup flags=%d, inode=%d: prefix=%s\n", cgroup_flags, new_entry.container.cgroup_context.cgroup_file.ino, prefix);
 #endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
@@ -201,12 +216,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
 
     resolver->type = EVENT_CGROUP_WRITE;
-    resolver->discarder_type = NO_FILTER;
+    resolver->discarder_event_type = 0;
     resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY;
     resolver->iteration = 0;
     resolver->ret = 0;
     resolver->flags = 0;
-    resolver->sysretval = 0;
+    resolver->cgroup_write_ctx.cgroup_write_pid = pid;
+    resolver->cgroup_write_ctx.cgroup_flags = cgroup_flags;
     resolver->original_key = resolver->key;
 
     cache_dentry_resolver_input(resolver);
@@ -223,11 +239,9 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
 
     struct cgroup_write_event_t event = {
         .file.path_key = inputs->original_key,
+        .pid = inputs->cgroup_write_ctx.cgroup_write_pid,
+        .cgroup_flags = inputs->cgroup_write_ctx.cgroup_flags,
     };
-
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_CGROUP_WRITE, event);
 

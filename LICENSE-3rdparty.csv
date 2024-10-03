@@ -591,7 +591,6 @@ core,github.com/aws/aws-sdk-go-v2/service/sts,Apache-2.0,"Copyright 2014-2015 St
 core,github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sts/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/aws,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/aws/arn,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/aws/auth/bearer,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/aws/awserr,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/aws/awsutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -613,9 +612,6 @@ core,github.com/aws/aws-sdk-go/aws/session,Apache-2.0,"Copyright 2014-2015 Strip
 core,github.com/aws/aws-sdk-go/aws/signer/v4,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/context,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/ini,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/internal/s3shared,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/internal/s3shared/arn,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/internal/s3shared/s3err,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/sdkio,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/sdkmath,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/sdkrand,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -623,24 +619,19 @@ core,github.com/aws/aws-sdk-go/internal/sdkuri,Apache-2.0,"Copyright 2014-2015 S
 core,github.com/aws/aws-sdk-go/internal/shareddefaults,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/strings,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/internal/sync/singleflight,BSD-3-Clause,"Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/private/checksum,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/ec2query,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/private/protocol/eventstream,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/private/protocol/eventstream/eventstreamapi,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/json/jsonutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/jsonrpc,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/query,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/query/queryutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/rest,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/restjson,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/private/protocol/restxml,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ec2,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ec2/ec2iface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ecs,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/lightsail,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
-core,github.com/aws/aws-sdk-go/service/s3,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/sso/ssoiface,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go/service/ssooidc,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -676,7 +667,6 @@ core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Aut
 core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (smira) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
-core,github.com/bgentry/go-netrc/netrc,MIT,Copyright © 2010 Fazlul Shahriar <fshahriar@gmail.com>. Newer | Copyright © 2014 Blake Gentry <blakesgentry@gmail.com>
 core,github.com/bhmj/jsonslice,MIT,Copyright (c) 2018 bhmj
 core,github.com/bitnami/go-version/pkg/version,Apache-2.0,Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 core,github.com/blabber/go-freebsd-sysctl/sysctl,0BSD,Copyright (c) 2014-2020 by Tobias Rehbein <tobias.rehbein@web.de>
@@ -1276,14 +1266,11 @@ core,github.com/hashicorp/consul/api,MPL-2.0,"Copyright © 2014-2018 HashiCorp, 
 core,github.com/hashicorp/cronexpr,Apache-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/errwrap,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-cleanhttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hashicorp/go-getter,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hashicorp/go-getter/helper/url,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-hclog,MIT,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-immutable-radix,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-multierror,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-retryablehttp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-rootcerts,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
-core,github.com/hashicorp/go-safetemp,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-secure-stdlib/parseutil,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-secure-stdlib/strutil,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/go-sockaddr,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -1471,7 +1458,6 @@ core,github.com/microsoft/go-rustaudit,MIT,Copyright (c) Microsoft Corporation
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
 core,github.com/mitchellh/copystructure,MIT,Copyright (c) 2014 Mitchell Hashimoto
 core,github.com/mitchellh/go-homedir,MIT,Copyright (c) 2013 Mitchell Hashimoto
-core,github.com/mitchellh/go-testing-interface,MIT,Copyright (c) 2016 Mitchell Hashimoto
 core,github.com/mitchellh/hashstructure/v2,MIT,Copyright (c) 2016 Mitchell Hashimoto
 core,github.com/mitchellh/mapstructure,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/mitchellh/reflectwalk,MIT,Copyright (c) 2013 Mitchell Hashimoto
@@ -2186,7 +2172,6 @@ core,github.com/twmb/franz-go/pkg/kversion,BSD-3-Clause,"Copyright 2020, Travis 
 core,github.com/twmb/franz-go/pkg/sasl,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci | Copyright 2018, Travis Bischel"
 core,github.com/ugorji/go/codec,MIT,Copyright (c) 2012-2020 Ugorji Nwoke
-core,github.com/ulikunitz/xz,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/internal/hash,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/internal/xlog,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
 core,github.com/ulikunitz/xz/lzma,BSD-3-Clause,Copyright (c) 2014-2022  Ulrich Kunitz
@@ -2450,6 +2435,7 @@ core,go.opentelemetry.io/contrib/config,Apache-2.0,Copyright The OpenTelemetry A
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/contrib/propagators/b3,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2519,7 +2505,6 @@ core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.17.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.20.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/otel/semconv/v1.24.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.26.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2630,17 +2615,17 @@ core,golang.org/x/net/proxy,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/trace,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/net/websocket,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/oauth2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/externalaccount,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/externalaccountauthorizeduser,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/impersonate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/oauth2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/externalaccount,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/externalaccountauthorizeduser,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/impersonate,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors

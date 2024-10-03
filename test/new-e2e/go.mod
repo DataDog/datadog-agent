@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.22.0
+go 1.22.5
+
+toolchain go1.22.6
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -33,7 +35,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240910143843-ce6a4aad9299
+	github.com/DataDog/test-infra-definitions v0.0.0-20241002105811-0e2d625838fc
 	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -105,7 +107,7 @@ require (
 	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/charmbracelet/bubbles v0.18.0 // indirect
 	github.com/charmbracelet/bubbletea v0.25.0 // indirect

@@ -50,7 +50,7 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
-  - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN)
+  - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV_TOKEN) || exit $?; export CODECOV_TOKEN
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_lint:
@@ -263,10 +263,17 @@ new-e2e-unit-tests:
   extends: .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
+  needs:
+    - !reference [ .needs_new_e2e_template ]
+    - go_deps
+    - go_tools_deps
   before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"

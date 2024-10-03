@@ -167,6 +167,10 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+
+	methodStartConfigExperiment   = "start_experiment_config"
+	methodStopConfigExperiment    = "stop_experiment_config"
+	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
 type remoteAPIRequest struct {
@@ -183,6 +187,8 @@ type expectedState struct {
 	InstallerVersion string `json:"installer_version"`
 	Stable           string `json:"stable"`
 	Experiment       string `json:"experiment"`
+	StableConfig     string `json:"stable_config"`
+	ExperimentConfig string `json:"experiment_config"`
 }
 
 type taskWithVersionParams struct {

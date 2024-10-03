@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -149,6 +148,9 @@ type EBPFProbe struct {
 	// On demand
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
+
+	// hash action
+	fileHasher *FileHasher
 }
 
 // GetProfileManager returns the Profile Managers
@@ -364,7 +366,7 @@ func (p *EBPFProbe) Setup() error {
 // Start the probe
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.playSnapshot()
+	p.PlaySnapshot()
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -372,8 +374,9 @@ func (p *EBPFProbe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
-// playSnapshot plays a snapshot
-func (p *EBPFProbe) playSnapshot() {
+// PlaySnapshot plays a snapshot
+func (p *EBPFProbe) PlaySnapshot() {
+	seclog.Debugf("playing the snapshot")
 	// Get the snapshotted data
 	var events []*model.Event
 
@@ -646,6 +649,33 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		p.profileManagers.activityDumpManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		pce := p.Resolvers.ProcessResolver.Resolve(event.CgroupWrite.Pid, event.CgroupWrite.Pid, 0, false)
+		if pce != nil {
+			path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
+			if err == nil && path != "" {
+				path = filepath.Dir(string(path))
+				pce.CGroup.CGroupID = containerutils.CGroupID(path)
+				pce.Process.CGroup.CGroupID = containerutils.CGroupID(path)
+				cgroupFlags := containerutils.CGroupFlags(event.CgroupWrite.CGroupFlags)
+				if cgroupFlags.IsContainer() {
+					containerID, _ := containerutils.GetContainerFromCgroup(path)
+					pce.ContainerID = containerutils.ContainerID(containerID)
+					pce.Process.ContainerID = containerutils.ContainerID(containerID)
+				}
+				pce.CGroup.CGroupFlags = cgroupFlags
+				pce.Process.CGroup = pce.CGroup
+			} else {
+				seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+			}
+		} else {
+			seclog.Debugf("failed to resolve process of cgroup write event: %s", err)
+		}
+		return
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -718,24 +748,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	switch eventType {
-	case model.CgroupWriteEventType:
-		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-		path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
-		if err == nil && path != "" {
-			path = filepath.Dir(string(path))
-			event.ProcessCacheEntry.CGroup.CGroupID = containerutils.CGroupID(path)
-			event.ProcessCacheEntry.Process.CGroup.CGroupID = containerutils.CGroupID(path)
-			containerID, cgroupFlags := containerutils.GetContainerFromCgroup(path)
-			event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(containerID)
-			event.ProcessCacheEntry.Process.ContainerID = containerutils.ContainerID(containerID)
-			event.ProcessCacheEntry.CGroup.CGroupFlags = cgroupFlags
-			event.ProcessCacheEntry.Process.CGroup = event.ProcessCacheEntry.CGroup
-		} else {
-			seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
-		}
 
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
@@ -856,8 +868,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// update mount pid mapping
 		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 
-		// update kill action reports
+		// update action reports
 		p.processKiller.HandleProcessExited(event)
+		p.fileHasher.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1038,8 +1051,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
 	}
 
-	// flush pending kill actions
+	// flush pending actions
 	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1104,16 +1118,20 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+// setApprovers applies approvers and removes the unused ones
+func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
 	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newKFilters, err := kfiltersGetter(approvers)
+	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
 	if err != nil {
-		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+		return err
+	}
+
+	if len(approvers) != len(fieldHandled) {
+		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
@@ -1128,7 +1146,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 			return err
 		}
 
-		approverType := getApproverType(newKFilter.GetTableName())
+		approverType := newKFilter.GetApproverType()
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
@@ -1140,7 +1158,7 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 				return err
 			}
 
-			approverType := getApproverType(previousKFilter.GetTableName())
+			approverType := previousKFilter.GetApproverType()
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1161,16 +1179,6 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 
 	p.kfilters[eventType] = newKFilters
 	return nil
-}
-
-func getApproverType(tableName string) string {
-	approverType := "flag"
-
-	if tableName == kfilters.BasenameApproverKernelMapName {
-		approverType = "basename"
-	}
-
-	return approverType
 }
 
 func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
@@ -1572,11 +1580,16 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
-			return nil, err
-		}
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
+			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
+
+			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1645,7 +1658,7 @@ func (p *EBPFProbe) EnableEnforcement(state bool) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1901,10 +1914,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, wmeta, telemetry)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, telemetry)
 	if err != nil {
 		return nil, err
 	}
+
+	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {
@@ -2181,14 +2196,17 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
 					}
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
-			})
+			}) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
+
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
 				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
@@ -2196,10 +2214,12 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
 				p.probe.DispatchCustomEvent(rule, event)
+				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			// force the resolution as it will force the hash resolution as well
-			ev.ResolveFields()
+			if p.fileHasher.HashAndReport(rule, ev) {
+				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
 		}
 	}
 }

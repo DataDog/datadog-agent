@@ -375,10 +375,6 @@ Package collector defines the OpenTelemetry Collector component.
 
 Package collectorcontrib defines the OTel collector-contrib component
 
-### [comp/otelcol/configstore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/configstore)
-
-Package configstore defines the otel agent configstore component.
-
 ### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
 
 Package converter defines the otel agent converter component.

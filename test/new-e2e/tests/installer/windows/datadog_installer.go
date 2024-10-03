@@ -8,18 +8,19 @@ package installer
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
-	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 const (
@@ -168,16 +169,15 @@ func WithMSILogFile(filename string) Option {
 
 // WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
-// bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
-// channel: The channel in the bucket, i.e. "stable"
+// jsonURL: The URL of the installers_v2.json file, i.e. pipeline.StableURL
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
 //
-// Example: WithInstallerURLFromInstallersJSON("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
-// will look into "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json" for the Datadog Installer
+// Example: WithInstallerURLFromInstallersJSON(pipeline.StableURL, "7.56.0-installer-0.4.5-1")
+// will look into "https://s3.amazonaws.com/ddagent-windows-stable/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(bucket, channel, version string) Option {
+func WithInstallerURLFromInstallersJSON(jsonURL, version string) Option {
 	return func(params *Params) error {
-		url, err := installers.GetProductURL(fmt.Sprintf("https://s3.amazonaws.com/%s/builds/%s/installers_v2.json", bucket, channel), "datadog-installer", version, "x86_64")
+		url, err := installers.GetProductURL(jsonURL, "datadog-installer", version, "x86_64")
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 	// MSI can install from a URL or a local file
 	msiPath := params.installerURL
@@ -234,7 +234,7 @@ func (d *DatadogInstaller) Uninstall(opts ...Option) error {
 	}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")

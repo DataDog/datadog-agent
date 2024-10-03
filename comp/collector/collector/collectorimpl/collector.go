@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -149,7 +148,7 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	scanRequest := host.NewScanRequest("/", os.DirFS("/"))
+	scanRequest := host.NewHostScanRequest()
 	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
 	if scanResult.Error != nil {
 		return scanResult.Error
