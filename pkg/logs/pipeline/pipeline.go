@@ -26,14 +26,13 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan    chan *message.Message
-	flushChan    chan *sync.WaitGroup
-	processor    *processor.Processor
-	strategy     sender.Strategy
-	strategyChan chan struct{}
-	sender       *sender.Sender
-	serverless   bool
-	flushWg      *sync.WaitGroup
+	InputChan  chan *message.Message
+	flushChan  chan *sync.WaitGroup
+	processor  *processor.Processor
+	strategy   sender.Strategy
+	sender     *sender.Sender
+	serverless bool
+	flushWg    *sync.WaitGroup
 }
 
 // NewPipeline returns a new Pipeline
@@ -114,9 +113,9 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.flushChan <- readyWg
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 
+	// The ready WaitGroup ensures that the strategy has incremented the flush WaitGroup before we wait on it
+	readyWg.Wait()
 	if p.serverless {
-		// The ready WaitGroup ensures that the strategy has incremented the flush WaitGroup before we wait on it
-		readyWg.Wait()
 		// Wait for the logs sender to finish sending payloads to all destinations before allowing the flush to finish
 		p.flushWg.Wait()
 	}

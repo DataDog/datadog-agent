@@ -170,10 +170,12 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 		return
 	}
 
-	if s.serverless && s.readyWg != nil {
+	if s.serverless {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
 		s.flushWg.Add(1)
-		s.readyWg.Done()
+		if s.readyWg != nil {
+			s.readyWg.Done()
+		}
 	}
 
 	outputChan <- &message.Payload{
