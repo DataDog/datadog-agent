@@ -300,12 +300,12 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	config, err := i.cdn.Get(ctx)
+	config, err := i.cdn.Get(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not get cdn config: %w", err)
 	}
-	if config.Version != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version, version)
+	if config.Version() != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
@@ -314,9 +314,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Note: this is definitely not package agnostic, because the CDN isn't.
-	// This will be addressed in a follow-up PR
-	err = service.WriteAgentConfig(config, tmpDir)
+	err = config.Write(tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not write agent config: %w", err)
 	}

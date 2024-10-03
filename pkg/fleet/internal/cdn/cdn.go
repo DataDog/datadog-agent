@@ -8,6 +8,7 @@ package cdn
 
 import (
 	"context"
+	"errors"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -15,15 +16,26 @@ import (
 
 const configOrderID = "configuration_order"
 
-var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
+var (
+	datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
+	// ErrProductNotSupported is returned when the product is not supported.
+	ErrProductNotSupported = errors.New("product not supported")
+)
 
 type orderConfig struct {
 	Order []string `json:"order"`
 }
 
+// Config represents a configuration.
+type Config interface {
+	Version() string
+	SetLayers(order *orderConfig, layers ...[]byte) error
+	Write(dir string) error
+}
+
 // CDN provides access to the Remote Config CDN.
 type CDN interface {
-	Get(ctx context.Context) (*Config, error)
+	Get(ctx context.Context, pkg string) (Config, error)
 	Close() error
 }
 

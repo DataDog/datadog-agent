@@ -25,14 +25,6 @@ type cdnRemote struct {
 	currentRootsVersion uint64
 }
 
-// Config represents the configuration from the CDN.
-type Config struct {
-	Version       string
-	Datadog       []byte
-	SecurityAgent []byte
-	SystemProbe   []byte
-}
-
 func newRemote(env *env.Env, configDBPath string) (CDN, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
@@ -50,14 +42,28 @@ func newRemote(env *env.Env, configDBPath string) (CDN, error) {
 }
 
 // Get gets the configuration from the CDN.
-func (c *cdnRemote) Get(ctx context.Context) (_ *Config, err error) {
+func (c *cdnRemote) Get(ctx context.Context, pkg string) (cfg Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	configLayers, err := c.getOrderedLayers(ctx)
+
+	switch pkg {
+	case "datadog-agent":
+		cfg = &agentConfig{}
+	default:
+		return nil, ErrProductNotSupported
+	}
+
+	orderConfig, layers, err := c.get(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return newConfig(configLayers...)
+
+	err = cfg.SetLayers(orderConfig, layers...)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
 
 // Close cleans up the CDN's resources
@@ -65,8 +71,8 @@ func (c *cdnRemote) Close() error {
 	return c.client.Close()
 }
 
-// getOrderedLayers calls the Remote Config service to get the ordered layers.
-func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
+// get calls the Remote Config service to get the ordered layers.
+func (c *cdnRemote) get(ctx context.Context) (*orderConfig, [][]byte, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
 		[]string{"AGENT_CONFIG"},
@@ -78,12 +84,11 @@ func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		[]*pbgo.TargetFileMeta{},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	orderedLayers := []*layer{}
 	if agentConfigUpdate == nil {
-		return orderedLayers, nil
+		return &orderConfig{}, nil, nil
 	}
 
 	// Update CDN root versions
@@ -103,9 +108,9 @@ func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		}
 	}
 
-	// Unmarshal RC results
-	configLayers := map[string]*layer{}
+	// Retrieve RC results
 	var configOrder *orderConfig
+	var layers [][]byte
 	var layersErr error
 	paths := agentConfigUpdate.ClientConfigs
 	targetFiles := agentConfigUpdate.TargetFiles
@@ -123,40 +128,21 @@ func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 			continue
 		}
 		if configName != configOrderID {
-			configLayer := &layer{}
-			err = json.Unmarshal(file, configLayer)
-			if err != nil {
-				// If a layer is wrong, fail later to parse the rest and check them all
-				layersErr = multierr.Append(layersErr, err)
-				continue
-			}
-			configLayers[configName] = configLayer
+			layers = append(layers, file)
 		} else {
 			configOrder = &orderConfig{}
 			err = json.Unmarshal(file, configOrder)
 			if err != nil {
 				// Return first - we can't continue without the order
-				return nil, err
+				return nil, nil, err
 			}
 		}
 	}
 	if layersErr != nil {
-		return nil, layersErr
+		return nil, nil, layersErr
 	}
-
 	if configOrder == nil {
-		return nil, fmt.Errorf("no configuration_order found")
+		return nil, nil, fmt.Errorf("no configuration_order found")
 	}
-
-	return orderLayers(*configOrder, configLayers), nil
-}
-
-func orderLayers(configOrder orderConfig, configLayers map[string]*layer) []*layer {
-	orderedLayers := []*layer{}
-	for _, configName := range configOrder.Order {
-		if configLayer, ok := configLayers[configName]; ok {
-			orderedLayers = append(orderedLayers, configLayer)
-		}
-	}
-	return orderedLayers
+	return configOrder, layers, nil
 }
