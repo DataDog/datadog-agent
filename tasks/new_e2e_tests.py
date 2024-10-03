@@ -8,6 +8,7 @@ import json
 import multiprocessing
 import os
 import os.path
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -197,30 +198,41 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
 
 
 @task
-def cleanup_remote_stacks(ctx, pipeline_id, pulumi_backend):
+def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
     """
     Clean up remote stacks created by the pipeline
     """
     if not running_in_ci():
         raise Exit("This task should be run in CI only", 1)
 
+    stack_regex = re.compile(stack_regex)
+
+    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
+    # Once the bucket is cleaned up we can switch to the pulumi CLI
     res = ctx.run(
-        f"aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci/ci-{pipeline_id}",
+        f"aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci",
         hide=True,
         warn=True,
     )
     if res.exited != 0:
         print(f"Failed to list stacks in bucket {pulumi_backend}:", res.stdout, res.stderr)
         return
-    eks_stacks = set()
+    to_delete_stacks = set()
     stacks = json.loads(res.stdout)
     for stack in stacks.get("Contents", []):
-        stack_id = stack.get("Key", "").split("/")[-1].replace(".json.bak", "").replace(".json", "")
-        if "eks" in stack_id:
-            eks_stacks.add(f"organization/e2eci/{stack_id}")
+        stack_id = (
+            stack.get("Key", "")
+            .split("/")[-1]
+            .replace(".json.bak", "")
+            .replace(".json", "")
+            .replace(".pulumi/stacks/e2eci", "")
+        )
+        if stack_regex.match(stack_id):
+            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
 
-    with multiprocessing.Pool(len(eks_stacks)) as pool:
-        res = pool.map(destroy_remote_stack, eks_stacks)
+    print("About to delete the following stacks:", to_delete_stacks)
+    with multiprocessing.Pool(len(to_delete_stacks)) as pool:
+        res = pool.map(destroy_remote_stack, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
         for r, stack in res:
