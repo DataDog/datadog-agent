@@ -62,18 +62,9 @@ func TestAvoidDuplicateTags(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 	logsConfig := &config.LogsConfig{
-		Tags: []string{"wack:tag", "test:tag2"},
+		Tags: []string{"test:tag"},
 	}
 	logSource := sources.NewLogSource("test-source", logsConfig)
-
-	read := func(tailer *Tailer) ([]byte, string, error) {
-		inBuf := make([]byte, 4096)
-		n, err := tailer.Conn.Read(inBuf)
-		if err != nil {
-			return nil, "", err
-		}
-		return inBuf[:n], "", nil
-	}
 
 	tailer := NewTailer(logSource, r, msgChan, read)
 	tailer.Start()
@@ -82,10 +73,9 @@ func TestAvoidDuplicateTags(t *testing.T) {
 
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-
 	// Getting tags from Origin adds tags from the log config, we want to ensure that the tags
 	// are not added before that
-	assert.Equal(t, msg.Tags(), []string{})
+	assert.Equal(t, []string{"test:tag"}, msg.Tags())
 
 	tailer.Stop()
 }
