@@ -73,6 +73,7 @@ tests_macos:
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
   allow_failure: true
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]

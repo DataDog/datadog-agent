@@ -598,6 +598,7 @@
 /test/fakeintake/aggregator/servicediscoveryAggregator.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/fakeintake/aggregator/servicediscoveryAggregator_test.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
+/test/new-e2e/pkg/components/datadog-installer @DataDog/windows-agent
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
