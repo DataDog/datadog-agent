@@ -71,29 +71,21 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 }
 
 func newFakePodAutoscaler(ns, name string, gen int64, creationTimestamp time.Time, spec datadoghq.DatadogPodAutoscalerSpec, status datadoghq.DatadogPodAutoscalerStatus) (obj *unstructured.Unstructured, dpa *datadoghq.DatadogPodAutoscaler) {
-	if gen == -1 { // Create fake pod autoscaler for remote owner
-		dpa = &datadoghq.DatadogPodAutoscaler{
-			TypeMeta: podAutoscalerMeta,
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: ns,
-			},
-			Spec:   spec,
-			Status: status,
-		}
-	} else {
-		dpa = &datadoghq.DatadogPodAutoscaler{
-			TypeMeta: podAutoscalerMeta,
-			ObjectMeta: metav1.ObjectMeta{
-				Name:              name,
-				Namespace:         ns,
-				Generation:        gen,
-				UID:               uuid.NewUUID(),
-				CreationTimestamp: metav1.NewTime(creationTimestamp),
-			},
-			Spec:   spec,
-			Status: status,
-		}
+	dpa = &datadoghq.DatadogPodAutoscaler{
+		TypeMeta: podAutoscalerMeta,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec:   spec,
+		Status: status,
+	}
+
+	// Only add extra information for local owner
+	if gen > 0 {
+		dpa.Generation = gen
+		dpa.UID = uuid.NewUUID()
+		dpa.CreationTimestamp = metav1.NewTime(creationTimestamp)
 	}
 
 	obj, err := autoscaling.ToUnstructured(dpa)
