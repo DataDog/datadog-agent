@@ -93,6 +93,9 @@ func (o *orchestratorinterfaceimpl) Reset() {
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	if err != nil && err != agentConfig.ErrNoDDExporter {
+		return err
+	}
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Provide(func() []string {
@@ -104,8 +107,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			fx.Invoke(func(_ collectordef.Component) {
 			}),
 		)
-	} else if err != nil {
-		return err
 	}
 
 	return fxutil.Run(

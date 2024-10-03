@@ -65,7 +65,7 @@ type Requires struct {
 
 	// Below are dependencies required by Datadog exporter and other Agent functionalities
 	Log                 corelog.Component
-	Provider            confmap.Converter
+	Converter           confmap.Converter
 	Config              config.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
@@ -100,13 +100,13 @@ func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter
 	return c.converter
 }
 
-func newConfigProviderSettings(uris []string, provider confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
+func newConfigProviderSettings(uris []string, converter confmap.Converter, enhanced bool) otelcol.ConfigProviderSettings {
 	converterFactories := []confmap.ConverterFactory{
 		expandconverter.NewFactory(),
 	}
 
 	if enhanced {
-		converterFactories = append(converterFactories, &converterFactory{converter: provider})
+		converterFactories = append(converterFactories, &converterFactory{converter: converter})
 	}
 
 	return otelcol.ConfigProviderSettings{
@@ -136,7 +136,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger, generateID)
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Provider, false))
+	factories.Extensions[ddextension.Type] = ddextension.NewFactory(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false))
 }
 
 var buildInfo = component.BuildInfo{
@@ -166,7 +166,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Provider, converterEnabled),
+		ConfigProviderSettings: newConfigProviderSettings(reqs.URIs, reqs.Converter, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
