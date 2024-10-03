@@ -98,8 +98,6 @@ func GetEnvs(proc *process.Process) (map[string]string, error) {
 			return es.envs, err
 		}
 	}
-	if err := es.scanner.Err(); err != nil {
-		return es.envs, err
-	}
+
 	return es.envs, nil
 }

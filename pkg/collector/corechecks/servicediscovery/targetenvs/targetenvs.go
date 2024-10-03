@@ -35,18 +35,18 @@ const (
 )
 
 const (
-	envJavaToolOps    = "JAVA_TOOL_OPTIONS"
-	env_JavaOptions   = "_JAVA_OPTIONS"
-	envJdkJavaOptions = "JDK_JAVA_OPTIONS"
-	envJavaOptions    = "JAVA_OPTIONS"
-	envJavaJdpaOpts   = "JDPA_OPTS"
+	envJavaToolOps           = "JAVA_TOOL_OPTIONS"
+	envUnderscoreJavaOptions = "_JAVA_OPTIONS"
+	envJdkJavaOptions        = "JDK_JAVA_OPTIONS"
+	envJavaOptions           = "JAVA_OPTIONS"
+	envJavaJdpaOpts          = "JDPA_OPTS"
 )
 
 // envsJavaDetector list of environment variables used for Java detection
 // these environment variables pass options to the JVM
 var envsJavaDetector = []string{
 	envJavaToolOps,
-	env_JavaOptions,
+	envUnderscoreJavaOptions,
 	envJdkJavaOptions,
 	// I'm pretty sure these won't be necessary, as they should be parsed before the JVM sees them
 	// but there's no harm in including them
@@ -67,7 +67,7 @@ var targetsMap = map[uint64]string{
 	hashBytes([]byte(EnvWsgiApp)):                  EnvWsgiApp,
 	hashBytes([]byte(EnvSpringApplicationName)):    EnvSpringApplicationName,
 	hashBytes([]byte(envJavaToolOps)):              envJavaToolOps,
-	hashBytes([]byte(env_JavaOptions)):             env_JavaOptions,
+	hashBytes([]byte(envUnderscoreJavaOptions)):    envUnderscoreJavaOptions,
 	hashBytes([]byte(envJdkJavaOptions)):           envJdkJavaOptions,
 	hashBytes([]byte(envJavaOptions)):              envJavaOptions,
 	hashBytes([]byte(EnvJavaDetectorCatalinaOpts)): EnvJavaDetectorCatalinaOpts,
