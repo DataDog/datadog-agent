@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
@@ -86,10 +85,6 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseInstallerSuite) SetupSuite() {
-	if instlr.GetInstallMethodFromEnv(s.T()) != instlr.InstallMethodWindows {
-		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
-	}
-
 	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
