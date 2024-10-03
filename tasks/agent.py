@@ -45,6 +45,22 @@ BUNDLED_AGENTS = {
     AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
 }
 
+if sys.platform == "win32":
+    # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
+    # This dir contains `aws.rb` which will execute if we just call `aws`,
+    # so we need to be explicit about the executable extension/path
+    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
+    #       causes it to fail due to not searching the PATH.
+    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
+    #       used instead, it must be quoted when passed to ctx.run.
+    # This unfortunately means that the quoting requirements are different if you use
+    # the full path or just the filename.
+    # aws.cmd -> awscli v1 from Python env
+    AWS_CMD = "aws.cmd"
+    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
+else:
+    AWS_CMD = "aws"
+
 AGENT_CORECHECKS = [
     "container",
     "containerd",
@@ -816,7 +832,7 @@ def version(
 
 
 @task
-def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations, awscli="aws"):
+def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, target_dir, integrations):
     """
     Get cached integration wheels for given integrations.
     python: Python version to retrieve integrations for
@@ -825,7 +841,6 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     integrations_dir: directory with Git repository of integrations
     target_dir: local directory to put integration wheels to
     integrations: comma-separated names of the integrations to try to retrieve from cache
-    awscli: AWS CLI executable to call
     """
     integrations_hashes = {}
     for integration in integrations.strip().split(","):
@@ -843,13 +858,9 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     # On windows, maximum length of a command line call is 8191 characters, therefore
     # we do multiple syncs that fit within that limit (we use 8100 as a nice round number
     # and just to make sure we don't do any of-by-one errors that would break this).
-    # WINDOWS NOTES: on Windows, the awscli is usually in program files, so we have to wrap the
-    # executable in quotes; also we have to not put the * in quotes, as there's no
-    # expansion on it, unlike on Linux
+    # WINDOWS NOTES: we have to not put the * in quotes, as there's no expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = (
-        f"\"{awscli}\" s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
-    )
+    sync_command_prefix = f"{AWS_CMD} s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
@@ -897,7 +908,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
 
 
 @task
-def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration, awscli="aws"):
+def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, build_dir, integration):
     """
     Upload a built integration wheel for given integration.
     python: Python version the integration is built for
@@ -906,7 +917,6 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
     integrations_dir: directory with Git repository of integrations
     build_dir: directory containing the built integration wheel
     integration: name of the integration being cached
-    awscli: AWS CLI executable to call
     """
     matching_glob = os.path.join(build_dir, CACHED_WHEEL_FILENAME_PATTERN.format(integration=integration))
     files_matched = glob.glob(matching_glob)
@@ -928,8 +938,7 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
         hash=hash, python_version=python, branch=branch
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
-    # NOTE: on Windows, the awscli is usually in program files, so we have the executable
-    ctx.run(f"\"{awscli}\" s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
+    ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
 
 
 @task()
