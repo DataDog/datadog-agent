@@ -82,8 +82,8 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)            //nolint:errcheck
-		fb.AddFileFromFunc(filepath.Join("system-probe", "telemetry.txt"), getSystemProbeTelemetry) // nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats) //nolint:errcheck
+		fb.AddFileFromFunc("system_probe_telemetry.txt", getSystemProbeTelemetry)        // nolint:errcheck
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
