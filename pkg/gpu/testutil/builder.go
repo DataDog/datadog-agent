@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// package testutil contains helpers to build sample C binaries for testing.
 package testutil
 
 import (
