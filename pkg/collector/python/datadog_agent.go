@@ -702,7 +702,7 @@ func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge
 // comp/core/agenttelemetry/impl/config.go defaultProfiles
 //
 //export EmitAgentTelemetry
-func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.float, metricType *C.char) {
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.double, metricType *C.char) {
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
 	goMetricValue := float64(metricValue)

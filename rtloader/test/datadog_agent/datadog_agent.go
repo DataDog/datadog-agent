@@ -41,7 +41,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
-extern void emitAgentTelemetry(char*, char*, float, char*);
+extern void emitAgentTelemetry(char*, char*, double, char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -360,7 +360,7 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 //export emitAgentTelemetry
-func emitAgentTelemetry(check *C.char, metric *C.char, value C.float, metricType *C.char) {
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char) {
 	checkName := C.GoString(check)
 	metricName := C.GoString(metric)
 	metricValue := float64(value)
