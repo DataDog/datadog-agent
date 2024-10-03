@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -249,6 +250,8 @@ func (n *leafNodeImpl) ChildrenKeys() ([]string, error) {
 func (n *leafNodeImpl) GetBool() (bool, error) {
 	if n.val.Kind() == reflect.Bool {
 		return n.val.Bool(), nil
+	} else if n.val.Kind() == reflect.Int {
+		return n.val.Int() != 0, nil
 	} else if n.val.Kind() == reflect.String {
 		return convertToBool(n.val.String())
 	}
@@ -283,7 +286,20 @@ func (n *leafNodeImpl) GetFloat() (float64, error) {
 
 // GetString returns the scalar as a string, or an error otherwise
 func (n *leafNodeImpl) GetString() (string, error) {
-	if n.val.Kind() == reflect.String {
+	switch n.val.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		stringVal := strconv.FormatInt(n.val.Int(), 10)
+		return stringVal, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		stringVal := strconv.FormatUint(n.val.Uint(), 10)
+		return stringVal, nil
+	case reflect.Float32:
+		stringVal := strconv.FormatFloat(n.val.Float(), 'f', -1, 32)
+		return stringVal, nil
+	case reflect.Float64:
+		stringVal := strconv.FormatFloat(n.val.Float(), 'f', -1, 64)
+		return stringVal, nil
+	case reflect.String:
 		return n.val.String(), nil
 	}
 	return "", newConversionError(n.val, "string")
