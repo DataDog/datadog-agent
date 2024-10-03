@@ -9,7 +9,6 @@ package webhook
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
@@ -1208,9 +1207,7 @@ func (f *fixtureV1) populateMutatingWebhooksCache(webhooks ...*admiv1.MutatingWe
 
 func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) {
 	// Validate the number of webhooks.
-	if len(validatingWebhooks.Webhooks) != 0 {
-		return fmt.Errorf("validatingWebhooks should contain 1 entries, got %d", len(validatingWebhooks.Webhooks))
-	}
+	require.Len(t, validatingWebhooks.Webhooks, 0)
 	require.Len(t, mutatingWebhooks.Webhooks, 3)
 
 	// Validate the CA bundle for webhooks.
@@ -1220,5 +1217,4 @@ func validateV1(t *testing.T, validatingWebhooks *admiv1.ValidatingWebhookConfig
 	for i := 0; i < len(mutatingWebhooks.Webhooks); i++ {
 		require.Equal(t, mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
-	return nil
 }

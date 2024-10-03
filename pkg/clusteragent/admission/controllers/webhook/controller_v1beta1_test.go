@@ -9,14 +9,13 @@ package webhook
 
 import (
 	"context"
-	"fmt"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -1201,7 +1200,7 @@ func (f *fixtureV1beta1) populateMutatingWebhooksCache(webhooks ...*admiv1beta1.
 
 func validateV1beta1(t *testing.T, validatingWebhooks *admiv1beta1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secret) {
 	// Validate the number of webhooks.
-	require.Empty(t, validatingWebhooks.Webhooks)
+	require.Len(t, validatingWebhooks.Webhooks, 0)
 	require.Len(t, mutatingWebhooks.Webhooks, 3)
 
 	// Validate the CA bundle for webhooks.
@@ -1211,5 +1210,4 @@ func validateV1beta1(t *testing.T, validatingWebhooks *admiv1beta1.ValidatingWeb
 	for i := 0; i < len(mutatingWebhooks.Webhooks); i++ {
 		require.Equal(t, mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
-	return nil
 }

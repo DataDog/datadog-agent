@@ -436,7 +436,7 @@ func (c *ControllerV1) getFailurePolicy() admiv1.FailurePolicyType {
 	case "fail":
 		return admiv1.Fail
 	default:
-		_ = log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
+		log.Warnf("Unknown failure policy %s - defaulting to 'Ignore'", policy)
 		return admiv1.Ignore
 	}
 }
