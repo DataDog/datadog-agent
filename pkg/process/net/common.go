@@ -397,6 +397,7 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 	return res, nil
 }
 
+// GetTelemetry queries the telemetry endpoint from system-probe.
 func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
 	if err != nil {
