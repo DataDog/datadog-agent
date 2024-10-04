@@ -170,16 +170,22 @@ func (m *EventMonitor) Close() {
 	}
 
 	if m.netListener != nil {
-		m.netListener.Close()
+		if err := m.netListener.Close(); err != nil {
+			seclog.Errorf("failed to close event montior socket: %v", err)
+		}
 	}
 
-	m.cleanup()
+	if err := m.cleanup(); err != nil {
+		seclog.Errorf("failed to cleanup event monitor: %v", err)
+	}
 
 	m.cancelFnc()
 	m.wg.Wait()
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
-	m.Probe.Close()
+	if err := m.Probe.Close(); err != nil {
+		seclog.Errorf("failed to close event monitor probe: %v", err)
+	}
 }
 
 // SendStats send stats
