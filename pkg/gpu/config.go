@@ -9,8 +9,6 @@ package gpu
 import (
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
@@ -25,9 +23,6 @@ type Config struct {
 
 // NewConfig generates a new configuration for the GPU monitoring probe.
 func NewConfig() *Config {
-	cfg := pkgconfigsetup.SystemProbe()
-	sysconfig.Adjust(cfg)
-
 	return &Config{
 		Config:                          ebpf.NewConfig(),
 		ScanTerminatedProcessesInterval: 5 * time.Second,
