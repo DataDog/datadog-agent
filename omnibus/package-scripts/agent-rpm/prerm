@@ -134,6 +134,20 @@ remove_remote_config_db()
     fi
 }
 
+remove_persist_integration_files()
+{
+    # Remove any file related to reinstalling non-core integrations (see python-scripts/packages.py for the names)
+    if [ -f "$INSTALL_DIR/.prerm_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.prerm_python_installed_packages.txt" || true
+    fi
+    if [ -f "$INSTALL_DIR/.postinst_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.postinst_python_installed_packages.txt" || true
+    fi
+    if [ -f "$INSTALL_DIR/.diff_python_installed_packages.txt" ]; then
+        rm "$INSTALL_DIR/.diff_python_installed_packages.txt" || true
+    fi
+}
+
 remove_apm_remote_config()
 {
     if [ -f "$INSTALL_DIR/run/inject_config.yaml" ]; then
@@ -163,6 +177,7 @@ case "$*" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+        remove_persist_integration_files
     ;;
     1)
         # We're upgrading.
