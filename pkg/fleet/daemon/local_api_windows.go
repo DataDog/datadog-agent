@@ -21,21 +21,8 @@ const (
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon, _ string) (LocalAPI, error) {
 	listener, err := winio.ListenPipe(namedPipePath, &winio.PipeConfig{
-		// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
-		// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
-		// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
-		//
-		// D:dacl_flags(ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute))
-		// 	dacl_flags:
-		//		"P": SDDL_PROTECTED
-		//	ace_type:
-		//		"A": SDDL_ACCESS_ALLOWED
-		// rights:
-		//		"GA": SDDL_GENERIC_ALL
-		// account_sid:
-		//		"WD": Everyone
-		SecurityDescriptor: "D:P(A;;GA;;;WD)",
-		MessageMode:        true,
+		SecurityDescriptor: "D:P(A;;GA;;;SY)",
+		MessageMode:        false,
 	})
 	if err != nil {
 		return nil, err
