@@ -980,7 +980,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
 
         for cbin in TEST_HELPER_CBINS:
             source = Path(pkg) / "testdata" / f"{cbin}.c"
-            if source.is_file():
+            if not is_windows and source.is_file():
                 binary = Path(target_path) / cbin
                 ctx.run(f"clang -o {binary} {source}")
 
