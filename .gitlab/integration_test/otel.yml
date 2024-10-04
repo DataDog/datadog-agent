@@ -34,7 +34,7 @@ docker_image_build_otel:
     - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
   script:
     - cd /tmp/otel-ci
-    - docker build . -t agent-byoc:latest
+    - docker build -f Dockerfile.agent-otel -t agent-byoc:latest
     - cd
     - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 ./test/integration/docker/otel_agent_build_test.py
     # - docker run --entrypoint otel-agent agent-byoc version
