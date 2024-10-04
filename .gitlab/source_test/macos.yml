@@ -67,6 +67,7 @@ tests_macos:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - inv -e install-tools
     - inv -e linter.go --cpus 12 --timeout 60
 
 .tests_macos_gitlab:
@@ -82,6 +83,7 @@ tests_macos:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - inv -e install-tools
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
