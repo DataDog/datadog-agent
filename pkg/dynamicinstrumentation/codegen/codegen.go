@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"runtime"
 	"strings"
 	"text/template"
 
@@ -27,6 +28,10 @@ import (
 func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	parameterBytes := []byte{}
 	out := bytes.NewBuffer(parameterBytes)
+
+	if runtime.GOARCH != "arm64" {
+		probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+	}
 
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"time"
 
@@ -88,11 +89,16 @@ func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditype
 }
 
 func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
+	notCapturedReason := "Failed to instrument, type is unsupported or too complex. Please report this issue."
+	if runtime.GOARCH != "arm64" {
+		notCapturedReason = "Capturing of parameters only supported on arm64 hosts for now."
+	}
+
 	args := make(map[string]*ditypes.CapturedValue)
 	for _, def := range defs {
 		args[def.Name] = &ditypes.CapturedValue{
 			Type:              def.Type,
-			NotCapturedReason: "Failed to instrument, type is unsupported or too complex",
+			NotCapturedReason: notCapturedReason,
 		}
 	}
 	return ditypes.Captures{
