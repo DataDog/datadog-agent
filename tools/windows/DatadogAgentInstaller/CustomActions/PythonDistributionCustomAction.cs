@@ -84,7 +84,9 @@ namespace Datadog.CustomActions
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         FileName = Path.Combine(projectLocation, "bin", "7zr.exe"),
-                        Arguments = $"x \"{embedded}\" -o\"{outputPath}\""
+                        // The archive already contains the name of the embedded folder
+                        // so pass the projectLocation to 7z instead.
+                        Arguments = $"x \"{embedded}\" -o\"{projectLocation}\""
                     };
                     var proc = new Process();
                     proc.StartInfo = psi;
