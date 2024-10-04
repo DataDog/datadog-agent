@@ -197,7 +197,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	for s.combinedUsageSize+logSize > s.combinedUsageMax {
 		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
 		if leastRecentlyModifiedFile == nil {
-			ddLog.Warn("getLeastRecentlyModifiedFile returned nil, skipping writing log to file.")
+			ddLog.Warn("Could not determine least recently modified file, skipping writing log to file.")
 			return
 		}
 
