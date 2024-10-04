@@ -699,13 +699,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return utils.NetNSPathFromPid(event.PIDContext.Pid)
 	})
 
-	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
-		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode Network Context")
-		}
-		offset += read
-	}
-
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
@@ -1001,6 +994,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+		}
+		offset += read
+
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
@@ -1013,6 +1011,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	case model.IMDSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+		}
+		offset += read
+
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
 			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
 			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
