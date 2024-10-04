@@ -98,7 +98,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, filepath.Join(paths.RemoteConfigDBPath, "daemon"))
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,6 @@ const (
 	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
 	// ExperimentInstallerPath is the path to the experiment installer binary.
 	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
-	// RemoteConfigDBPath is the path to the RC CDN databases.
-	RemoteConfigDBPath = "/opt/datadog-packages/run/rc"
+	// RunPath is the default run path
+	RunPath = "/opt/datadog-packages/run"
 )

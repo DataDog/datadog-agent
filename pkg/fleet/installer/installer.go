@@ -97,7 +97,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, filepath.Join(paths.RemoteConfigDBPath, "cmd"))
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create CDN client: %w", err)
 	}
