@@ -792,7 +792,9 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 			LibraryNameRegex: regexp.MustCompile(`foo-libssl.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig: ebpfCfg,
+		EbpfConfig:                     ebpfCfg,
+		EnablePeriodicScanNewProcesses: false,
+		PerformInitialScan:             false,
 	}
 
 	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
@@ -809,12 +811,22 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
-	// open files
-	cmd, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
-	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	// We can have missed events so we need to retry
+	var cmd *exec.Cmd
+	waitAndRetryIfFail(t,
+		func() {
+			cmd, err = fileopener.OpenFromAnotherProcess(t, fooPath1)
+			require.NoError(t, err)
+		},
+		func() bool {
+			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
+		},
+		func() {
+			if cmd != nil && cmd.Process != nil {
+				cmd.Process.Kill()
+			}
+		},
+		3, 10*time.Millisecond, 500*time.Millisecond, "did not catch process running, received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 
