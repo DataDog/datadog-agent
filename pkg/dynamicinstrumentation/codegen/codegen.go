@@ -56,16 +56,16 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 	switch param.Kind {
 	case uint(reflect.String):
 		if param.Location.InReg {
-			return template.New("string_reg_header_template").Funcs(templateFunctions).Parse(stringRegisterHeaderTemplateText)
+			return template.New("string_reg_header_template").Parse(stringRegisterHeaderTemplateText)
 		}
-		return template.New("string_stack_header_template").Funcs(templateFunctions).Parse(stringStackHeaderTemplateText)
+		return template.New("string_stack_header_template").Parse(stringStackHeaderTemplateText)
 	case uint(reflect.Slice):
 		if param.Location.InReg {
-			return template.New("slice_reg_header_template").Funcs(templateFunctions).Parse(sliceRegisterHeaderTemplateText)
+			return template.New("slice_reg_header_template").Parse(sliceRegisterHeaderTemplateText)
 		}
-		return template.New("slice_stack_header_template").Funcs(templateFunctions).Parse(sliceStackHeaderTemplateText)
+		return template.New("slice_stack_header_template").Parse(sliceStackHeaderTemplateText)
 	default:
-		return template.New("header_template").Funcs(templateFunctions).Parse(headerTemplateText)
+		return template.New("header_template").Parse(headerTemplateText)
 	}
 }
 
@@ -140,9 +140,9 @@ func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, err
 	cutForFieldLimit := param.NotCaptureReason == ditypes.FieldLimitReached
 
 	if notSupported {
-		return template.New("unsupported_type_template").Funcs(templateFunctions).Parse(unsupportedTypeTemplateText)
+		return template.New("unsupported_type_template").Parse(unsupportedTypeTemplateText)
 	} else if cutForFieldLimit {
-		return template.New("cut_field_limit_template").Funcs(templateFunctions).Parse(cutForFieldLimitTemplateText)
+		return template.New("cut_field_limit_template").Parse(cutForFieldLimitTemplateText)
 	}
 
 	if param.Location.InReg {
@@ -158,16 +158,16 @@ func resolveRegisterParameterTemplate(param *ditypes.Parameter) (*template.Templ
 
 	if needsDereference {
 		// Register Pointer
-		return template.New("pointer_register_template").Funcs(templateFunctions).Parse(pointerRegisterTemplateText)
+		return template.New("pointer_register_template").Parse(pointerRegisterTemplateText)
 	} else if stringType {
 		// Register String
-		return template.New("string_register_template").Funcs(templateFunctions).Parse(stringRegisterTemplateText)
+		return template.New("string_register_template").Parse(stringRegisterTemplateText)
 	} else if sliceType {
 		// Register Slice
-		return template.New("slice_register_template").Funcs(templateFunctions).Parse(sliceRegisterTemplateText)
+		return template.New("slice_register_template").Parse(sliceRegisterTemplateText)
 	} else if !needsDereference {
 		// Register Normal Value
-		return template.New("register_template").Funcs(templateFunctions).Parse(normalValueRegisterTemplateText)
+		return template.New("register_template").Parse(normalValueRegisterTemplateText)
 	}
 	return nil, errors.New("no template created: invalid or unsupported type")
 }
@@ -179,16 +179,16 @@ func resolveStackParameterTemplate(param *ditypes.Parameter) (*template.Template
 
 	if needsDereference {
 		// Stack Pointer
-		return template.New("pointer_stack_template").Funcs(templateFunctions).Parse(pointerStackTemplateText)
+		return template.New("pointer_stack_template").Parse(pointerStackTemplateText)
 	} else if stringType {
 		// Stack String
-		return template.New("string_stack_template").Funcs(templateFunctions).Parse(stringStackTemplateText)
+		return template.New("string_stack_template").Parse(stringStackTemplateText)
 	} else if sliceType {
 		// Stack Slice
-		return template.New("slice_stack_template").Funcs(templateFunctions).Parse(sliceStackTemplateText)
+		return template.New("slice_stack_template").Parse(sliceStackTemplateText)
 	} else if !needsDereference {
 		// Stack Normal Value
-		return template.New("stack_template").Funcs(templateFunctions).Parse(normalValueStackTemplateText)
+		return template.New("stack_template").Parse(normalValueStackTemplateText)
 	}
 	return nil, errors.New("no template created: invalid or unsupported type")
 }
@@ -276,9 +276,9 @@ func generateStringLengthHeader(stringLengthParamPiece ditypes.Parameter, buf *b
 		err    error
 	)
 	if stringLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("string_register_length_header").Funcs(templateFunctions).Parse(stringLengthRegisterTemplateText)
+		tmplte, err = template.New("string_register_length_header").Parse(stringLengthRegisterTemplateText)
 	} else {
-		tmplte, err = template.New("string_stack_length_header").Funcs(templateFunctions).Parse(stringLengthStackTemplateText)
+		tmplte, err = template.New("string_stack_length_header").Parse(stringLengthStackTemplateText)
 	}
 	if err != nil {
 		return err
@@ -292,9 +292,9 @@ func generateSliceLengthHeader(sliceLengthParamPiece ditypes.Parameter, buf *byt
 		err    error
 	)
 	if sliceLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("slice_register_length_header").Funcs(templateFunctions).Parse(sliceLengthRegisterTemplateText)
+		tmplte, err = template.New("slice_register_length_header").Parse(sliceLengthRegisterTemplateText)
 	} else {
-		tmplte, err = template.New("slice_stack_length_header").Funcs(templateFunctions).Parse(sliceLengthStackTemplateText)
+		tmplte, err = template.New("slice_stack_length_header").Parse(sliceLengthStackTemplateText)
 	}
 	if err != nil {
 		return err
