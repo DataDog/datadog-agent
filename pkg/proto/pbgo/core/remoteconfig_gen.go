@@ -9,9 +9,9 @@ import (
 // MarshalMsg implements msgp.Marshaler
 func (z *Client) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 11
+	// map header, size 13
 	// string "State"
-	o = append(o, 0x8b, 0xa5, 0x53, 0x74, 0x61, 0x74, 0x65)
+	o = append(o, 0x8d, 0xa5, 0x53, 0x74, 0x61, 0x74, 0x65)
 	if z.State == nil {
 		o = msgp.AppendNil(o)
 	} else {
@@ -76,6 +76,25 @@ func (z *Client) MarshalMsg(b []byte) (o []byte, err error) {
 		if err != nil {
 			err = msgp.WrapError(err, "ClientUpdater")
 			return
+		}
+	}
+	// string "IsOperator"
+	o = append(o, 0xaa, 0x49, 0x73, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72)
+	o = msgp.AppendBool(o, z.IsOperator)
+	// string "ClientOperator"
+	o = append(o, 0xae, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x4f, 0x70, 0x65, 0x72, 0x61, 0x74, 0x6f, 0x72)
+	if z.ClientOperator == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// map header, size 2
+		// string "HasAgentRbacs"
+		o = append(o, 0x82, 0xad, 0x48, 0x61, 0x73, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x62, 0x61, 0x63, 0x73)
+		o = msgp.AppendBool(o, z.ClientOperator.HasAgentRbacs)
+		// string "Tags"
+		o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.ClientOperator.Tags)))
+		for za0002 := range z.ClientOperator.Tags {
+			o = msgp.AppendString(o, z.ClientOperator.Tags[za0002])
 		}
 	}
 	return
@@ -222,6 +241,71 @@ func (z *Client) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "IsOperator":
+			z.IsOperator, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IsOperator")
+				return
+			}
+		case "ClientOperator":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				z.ClientOperator = nil
+			} else {
+				if z.ClientOperator == nil {
+					z.ClientOperator = new(ClientOperator)
+				}
+				var zb0003 uint32
+				zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ClientOperator")
+					return
+				}
+				for zb0003 > 0 {
+					zb0003--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "ClientOperator")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "HasAgentRbacs":
+						z.ClientOperator.HasAgentRbacs, bts, err = msgp.ReadBoolBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ClientOperator", "HasAgentRbacs")
+							return
+						}
+					case "Tags":
+						var zb0004 uint32
+						zb0004, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ClientOperator", "Tags")
+							return
+						}
+						if cap(z.ClientOperator.Tags) >= int(zb0004) {
+							z.ClientOperator.Tags = (z.ClientOperator.Tags)[:zb0004]
+						} else {
+							z.ClientOperator.Tags = make([]string, zb0004)
+						}
+						for za0002 := range z.ClientOperator.Tags {
+							z.ClientOperator.Tags[za0002], bts, err = msgp.ReadStringBytes(bts)
+							if err != nil {
+								err = msgp.WrapError(err, "ClientOperator", "Tags", za0002)
+								return
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ClientOperator")
+							return
+						}
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -263,6 +347,15 @@ func (z *Client) Msgsize() (s int) {
 		s += msgp.NilSize
 	} else {
 		s += z.ClientUpdater.Msgsize()
+	}
+	s += 11 + msgp.BoolSize + 15
+	if z.ClientOperator == nil {
+		s += msgp.NilSize
+	} else {
+		s += 1 + 14 + msgp.BoolSize + 5 + msgp.ArrayHeaderSize
+		for za0002 := range z.ClientOperator.Tags {
+			s += msgp.StringPrefixSize + len(z.ClientOperator.Tags[za0002])
+		}
 	}
 	return
 }
@@ -690,6 +783,86 @@ func (z *ClientGetConfigsResponse) Msgsize() (s int) {
 	s += 14 + msgp.ArrayHeaderSize
 	for za0003 := range z.ClientConfigs {
 		s += msgp.StringPrefixSize + len(z.ClientConfigs[za0003])
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *ClientOperator) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 2
+	// string "HasAgentRbacs"
+	o = append(o, 0x82, 0xad, 0x48, 0x61, 0x73, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x62, 0x61, 0x63, 0x73)
+	o = msgp.AppendBool(o, z.HasAgentRbacs)
+	// string "Tags"
+	o = append(o, 0xa4, 0x54, 0x61, 0x67, 0x73)
+	o = msgp.AppendArrayHeader(o, uint32(len(z.Tags)))
+	for za0001 := range z.Tags {
+		o = msgp.AppendString(o, z.Tags[za0001])
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ClientOperator) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "HasAgentRbacs":
+			z.HasAgentRbacs, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "HasAgentRbacs")
+				return
+			}
+		case "Tags":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tags")
+				return
+			}
+			if cap(z.Tags) >= int(zb0002) {
+				z.Tags = (z.Tags)[:zb0002]
+			} else {
+				z.Tags = make([]string, zb0002)
+			}
+			for za0001 := range z.Tags {
+				z.Tags[za0001], bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Tags", za0001)
+					return
+				}
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *ClientOperator) Msgsize() (s int) {
+	s = 1 + 14 + msgp.BoolSize + 5 + msgp.ArrayHeaderSize
+	for za0001 := range z.Tags {
+		s += msgp.StringPrefixSize + len(z.Tags[za0001])
 	}
 	return
 }
