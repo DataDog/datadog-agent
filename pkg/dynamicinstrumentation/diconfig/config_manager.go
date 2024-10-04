@@ -249,6 +249,12 @@ generateCompileAttach:
 	err = codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
 		return
 	}
 

@@ -18,6 +18,7 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
@@ -78,6 +79,7 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 }
 
 func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
+	pretty.Log("Generate Headers: ", params)
 	for i := range params {
 		err := generateHeaderText(params[i], out)
 		if err != nil {
@@ -90,19 +92,20 @@ func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
 		return generateSliceHeader(&param, out)
-	}
-
-	if reflect.Kind(param.Kind) == reflect.String {
+	} else if reflect.Kind(param.Kind) == reflect.String {
 		return generateStringHeader(&param, out)
-	}
-
-	tmplt, err := resolveHeaderTemplate(&param)
-	if err != nil {
-		return err
-	}
-	err = tmplt.Execute(out, param)
-	if err != nil {
-		return err
+	} else {
+		tmplt, err := resolveHeaderTemplate(&param)
+		if err != nil {
+			return err
+		}
+		err = tmplt.Execute(out, param)
+		if err != nil {
+			return err
+		}
+		if len(param.ParameterPieces) != 0 {
+			return generateHeadersText(param.ParameterPieces, out)
+		}
 	}
 	return nil
 }
