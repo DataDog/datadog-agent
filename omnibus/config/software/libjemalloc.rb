@@ -4,10 +4,10 @@
 # Copyright 2022-present Datadog, Inc.
 
 name "libjemalloc"
-default_version "5.0.1"
+default_version "5.3.0"
 
-version "5.0.1" do
-  source sha256: "5de6dcb50de04b14bae9340d23515390925fcaa7637341707239d09a3ea07a23"
+version "5.3.0" do
+  source sha256: "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179" 
 end
 
 ship_source_offer true
@@ -22,12 +22,6 @@ build do
     license_file "./COPYING"
 
     env = with_standard_compiler_flags
-
-    # By default jemalloc releases pages using madvise with MADV_FREE which tells the
-    # OS to reclaim pages lazily.
-    # This can result in misleading metrics, so we need to disable it here.
-    # https://github.com/jemalloc/jemalloc/blob/dev/INSTALL.md#advanced-configuration
-    env["je_cv_madv_free"] = "no"
 
     command "autoconf"
 
