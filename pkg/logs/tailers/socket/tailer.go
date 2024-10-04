@@ -73,7 +73,7 @@ func (t *Tailer) forwardMessages() {
 			metrics.TlmChanLength.Set(float64(len(t.outputChan)/cap(t.outputChan)), "tailer")
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
-			t.outputChan <- message.NewTimedMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+			t.outputChan <- message.NewTimedMessage(message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp))
 		}
 	}
 }

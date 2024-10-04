@@ -95,7 +95,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		ingestionTs := time.Now().UnixNano()
 		message := message.NewTimedMessage(message.NewMessage(content, origin, status, ingestionTs))
 		if ddLog.Hostname != nil {
-			message.Hostname = *ddLog.Hostname
+			message.Inner.Hostname = *ddLog.Hostname
 		}
 
 		e.logsAgentChannel <- message

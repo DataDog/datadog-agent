@@ -152,10 +152,10 @@ func (p *Processor) run() {
 			// the logs, that's here that we buffer the message
 			if p.sds.buffering {
 				// buffer until we receive a configuration
-				p.sds.bufferMsg(msg)
+				p.sds.bufferMsg(msg.Inner)
 			} else {
 				// process the message
-				p.processMessage(msg)
+				p.processMessage(msg.Inner)
 			}
 
 			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")

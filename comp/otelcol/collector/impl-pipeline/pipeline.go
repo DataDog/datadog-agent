@@ -82,7 +82,7 @@ func (c *collectorImpl) start(context.Context) error {
 	if !on {
 		return nil
 	}
-	var logch chan *message.Message
+	var logch chan message.TimedMessage[*message.Message]
 	if v, ok := c.logsAgent.Get(); ok {
 		if provider := v.GetPipelineProvider(); provider != nil {
 			logch = provider.NextPipelineChan()
