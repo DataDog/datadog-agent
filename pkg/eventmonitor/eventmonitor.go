@@ -11,7 +11,6 @@ package eventmonitor
 import (
 	"context"
 	"fmt"
-	"net"
 	"slices"
 	"sync"
 	"time"
@@ -55,7 +54,6 @@ type EventMonitor struct {
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
 	eventConsumers []EventConsumerInterface
-	netListener    net.Listener
 	wg             sync.WaitGroup
 }
 
@@ -107,8 +105,6 @@ func (m *EventMonitor) Start() error {
 	if err != nil {
 		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
-
-	m.netListener = ln
 
 	m.wg.Add(1)
 	go func() {
@@ -167,12 +163,6 @@ func (m *EventMonitor) Close() {
 
 	if m.GRPCServer != nil {
 		m.GRPCServer.Stop()
-	}
-
-	if m.netListener != nil {
-		if err := m.netListener.Close(); err != nil {
-			seclog.Errorf("failed to close event montior socket: %v", err)
-		}
 	}
 
 	if err := m.cleanup(); err != nil {
