@@ -61,6 +61,8 @@ tests_macos:
     - inv -e rtloader.install
 
 .lint_macos_gitlab:
+  # We can't move the lint jobs in the .gitlab/lint directory because we need to extend the .macos_gitlab section
+  # When we'll have virtualization on the macOS Gitlab runners, we won't need it and we will be able to move the lint jobs in the .gitlab/lint directory.
   stage: lint
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
