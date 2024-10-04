@@ -73,25 +73,26 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
-		npm, usm, ccm, csm bool
-		npmEnabled         bool
+		npm, usm, ccm, csm, csmNpm bool
+		npmEnabled                 bool
 	}{
-		{false, false, false, false, false},
-		{false, false, true, false, true},
-		{false, true, false, false, true},
-		{false, true, true, false, true},
-		{true, false, false, false, true},
-		{true, false, true, false, true},
-		{true, true, false, false, true},
-		{true, true, true, false, true},
-		{false, false, false, true, false},
-		{false, false, true, true, true},
-		{false, true, false, true, true},
-		{false, true, true, true, true},
-		{true, false, false, true, true},
-		{true, false, true, true, true},
-		{true, true, false, true, true},
-		{true, true, true, true, true},
+		{false, false, false, false, false, false},
+		{false, false, true, false, false, true},
+		{false, true, false, false, false, true},
+		{false, true, true, false, false, true},
+		{true, false, false, false, false, true},
+		{true, false, true, false, false, true},
+		{true, true, false, false, false, true},
+		{true, true, true, false, false, true},
+		{false, false, false, true, false, false},
+		{false, false, false, true, true, true},
+		{false, false, true, true, false, true},
+		{false, true, false, true, false, true},
+		{false, true, true, true, false, true},
+		{true, false, false, true, false, true},
+		{true, false, true, true, false, true},
+		{true, true, false, true, false, true},
+		{true, true, true, true, false, true},
 	}
 
 	mock.NewSystemProbe(t)
@@ -101,6 +102,7 @@ func TestNPMEnabled(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(te.usm))
 			t.Setenv("DD_CCM_NETWORK_CONFIG_ENABLED", strconv.FormatBool(te.ccm))
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(te.csm))
+			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_NETWORK_MONITORING_ENABLED", strconv.FormatBool(te.csmNpm))
 			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
