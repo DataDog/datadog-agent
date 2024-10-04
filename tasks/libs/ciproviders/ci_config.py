@@ -5,7 +5,7 @@ import yaml
 from tasks.libs.common.color import Color, color_message
 
 # This file is used to set exceptions for jobs that do not require needs or rules
-CONFIG_CI_LINTERS = Path(".ci-linters.yml")
+CONFIG_CI_LINTERS = Path(".gitlab/.ci-linters.yml")
 
 
 class CILintersConfig:
