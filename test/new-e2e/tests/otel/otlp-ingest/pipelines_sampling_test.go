@@ -18,11 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
-type otlpIngestTestSuite struct {
+type otlpIngestSamplingTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestOTLPIngest(t *testing.T) {
+func TestOTLPIngestSampling(t *testing.T) {
 	values := `
 datadog:
   otlp:
@@ -32,37 +32,23 @@ datadog:
           enabled: true
     logs:
       enabled: true
-  logs:
-    containerCollectAll: false
-    containerCollectUsingFiles: false
 agents:
   containers:
     agent:
       env:
         - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
           value: 'true'
+        - name: DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
+          value: '50'
+    traceAgent:
+      env:
+        - name: DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE
+          value: '50'
 `
 	t.Parallel()
-	e2e.Run(t, &otlpIngestTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &otlpIngestSamplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithHelmValues(values)))))
 }
 
-var otlpIngestParams = utils.IAParams{
-	InfraAttributes: false,
-}
-
-func (s *otlpIngestTestSuite) SetupSuite() {
-	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s)
-}
-
-func (s *otlpIngestTestSuite) TestOTLPTraces() {
-	utils.TestTraces(s, otlpIngestParams)
-}
-
-func (s *otlpIngestTestSuite) TestOTLPMetrics() {
-	utils.TestMetrics(s, otlpIngestParams)
-}
-
-func (s *otlpIngestTestSuite) TestOTLPLogs() {
-	utils.TestLogs(s, otlpIngestParams)
+func (s *otlpIngestSamplingTestSuite) TestSampling() {
+	utils.TestSampling(s)
 }
