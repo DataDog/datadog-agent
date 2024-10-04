@@ -8,13 +8,13 @@
 package targetenvs
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"hash/fnv"
 	"os"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/shirou/gopsutil/v3/process"
 )
@@ -28,10 +28,10 @@ const (
 // It collects only those variables that match the target map if the map is not empty,
 // otherwise collect all environment variables.
 type EnvScanner struct {
-	file    *os.File                     // open pointer to environment variables file
-	scanner *ptracer.TextScannerIterator // iterator to read strings from text file
-	targets map[uint64]string            // map of environment variables of interest
-	envs    map[string]string            // collected environment variables
+	file    *os.File          // open pointer to environment variables file
+	scanner *bufio.Scanner    // iterator to read strings from text file
+	targets map[uint64]string // map of environment variables of interest
+	envs    map[string]string // collected environment variables
 }
 
 // hashBytes return hash value of a bytes array using FNV-1a hash function
@@ -39,6 +39,18 @@ func hashBytes(b []byte) uint64 {
 	h := fnv.New64a()
 	h.Write(b)
 	return h.Sum64()
+}
+
+func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\x00' {
+			return i + 1, data[:i], nil
+		}
+	}
+	if !atEOF {
+		return 0, nil, nil
+	}
+	return 0, data, bufio.ErrFinalToken
 }
 
 // newEnvScanner returns a new [EnvScanner] to read from path.
@@ -49,9 +61,12 @@ func newEnvScanner(proc *process.Process) (*EnvScanner, error) {
 		return nil, err
 	}
 
+	scanner := bufio.NewScanner(file)
+	scanner.Split(zeroSplitter)
+
 	return &EnvScanner{
 		file:    file,
-		scanner: ptracer.NewTextScannerIterator(file),
+		scanner: scanner,
 		targets: targetsMap,
 		envs:    make(map[string]string, len(targetsMap)),
 	}, nil
@@ -94,7 +109,7 @@ func GetEnvs(proc *process.Process) (map[string]string, error) {
 	}
 	defer es.finish()
 
-	for es.scanner.Next() {
+	for es.scanner.Scan() {
 		err := es.add()
 		if err != nil {
 			return es.envs, err
