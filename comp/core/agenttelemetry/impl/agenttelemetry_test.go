@@ -554,6 +554,7 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
 
 	// Single payload whcich has sub-payloads for each metric
 	requestType, ok := payload["request_type"]
+	assert.True(t, ok)
 	assert.Equal(t, "agent-metrics", requestType)
 	metricsPayload, ok := payload["payload"].(map[string]interface{})
 	assert.True(t, ok)
@@ -600,6 +601,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 
 	// One payloads each has the same metric (different tags)
 	requestType, ok := payload["request_type"]
+	assert.True(t, ok)
 	assert.Equal(t, "message-batch", requestType)
 	metricPayloads, ok := payload["payload"].([]interface{})
 	assert.True(t, ok)
@@ -608,6 +610,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 	// 2 metrics
 	// 1-st
 	payload1, ok := metricPayloads[0].(map[string]interface{})
+	assert.True(t, ok)
 	requestType1, ok := payload1["request_type"]
 	assert.True(t, ok)
 	assert.Equal(t, "agent-metrics", requestType1)
@@ -621,6 +624,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
 
 	// 2-nd
 	payload2, ok := metricPayloads[1].(map[string]interface{})
+	assert.True(t, ok)
 	requestType2, ok := payload2["request_type"]
 	assert.True(t, ok)
 	assert.Equal(t, "agent-metrics", requestType2)
@@ -672,6 +676,7 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
 
 	// Single payload whcich has sub-payloads for each metric
 	requestType, ok := payload["request_type"]
+	assert.True(t, ok)
 	assert.Equal(t, "agent-metrics", requestType)
 	metricsPayload, ok := payload["payload"].(map[string]interface{})
 	assert.True(t, ok)

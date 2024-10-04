@@ -48,6 +48,7 @@ type atel struct {
 	cancel    context.CancelFunc
 }
 
+// Provides defines the output of the agenttelemetry component
 type Provides struct {
 	compdef.Out
 
@@ -55,6 +56,7 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
+// Requires declares the input types to the constructor
 type Requires struct {
 	compdef.In
 
@@ -135,6 +137,7 @@ func createAtel(
 	}
 }
 
+// NewComponent creates a new agent telemetry component.
 func NewComponent(deps Requires) Provides {
 	a := createAtel(
 		deps.Config,
