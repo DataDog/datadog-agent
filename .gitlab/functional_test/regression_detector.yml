@@ -180,10 +180,11 @@ single-machine-performance-regression_detector-pr-comment:
     # Craft an HTTPS request to pr-commenter service to post Markdown report to
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
+    # and gracefully handle the case when the commit being tested is not a PR
     - |
       set +e
       out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
-          -H "$(./authanywhere)" \
+          -H "$(authanywhere)" \
           -H "X-DdOrigin: curl" \
           -X PATCH \
           -d "${PR_COMMENT_JSON_PAYLOAD}")
