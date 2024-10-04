@@ -9,6 +9,7 @@ package ports
 import (
 	"fmt"
 	"path"
+	"runtime"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -43,6 +44,11 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
 		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
+			continue
+		}
+
+		// on windows, we skip the ports used by apm agent and process agent because the core agent does not have permissions to retrieve proc name
+		if runtime.GOOS == "windows" && (strings.HasPrefix(keyName, "apm_config") || strings.HasPrefix(keyName, "process_config")) {
 			continue
 		}
 
