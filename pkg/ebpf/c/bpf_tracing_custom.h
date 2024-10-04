@@ -26,6 +26,19 @@
     p;                                                                     \
 })
 
+#define __PT_PARM6_REG regs[5]
+#define __PT_PARM7_REG regs[6]
+#define __PT_PARM8_REG regs[7]
+#define __PT_PARM9_REG regs[8]
+#define __PT_PARM10_REG regs[9]
+#define __PT_PARM11_REG regs[10]
+#define __PT_PARM12_REG regs[11]
+#define __PT_PARM13_REG regs[12]
+#define __PT_PARM14_REG regs[13]
+#define __PT_PARM15_REG regs[14]
+#define __PT_PARM16_REG regs[15]
+#define __PT_PARM17_REG regs[16]
+
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])
 #define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x),0)

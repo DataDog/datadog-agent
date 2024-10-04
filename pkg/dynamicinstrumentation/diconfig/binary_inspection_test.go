@@ -26,6 +26,8 @@ func TestBinaryInspection(t *testing.T) {
 	testFunctions := []string{
 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string",
 		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct",
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct",
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice",
 	}
 
 	curDir, err := pwd()

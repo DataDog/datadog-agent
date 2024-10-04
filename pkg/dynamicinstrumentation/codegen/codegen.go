@@ -144,9 +144,6 @@ func generateParameterText(param *ditypes.Parameter, out io.Writer) error {
 }
 
 func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
-	if param.Type == "main.triggerVerifierErrorForTesting" {
-		return template.New("trigger_verifier_error_template").Funcs(templateFunctions).Parse(forcedVerifierErrorTemplate)
-	}
 	notSupported := param.NotCaptureReason == ditypes.Unsupported
 	cutForFieldLimit := param.NotCaptureReason == ditypes.FieldLimitReached
 
@@ -287,9 +284,9 @@ func generateStringLengthHeader(stringLengthParamPiece ditypes.Parameter, buf *b
 		err    error
 	)
 	if stringLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("string_register_length_header").Parse(stringLengthRegisterTemplateText)
+		tmplte, err = template.New("string_register_length_header").Funcs(templateFunctions).Parse(stringLengthRegisterTemplateText)
 	} else {
-		tmplte, err = template.New("string_stack_length_header").Parse(stringLengthStackTemplateText)
+		tmplte, err = template.New("string_stack_length_header").Funcs(templateFunctions).Parse(stringLengthStackTemplateText)
 	}
 	if err != nil {
 		return err
@@ -303,9 +300,9 @@ func generateSliceLengthHeader(sliceLengthParamPiece ditypes.Parameter, buf *byt
 		err    error
 	)
 	if sliceLengthParamPiece.Location.InReg {
-		tmplte, err = template.New("slice_register_length_header").Parse(sliceLengthRegisterTemplateText)
+		tmplte, err = template.New("slice_register_length_header").Funcs(templateFunctions).Parse(sliceLengthRegisterTemplateText)
 	} else {
-		tmplte, err = template.New("slice_stack_length_header").Parse(sliceLengthStackTemplateText)
+		tmplte, err = template.New("slice_stack_length_header").Funcs(templateFunctions).Parse(sliceLengthStackTemplateText)
 	}
 	if err != nil {
 		return err

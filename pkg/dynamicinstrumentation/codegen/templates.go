@@ -7,10 +7,6 @@
 
 package codegen
 
-var forcedVerifierErrorTemplate = `
-int illegalDereference = *(*(*ctx->regs[0]));
-`
-
 var headerTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Write the kind and size to output buffer
@@ -40,7 +36,6 @@ if (slice_length > MAX_SLICE_LENGTH) {
     slice_length = MAX_SLICE_LENGTH;
 }
 
-bpf_printk("Slice length: %d", slice_length);
 for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LENGTH; indexSlice{{.Parameter.ID}}++) {
     if (indexSlice{{.Parameter.ID}} >= slice_length) {
         break;
@@ -50,7 +45,7 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 `
 
 var sliceLengthRegisterTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 `
 
 // The length and type of slices aren't known until parsing, so they require
@@ -81,7 +76,7 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 `
 
 var sliceLengthStackTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[29]+{{.Parameter.Location.StackOffset}}]);
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->__PT_FP_REG+{{.Parameter.Location.StackOffset}}]);
 `
 
 // The length of strings aren't known until parsing, so they require
@@ -106,7 +101,7 @@ outputOffset += 3;
 `
 
 var stringLengthRegisterTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 `
 
 // The length of strings aren't known until parsing, so they require
@@ -130,20 +125,20 @@ outputOffset += 3;
 `
 
 var stringLengthStackTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->regs[29])+{{.Location.StackOffset}}));
+bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}));
 `
 
 var sliceRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read contents of slice
-bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 outputOffset += MAX_SLICE_SIZE;
 `
 
 var sliceStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read contents of slice
-bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->regs[29]+{{.Location.StackOffset}});
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->__PT_FP_REG+{{.Location.StackOffset}});
 outputOffset += MAX_SLICE_SIZE;`
 
 var stringRegisterTemplateText = `
@@ -158,7 +153,7 @@ if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
 }
 
 // Read contents of string
-bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 outputOffset += string_size_{{.ID}}_new;
 `
 
@@ -172,7 +167,7 @@ if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
     string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 // Read contents of string
-bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->regs[29]+{{.Location.StackOffset}}));
+bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->__PT_FP_REG+{{.Location.StackOffset}}));
 bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)(ret_addr));
 outputOffset += string_size_{{.ID}}_new;
 `
@@ -181,7 +176,7 @@ var pointerRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read the pointer value (address of underlying value)
 void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), &ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 
 // Write the underlying value to output
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
@@ -196,7 +191,7 @@ var pointerStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read the pointer value (address of underlying value)
 void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
+bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}+8));
 
 // Write the underlying value to output
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
@@ -209,14 +204,14 @@ bpf_probe_read(&event->output[outputOffset], sizeof(ptrTo{{.ID}}), &ptrTo{{.ID}}
 
 var normalValueRegisterTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->regs[{{.Location.Register}}]);
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->__PT_PARM{{macroCorrect .Location.Register}}_REG);
 outputOffset += {{.TotalSize}};
 `
 
 var normalValueStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read value for {{.Name}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->regs[29])+{{.Location.StackOffset}}));
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}));
 outputOffset += {{.TotalSize}};
 `
 
