@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    The agent is now built with a custom toolchain that targets our minimally
+    The Agent is now built with a custom toolchain that targets our minimally
     supported glibc version (2.17 on x86_64 and 2.23 on aarch64)
