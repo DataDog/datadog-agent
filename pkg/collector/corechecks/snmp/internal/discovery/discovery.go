@@ -141,7 +141,6 @@ func (d *Discovery) discoverDevices() {
 		go d.runWorker(w, jobs)
 	}
 
-
 	discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
