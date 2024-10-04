@@ -1448,3 +1448,11 @@ app_key: '***********************************acccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
 }
+
+func TestAllKeysLowercased(t *testing.T) {
+	for _, key := range Datadog().AllKeysLowercased() {
+		splitKey := strings.Split(key, ".")
+		keyName := splitKey[len(splitKey)-1]
+		t.Logf("Key: %s", keyName)
+	}
+}
