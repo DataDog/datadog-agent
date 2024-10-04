@@ -64,12 +64,12 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     event->base.uid = uid;
 
     // Collect stack trace
-    __u64 currentPC = ctx->pc;
+    __u64 currentPC = ctx->__PT_IP_REG;
     bpf_probe_read(&event->base.program_counters[0], sizeof(__u64), &currentPC);
 
-    __u64 bp = ctx->regs[29];
+    __u64 bp = ctx->__PT_FP_REG;
     bpf_probe_read(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
-    __u64 ret_addr = ctx->regs[30]; // when bpf prog enters, the return address hasn't yet been written to the stack
+    __u64 ret_addr = ctx->__PT_RET_REG; // when bpf prog enters, the return address hasn't yet been written to the stack
 
     int i;
     for (i = 1; i < STACK_DEPTH_LIMIT; i++)
