@@ -88,6 +88,9 @@ type Config struct {
 	// ClusterCheck is cluster-check configuration flag
 	ClusterCheck bool `json:"cluster_check"` // (include in digest: false)
 
+	// HAAgentCheck is HA Agent check configuration flag
+	HAAgentCheck bool `json:"ha_agent_check"` // (include in digest: false)
+
 	// NodeName is node name in case of an endpoint check backed by a pod
 	NodeName string `json:"node_name"` // (include in digest: true)
 
@@ -196,7 +199,7 @@ func (c *Config) IsTemplate() bool {
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,
 func (c *Config) IsCheckConfig() bool {
-	return !c.ClusterCheck && len(c.Instances) > 0
+	return !c.ClusterCheck && !c.HAAgentCheck && len(c.Instances) > 0
 }
 
 // IsLogConfig returns true if config contains a logs config.
