@@ -201,6 +201,7 @@ func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallb
 	for _, p := range providers {
 		providerName := runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name()
 		f.log.Infof("Running flare provider %s", providerName)
+		_ = fb.Logf("Running flare provider %s", providerName)
 
 		done := make(chan struct{})
 		go func() {
@@ -212,7 +213,7 @@ func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallb
 				f.log.Debugf("flare provider '%s' completed in %s", providerName, duration)
 			} else {
 				errMsg := f.log.Errorf("flare provider '%s' failed after %s: %s", providerName, duration, err)
-				_ = fb.Logf("%s", errMsg)
+				_ = fb.Logf("%s", errMsg.Error())
 			}
 
 			done <- struct{}{}
@@ -224,8 +225,11 @@ func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallb
 				<-timer.C
 			}
 		case <-timer.C:
-			f.log.Warnf("flare creation is taking too long, skipping provider %s", providerName)
+			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, flareStepTimeout)
+			_ = fb.Logf("%s", err.Error())
 		}
 		timer.Reset(flareStepTimeout)
 	}
+
+	f.log.Info("All flare providers have been run, creating archive...")
 }

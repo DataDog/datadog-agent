@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -98,7 +99,9 @@ func TestRunProviders(t *testing.T) {
 		},
 	}
 
-	f.Comp.(*flare).runProviders(nil, providers)
+	fb, err := helpers.NewFlareBuilder(false)
+	require.NoError(t, err)
+	f.Comp.(*flare).runProviders(fb, providers)
 	require.True(t, firstRan.Load())
 	require.True(t, secondRan.Load())
 	require.False(t, secondDone.Load())
