@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -21,7 +22,7 @@ import (
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
+func convertContainerStats(stats *container.Stats) *provider.ContainerStats {
 	return &provider.ContainerStats{
 		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),

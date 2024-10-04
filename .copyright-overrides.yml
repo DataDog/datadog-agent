@@ -213,6 +213,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Automatic "Copyright (c)"
 #  * Year is based on the year of the first commit to the repository
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
+github.com/moby/docker-image-spec/specs-go/v1: Copyright (c) 2015 The Authors
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
