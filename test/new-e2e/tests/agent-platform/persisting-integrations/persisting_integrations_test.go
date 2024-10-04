@@ -89,6 +89,8 @@ func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
 }
 
 func TestPersistingIntegrations(t *testing.T) {
+	flake.Mark(t)
+
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
@@ -110,7 +112,6 @@ func TestPersistingIntegrations(t *testing.T) {
 		}
 
 		t.Run(fmt.Sprintf("test upgrade persisting integrations on %s %s", osVers, *architecture), func(tt *testing.T) {
-			flake.Mark(tt)
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
 
