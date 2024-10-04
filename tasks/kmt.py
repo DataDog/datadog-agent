@@ -1070,7 +1070,7 @@ def kmt_sysprobe_prepare(
             for cbin in TEST_HELPER_CBINS:
                 source = Path(pkg) / "testdata" / f"{cbin}.c"
                 if source.is_file():
-                    binary_path = os.path.join(target_path, cbin)
+                    binary_path = os.path.join(target_path, "testdata", cbin)
                     nw.build(
                         inputs=[os.fspath(source)],
                         outputs=[binary_path],
