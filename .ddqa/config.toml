@@ -216,10 +216,3 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-release-management"
 github_labels = ["team/agent-release-management"]
-
-[teams."Dynamic Instrumentation"]
-jira_project = "DEBUG"
-jira_issue_type = "Task"
-jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "debugger-go"
-github_labels = ["team/dynamic-instrumentation"]
