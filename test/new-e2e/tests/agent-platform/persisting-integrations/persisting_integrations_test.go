@@ -61,6 +61,31 @@ var filesToMock = map[string]string{
 type persistingIntegrationsSuite struct {
 	e2e.BaseSuite[environments.Host]
 	srcVersion string
+	platform   string
+}
+
+func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
+	is.BaseSuite.AfterTest(suiteName, testName)
+	platform := strings.ToLower(is.platform)
+
+	if platform == "ubuntu" || platform == "debian" {
+		is.Env().RemoteHost.Execute("sudo apt-get remove datadog-agent -y")
+		is.Env().RemoteHost.MustExecute("sudo apt-get remove --purge datadog-agent -y")
+	} else if platform == "redhat" || platform == "amazonlinux" || platform == "centos" {
+		is.Env().RemoteHost.MustExecute("sudo yum remove datadog-agent -y")
+		is.Env().RemoteHost.Execute("sudo userdel dd-agent")
+		is.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-agent/")
+		is.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent/")
+		is.Env().RemoteHost.Execute("sudo rm -rf /var/log/datadog/")
+	} else if platform == "suse" {
+		is.Env().RemoteHost.MustExecute("sudo zypper remove datadog-agent")
+		is.Env().RemoteHost.Execute("sudo userdel dd-agent")
+		is.Env().RemoteHost.Execute("sudo rm -rf /opt/datadog-agent/")
+		is.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent/")
+		is.Env().RemoteHost.Execute("sudo rm -rf /var/log/datadog/")
+	} else {
+		is.T().Fatal("Unsupported platform for cleanup")
+	}
 }
 
 func TestPersistingIntegrations(t *testing.T) {
@@ -93,7 +118,7 @@ func TestPersistingIntegrations(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
-				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion},
+				&persistingIntegrationsSuite{srcVersion: *srcAgentVersion, platform: *platform},
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
@@ -118,20 +143,20 @@ func (is *persistingIntegrationsSuite) TestIntegrationPersistsWithFileFlag() {
 	is.CheckIntegrationInstalled(VMclient)
 }
 
-// func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithoutFileFlag() {
-// 	VMclient := is.SetupTestClient()
+func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithoutFileFlag() {
+	VMclient := is.SetupTestClient()
 
-// 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
-// 	is.InstallNVMLIntegration(VMclient)
-// 	is.PrepareMockedFiles(VMclient)
+	startAgentVersion := is.SetupAgentStartVersion(VMclient)
+	is.InstallNVMLIntegration(VMclient)
+	is.PrepareMockedFiles(VMclient)
 
-// 	// unset the flag to install third party deps if it was set
-// 	VMclient.Host.MustExecute("sudo rm -f /opt/datadog-agent/.install_python_third_party_deps")
+	// unset the flag to install third party deps if it was set
+	VMclient.Host.Execute("sudo rm -f /opt/datadog-agent/.install_python_third_party_deps")
 
-// 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
-// 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
-// 	is.CheckIntegrationNotInstalled(VMclient)
-// }
+	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
+	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
+	is.CheckIntegrationNotInstalled(VMclient)
+}
 
 func (is *persistingIntegrationsSuite) SetupTestClient() *common.TestClient {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
@@ -173,17 +198,7 @@ func (is *persistingIntegrationsSuite) EnableInstallThirdPartyDepsFlag(VMclient 
 func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.TestClient) string {
 	// By default, pipelineID is set to E2E_PIPELINE_ID, we need to unset it to avoid installing the agent from the pipeline
 	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
-
-	var err error
-	if is.srcVersion == "5" {
-		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
-	} else {
-		_, err = VMclient.SvcManager.Stop("datadog-agent")
-	}
-	require.NoError(is.T(), err)
-
 	common.CheckInstallation(is.T(), VMclient)
-
 	return is.GetAgentVersion(VMclient)
 }
 
@@ -193,8 +208,6 @@ func (is *persistingIntegrationsSuite) UpgradeAgentVersion(VMclient *common.Test
 	VMclient.Host.MustExecute("sudo chmod -t /tmp")
 
 	install.Unix(is.T(), VMclient, installparams.WithArch(*architecture), installparams.WithFlavor(*flavorName), installparams.WithUpgrade(true))
-	_, err := VMclient.SvcManager.Restart("datadog-agent")
-	require.NoError(is.T(), err)
 
 	common.CheckInstallation(is.T(), VMclient)
 
