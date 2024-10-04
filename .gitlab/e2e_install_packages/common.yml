@@ -59,7 +59,7 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
   script:
     - DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $INSTALL_SCRIPT_API_KEY ) || exit $?; export DATADOG_AGENT_API_KEY
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION
+    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version 7
 
 .new-e2e_rpm:
   stage: e2e_install_packages
