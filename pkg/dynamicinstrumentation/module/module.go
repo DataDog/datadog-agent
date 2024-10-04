@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 package module
 
@@ -26,11 +26,13 @@ type Module struct {
 // NewModule creates a new dynamic instrumentation system probe module
 func NewModule(config *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
-		Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
-		ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
-		SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
-		DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
-	})
+		RateLimitPerProbePerSecond: 1.0,
+		OfflineOptions: di.OfflineOptions{
+			Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
+			ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
+			SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
+			DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
+		}})
 	if err != nil {
 		return nil, err
 	}

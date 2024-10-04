@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 // Package eventparser is used for parsing raw bytes from bpf code into events
 package eventparser
@@ -16,10 +16,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MaxBufferSize is the maximum size of the output buffer from bpf which is read by this package
@@ -41,10 +40,10 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	baseEvent := *(*ditypes.BaseEvent)(unsafe.Pointer(&record[0]))
 	event.ProbeID = unix.ByteSliceToString(baseEvent.Probe_id[:])
 
-	allowed, _, _ := ratelimiters.AllowOneEvent(event.ProbeID)
+	allowed, droppedEvents, successfulEvents := ratelimiters.AllowOneEvent(event.ProbeID)
 	if !allowed {
-		// log.Infof("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
-		// 	event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
+		log.Tracef("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
+			event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
 		return nil
 	}
 
