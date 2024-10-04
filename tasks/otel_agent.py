@@ -24,8 +24,8 @@ def build(ctx):
         os.remove(BIN_PATH)
 
     env = {"GO111MODULE": "on"}
-    build_tags = ["otlp"]
-    ldflags = get_version_ldflags(ctx)
+    build_tags = ['otlp']
+    ldflags = get_version_ldflags(ctx, major_version='7')
 
     cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
@@ -40,32 +40,23 @@ def build(ctx):
 
 
 @task
-def image_build(
-    ctx,
-    arch="amd64",
-    base_version="latest",
-    tag=OT_AGENT_TAG,
-    push=False,
-    no_cache=False,
-    docker_file="Dockerfile",
-    build_context="Dockerfiles/agent",
-    copy_dist=True,
-):
+def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False, no_cache=False):
     """
     Build the otel agent container image
     """
-    dockerfile = os.path.join("Dockerfiles", "agent-ot", docker_file)
+
+    build_context = os.path.join("Dockerfiles", "agent")
+    dockerfile = os.path.join("Dockerfiles", "agent-ot", "Dockerfile")
 
     otel_binary = os.path.join(BIN_DIR, BIN_NAME)
     config_file = os.path.join(BIN_DIR, "dist", CFG_NAME)
 
-    if copy_dist:
-        if (not os.path.exists(otel_binary)) or (not os.path.exists(config_file)):
-            print("Please run otel-agent.build")
-            raise Exit(code=1)
+    if (not os.path.exists(otel_binary)) or (not os.path.exists(config_file)):
+        print("Please run otel-agent.build")
+        raise Exit(code=1)
 
-        shutil.copy2(otel_binary, build_context)
-        shutil.copy2(config_file, build_context)
+    shutil.copy2(otel_binary, build_context)
+    shutil.copy2(config_file, build_context)
 
     common_build_opts = (
         f"-t {OT_AGENT_IMAGE_NAME}:{tag} -f {dockerfile} --build-arg=\"BASE_IMAGE_DD_VERSION={base_version}\""

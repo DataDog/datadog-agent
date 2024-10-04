@@ -84,7 +84,6 @@ from tasks.go import (
 )
 from tasks.gotest import (
     check_otel_build,
-    check_otel_byoc_image_build,
     check_otel_module_versions,
     e2e_tests,
     get_impacted_packages,
@@ -137,7 +136,6 @@ ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
 ns.add_task(check_otel_build)
-ns.add_task(check_otel_byoc_image_build)
 ns.add_task(check_otel_module_versions)
 ns.add_task(tidy)
 ns.add_task(tidy_all)
