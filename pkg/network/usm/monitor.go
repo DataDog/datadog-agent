@@ -134,7 +134,7 @@ func (m *Monitor) Start() error {
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if usmconfig.NeedProcessMonitor(m.cfg) {
-		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
+		err = m.processMonitor.Initialize2(m.cfg.EnableUSMEventStream, m.cfg.ProcessMonitorChannelLen)
 	}
 
 	return err

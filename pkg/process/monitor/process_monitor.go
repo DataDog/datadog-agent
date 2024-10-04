@@ -220,9 +220,10 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 }
 
 // initCallbackRunner runs multiple workers that run tasks sent over a queue.
-func (pm *ProcessMonitor) initCallbackRunner() {
+func (pm *ProcessMonitor) initCallbackRunner(chanLen int) {
 	cpuNum := runtime.NumVCPU()
-	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
+	pm.callbackRunner = make(chan func(), chanLen)
+	log.Info("process monitor callback channel len", chanLen)
 	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
 	for i := 0; i < cpuNum; i++ {
@@ -355,6 +356,14 @@ func (pm *ProcessMonitor) mainEventLoop() {
 //  2. Run the main event loop in a goroutine.
 //  4. Scans already running processes and call the Exec callbacks on them.
 func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
+	return pm.Initialize2(useEventStream, 0)
+}
+
+// Initialize2 is ...
+func (pm *ProcessMonitor) Initialize2(useEventStream bool, chanLen int) error {
+	if chanLen == 0 {
+		chanLen = pendingCallbacksQueueSize
+	}
 	var initErr error
 	pm.initOnce.Do(
 		func() {
@@ -367,7 +376,7 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 
 			pm.useEventStream = useEventStream
 			pm.done = make(chan struct{})
-			pm.initCallbackRunner()
+			pm.initCallbackRunner(chanLen)
 
 			if useEventStream {
 				return

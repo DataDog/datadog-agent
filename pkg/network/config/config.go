@@ -310,6 +310,9 @@ type Config struct {
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
+
+	// ProcessMonitorChannelLen ..
+	ProcessMonitorChannelLen int
 }
 
 func join(pieces ...string) string {
@@ -424,6 +427,7 @@ func New() *Config {
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
 		EnableUSMEventStream:        cfg.GetBool(join(smNS, "enable_event_stream")),
+		ProcessMonitorChannelLen:    cfg.GetInt(join(smNS, "process_monitor_channel_len")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
