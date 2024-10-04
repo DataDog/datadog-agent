@@ -28,7 +28,7 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	configInjector "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	mutateConfig "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -94,7 +94,7 @@ func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, data
 	injectionFilter := autoinstrumentation.GetInjectionFilter(datadogConfig)
 
 	webhooks := []MutatingWebhook{
-		configInjector.NewWebhook(wmeta, injectionFilter, datadogConfig),
+		mutateConfig.NewWebhook(wmeta, injectionFilter, datadogConfig),
 		tagsfromlabels.NewWebhook(wmeta, injectionFilter, datadogConfig),
 		agentsidecar.NewWebhook(datadogConfig),
 		autoscaling.NewWebhook(pa, datadogConfig),
