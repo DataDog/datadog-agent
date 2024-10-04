@@ -223,7 +223,7 @@ try {
    }
 }
 "@
-
+   Start-Service "Datadog Installer"
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode

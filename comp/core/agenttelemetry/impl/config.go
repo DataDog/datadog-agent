@@ -183,6 +183,9 @@ var defaultProfiles = `
         - name: logs.sent
         - name: logs.dropped
         - name: logs.sender_latency
+        - name: logs.bytes_sent
+        - name: logs.encoded_bytes_sent
+        - name: logs.bytes_missed
         - name: point.sent
         - name: point.dropped
         - name: oracle.activity_samples_count
