@@ -34,6 +34,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -737,3 +738,34 @@ def gitlab_change_paths(ctx):
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
         )
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
+
+
+@task
+def gitlab_job_owners(
+    _, config_file='after.gitlab-ci.yml', path_codeowners='.github/CODEOWNERS', path_jobowners='.gitlab/JOBOWNERS'
+):
+    """
+    Verifies that each job is defined within the CODEOWNERS and JOBOWNERS files.
+    """
+    # codeowners = read_owners(path_codeowners)
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+
+    # Read and parse gitlab config
+    with open(config_file) as f:
+        config = yaml.safe_load(f)
+
+    error_jobs = []
+    for entry_point_contents in config.values():
+        for job, contents in entry_point_contents.items():
+            if is_leaf_job(job, contents):
+                owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+                if not owners:
+                    error_jobs.append(job)
+
+    if error_jobs:
+        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
