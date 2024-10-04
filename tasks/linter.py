@@ -472,29 +472,15 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     # Load all the jobs from the files
     if config_file:
         with open(config_file) as f:
-            conf = yaml.safe_load(f)
-
-        full_config = conf
-
-        jobs = []
-        for file_jobs in conf.values():
-            for job_name, job_contents in file_jobs.items():
-                if is_leaf_job(job_name, job_contents):
-                    jobs.append((job_name, job_contents))
+            full_config = yaml.safe_load(f)
     else:
         with open(diff_file) as f:
-            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+            full_config = MultiGitlabCIDiff.from_dict(yaml.safe_load(f)).after
 
-        full_config = diff.after
-        jobs = [
-            (job, contents)
-            for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
-            if is_leaf_job(job, contents)
-        ]
-
-        if not jobs:
-            print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-            return
+    jobs = [job for contents in full_config.values() for job in contents.keys() if is_leaf_job(job, contents)]
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return
 
     ci_linters_config = CILintersConfig(
         lint=True,
@@ -521,7 +507,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
 
     if n_ignored:
         print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path})'
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path}:needs-rules)'
         )
 
     if error_jobs:
@@ -742,25 +728,60 @@ def gitlab_change_paths(ctx):
 
 @task
 def gitlab_job_owners(
-    _, config_file='after.gitlab-ci.yml', path_codeowners='.github/CODEOWNERS', path_jobowners='.gitlab/JOBOWNERS'
+    _, config_file=None, diff_file=None, path_codeowners='.github/CODEOWNERS', path_jobowners='.gitlab/JOBOWNERS'
 ):
     """
     Verifies that each job is defined within the CODEOWNERS and JOBOWNERS files.
+
+    - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+    - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
     """
+
+    assert (
+        diff_file or config_file and not (diff_file and config_file)
+    ), "You must provide either a diff file or a config file and not both"
+
+    # Load all the jobs from the files
+    if config_file:
+        with open(config_file) as f:
+            full_config = yaml.safe_load(f)
+    else:
+        with open(diff_file) as f:
+            full_config = MultiGitlabCIDiff.from_dict(yaml.safe_load(f)).after
+
+    jobs = [
+        job
+        for entry_point in full_config.values()
+        for job, contents in entry_point.items()
+        if is_leaf_job(job, contents)
+    ]
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return
+
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
     # codeowners = read_owners(path_codeowners)
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
-    # Read and parse gitlab config
-    with open(config_file) as f:
-        config = yaml.safe_load(f)
-
     error_jobs = []
-    for entry_point_contents in config.values():
-        for job, contents in entry_point_contents.items():
-            if is_leaf_job(job, contents):
-                owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
-                if not owners:
-                    error_jobs.append(job)
+    n_ignored = 0
+    for job in jobs:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            if job in ci_linters_config.job_owners_jobs:
+                n_ignored += 1
+            else:
+                error_jobs.append(job)
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
+        )
 
     if error_jobs:
         error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
