@@ -156,6 +156,14 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 	assert.True(suite.T(), os.IsNotExist(err))
 }
 
+// TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
+// in panics from `deleteFile`
+func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
+	suite.s.combinedUsageMax = -1
+	err := suite.s.scanInitialFiles(suite.s.runPath)
+	assert.NotNil(suite.T(), err)
+}
+
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
 func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 	id := "123456789"
@@ -457,4 +465,17 @@ func TestReadOnlyFileSystem(t *testing.T) {
 
 	// send a second log to make sure the launcher isn't blocking
 	integrationsComp.SendLog(logSample, id)
+}
+
+// TestCombinedDiskUsageFallback ensures the launcher falls back to the
+// logsTotalUsageSetting if there is an error in the logsUsageRatio
+func TestCombinedDiskUsageFallback(t *testing.T) {
+	totalUsage := 100
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+
+	assert.Equal(t, s.combinedUsageMax, int64(totalUsage*1024*1024))
 }
