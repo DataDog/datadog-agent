@@ -108,8 +108,11 @@ func (c *cfg) updateAPIKey(oldKey, newKey string) {
 	}
 }
 
-// OnUpdateAPIKey registers a callback for API Key changes
+// OnUpdateAPIKey registers a callback for API Key changes, only 1 callback can be used at a time
 func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
+	if c.updateAPIKeyFn != nil {
+		log.Error("OnUpdateAPIKey has already been configured. Only 1 callback can be used at a time.")
+	}
 	c.updateAPIKeyFn = callback
 }
 
