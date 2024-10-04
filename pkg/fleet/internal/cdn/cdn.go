@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -17,7 +19,6 @@ import (
 	"github.com/DataDog/go-tuf/data"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"regexp"
 )
 
 var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+)/[^/]+$`)
@@ -25,7 +26,12 @@ var datadogConfigIDRegexp = regexp.MustCompile(`^datadog/\d+/AGENT_CONFIG/([^/]+
 const configOrderID = "configuration_order"
 
 // CDN provides access to the Remote Config CDN.
-type CDN struct {
+type CDN interface {
+	Get(ctx context.Context) (*Config, error)
+	Close() error
+}
+
+type cdnRemote struct {
 	client              *remoteconfig.HTTPClient
 	currentRootsVersion uint64
 }
@@ -43,7 +49,14 @@ type orderConfig struct {
 }
 
 // New creates a new CDN.
-func New(env *env.Env, configDBPath string) (*CDN, error) {
+func New(env *env.Env, configDBPath string) (CDN, error) {
+	if env.CDNLocalDirPath != "" {
+		return newLocal(env)
+	}
+	return newRemote(env, configDBPath)
+}
+
+func newRemote(env *env.Env, configDBPath string) (CDN, error) {
 	client, err := remoteconfig.NewHTTPClient(
 		configDBPath,
 		env.Site,
@@ -53,15 +66,14 @@ func New(env *env.Env, configDBPath string) (*CDN, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return &CDN{
+	return &cdnRemote{
 		client:              client,
 		currentRootsVersion: 1,
 	}, nil
 }
 
 // Get gets the configuration from the CDN.
-func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
+func (c *cdnRemote) Get(ctx context.Context) (_ *Config, err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	configLayers, err := c.getOrderedLayers(ctx)
@@ -72,12 +84,12 @@ func (c *CDN) Get(ctx context.Context) (_ *Config, err error) {
 }
 
 // Close cleans up the CDN's resources
-func (c *CDN) Close() error {
+func (c *cdnRemote) Close() error {
 	return c.client.Close()
 }
 
 // getOrderedLayers calls the Remote Config service to get the ordered layers.
-func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
+func (c *cdnRemote) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	agentConfigUpdate, err := c.client.GetCDNConfigUpdate(
 		ctx,
 		[]string{"AGENT_CONFIG"},
@@ -155,15 +167,19 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		return nil, layersErr
 	}
 
-	// Order configs
 	if configOrder == nil {
 		return nil, fmt.Errorf("no configuration_order found")
 	}
+
+	return orderLayers(*configOrder, configLayers), nil
+}
+
+func orderLayers(configOrder orderConfig, configLayers map[string]*layer) []*layer {
+	orderedLayers := []*layer{}
 	for _, configName := range configOrder.Order {
 		if configLayer, ok := configLayers[configName]; ok {
 			orderedLayers = append(orderedLayers, configLayer)
 		}
 	}
-
-	return orderedLayers, nil
+	return orderedLayers
 }

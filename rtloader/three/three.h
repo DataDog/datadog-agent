@@ -114,6 +114,7 @@ public:
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
+    void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);

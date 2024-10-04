@@ -22,6 +22,8 @@ import (
 type Config struct {
 	webhookName              string
 	secretName               string
+	validationEnabled        bool
+	mutationEnabled          bool
 	namespace                string
 	admissionV1Enabled       bool
 	namespaceSelectorEnabled bool
@@ -37,6 +39,8 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 	return Config{
 		webhookName:              pkgconfigsetup.Datadog().GetString("admission_controller.webhook_name"),
 		secretName:               pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name"),
+		validationEnabled:        pkgconfigsetup.Datadog().GetBool("admission_controller.validation.enabled"),
+		mutationEnabled:          pkgconfigsetup.Datadog().GetBool("admission_controller.mutation.enabled"),
 		namespace:                common.GetResourcesNamespace(),
 		admissionV1Enabled:       admissionV1Enabled,
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
@@ -50,6 +54,8 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 
 func (w *Config) getWebhookName() string        { return w.webhookName }
 func (w *Config) getSecretName() string         { return w.secretName }
+func (w *Config) isValidationEnabled() bool     { return w.validationEnabled }
+func (w *Config) isMutationEnabled() bool       { return w.mutationEnabled }
 func (w *Config) getSecretNs() string           { return w.namespace }
 func (w *Config) useAdmissionV1() bool          { return w.admissionV1Enabled }
 func (w *Config) useNamespaceSelector() bool    { return w.namespaceSelectorEnabled }
