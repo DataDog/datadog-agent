@@ -8,6 +8,7 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -237,7 +238,7 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 		return nil
 	}
 
-	f, err := fb.PrepareFilePath(destFile)
+	f, err := fb.prepareFilePath(destFile)
 	if err != nil {
 		return err
 	}
@@ -295,7 +296,7 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 
 	fb.permsInfos.add(srcFile)
 
-	path, err := fb.PrepareFilePath(destFile)
+	path, err := fb.prepareFilePath(destFile)
 	if err != nil {
 		return err
 	}
@@ -354,6 +355,16 @@ func (fb *builder) CopyDirTo(srcDir string, destDir string, shouldInclude func(s
 }
 
 func (fb *builder) PrepareFilePath(path string) (string, error) {
+	fb.Lock()
+	defer fb.Unlock()
+	return fb.prepareFilePath(path)
+}
+
+func (fb *builder) prepareFilePath(path string) (string, error) {
+	if fb.isClosed {
+		return "", errors.New("flare builder is already closed")
+	}
+
 	p := filepath.Join(fb.flareDir, path)
 
 	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
