@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -97,7 +98,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	// except when a more specific role (e.g. task role in ECS) does not have
 	// EC2:DescribeTags permission, but a more general role (e.g. instance role)
 	// does have it.
-	tags, err := getTagsWithCreds(ctx, instanceIdentity, nil)
+	tags, err := getTagsWithCreds(ctx, instanceIdentity, ec2Cconnection(ctx, instanceIdentity.Region, nil))
 	if err == nil {
 		return tags, nil
 	}
@@ -111,14 +112,25 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	}
 
 	awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
-	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
+	return getTagsWithCreds(ctx, instanceIdentity, ec2Cconnection(ctx, instanceIdentity.Region, awsCreds))
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
-	connection := ec2.New(ec2.Options{
-		Region:      instanceIdentity.Region,
-		Credentials: awsCreds,
-	})
+type ec2ClientInterface interface {
+	DescribeTags(ctx context.Context, params *ec2.DescribeTagsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTagsOutput, error)
+}
+
+// ec2Cconnection creates an ec2 client with the given region and credentials
+func ec2Cconnection(ctx context.Context, region string, awsCreds aws.CredentialsProvider) ec2ClientInterface {
+	// using aws config to read the build in credentials to set up the ec2 client.
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region), config.WithCredentialsProvider(awsCreds))
+	if err != nil {
+		log.Warnf("unable to get aws configurations: %s", err)
+		return nil
+	}
+	return ec2.NewFromConfig(cfg)
+}
+
+func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, connection ec2ClientInterface) ([]string, error) {
 
 	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
 	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
