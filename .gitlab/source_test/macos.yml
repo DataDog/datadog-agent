@@ -61,7 +61,7 @@ tests_macos:
     - inv -e rtloader.install
 
 .lint_macos_gitlab:
-  stage: source_test
+  stage: lint
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
   script:
