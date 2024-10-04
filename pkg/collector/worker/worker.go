@@ -154,12 +154,14 @@ func (w *Worker) Run() {
 
 		if haagent.IsEnabled() && check.String() == "snmp" {
 			isPrimary := haagent.IsPrimary()
+
+			// TODO: REMOVE ME
+			log.Warnf("[Worker.Run] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
+				check.String(), haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
+
 			if isPrimary {
 				checkErr = check.Run()
 			}
-			// TODO: REMOVE ME
-			log.Warnf("[IsCheckConfig] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-				check.String(), haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
 		}
 
 		utilizationTracker.CheckFinished()

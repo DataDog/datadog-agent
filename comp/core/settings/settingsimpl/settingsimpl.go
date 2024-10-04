@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/gorilla/mux"
 	json "github.com/json-iterator/go"
 	"github.com/mohae/deepcopy"
@@ -247,6 +248,8 @@ func (s *settingsRegistry) SetRole(w http.ResponseWriter, r *http.Request) {
 	role := vars["role"]
 
 	s.log.Infof("Got a request to change a role: %s", role)
+
+	haagent.SetRole(role)
 
 	w.WriteHeader(http.StatusOK)
 }
