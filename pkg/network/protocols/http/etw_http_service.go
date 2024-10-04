@@ -140,6 +140,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -148,6 +149,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
 )
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -200,7 +202,8 @@ type HttpConnLink struct {
 
 	http WinHttpTransaction
 
-	url string
+	url     string
+	urlPath string
 
 	// list of etw notifications, in order, that this transaction has been seen
 	// this is for internal debugging; is not surfaced anywhere.
@@ -274,7 +277,7 @@ var (
 
 	lastSummaryTime time.Time
 
-	iisConfig *winutil.DynamicIISConfig
+	iisConfig atomic.Pointer[iisconfig.DynamicIISConfig]
 )
 
 func init() {
@@ -742,6 +745,8 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 		if len(urlParsed.Path) == 0 {
 			urlParsed.Path = "/"
 		}
+		httpConnLink.urlPath = urlParsed.Path
+
 		// httpConnLink.http.RequestFragment[0] = 32 is done to simulate
 		//   func getPath(reqFragment, buffer []byte) []byte
 		// which expects something like "GET /foo?var=bar HTTP/1.1"
@@ -830,7 +835,11 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 
 	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = userData.GetUint32(16)
-	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
+	cfg := iisConfig.Load()
+	if cfg != nil {
+		httpConnLink.http.SiteName = cfg.GetSiteNameFromID(httpConnLink.http.SiteID)
+		httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = cfg.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
+	}
 
 	// Parse url
 	if urlOffset > userData.Length() {
@@ -977,7 +986,10 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 
 		// <<<MORE ETW HttpService DETAILS>>>
 		httpConnLink.http.SiteID = cacheEntry.http.SiteID
-		httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(cacheEntry.http.SiteID)
+		cfg := iisConfig.Load()
+		if cfg != nil {
+			httpConnLink.http.SiteName = cfg.GetSiteNameFromID(cacheEntry.http.SiteID)
+		}
 
 		completeReqRespTracking(eventInfo, httpConnLink)
 		servedFromCache++
@@ -1427,16 +1439,19 @@ func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
 	var err error
-	iisConfig, err = winutil.NewDynamicIISConfig()
+	config, err := iisconfig.NewDynamicIISConfig()
 	if err != nil {
 		log.Warnf("Failed to create iis config %v", err)
-		iisConfig = nil
+		config = nil
 	} else {
-		err = iisConfig.Start()
+		err = config.Start()
 		if err != nil {
 			log.Warnf("Failed to start iis config %v", err)
-			iisConfig = nil
+			config = nil
 		}
+	}
+	if config != nil {
+		iisConfig.Store(config)
 	}
 }
 
@@ -1444,9 +1459,9 @@ func (hei *EtwInterface) OnStart() {
 func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
-	if iisConfig != nil {
-		iisConfig.Stop()
-		iisConfig = nil
+	cfg := iisConfig.Swap(nil)
+	if cfg != nil {
+		cfg.Stop()
 	}
 }
 func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {

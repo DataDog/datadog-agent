@@ -11,7 +11,11 @@
 -->
 
 <configuration>
-
+    <appSettings>
+        <add key="DD_SERVICE" value="service1" />
+        <add key="DD_ENV" value="false" />
+        <add key="DD_VERSION" value="1.0-prerelease" />
+      </appSettings>
     <!--
 
         The <configSections> section controls the registration of sections.

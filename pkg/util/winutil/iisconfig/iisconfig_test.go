@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package winutil
+package iisconfig
 
 import (
 	"os"
@@ -34,4 +34,26 @@ func TestConfigLoading(t *testing.T) {
 	name = iisCfg.GetSiteNameFromID(2)
 	assert.Equal(t, name, "TestSite")
 	iisCfg.Stop()
+}
+
+func TestUninitializedConfig(t *testing.T) {
+	path, err := os.Getwd()
+	require.Nil(t, err)
+
+	iisCfgPath = filepath.Join(path, "testdata", "iisconfig.xml")
+	iisCfg, err := NewDynamicIISConfig()
+
+	// by not calling start, this will simulate either a caller trying to use w/o calling
+	// start, or a race where the start is still "in progress" when the caller tries to use it
+
+	assert.Nil(t, err)
+	assert.NotNil(t, iisCfg)
+
+	name := iisCfg.GetSiteNameFromID(0)
+	assert.Equal(t, name, "")
+
+	atags, cfgtags := iisCfg.GetAPMTags(0, "/")
+	assert.Equal(t, atags.DDService, "")
+	assert.Equal(t, cfgtags.DDService, "")
+
 }
