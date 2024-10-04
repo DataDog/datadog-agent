@@ -40,7 +40,6 @@ func TestGoDI(t *testing.T) {
 	}
 
 	sampleServicePath := BuildSampleService(t)
-	t.Log(sampleServicePath)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
