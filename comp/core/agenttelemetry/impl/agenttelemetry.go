@@ -15,11 +15,11 @@ package agenttelemetryimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 
-	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -27,19 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAgentTelemetryProvider),
-	)
-}
 
 type atel struct {
 	cfgComp config.Component
@@ -55,21 +48,21 @@ type atel struct {
 	cancel    context.CancelFunc
 }
 
-type provides struct {
-	fx.Out
+type Provides struct {
+	compdef.Out
 
 	Comp     agenttelemetry.Component
 	Endpoint api.AgentEndpointProvider
 }
 
-type dependencies struct {
-	fx.In
+type Requires struct {
+	compdef.In
 
 	Log       log.Component
 	Config    config.Component
 	Telemetry telemetry.Component
 
-	Lc fx.Lifecycle
+	Lc compdef.Lifecycle
 }
 
 // Interfacing with runner.
@@ -142,7 +135,7 @@ func createAtel(
 	}
 }
 
-func newAgentTelemetryProvider(deps dependencies) provides {
+func NewComponent(deps Requires) Provides {
 	a := createAtel(
 		deps.Config,
 		deps.Log,
@@ -153,7 +146,7 @@ func newAgentTelemetryProvider(deps dependencies) provides {
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		deps.Lc.Append(fx.Hook{
+		deps.Lc.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()
 			},
@@ -163,7 +156,7 @@ func newAgentTelemetryProvider(deps dependencies) provides {
 		})
 	}
 
-	return provides{
+	return Provides{
 		Comp:     a,
 		Endpoint: api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
 	}
@@ -376,6 +369,11 @@ func (a *atel) run(profiles []*Profile) {
 }
 
 func (a *atel) writePayload(w http.ResponseWriter, _ *http.Request) {
+	if !a.enabled {
+		httputils.SetJSONError(w, errors.New("agent-telemetry is not enabled. Please enable agent telemetry"), 400)
+		return
+	}
+
 	a.logComp.Info("Dumping agent telemetry payload")
 
 	payload, err := a.GetAsJSON()
