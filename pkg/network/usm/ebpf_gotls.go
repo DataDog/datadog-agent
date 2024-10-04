@@ -170,7 +170,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 				},
 			}},
 			ExcludeTargets:                 uprobes.ExcludeInternal,
-			PerformInitialScan:             true,
+			PerformInitialScan:             false,
 			EnablePeriodicScanNewProcesses: false,
 		}
 
