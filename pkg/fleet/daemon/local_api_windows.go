@@ -21,7 +21,7 @@ const (
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(daemon Daemon, _ string) (LocalAPI, error) {
 	listener, err := winio.ListenPipe(namedPipePath, &winio.PipeConfig{
-		SecurityDescriptor: "D:P(A;;GA;;;SY)",
+		SecurityDescriptor: "D:P(A;;GA;;;SY)(A;;GA;;;BA)",
 		MessageMode:        false,
 	})
 	if err != nil {
