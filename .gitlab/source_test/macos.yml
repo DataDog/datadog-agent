@@ -59,6 +59,7 @@ tests_macos:
     - pyenv rehash
     - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.install
+    - inv -e install-tools
 
 .lint_macos_gitlab:
   stage: source_test
@@ -73,6 +74,7 @@ tests_macos:
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
   allow_failure: true
   extends: .macos_gitlab
   needs: ["go_deps", "go_tools_deps"]
@@ -109,6 +111,9 @@ tests_macos:
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
   tags: ["macos:monterey-amd64", "specific:true"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab

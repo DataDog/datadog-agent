@@ -397,15 +397,15 @@ def test(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
+def integration_tests(ctx, race=False, remote_docker=False, debug=False, timeout=""):
     """
     Run all the available integration tests
     """
     tests = [
-        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
-        lambda: trace_integration_tests(ctx, install_deps, race),
+        lambda: agent_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dsd_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: dca_integration_tests(ctx, race=race, remote_docker=remote_docker, timeout=timeout),
+        lambda: trace_integration_tests(ctx, race=race, timeout=timeout),
     ]
     for t in tests:
         try:

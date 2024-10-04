@@ -26,6 +26,7 @@ type ProcessStartNotification struct {
 	OwnerSidString    string
 	ImageFile         string
 	CmdLine           string
+	EnvBlock          []string
 	// if this is nonzero, functions as notification to
 	// the probe that the buffer size isn't large enough
 	RequiredSize uint32
@@ -183,6 +184,7 @@ func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, sto
 		var imagefile string
 		var cmdline string
 		var sidstring string
+		var envvars []string
 
 		if n.ImageFileLen > 0 {
 			imagefile = winutil.ConvertWindowsString(data[n.ImageFileOffset : n.ImageFileOffset+n.ImageFileLen])
@@ -194,6 +196,13 @@ func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, sto
 		if n.SidLen > 0 {
 			sidstring = winutil.ConvertWindowsString(data[n.SidOffset : n.SidOffset+n.SidLen])
 		}
+
+		if n.EnvBlockLen > 0 {
+			envblockstart := (*uint16)(unsafe.Pointer(&data[n.EnvOffset]))
+
+			envblock := unsafe.Slice(envblockstart, uint32(n.EnvBlockLen/2))
+			envvars = winutil.ConvertWindowsStringList(envblock)
+		}
 		start = &ProcessStartNotification{
 			Pid:               n.ProcessId,
 			PPid:              n.ParentProcessId,
@@ -202,6 +211,7 @@ func decodeStruct(data []uint8, sz uint32) (start *ProcessStartNotification, sto
 			ImageFile:         imagefile,
 			CmdLine:           cmdline,
 			OwnerSidString:    sidstring,
+			EnvBlock:          envvars,
 		}
 		if n.SizeNeeded > n.Size {
 			start.RequiredSize = uint32(n.SizeNeeded)

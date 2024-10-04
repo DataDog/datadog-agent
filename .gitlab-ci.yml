@@ -1,7 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/test_gitlab_configuration.yml
+  - .gitlab/.pre/gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -92,8 +92,8 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
-  - trigger_release
   - choco_and_install_script_build
+  - trigger_release
   - choco_and_install_script_deploy
   - internal_image_deploy
   - install_script_testing
@@ -173,15 +173,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_WINBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_ARMBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45605580-5f42ffba
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -284,12 +284,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
@@ -429,10 +423,8 @@ workflow:
   - when: manual
     allow_failure: true
 
-.except_no_a6_or_no_a7:
+.except_no_a7:
   - !reference [.except_mergequeue]
-  - <<: *if_not_version_6
-    when: never
   - <<: *if_not_version_7
     when: never
 

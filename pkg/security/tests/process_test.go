@@ -1475,7 +1475,7 @@ func TestProcessExecExit(t *testing.T) {
 
 			execPid = event.ProcessContext.Pid
 			if ebpfLessEnabled {
-				nsID = event.NSID
+				nsID = event.ProcessContext.NSID
 			}
 
 		case model.ExitEventType:
@@ -1941,7 +1941,7 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
 		t.Skip("docker no available")
 		return

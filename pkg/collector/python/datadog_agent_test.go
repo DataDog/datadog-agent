@@ -34,3 +34,7 @@ func TestGetConfig(t *testing.T) {
 func TestSetExternalTags(t *testing.T) {
 	testSetExternalTags(t)
 }
+
+func TestEmitAgentTelemetry(t *testing.T) {
+	testEmitAgentTelemetry(t)
+}

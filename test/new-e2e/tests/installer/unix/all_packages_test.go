@@ -74,17 +74,12 @@ func shouldSkipInstallMethod(methods []InstallMethodOption, method InstallMethod
 }
 
 func TestPackages(t *testing.T) {
-
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
 	}
 
-	method := GetInstallMethodFromEnv()
-	if method == InstallMethodWindows {
-		t.Skip("Windows install method - skipping")
-	}
-
+	method := GetInstallMethodFromEnv(t)
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
 		flavor.Architecture = e2eos.AMD64Arch

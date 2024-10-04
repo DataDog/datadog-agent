@@ -262,7 +262,7 @@ func replacePatterns(paths []string) []string {
 			if pattern == path {
 				continue
 			}
-			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, PathPatternMatchOpts{WildcardLimit: 1})
+			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 4})
 			if ok {
 				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
 				result = append(result, finalPath)
