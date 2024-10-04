@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -97,7 +98,7 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, "/opt/datadog-packages/run/rc/daemon")
+	cdn, err := cdn.New(env, filepath.Join(paths.RemoteConfigDBPath, "daemon"))
 	if err != nil {
 		return nil, err
 	}

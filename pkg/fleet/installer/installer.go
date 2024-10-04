@@ -88,7 +88,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -97,7 +97,7 @@ func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, configDBPath)
+	cdn, err := cdn.New(env, filepath.Join(paths.RemoteConfigDBPath, "cmd"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create CDN client: %w", err)
 	}
