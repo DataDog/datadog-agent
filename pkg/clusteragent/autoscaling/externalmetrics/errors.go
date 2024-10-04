@@ -117,12 +117,10 @@ type RateLimitError struct {
 }
 
 func (e *RateLimitError) Error() string {
-	return fmt.Sprintf("Rate limit exceeded, too many requests, batching queries until the rate limit clears: %v", e.Err)
+	return fmt.Sprintf("Global error: Datadog API rate limit exceeded")
 }
 
 // NewRateLimitError initializes a RateLimitError.
-func NewRateLimitError(err error) *RateLimitError {
-	return &RateLimitError{
-		Err: err,
-	}
+func NewRateLimitError() *RateLimitError {
+	return &RateLimitError{}
 }

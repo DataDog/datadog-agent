@@ -118,20 +118,17 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 
 	queriesByTimeWindow := getBatchedQueriesByTimeWindow(datadogMetrics)
 	resultsByTimeWindow := make(map[time.Duration]map[string]autoscalers.Point)
-	var rateLimitErr error
 	globalError := false
+	rateLimitError := false
 
 	for timeWindow, queries := range queriesByTimeWindow {
 		log.Debugf("Starting refreshing external metrics with: %d queries (window: %d)", len(queries), timeWindow)
 
 		results, err := mr.processor.QueryExternalMetric(queries, timeWindow)
-		// Check for rate limit error
-		if err != nil && autoscalers.IsRateLimitError(err) {
-			rateLimitErr = err
-		}
 		// Check for global failure
 		if len(results) == 0 && err != nil {
 			globalError = true
+			rateLimitError = autoscalers.IsRateLimitError(err)
 			log.Errorf("Unable to fetch external metrics: %v", err)
 		}
 
@@ -181,8 +178,9 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 		} else {
 			datadogMetricFromStore.Valid = false
 			if globalError {
-				if rateLimitErr != nil { //Don't need to increment retries on rate limit regardless of whether splitting batches is enabled since rate limits are not split
-					datadogMetricFromStore.Error = NewRateLimitError(rateLimitErr)
+				// Don't need to increment retries on rate limit regardless of whether splitting batches is enabled since rate limits are not split
+				if rateLimitError {
+					datadogMetricFromStore.Error = NewRateLimitError()
 				} else if mr.splitBatchBackoffOnErrors {
 					incrementRetries(datadogMetricFromStore)
 					datadogMetricFromStore.Error = NewInvalidMetricGlobalErrorWithRetries(len(datadogMetrics), datadogMetricFromStore.RetryAfter.Format(time.RFC3339))

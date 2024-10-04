@@ -1314,6 +1314,7 @@ func TestBatchSplittingWithBackoff(t *testing.T) {
 		})
 	}
 }
+
 func Test429TooManyRequestsErrorHandling(t *testing.T) {
 	// At the end we'll check that update time has been updated, giving 10s to run the tests
 	// We truncate down to the second as that's the granularity we have from the backend
@@ -1333,7 +1334,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 					},
 					query: "query-metric0",
 				},
@@ -1344,7 +1345,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false,
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 					},
 					query: "query-metric1",
 				},
@@ -1361,7 +1362,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false, // Invalid due to the 429 error
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 						Retries:  0, // Retries remain the same
 					},
 					query: "query-metric0",
@@ -1373,7 +1374,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false, // Invalid due to the 429 error
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 						Retries:  0, // Retries remain the same
 					},
 					query: "query-metric1",
@@ -1420,7 +1421,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    1.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false, // Invalid due to the global 429 error
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 						Retries:  0, // Retries remain the same
 					},
 					query: "query-metric0",
@@ -1432,7 +1433,7 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 						Value:    2.0,
 						DataTime: defaultPreviousUpdateTime,
 						Valid:    false, // Also invalid due to the global 429 error
-						Error:    NewRateLimitError(errors.New("429 Too Many Requests")),
+						Error:    NewRateLimitError(),
 						Retries:  0, // Retry remain the same
 					},
 					query: "query-metric1",
