@@ -377,6 +377,10 @@ func (fb *builder) prepareFilePath(path string) (string, error) {
 func (fb *builder) RegisterFilePerm(path string) {
 	fb.Lock()
 	defer fb.Unlock()
+	if fb.isClosed {
+		return
+	}
+
 	fb.permsInfos.add(path)
 }
 
