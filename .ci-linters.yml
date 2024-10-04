@@ -1,7 +1,7 @@
 ---
 # Configuration for CI related linters
 
-# Lists stages and jobs that are allowed to not have both needs / rules
+# Lists stages and jobs that are not allowed to have both 'needs' and 'rules' keywords
 needs-rules:
   allowed-stages:
     - .pre
