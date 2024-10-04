@@ -243,6 +243,7 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-delivery
+/omnibus/python-scripts/                @DataDog/platform-integrations
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
