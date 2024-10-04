@@ -14,6 +14,13 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -161,6 +168,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			},
 			InstanceRoles: awsIam.RoleArray{
 				linuxNodeRole,
+				windowsNodeRole,
 			},
 			ServiceRole: clusterRole,
 			ProviderCredentialOpts: &eks.KubeconfigOptionsArgs{
@@ -328,6 +336,8 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			env.FakeIntake = nil
 		}
 
+		workloadWithCRDDeps := make([]pulumi.Resource, len(workloadDeps))
+		copy(workloadWithCRDDeps, workloadDeps)
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
@@ -340,6 +350,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err != nil {
 				return err
 			}
+			workloadWithCRDDeps = append(workloadWithCRDDeps, kubernetesAgent)
 		} else {
 			env.Agent = nil
 		}
@@ -351,6 +362,42 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			}
 		}
 
+		// Deploy testing workload
+		if params.deployTestWorkload {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-nginx", "", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := redis.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-redis", true, utils.PulumiDependsOn(workloadWithCRDDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := cpustress.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-cpustress", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+
+			// dogstatsd clients that report to the Agent
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+
+			// dogstatsd clients that report to the dogstatsd standalone deployment
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := tracegen.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-tracegen", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := prometheus.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-prometheus", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+
+			if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, eksKubeProvider, "workload-mutated", "workload-mutated-lib-injection", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+				return err
+			}
+		}
 		// Deploy workloads
 		for _, appFunc := range params.workloadAppFuncs {
 			_, err := appFunc(&awsEnv, eksKubeProvider)

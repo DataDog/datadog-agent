@@ -14,7 +14,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -23,21 +22,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-type baseSuite struct {
-	suite.Suite
+type baseSuite[Env any] struct {
+	e2e.BaseSuite[Env]
 
 	startTime     time.Time
 	endTime       time.Time
-	datadogClient *datadog.Client
 	Fakeintake    *fakeintake.Client
+	datadogClient *datadog.Client
 	clusterName   string
 }
 
-func (suite *baseSuite) SetupSuite() {
+func (suite *baseSuite[Env]) SetupSuite() {
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	suite.Require().NoError(err)
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
@@ -45,17 +45,18 @@ func (suite *baseSuite) SetupSuite() {
 	suite.datadogClient = datadog.NewClient(apiKey, appKey)
 
 	suite.startTime = time.Now()
+	suite.BaseSuite.SetupSuite()
 }
 
-func (suite *baseSuite) TearDownSuite() {
+func (suite *baseSuite[Env]) TearDownSuite() {
 	suite.endTime = time.Now()
 }
 
-func (suite *baseSuite) BeforeTest(suiteName, testName string) {
+func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
 }
 
-func (suite *baseSuite) AfterTest(suiteName, testName string) {
+func (suite *baseSuite[Env]) AfterTest(suiteName, testName string) {
 	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
 }
 
@@ -98,9 +99,8 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *baseSuite) testMetric(args *testMetricArgs) {
+func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
-
 	suite.Run("metric   "+prettyMetricQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
@@ -174,7 +174,6 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
 				return regexp.MustCompile(tag)
 			})
-
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
 				fakeintake.WithMatchingTags[*aggregator.MetricSeries](regexTags),
@@ -227,7 +226,7 @@ type testLogExpectArgs struct {
 	Message string
 }
 
-func (suite *baseSuite) testLog(args *testLogArgs) {
+func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("log   "+prettyLogQuery, func() {
@@ -356,7 +355,7 @@ type testCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *baseSuite) testCheckRun(args *testCheckRunArgs) {
+func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {

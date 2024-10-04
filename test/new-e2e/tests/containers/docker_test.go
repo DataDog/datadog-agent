@@ -9,18 +9,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"os"
+	"testing"
+
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
-	"os"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 )
 
 type DockerSuite struct {
-	baseSuite
+	baseSuite[environments.DockerHost]
 }
 
 func TestDockerSuite(t *testing.T) {
