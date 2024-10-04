@@ -41,6 +41,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
+extern void emitAgentTelemetry(char*, char*, double, char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -61,6 +62,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
+   set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
 }
 */
 import "C"
@@ -354,5 +356,27 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
+	}
+}
+
+//export emitAgentTelemetry
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.double, metricType *C.char) {
+	checkName := C.GoString(check)
+	metricName := C.GoString(metric)
+	metricValue := float64(value)
+	metricTypeStr := C.GoString(metricType)
+
+	// Check that arguments passed over the bridge successfully
+	if checkName != "test_check" {
+		panic(fmt.Sprintf("unexpected check name: %s", checkName))
+	}
+	if metricName != "test_metric" {
+		panic(fmt.Sprintf("unexpected metric name: %s", metricName))
+	}
+	if metricTypeStr != "gauge" && metricTypeStr != "counter" && metricTypeStr != "histogram" {
+		panic(fmt.Sprintf("unexpected metric type: %s", metricTypeStr))
+	}
+	if fmt.Sprintf("%.1f", metricValue) != "1.0" {
+		panic(fmt.Sprintf("unexpected metric value: %f", metricValue))
 	}
 }

@@ -11,12 +11,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
@@ -191,14 +192,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
-				fx.Provide(
-					demultiplexerimpl.NewDefaultParams,
-				),
 			)
 			if err != nil {
 				var ue configErr

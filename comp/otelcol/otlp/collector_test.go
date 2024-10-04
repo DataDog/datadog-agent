@@ -9,7 +9,6 @@ package otlp
 
 import (
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -81,16 +80,6 @@ func TestStartPipeline(t *testing.T) {
 func TestStartPipelineFromConfig(t *testing.T) {
 	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
 	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
-
-	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
-	if runtime.GOOS == "windows" {
-		t.Skip("Skip on Windows, see AP-1723 for details")
-	}
-
-	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skip on macOS, see AP-1723 for details")
-	}
 
 	tests := []struct {
 		path string

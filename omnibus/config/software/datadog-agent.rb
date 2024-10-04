@@ -65,9 +65,9 @@ build do
   end
 
   # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
+  env = with_standard_compiler_flags(with_embedded_path(env))
   default_install_dir = "/opt/datadog-agent"
-
+  
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
