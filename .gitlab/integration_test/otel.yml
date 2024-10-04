@@ -33,9 +33,10 @@ docker_image_build_otel:
     - mkdir -p /tmp/otel-ci
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
+    - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
   script:
     - docker build -t agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
-    - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 ./test/integration/docker/otel_agent_build_test.py
+    - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
