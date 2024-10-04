@@ -208,6 +208,7 @@ func (c *Config) IsCheckConfig() bool {
 		if !isPrimary {
 			isCheckConfig = false
 		}
+		// TODO: REMOVE ME
 		log.Warnf("[IsCheckConfig] name=%s c.HAAgentCheck=%v haAgentEnabled=%v role=%s isPrimary=%v isCheckConfig=%v",
 			c.Name, c.HAAgentCheck, haAgentEnabled, pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary, isCheckConfig)
 	}
