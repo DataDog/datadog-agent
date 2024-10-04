@@ -200,7 +200,7 @@ func newSenderImpl(
 	// Get host information (only hostid is used for now)
 	info := metadatautils.GetInformation()
 
-	// Complying with inttake schema by providing dummy data (may change in the future)
+	// Complying with intake schema by providing dummy data (may change in the future)
 	host := HostPayload{
 		Hostname: "x",
 	}
