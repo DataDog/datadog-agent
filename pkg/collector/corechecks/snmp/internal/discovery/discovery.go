@@ -8,11 +8,11 @@ package discovery
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"sync"
 	"time"
-	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,6 +24,7 @@ import (
 
 const cacheKeyPrefix = "snmp"
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
+
 var discoveryVar = expvar.NewMap("snmpDiscovery")
 
 // Discovery handles snmp discovery states
@@ -170,7 +171,8 @@ func (d *Discovery) discoverDevices() {
 			default:
 			}
 		}
-		discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return fmt.Sprintf("%d", len(subnet.devices)) }))
+		devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+		discoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 
 		select {
 		case <-d.stop:

@@ -235,7 +235,6 @@ func (l *SNMPListener) checkDevices() {
 			subnet = &subnets[i]
 			startingIP := make(net.IP, len(subnet.startingIP))
 			copy(startingIP, subnet.startingIP)
-			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
 			for currentIP := startingIP; subnet.network.Contains(currentIP); incrementIP(currentIP) {
 
 				if ignored := subnet.config.IsIPIgnored(currentIP); ignored {
@@ -256,7 +255,8 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
-			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return fmt.Sprintf("%d", len(subnet.devices)) }))
+			devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 		}
 
 		select {

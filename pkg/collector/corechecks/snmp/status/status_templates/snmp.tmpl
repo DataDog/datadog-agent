@@ -4,7 +4,7 @@
   {{- range $key, $value := .snmpProfiles }}
   {{$key}}: {{$value}}
   {{- end }}
-{{- end }}
+{{- end -}}
 {{- if or .autodiscoverySubnets .discoverySubnets }}
   Autodiscovery
   =============
@@ -26,4 +26,4 @@
   Subnet {{$key}} scanned with {{$value}} devices
   {{- end }}
   {{- end }}
-{{- end }}
+{{- end -}}

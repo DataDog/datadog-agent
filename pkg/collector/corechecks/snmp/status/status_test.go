@@ -57,7 +57,7 @@ func TestStatus(t *testing.T) {
 	}
 }
 
-func TestStatusWithError(t *testing.T) {
+func TestStatusWithProfileError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("snmp_profile_errors", "error")
 	profileExpVar := expvar.NewMap("snmpProfileErrors")
@@ -104,6 +104,71 @@ error2`
   <span class="stat_data">
       foobar: error1
 error2
+  </span>
+</div>`
+
+			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			assert.Equal(t, expectedResult, output)
+
+			fmt.Printf("%s", b.String())
+
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.assertFunc(t)
+		})
+	}
+}
+
+
+func TestStatusAutodiscovery(t *testing.T) {
+	autodiscoveryExpVar := expvar.NewMap("snmpAutodiscovery")
+	autodiscoveryExpVar.Set("127.0.0.1/24", expvar.Func(func() interface{} {
+		return "scanning"
+	}))
+
+	provider := Provider{}
+	tests := []struct {
+		name       string
+		assertFunc func(t *testing.T)
+	}{
+		{"JSON", func(t *testing.T) {
+			stats := make(map[string]interface{})
+			provider.JSON(false, stats)
+
+			assert.NotEmpty(t, stats)
+			fmt.Printf("%v", stats)
+		}},
+		{"Text", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.Text(false, b)
+
+			assert.NoError(t, err)
+
+			expectedTextOutput := `
+  Autodiscovery
+  =============
+  Subnet 127.0.0.1/24 scanning...`
+
+			expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
+			output := strings.Replace(b.String(), "\r\n", "\n", -1)
+			assert.Equal(t, expectedResult, output)
+
+			fmt.Printf("%s", b.String())
+		}},
+		{"HTML", func(t *testing.T) {
+			b := new(bytes.Buffer)
+			err := provider.HTML(false, b)
+
+			assert.NoError(t, err)
+			expectedTextOutput := `
+<div class="stat">
+  <span class="stat_title">SNMP Autodiscovery</span>
+  <span class="stat_data">
+    Subnet 127.0.0.1/24 scanning...</br>
   </span>
 </div>`
 
