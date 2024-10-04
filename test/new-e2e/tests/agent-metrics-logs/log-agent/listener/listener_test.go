@@ -115,4 +115,5 @@ func assertLogsReceived(
 
 	t.Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
 	utils.CheckLogsExpected(t, fakeIntake, "test-app", "bob", []string{sourceHostTag})
+	utils.CheckNoDuplicateTags(t, fakeIntake, "test-app", "bob")
 }
