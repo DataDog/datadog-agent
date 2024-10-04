@@ -72,7 +72,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
-            if (old_entry->container.container_id[0] != '\0') {
+            if ((old_entry->container.container_id[0] != '\0') && old_entry->container.cgroup_context.cgroup_flags && (old_entry->container.cgroup_context.cgroup_flags != CGROUP_MANAGER_SYSTEMD)) {
                 return 0;
             }
 

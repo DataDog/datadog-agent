@@ -9,7 +9,6 @@ package webhook
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"runtime"
 	"testing"
@@ -29,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -47,7 +46,7 @@ func TestSecretNotFoundV1beta1(t *testing.T) {
 	defer close(stopCh)
 	c := f.run(stopCh)
 
-	_, err := c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
+	_, err := c.mutatingWebhooksLister.Get(v1beta1Cfg.getWebhookName())
 	if !errors.IsNotFound(err) {
 		t.Fatal("Webhook shouldn't be created")
 	}
@@ -72,16 +71,22 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	c := f.run(stopCh)
+	c.config.validationEnabled = true
+	c.config.mutationEnabled = true
 
-	var webhook *admiv1beta1.MutatingWebhookConfiguration
+	var validatingWebhookConfiguration *admiv1beta1.ValidatingWebhookConfiguration
 	require.Eventually(t, func() bool {
-		webhook, err = c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
+		validatingWebhookConfiguration, err = c.validatingWebhooksLister.Get(v1beta1Cfg.getWebhookName())
 		return err == nil
 	}, waitFor, tick)
 
-	if err := validateV1beta1(webhook, secret); err != nil {
-		t.Fatalf("Invalid Webhook: %v", err)
-	}
+	var mutatingWebhookConfiguration *admiv1beta1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		mutatingWebhookConfiguration, err = c.mutatingWebhooksLister.Get(v1beta1Cfg.getWebhookName())
+		return err == nil
+	}, waitFor, tick)
+
+	validateV1beta1(t, validatingWebhookConfiguration, mutatingWebhookConfiguration, secret)
 
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
@@ -102,9 +107,24 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 	secret := buildSecret(data, v1beta1Cfg)
 	f.populateSecretsCache(secret)
 
-	webhook := &admiv1beta1.MutatingWebhookConfiguration{
+	oldValidatingWebhookConfiguration := &admiv1beta1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: v1beta1Cfg.getWebhookName(),
+			Name: v1Cfg.getWebhookName(),
+		},
+		Webhooks: []admiv1beta1.ValidatingWebhook{
+			{
+				Name: "webhook-foo",
+			},
+			{
+				Name: "webhook-bar",
+			},
+		},
+	}
+	f.populateValidatingWebhooksCache(oldValidatingWebhookConfiguration)
+
+	oldMutatingWebhookConfiguration := &admiv1beta1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: v1Cfg.getWebhookName(),
 		},
 		Webhooks: []admiv1beta1.MutatingWebhook{
 			{
@@ -115,112 +135,71 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 			},
 		},
 	}
-
-	f.populateWebhooksCache(webhook)
+	f.populateMutatingWebhooksCache(oldMutatingWebhookConfiguration)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	c := f.run(stopCh)
+	c.config.validationEnabled = true
+	c.config.mutationEnabled = true
 
-	var newWebhook *admiv1beta1.MutatingWebhookConfiguration
+	var newValidatingWebhookConfiguration *admiv1beta1.ValidatingWebhookConfiguration
 	require.Eventually(t, func() bool {
-		newWebhook, err = c.webhooksLister.Get(v1beta1Cfg.getWebhookName())
-		return err == nil && !reflect.DeepEqual(webhook, newWebhook)
+		newValidatingWebhookConfiguration, err = c.validatingWebhooksLister.Get(v1Cfg.getWebhookName())
+		return err == nil && !reflect.DeepEqual(oldValidatingWebhookConfiguration, newValidatingWebhookConfiguration)
 	}, waitFor, tick)
 
-	if err := validateV1beta1(newWebhook, secret); err != nil {
-		t.Fatalf("Invalid Webhook: %v", err)
-	}
+	var newMutatingWebhookConfiguration *admiv1beta1.MutatingWebhookConfiguration
+	require.Eventually(t, func() bool {
+		newMutatingWebhookConfiguration, err = c.mutatingWebhooksLister.Get(v1Cfg.getWebhookName())
+		return err == nil && !reflect.DeepEqual(oldMutatingWebhookConfiguration, newMutatingWebhookConfiguration)
+	}, waitFor, tick)
+
+	validateV1beta1(t, newValidatingWebhookConfiguration, newMutatingWebhookConfiguration, secret)
 
 	assert.Eventually(t, func() bool {
 		return c.queue.Len() == 0
 	}, waitFor, tick, "Work queue isn't empty")
 }
 
-func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
-	mockConfig := configmock.New(t)
-	f := newFixtureV1beta1(t)
-	c, _ := f.createController()
-	c.config = NewConfig(true, false)
-
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "Ignore")
-	c.config = NewConfig(true, false)
-
-	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "ignore")
-	c.config = NewConfig(true, false)
-
-	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "BadVal")
-	c.config = NewConfig(true, false)
-
-	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "")
-	c.config = NewConfig(true, false)
-
-	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
-}
-
-func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
+func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "Fail")
-	c.config = NewConfig(true, false)
+	for _, value := range []string{"Ignore", "ignore", "BadVal", ""} {
+		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
+		c.config = NewConfig(true, false)
 
-	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Fail, *webhookSkeleton.FailurePolicy)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		assert.Equal(t, admiv1beta1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		assert.Equal(t, admiv1beta1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
+	}
 
-	mockConfig.SetWithoutSource("admission_controller.failure_policy", "fail")
-	c.config = NewConfig(true, false)
+	for _, value := range []string{"Fail", "fail"} {
+		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
+		c.config = NewConfig(true, false)
 
-	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.Fail, *webhookSkeleton.FailurePolicy)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		assert.Equal(t, admiv1beta1.Fail, *validatingWebhookSkeleton.FailurePolicy)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		assert.Equal(t, admiv1beta1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
+	}
 }
 
 func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
-	c.config = NewConfig(true, false)
 
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "IfNeeded")
-	c.config = NewConfig(true, false)
-	webhook := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+	for _, value := range []string{"IfNeeded", "ifneeded", "Never", "never", "wrong", ""} {
+		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
+		c.config = NewConfig(true, false)
 
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "ifneeded")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "Never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "wrong")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+		assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
+	}
 }
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
@@ -956,15 +935,118 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil, datadogConfig)
+			c.webhooks = c.generateWebhooks(wmeta, nil, datadogConfig)
 			c.generateTemplates()
 
-			assert.EqualValues(t, tt.want(), c.webhookTemplates)
+			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
 		})
 	}
 }
 
-func TestGetWebhookSkeletonV1beta1(t *testing.T) {
+func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
+	mockConfig := configmock.New(t)
+	failurePolicy := admiv1beta1.Ignore
+	matchPolicy := admiv1beta1.Exact
+	sideEffects := admiv1beta1.SideEffectClassNone
+	port := int32(443)
+	path := "/bar"
+	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
+	customTimeout := int32(2)
+	namespaceSelector, _ := common.DefaultLabelSelectors(true, mockConfig)
+	_, objectSelector := common.DefaultLabelSelectors(false, mockConfig)
+	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.ValidatingWebhook {
+		return admiv1beta1.ValidatingWebhook{
+			Name: "datadog.webhook.foo",
+			ClientConfig: admiv1beta1.WebhookClientConfig{
+				Service: &admiv1beta1.ServiceReference{
+					Namespace: "nsfoo",
+					Name:      "datadog-admission-controller",
+					Port:      &port,
+					Path:      &path,
+				},
+			},
+			Rules: []admiv1beta1.RuleWithOperations{
+				{
+					Operations: []admiv1beta1.OperationType{
+						admiv1beta1.Create,
+					},
+					Rule: admiv1beta1.Rule{
+						APIGroups:   []string{""},
+						APIVersions: []string{"v1"},
+						Resources:   []string{"pods"},
+					},
+				},
+			},
+			FailurePolicy:           &failurePolicy,
+			MatchPolicy:             &matchPolicy,
+			SideEffects:             &sideEffects,
+			TimeoutSeconds:          to,
+			AdmissionReviewVersions: []string{"v1beta1"},
+			ObjectSelector:          objSelector,
+			NamespaceSelector:       nsSelector,
+		}
+	}
+	type args struct {
+		nameSuffix string
+		path       string
+	}
+	tests := []struct {
+		name              string
+		args              args
+		timeout           *int32
+		namespaceSelector bool
+		want              admiv1beta1.ValidatingWebhook
+	}{
+		{
+			name: "nominal case",
+			args: args{
+				nameSuffix: "foo",
+				path:       "/bar",
+			},
+			namespaceSelector: false,
+			want:              webhook(&defaultTimeout, objectSelector, nil),
+		},
+		{
+			name: "namespace selector",
+			args: args{
+				nameSuffix: "foo",
+				path:       "/bar",
+			},
+			namespaceSelector: true,
+			want:              webhook(&defaultTimeout, nil, namespaceSelector),
+		},
+		{
+			name: "custom timeout",
+			args: args{
+				nameSuffix: "foo",
+				path:       "/bar",
+			},
+			timeout:           &customTimeout,
+			namespaceSelector: false,
+			want:              webhook(&customTimeout, objectSelector, nil),
+		},
+	}
+
+	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.timeout != nil {
+				mockConfig.SetWithoutSource("admission_controller.timeout_seconds", *tt.timeout)
+				defer mockConfig.SetDefault("admission_controller.timeout_seconds", defaultTimeout)
+			}
+
+			c := &ControllerV1beta1{}
+			c.config = NewConfig(false, tt.namespaceSelector)
+
+			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, mockConfig)
+
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
+		})
+	}
+}
+
+func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 	mockConfig := configmock.New(t)
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
@@ -1064,7 +1146,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, mockConfig)
 
-			assert.EqualValues(t, tt.want, c.getWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
 		})
 	}
 }
@@ -1087,6 +1169,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 	return NewControllerV1beta1(
 		f.client,
 		factory.Core().V1().Secrets(),
+		factory.Admissionregistration().V1beta1().ValidatingWebhookConfigurations(),
 		factory.Admissionregistration().V1beta1().MutatingWebhookConfigurations(),
 		func() bool { return true },
 		make(chan struct{}),
@@ -1106,20 +1189,28 @@ func (f *fixtureV1beta1) run(stopCh chan struct{}) *ControllerV1beta1 {
 	return c
 }
 
-func (f *fixtureV1beta1) populateWebhooksCache(webhooks ...*admiv1beta1.MutatingWebhookConfiguration) {
+func (f *fixtureV1beta1) populateValidatingWebhooksCache(webhooks ...*admiv1beta1.ValidatingWebhookConfiguration) {
+	for _, w := range webhooks {
+		_, _ = f.client.AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Create(context.TODO(), w, metav1.CreateOptions{})
+	}
+}
+
+func (f *fixtureV1beta1) populateMutatingWebhooksCache(webhooks ...*admiv1beta1.MutatingWebhookConfiguration) {
 	for _, w := range webhooks {
 		_, _ = f.client.AdmissionregistrationV1beta1().MutatingWebhookConfigurations().Create(context.TODO(), w, metav1.CreateOptions{})
 	}
 }
 
-func validateV1beta1(w *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secret) error {
-	if len(w.Webhooks) != 3 {
-		return fmt.Errorf("Webhooks should contain 3 entries, got %d", len(w.Webhooks))
+func validateV1beta1(t *testing.T, validatingWebhooks *admiv1beta1.ValidatingWebhookConfiguration, mutatingWebhooks *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secret) {
+	// Validate the number of webhooks.
+	require.Len(t, validatingWebhooks.Webhooks, 0)
+	require.Len(t, mutatingWebhooks.Webhooks, 3)
+
+	// Validate the CA bundle for webhooks.
+	for i := 0; i < len(validatingWebhooks.Webhooks); i++ {
+		require.Equal(t, validatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
-	for i := 0; i < len(w.Webhooks); i++ {
-		if !reflect.DeepEqual(w.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data)) {
-			return fmt.Errorf("The Webhook CABundle doesn't match the Secret: CABundle: %v, Secret: %v", w.Webhooks[i].ClientConfig.CABundle, s)
-		}
+	for i := 0; i < len(mutatingWebhooks.Webhooks); i++ {
+		require.Equal(t, mutatingWebhooks.Webhooks[i].ClientConfig.CABundle, certificate.GetCABundle(s.Data))
 	}
-	return nil
 }

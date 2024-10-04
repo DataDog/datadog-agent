@@ -56,6 +56,7 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
 	EnableEnforcement(bool)
+	PlaySnapshot()
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -448,4 +449,9 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
+}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	p.PlatformProbe.PlaySnapshot()
 }

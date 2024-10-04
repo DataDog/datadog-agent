@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 // DefaultLabelSelectors returns the mutating webhooks object selector based on the configuration
@@ -25,7 +24,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool, datadogConfig config.Compo
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
 				{
-					Key:      common.EnabledLabelKey,
+					Key:      EnabledLabelKey,
 					Operator: metav1.LabelSelectorOpNotIn,
 					Values:   []string{"false"},
 				},
@@ -35,7 +34,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool, datadogConfig config.Compo
 		// Ignore all, accept pods if they're explicitly allowed
 		labelSelector = metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				common.EnabledLabelKey: "true",
+				EnabledLabelKey: "true",
 			},
 		}
 	}

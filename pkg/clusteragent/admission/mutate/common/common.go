@@ -109,7 +109,7 @@ func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarF
 	for i := range containers {
 		env, err := fn(&containers[i], init)
 		if err != nil {
-			_ = log.Errorf("Error building env var: %v", err)
+			log.Errorf("Error building env var: %v", err)
 			continue
 		}
 		injected = injectEnvInContainer(&containers[i], env) || injected
