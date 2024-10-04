@@ -40,7 +40,6 @@ func TestGoDI(t *testing.T) {
 	}
 
 	sampleServicePath := BuildSampleService(t)
-	t.Log(sampleServicePath)
 	cmd := exec.Command(sampleServicePath)
 	cmd.Env = []string{
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
@@ -90,9 +89,6 @@ func TestGoDI(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(GoDI.Close)
 
-	// Give DI time to start up
-	time.Sleep(time.Second * 5)
-
 	cm, ok := GoDI.ConfigManager.(*diconfig.ReaderConfigManager)
 	if !ok {
 		t.Fatal("Config manager is of wrong type")
@@ -103,6 +99,7 @@ func TestGoDI(t *testing.T) {
 
 	b := []byte{}
 	var buf *bytes.Buffer
+	doCapture = false
 	for function, expectedCaptureValue := range expectedCaptures {
 		// Generate config for this function
 		buf = bytes.NewBuffer(b)
@@ -115,12 +112,14 @@ func TestGoDI(t *testing.T) {
 
 		// Read the configuration via the config manager
 		_, err := cm.ConfigWriter.Write(buf.Bytes())
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 2)
+		doCapture = true
 		if err != nil {
 			t.Errorf("could not read new configuration: %s", err)
 		}
+		time.Sleep(time.Second * 2)
+		doCapture = false
 
-		t.Logf("\n\n")
 	}
 }
 
@@ -130,7 +129,12 @@ type eventOutputTestWriter struct {
 	expectedResult map[string]*ditypes.CapturedValue
 }
 
+var doCapture bool
+
 func (e *eventOutputTestWriter) Write(p []byte) (n int, err error) {
+	if !doCapture {
+		return 0, nil
+	}
 	var snapshot ditypes.SnapshotUpload
 	if err := json.Unmarshal(p, &snapshot); err != nil {
 		e.t.Error("failed to unmarshal snapshot", err)
