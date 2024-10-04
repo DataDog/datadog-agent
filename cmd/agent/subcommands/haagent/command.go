@@ -7,9 +7,11 @@
 package snmp
 
 import (
+	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -54,13 +56,34 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // setRole set HA agent role
-func setRole(args argsType, conf config.Component, logger log.Component) error {
+func setRole(args argsType, config config.Component, logger log.Component) error {
 	logger.Warnf("[HA Agent] args: %+v", args) // TODO: REMOVE ME
 	if len(args) != 1 {
 		return fmt.Errorf("only one argument is expected. %d arguments were given", len(args))
 	}
 	role := args[0]
 
-	haagent.SetRole(role)
+	// Global Agent configuration
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	e := util.SetAuthToken(config)
+	if e != nil {
+		return e
+	}
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+	urlstr := fmt.Sprintf("https://%v:%v/agent/role/%s", ipcAddress, config.GetInt("cmd_port"), role)
+
+	fmt.Printf("URL %s\n", urlstr)
+
+	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if e != nil {
+		return fmt.Errorf("Error stopping the agent: %v", e)
+	}
+
+	fmt.Printf("Successfully change role to %s\n", role)
 	return nil
 }

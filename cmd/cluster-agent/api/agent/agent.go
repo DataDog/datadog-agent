@@ -39,6 +39,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		makeFlare(w, r, statusComponent)
 	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
+	r.HandleFunc("/role/{role}", setRole).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +93,16 @@ func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
 	w.Write(j)
+}
+
+//nolint:revive // TODO(CINT) Fix revive linter
+func setRole(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+
+	log.Infof("Got a request to change role: %s", setting)
+
+	w.WriteHeader(http.StatusOK)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter

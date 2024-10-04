@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
@@ -203,15 +201,15 @@ func (c *Config) IsTemplate() bool {
 func (c *Config) IsCheckConfig() bool {
 	isCheckConfig := !c.ClusterCheck && len(c.Instances) > 0
 
-	if haagent.IsEnabled() && c.HAAgentCheck {
-		isPrimary := haagent.IsPrimary()
-		if !isPrimary {
-			isCheckConfig = false
-		}
-		// TODO: REMOVE ME
-		log.Warnf("[IsCheckConfig] name=%s c.HAAgentCheck=%v haAgentEnabled=%v role=%s isPrimary=%v isCheckConfig=%v",
-			c.Name, c.HAAgentCheck, haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary, isCheckConfig)
-	}
+	//if haagent.IsEnabled() && c.HAAgentCheck {
+	//	isPrimary := haagent.IsPrimary()
+	//	if !isPrimary {
+	//		isCheckConfig = false
+	//	}
+	//	// TODO: REMOVE ME
+	//	log.Warnf("[IsCheckConfig] name=%s c.HAAgentCheck=%v haAgentEnabled=%v role=%s isPrimary=%v isCheckConfig=%v",
+	//		c.Name, c.HAAgentCheck, haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary, isCheckConfig)
+	//}
 	return isCheckConfig
 }
 

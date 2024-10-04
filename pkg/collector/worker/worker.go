@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -149,7 +150,17 @@ func (w *Worker) Run() {
 		utilizationTracker.CheckStarted()
 
 		// Run the check
-		checkErr := check.Run()
+		var checkErr error
+
+		if haagent.IsEnabled() && check.String() == "snmp" {
+			isPrimary := haagent.IsPrimary()
+			if isPrimary {
+				checkErr = check.Run()
+			}
+			// TODO: REMOVE ME
+			log.Warnf("[IsCheckConfig] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
+				check.String(), haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
+		}
 
 		utilizationTracker.CheckFinished()
 
