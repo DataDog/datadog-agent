@@ -10,6 +10,7 @@ package uploader
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -102,6 +103,7 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 }
 
 func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
+	log.Info("Converting args")
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var argName string
@@ -109,6 +111,11 @@ func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string
 			argName = defs[idx].Name
 		} else {
 			argName = fmt.Sprintf("arg_%d", idx)
+		}
+
+		if reflect.Kind(capture.Kind) == reflect.Slice {
+			args[argName] = convertSlice(&defs[idx], capture)
+			continue
 		}
 
 		if capture == nil {
@@ -121,12 +128,30 @@ func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if capture.Fields != nil && idx < len(defs) {
+		if capture.Fields != nil {
 			cv.Fields = convertArgs(defs[idx].ParameterPieces, capture.Fields)
 		}
 		args[argName] = cv
 	}
 	return args
+}
+
+func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
+	if len(def.ParameterPieces) != 2 {
+		// The definition should have two fields, for type, and for length
+		return nil
+	}
+
+	sliceValue := &ditypes.CapturedValue{
+		Fields: map[string]*ditypes.CapturedValue{},
+	}
+	for i := range capture.Fields {
+		sliceValue.Fields[fmt.Sprintf("arg_%d", i)] = &ditypes.CapturedValue{
+			Type:  capture.Fields[i].Type,
+			Value: &capture.Fields[i].ValueStr,
+		}
+	}
+	return sliceValue
 }
 
 func parseFuncName(funcName string) (string, string) {

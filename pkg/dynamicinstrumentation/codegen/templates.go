@@ -21,15 +21,48 @@ bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
 outputOffset += 3;
 `
 
-// The length of slices aren't known until parsing, so they require
+// The length and type of slices aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var sliceRegisterHeaderTemplateText = `
 // Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the slice kind to output buffer
 param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
-// Read slice length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Parameter.Location.Register}}+1]);
+
+{{.SliceLengthText}}
+
+bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
+outputOffset += 3;
+
+__u16 indexSlice{{.Parameter.ID}};
+slice_length = param_size;
+if (slice_length > MAX_SLICE_LENGTH) {
+    slice_length = MAX_SLICE_LENGTH;
+}
+
+bpf_printk("Slice length: %d", slice_length);
+for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LENGTH; indexSlice{{.Parameter.ID}}++) {
+    if (indexSlice{{.Parameter.ID}} >= slice_length) {
+        break;
+    }
+    {{.SliceTypeHeaderText}}
+}
+`
+
+var sliceLengthRegisterTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[{{.Location.Register}}]);
+`
+
+// The length and type of slices aren't known until parsing, so they require
+// special headers to read in the length dynamically
+var sliceStackHeaderTemplateText = `
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
+// Write the slice kind to output buffer
+param_type = {{.Parameter.Kind}};
+bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
+
+{{.SliceLengthText}}
+
 bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
 outputOffset += 3;
 
@@ -47,30 +80,8 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 }
 `
 
-// The length of slices aren't known until parsing, so they require
-// special headers to read in the length dynamically
-var sliceStackHeaderTemplateText = `
-// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
-// Write the slice kind to output buffer
-param_type = {{.Parameter.Kind}};
-bpf_probe_read(&event->output[outputOffset], sizeof(param_type), &param_type);
-// Read slice length and write it to output buffer
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[29]+{{.Parameter.Location.StackOffset}}+8]);
-bpf_probe_read(&event->output[outputOffset+1], sizeof(param_size), &param_size);
-outputOffset += 3;
-
-__u16 indexSlice{{.Parameter.ID}};
-slice_length = param_size;
-if (slice_length > MAX_SLICE_LENGTH) {
-    slice_length = MAX_SLICE_LENGTH;
-}
-
-for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LENGTH; indexSlice{{.Parameter.ID}}++) {
-    if (indexSlice{{.Parameter.ID}} >= slice_length) {
-        break;
-    }
-    {{.SliceTypeHeaderText}}
-}
+var sliceLengthStackTemplateText = `
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->regs[29]+{{.Parameter.Location.StackOffset}}]);
 `
 
 // The length of strings aren't known until parsing, so they require

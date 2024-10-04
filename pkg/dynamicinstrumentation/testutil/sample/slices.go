@@ -38,6 +38,6 @@ func ExecuteSliceFuncs() {
 	expandSlice(originalSlice)
 	sprintSlice(originalSlice)
 
-	test_uint_slice([]uint{9, 8, 7})
+	test_uint_slice([]uint{1, 2, 3})
 	test_struct_slice([]nestedStruct{{42, "foo"}, {24, "bar"}})
 }

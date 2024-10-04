@@ -195,10 +195,20 @@ func assignLocationsInOrder(params []ditypes.Parameter, locations []ditypes.Loca
 				current.ParameterPieces = append(current.ParameterPieces, stringLength)
 				locationCounter++
 			} else if reflect.Kind(current.Kind) == reflect.Slice {
-				// slices actually have three locations (array, length, capacity)
-				// but are shortened to a single one for parsing. The missing
-				// locations are taken into account in bpf code, but we need
-				// to make sure it's not assigned to something else here.
+				// Slices actually have three locations (array, length, capacity)
+				// but are shortened to a single one for parsing. The location
+				// of the length is stored as a piece of the overall slice
+				// which contains the location of the slice's address.
+				// The capacity slice field is ignored.
+				if len(locations) <= locationCounter+1 {
+					return
+				}
+				sliceLength := ditypes.Parameter{}
+				sliceLengthLocation := locations[locationCounter+1]
+				sliceLength.Location.InReg = sliceLengthLocation.InReg
+				sliceLength.Location.Register = sliceLengthLocation.Register
+				sliceLength.Location.StackOffset = sliceLengthLocation.StackOffset
+				current.ParameterPieces = append(current.ParameterPieces, sliceLength)
 				locationCounter += 2
 			}
 			locationCounter++
