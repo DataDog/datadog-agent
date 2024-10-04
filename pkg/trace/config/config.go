@@ -563,6 +563,14 @@ func (c *AgentConfig) APIKey() string {
 	return c.Endpoints[0].APIKey
 }
 
+// UpdateAPIKey updates the API Key associated with the main endpoint.
+func (c *AgentConfig) UpdateAPIKey(val string) {
+	if len(c.Endpoints) == 0 {
+		return
+	}
+	c.Endpoints[0].APIKey = val
+}
+
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
