@@ -70,6 +70,20 @@ func (s *Stats) add(stat int64) {
 	s.LastFlush = stat
 }
 
+func (s *Stats) copy() *Stats {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	stats := &Stats{
+		Flushes:    s.Flushes,
+		FlushIndex: s.FlushIndex,
+		LastFlush:  s.LastFlush,
+		Name:       s.Name,
+	}
+	copy(stats.Flushes[:], s.Flushes[:])
+	return stats
+}
+
 func newFlushTimeStats(name string) {
 	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
@@ -88,7 +102,11 @@ func addFlushCount(name string, value int64) {
 
 func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
-		return statsMap
+		res := make(map[string]*Stats, len(statsMap))
+		for k, v := range statsMap {
+			res[k] = v.copy()
+		}
+		return res
 	}
 }
 
