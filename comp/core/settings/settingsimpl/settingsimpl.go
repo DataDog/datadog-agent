@@ -42,6 +42,7 @@ type provides struct {
 	ListEndpoint api.AgentEndpointProvider
 	GetEndpoint  api.AgentEndpointProvider
 	SetEndpoint  api.AgentEndpointProvider
+	SetRole      api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -241,6 +242,15 @@ func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (s *settingsRegistry) SetRole(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	role := vars["role"]
+
+	s.log.Infof("Got a request to change a role: %s", role)
+
+	w.WriteHeader(http.StatusOK)
+}
+
 func newSettings(deps dependencies) provides {
 	s := &settingsRegistry{
 		settings: deps.Params.Settings,
@@ -253,5 +263,6 @@ func newSettings(deps dependencies) provides {
 		ListEndpoint: api.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
 		GetEndpoint:  api.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
 		SetEndpoint:  api.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
+		SetRole:      api.NewAgentEndpointProvider(s.SetRole, "/role/{role}", "POST"),
 	}
 }
