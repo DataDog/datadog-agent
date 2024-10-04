@@ -90,6 +90,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
             else:
                 # Package is new in the new file; include it
                 f.write(f"{new_req_value}\n")
+    os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def install_datadog_package(package):
     """
