@@ -14,8 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/agentids"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,7 +59,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error adding dd-agent user to dd-agent group: %w", err)
 	}
-	ddAgentUID, ddAgentGID, err := agentids.GetAgentIDs()
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -157,6 +157,27 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 
 	return startInstallerStable(ctx)
+}
+
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
+func getAgentIDs() (uid, gid int, err error) {
+	ddAgentUser, err := user.Lookup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)
+	}
+	ddAgentGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent group not found: %w", err)
+	}
+	ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent UID to int: %w", err)
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentGroup.Gid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent GID to int: %w", err)
+	}
+	return ddAgentUID, ddAgentGID, nil
 }
 
 // startInstallerStable starts the stable systemd units for the installer

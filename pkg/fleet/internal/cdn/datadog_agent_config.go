@@ -11,10 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
+	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/agentids"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
@@ -142,7 +143,7 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 
 // Write writes the agent configuration to the given directory.
 func (a *agentConfig) Write(dir string) error {
-	ddAgentUID, ddAgentGID, err := agentids.GetAgentIDs()
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
@@ -188,4 +189,25 @@ func marshalAgentConfig(c map[string]interface{}) ([]byte, error) {
 	}
 	b.Write(rawConfig)
 	return b.Bytes(), nil
+}
+
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
+func getAgentIDs() (uid, gid int, err error) {
+	ddAgentUser, err := user.Lookup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent user not found: %w", err)
+	}
+	ddAgentGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return -1, -1, fmt.Errorf("dd-agent group not found: %w", err)
+	}
+	ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent UID to int: %w", err)
+	}
+	ddAgentGID, err := strconv.Atoi(ddAgentGroup.Gid)
+	if err != nil {
+		return -1, -1, fmt.Errorf("error converting dd-agent GID to int: %w", err)
+	}
+	return ddAgentUID, ddAgentGID, nil
 }
