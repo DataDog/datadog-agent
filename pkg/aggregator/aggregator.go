@@ -74,14 +74,12 @@ func (s *Stats) copy() *Stats {
 	s.m.Lock()
 	defer s.m.Unlock()
 
-	stats := &Stats{
+	return &Stats{
 		Flushes:    s.Flushes,
 		FlushIndex: s.FlushIndex,
 		LastFlush:  s.LastFlush,
 		Name:       s.Name,
 	}
-	copy(stats.Flushes[:], s.Flushes[:])
-	return stats
 }
 
 func newFlushTimeStats(name string) {
