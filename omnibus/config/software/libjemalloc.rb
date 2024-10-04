@@ -4,9 +4,9 @@
 # Copyright 2022-present Datadog, Inc.
 
 name "libjemalloc"
-default_version "5.3.0"
+default_version "5.0.1"
 
-version "5.3.0" do
+version "5.0.1" do
   source sha256: "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179" 
 end
 
