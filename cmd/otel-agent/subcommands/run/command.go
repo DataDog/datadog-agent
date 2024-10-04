@@ -100,7 +100,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
 			fx.Supply(uris),
-			fx.Supply(optional.NewNone[coreconfig.Component]),
+			fx.Supply(optional.NewNoneOption[coreconfig.Component]),
 			converterfx.Module(),
 			fx.Provide(func(cp converter.Component) confmap.Converter {
 				return cp
@@ -132,7 +132,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			pkgconfigenv.DetectFeatures(acfg)
 			return acfg, nil
 		}),
-		fx.ProvideOptional[coreconfig.Component](),
+		fxutil.ProvideOptional[coreconfig.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
