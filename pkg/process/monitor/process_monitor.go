@@ -30,7 +30,7 @@ const (
 	// The size of the process events queue of netlink.
 	processMonitorEventQueueSize = 2048
 	// The size of the callbacks queue for pending tasks.
-	pendingCallbacksQueueSize = 2000
+	pendingCallbacksQueueSize = 4000
 )
 
 var (
