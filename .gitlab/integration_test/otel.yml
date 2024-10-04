@@ -21,3 +21,31 @@ integration_tests_otel:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
+
+
+docker_image_build_otel:  
+  stage: integration_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  needs: ["go_deps","integration_tests_otel"]
+  tags: ["runner:docker"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - mkdir -p /tmp/otel-ci
+    - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
+    - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
+  script:
+    - cd /tmp/otel-ci
+    - docker build -f Dockerfile.agent-otel -t agent-byoc:latest
+    - cd
+    - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 ./test/integration/docker/otel_agent_build_test.py
+    # - docker run --entrypoint otel-agent agent-byoc version
+  rules:
+    - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
+      when: never
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
+      when: never
+    - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
+      when: never
+    - when: always
