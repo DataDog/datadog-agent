@@ -58,23 +58,31 @@ func TestReadShouldFailWithError(t *testing.T) {
 	tailer.Stop()
 }
 
-func TestDuplicateTags(t *testing.T) {
+func TestSourceHostTag(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 	logsConfig := &config.LogsConfig{
 		Tags: []string{"test:tag"},
 	}
-	logSource := sources.NewLogSource("test-source", logsConfig)
 
-	tailer := NewTailer(logSource, r, msgChan, read)
+	mockIPAddress := "192.168.1.100:8080"
+	readWithIP := func(tailer *Tailer) ([]byte, string, error) {
+		inBuf := make([]byte, 4096)
+		n, err := tailer.Conn.Read(inBuf)
+		if err != nil {
+			return nil, "", err
+		}
+		return inBuf[:n], mockIPAddress, nil
+	}
+
+	logSource := sources.NewLogSource("test-source", logsConfig)
+	tailer := NewTailer(logSource, r, msgChan, readWithIP)
 	tailer.Start()
 
 	var msg *message.Message
-
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
-	assert.Equal(t, []string{"test:tag"}, msg.Tags())
-
+	assert.Equal(t, []string{"source_host:192.168.1.100", "test:tag"}, msg.Tags())
 	tailer.Stop()
 }
 
