@@ -146,7 +146,7 @@ case "$*" in
     1)
         # We're upgrading.
         if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
-            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}" || true
+            ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}" || true
         fi
     ;;
     *)
