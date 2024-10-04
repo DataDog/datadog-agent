@@ -18,7 +18,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -156,8 +155,6 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		return err
 	}
 	probe.InstrumentationInfo.BPFObjectFileReader = compiledOutput
-
-	pretty.Log(probe.InstrumentationInfo.BPFParametersSourceCode)
 
 	return nil
 }

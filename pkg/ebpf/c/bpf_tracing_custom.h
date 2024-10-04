@@ -16,15 +16,15 @@
 #define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x,3)
 #define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x,4)
 
-#define DI_REGISTER_0 ax
-#define DI_REGISTER_1 bx
-#define DI_REGISTER_2 cx
-#define DI_REGISTER_3 di
-#define DI_REGISTER_4 si
-#define DI_REGISTER_5 r8
-#define DI_REGISTER_6 r9
-#define DI_REGISTER_7 r10
-#define DI_REGISTER_8 r11
+#define DI_REGISTER_0 di
+#define DI_REGISTER_1 si
+#define DI_REGISTER_2 dx
+#define DI_REGISTER_3 cx
+#define DI_REGISTER_4 r8
+#define DI_REGISTER_5 r9
+#define DI_REGISTER_6 ax
+#define DI_REGISTER_7 bx
+#define DI_REGISTER_8 cx
 
 #elif defined(bpf_target_arm64)
 
