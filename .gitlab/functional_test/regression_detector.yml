@@ -18,8 +18,6 @@ single-machine-performance-regression_detector:
       - outputs/regression_signal.json # for debugging, also on S3
       - outputs/bounds_check_signal.json # for debugging, also on S3
       - outputs/junit.xml # for debugging, also on S3
-      - report_as_json_string.txt # for debugging transform to valid JSON string
-      - pr_comment_payload.json  # for debugging PR commenter JSON payload bugs
     when: always
   variables:
     SMP_VERSION: 0.16.0
@@ -126,10 +124,40 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Download auth tool; see
-    # https://github.com/DataDog/dd-source/tree/8f80b7ef031839b0b11b4a70b9067d6142f3dd5b/domains/devex/ci/authanywhere
-    - curl -Lo ./authanywhere binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-amd64
-    - chmod u+x ./authanywhere
+    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
+    # invoke task has additional logic that does not seem to apply well to SMP's
+    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
+    # uploading JUnit XML, so the upload command below respects that convention.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
+    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
+    # Finally, exit 1 if the job signals a regression else 0.
+    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
+      job result
+      --submission-metadata submission_metadata
+
+# Shamelessly adapted from golang_deps_commenter job config in
+# golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.
+single-machine-performance-regression_detector-pr-comment:
+  stage: functional_test
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - when: on_success
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3"
+    entrypoint: [""]  # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64"]
+  needs:
+    - job: single-machine-performance-regression_detector
+  artifacts:
+    expire_in: 1 weeks
+    paths:
+      - report_as_json_string.txt # for debugging transform to valid JSON string
+      - pr_comment_payload.json  # for debugging PR commenter JSON payload bugs
+  variables:
+    # Not using the entrypoint script for the pr-commenter image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  allow_failure: true  # allow_failure here should have same setting as in job above
+  script: # ignore error message about no PR, because it happens for dev branches without PRs
     # We need to transform the Markdown report into a valid JSON string (without
     # quotes) in order to pass a well-formed payload to the PR commenting
     # service. Note that on macOS, the "-z" flag is invalid for `sed` (but
@@ -153,18 +181,22 @@ single-machine-performance-regression_detector:
     # GitHub, per
     # https://github.com/DataDog/dd-source/tree/7c941f527fb9c44a73433c7dd0a090d92be7deb4/domains/devex/codex/apps/apis/pr-commenter
     - |
-      curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
+      set +e
+      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
           -H "$(./authanywhere)" \
           -H "X-DdOrigin: curl" \
           -X PATCH \
-          -d "${PR_COMMENT_JSON_PAYLOAD}"
-    # Upload JUnit XML outside of Agent CI's tooling because the `junit_upload`
-    # invoke task has additional logic that does not seem to apply well to SMP's
-    # JUnit XML. Agent CI seems to use `datadog-agent` as the service name when
-    # uploading JUnit XML, so the upload command below respects that convention.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")" || exit $?; export DATADOG_API_KEY
-    - datadog-ci junit upload --service datadog-agent outputs/junit.xml
-    # Finally, exit 1 if the job signals a regression else 0.
-    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
-      job result
-      --submission-metadata submission_metadata
+          -d "${PR_COMMENT_JSON_PAYLOAD}")
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo $out
+        else
+          echo $out >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode
