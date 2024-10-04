@@ -147,18 +147,10 @@ func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.Captu
 		// The definition should have two fields, for type, and for length
 		return nil
 	}
-
 	sliceValue := &ditypes.CapturedValue{
 		Fields: map[string]*ditypes.CapturedValue{},
 	}
-
 	sliceValue.Fields = convertArgs(def.ParameterPieces, capture.Fields)
-	// for i := range capture.Fields {
-	// 	sliceValue.Fields[fmt.Sprintf("arg_%d", i)] = &ditypes.CapturedValue{
-	// 		Type:  capture.Fields[i].Type,
-	// 		Value: &capture.Fields[i].ValueStr,
-	// 	}
-	// }
 	return sliceValue
 }
 
