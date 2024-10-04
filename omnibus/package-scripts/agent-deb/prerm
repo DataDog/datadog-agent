@@ -158,7 +158,7 @@ remove_apm_remote_config()
     fi
 }
 
-case "$1" in
+case "$1" in #this can't be merged with the later case block because running 'remove_custom_integrations' would defeat the persisting integrations feature
     upgrade)
         # We're upgrading.
         if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
