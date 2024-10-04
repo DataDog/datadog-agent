@@ -9,10 +9,13 @@ package logimpl
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -71,4 +74,15 @@ func NewComponent(deps Requires) (Provides, error) {
 	}})
 
 	return Provides{Comp: l}, nil
+}
+
+func fillFlare(fb types.FlareBuilder) error {
+	logFile := config.GetString("log_file")
+	if logFile == "" {
+		logFile = defaultpaths.LogFile
+	}
+
+	pkglog.Flush()
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)
+	return nil
 }
