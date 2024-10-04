@@ -63,7 +63,10 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
-		layers[layer.ID] = layer
+		if layer.AgentConfig != nil || layer.SecurityAgentConfig != nil || layer.SystemProbeConfig != nil {
+			// Only add layers that have at least one config that matches the agent
+			layers[layer.ID] = layer
+		}
 	}
 
 	// Compile ordered layers into a single config
