@@ -22,6 +22,7 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -37,6 +38,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -244,9 +246,93 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 				for deletedPid := range deletedPids {
 					_ = p.registry.Unregister(deletedPid)
 				}
+				p.registry.Log()
+				p.Check()
 			}
 		}
 	}()
+
+	return nil
+}
+
+func (p *goTLSProgram) Check() error {
+	procRoot := kernel.ProcFSRoot()
+	pids, err := process.Pids()
+	if err != nil {
+		return err
+	}
+
+	seenPids := make(map[int]struct{})
+	for _, program := range utils.GetTracedProgramList() {
+		if program.ProgramType != "go-tls" {
+			continue
+		}
+
+		for _, pid := range program.PIDs {
+			seenPids[int(pid)] = struct{}{}
+		}
+	}
+
+	blockedPathIds := make(map[utils.PathIdentifier]struct{})
+	for _, blocked := range utils.GetBlockedPathIDsList() {
+		if blocked.ProgramType != "go-tls" {
+			continue
+		}
+
+		for _, pathId := range blocked.PathIdentifiers {
+			blockedPathIds[pathId.PathIdentifier] = struct{}{}
+		}
+	}
+
+	selfPid := os.Getpid()
+
+	for _, pid := range pids {
+		proc, err := process.NewProcess(pid)
+		if err != nil {
+			continue
+		}
+
+		created, err := proc.CreateTime()
+		if err != nil {
+			continue
+		}
+
+		now := time.Now().UnixMilli()
+		alive := time.Duration((now - created) * int64(time.Millisecond))
+		if alive < 60*time.Second {
+			continue
+		}
+
+		if _, seen := seenPids[int(pid)]; seen {
+			continue
+		}
+
+		if p.cfg.GoTLSExcludeSelf && int(pid) == selfPid {
+			continue
+		}
+
+		pidAsStr := strconv.FormatUint(uint64(pid), 10)
+		exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
+		binPath, err := utils.ResolveSymlink(exePath)
+		if err != nil {
+			continue
+		}
+
+		if internalProcessRegex.MatchString(binPath) {
+			continue
+		}
+
+		path, err := utils.NewFilePath(procRoot, binPath, uint32(pid))
+		if err != nil {
+			continue
+		}
+
+		if _, blocked := blockedPathIds[path.ID]; blocked {
+			continue
+		}
+
+		log.Errorf("go-tls: pid (%v) path (%v) neither hooked nor blocked", pid, path)
+	}
 
 	return nil
 }
