@@ -1,6 +1,6 @@
 single-machine-performance-regression_detector:
   stage: functional_test
-  timeout: 1h10
+  timeout: 1h10m
   rules:
     - !reference [.except_main_or_release_branch]
     - when: on_success
