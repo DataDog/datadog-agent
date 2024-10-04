@@ -53,7 +53,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.22.2
-	golang.org/x/text v0.17.0
+	golang.org/x/text v0.18.0
 )
 
 require (

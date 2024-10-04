@@ -1142,7 +1142,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
 
-	if s.Category == model.NetworkCategory {
+	if !event.NetworkContext.IsZero() {
 		s.NetworkContextSerializer = newNetworkContextSerializer(event)
 	}
 

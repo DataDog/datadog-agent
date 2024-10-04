@@ -132,6 +132,8 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		deps.Compressor,
 	)
 
+	c.config.OnUpdateAPIKey(c.UpdateAPIKey)
+
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.

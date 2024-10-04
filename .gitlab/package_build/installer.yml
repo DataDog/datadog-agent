@@ -88,6 +88,37 @@ datadog-agent-oci-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
+# The bootstrapper program
+#
+bootstrapper_build:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - echo "About to build for $RELEASE_VERSION"
+    - GOOS=linux GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-amd64
+    - GOOS=linux GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-linux-arm64
+    - GOOS=windows GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-windows-amd64.exe
+    - GOOS=darwin GOARCH=amd64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-amd64
+    - GOOS=darwin GOARCH=arm64 inv -e installer.build --bootstrapper --rebuild --no-cgo --output-bin=$OMNIBUS_PACKAGE_DIR/bootstrapper-darwin-arm64
+    - ls -la $OMNIBUS_PACKAGE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+#
 # The installer program
 #
 .installer_build_common:
