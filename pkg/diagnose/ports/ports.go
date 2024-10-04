@@ -82,8 +82,13 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
-		// on windows, if the port is used by a process that is not 'agent.exe', we cannot retrieve the proc name, so we skip it
+		// on windows, if the port is used by a process that is not 'agent.exe', we cannot retrieve the proc name
 		if port.Process == "" && port.Pid != 0 {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisWarning,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process (PID=%d). Verify that the process that is using this port is an Agent process.", value, port.Pid),
+			})
 			continue
 		}
 
