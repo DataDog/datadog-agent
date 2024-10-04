@@ -26,7 +26,13 @@ func SetupInstaller(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("stable", datadogInstaller, "/i", nil)
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// This is the first time that we are installing the installer
+		// so this command should not kill the current process
+		// and we can return the error code if any.
+		err = cmd.Run()
+	}
 	return err
 }
 
@@ -52,8 +58,14 @@ func StartInstallerExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("experiment", datadogInstaller, "/i", nil)
-	return err
+	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
+	if err == nil {
+		// This command will kill this process
+		// launch it asynchronously and don't care about its result
+		// because it will be 0xc000013a
+		_ = cmd.Start()
+	}
+	return nil
 }
 
 // StopInstallerExperiment stops the installer experiment
@@ -65,7 +77,13 @@ func StopInstallerExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("stable", datadogInstaller, "/i", nil)
+	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
+	if err == nil {
+		// This command will kill this process
+		// launch it asynchronously and don't care about its result
+		// because it will be 0xc000013a
+		_ = cmd.Start()
+	}
 	return err
 }
 
