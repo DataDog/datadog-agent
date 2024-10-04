@@ -179,6 +179,7 @@ case "$1" in
         remove_version_history
         remove_sysprobe_secagent_files
         remove_remote_config_db
+
     ;;
     upgrade)
         # We're upgrading.
@@ -190,5 +191,8 @@ esac
 # Delete all .pyc files in the `agent/` and the `bin/agent/dist` dirs
 find $INSTALL_DIR/bin/agent/dist -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/bin/agent/dist"
 find $INSTALL_DIR/bin/agent/dist -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/bin/agent/dist"
+# Delete all .pyc files in the `python-scripts/` dir
+find $INSTALL_DIR/python-scripts -name '*.py[co]' -type f -delete || echo "Unable to delete .pyc files in $INSTALL_DIR/python-scripts"
+find $INSTALL_DIR/python-scripts -name '__pycache__' -type d -delete || echo "Unable to delete __pycache__ directories in $INSTALL_DIR/python-scripts"
 
 exit 0
