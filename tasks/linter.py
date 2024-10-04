@@ -455,7 +455,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
 def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
     Verifies that each added / modified job contains `needs` and also `rules`.
-    It is possible to declare a job not following these rules within `.ci-linters.yml`.
+    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
     All configurations are checked (even downstream ones).
 
     SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
