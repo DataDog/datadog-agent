@@ -52,14 +52,6 @@ func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) 
 	return nil
 }
 
-var templateFunctions = template.FuncMap{
-	// Register index we get from bininspect starts at 0,
-	// but the PT_REGS_PARM macros start at 1
-	"macroCorrect": func(i int) int {
-		return i + 1
-	},
-}
-
 func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	switch param.Kind {
 	case uint(reflect.String):
