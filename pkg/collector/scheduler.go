@@ -244,8 +244,6 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 	var allChecks []check.Check
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
-			// TODO: REMOVE ME
-			log.Debugf("Is not a check config %s, filtered out", config.Name)
 			// skip non check configs.
 			continue
 		}
