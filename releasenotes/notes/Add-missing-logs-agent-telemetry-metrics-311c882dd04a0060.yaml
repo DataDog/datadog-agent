@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added additional agent telemetry metrics for the log tailer code flow: logs.bytes_sent, logs.encoded_bytes_sent, and logs.bytes_missed
+    Added additional Agent telemetry metrics for the log tailer code flow: logs.bytes_sent, logs.encoded_bytes_sent, and logs.bytes_missed
