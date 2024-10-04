@@ -18,7 +18,6 @@ import (
 	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/kr/pretty"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
@@ -79,7 +78,6 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 }
 
 func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
-	pretty.Log("Generate Headers: ", params)
 	for i := range params {
 		err := generateHeaderText(params[i], out)
 		if err != nil {
