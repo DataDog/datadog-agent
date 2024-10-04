@@ -123,7 +123,6 @@ error2
 	}
 }
 
-
 func TestStatusAutodiscovery(t *testing.T) {
 	autodiscoveryExpVar := expvar.NewMap("snmpAutodiscovery")
 	autodiscoveryExpVar.Set("127.0.0.1/24", expvar.Func(func() interface{} {
