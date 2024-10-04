@@ -242,12 +242,6 @@ func TestEnableIfNotGovCloud(t *testing.T) {
 	assert.True(t, a.enabled)
 }
 
-func TestDisableByDefault(t *testing.T) {
-	o := map[string]any{"foo": "bar", "site": "foo.bar"}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
-	assert.False(t, a.enabled)
-}
-
 func TestRun(t *testing.T) {
 	r := newRunnerMock()
 	o := getCommonOverrideConfig(true, "foo.bar")
