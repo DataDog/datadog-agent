@@ -79,6 +79,10 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 			ddLog.Warn("Unable to compute integrations logs max disk usage, falling back to integrations_logs_total_usage setting:", err)
 			maxDiskUsage = logsTotalUsageSetting
 		}
+
+		if maxDiskUsage == 0 {
+			ddLog.Warn("No space available to store logs. Logs from integrations will be dropped. Please allocate space for logs to be stored.")
+		}
 	}
 
 	return &Launcher{
@@ -197,14 +201,14 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	for s.combinedUsageSize+logSize > s.combinedUsageMax {
 		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
 		if leastRecentlyModifiedFile == nil {
-			ddLog.Warn("Could not determine least recently modified file, skipping writing log to file.")
+			ddLog.Error("Could not determine least recently modified file, skipping writing log to file.")
 			return
 		}
 
 		err := s.deleteFile(leastRecentlyModifiedFile)
 		if err != nil {
 			ddLog.Error("Error deleting log file:", err)
-			continue
+			return
 		}
 
 		file, err := os.Create(leastRecentlyModifiedFile.filename)
@@ -387,7 +391,7 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 		leastRecentlyModifiedFile := s.getLeastRecentlyModifiedFile()
 
 		if leastRecentlyModifiedFile == nil {
-			ddLog.Warn("getLeastRecentlyModifiedFile returned nil.")
+			ddLog.Error("Could not determine least recently modified file")
 			return errors.New("getLeastRecentlyModifiedFile returned nil when trying to delete files")
 		}
 

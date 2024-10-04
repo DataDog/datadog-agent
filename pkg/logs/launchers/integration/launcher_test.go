@@ -68,7 +68,6 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 }
 
 func (suite *LauncherTestSuite) TestSendLog() {
-
 	mockConf := &integration.Config{}
 	mockConf.Provider = "container"
 	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
@@ -97,6 +96,90 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
+}
+
+// TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
+// in panics from `deleteFile`
+func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
+	suite.s.combinedUsageMax = -1
+	err := suite.s.scanInitialFiles(suite.s.runPath)
+	assert.NotNil(suite.T(), err)
+}
+
+// TestZeroCombinedUsageMax ensures the launcher won't panic when
+// combinedUsageMax is zero. Realistically the launcher would never run receiveLogs since there is a check for
+func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
+	suite.s.combinedUsageMax = 0
+
+	filename := "sample_integration_123.log"
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
+	assert.Nil(suite.T(), err)
+
+	file.Close()
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+}
+
+func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
+	suite.s.combinedUsageMax = 0
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+}
+
+func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
+	suite.s.combinedUsageMax = 10
+
+	filename := "sample_integration_123.log"
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
+	assert.Nil(suite.T(), err)
+
+	file.Close()
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	// Launcher should write this log
+	writtenLog := "sample"
+	integrationLog := integrations.IntegrationLog{
+		Log:           writtenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(integrationLog)
+	fileStat, err := os.Stat(filepath)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+
+	// Launcher should delete file for this log
+	unwrittenLog := "sample log two"
+	integrationLogTwo := integrations.IntegrationLog{
+		Log:           unwrittenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(integrationLogTwo)
+
+	_, err = os.Stat(filepath)
+	assert.True(suite.T(), os.IsNotExist(err))
+
+	// Remake the file
+	suite.s.receiveLogs(integrationLog)
+	fileStat, err = os.Stat(filepath)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
@@ -154,14 +237,6 @@ func (suite *LauncherTestSuite) TestDeleteFile() {
 
 	_, err = os.Stat(filepath)
 	assert.True(suite.T(), os.IsNotExist(err))
-}
-
-// TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
-// in panics from `deleteFile`
-func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
-	suite.s.combinedUsageMax = -1
-	err := suite.s.scanInitialFiles(suite.s.runPath)
-	assert.NotNil(suite.T(), err)
 }
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
