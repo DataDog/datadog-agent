@@ -80,7 +80,9 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	stopFunctions := []func(){
+		diagnostics.StopGlobalDiagnostics,
+	}
 	if opts.ReaderWriterOptions.CustomReaderWriters {
 		cm, err := diconfig.NewReaderConfigManager()
 		if err != nil {
@@ -101,7 +103,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			stats:         newGoDIStats(),
 		}
 	} else if opts.OfflineOptions.Offline {
-		cm, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
+		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("could not create new file config manager: %w", err)
 		}
@@ -119,6 +121,7 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			du:            du,
 			stats:         newGoDIStats(),
 		}
+		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
 		cm, err := diconfig.NewRCConfigManager()
 		if err != nil {
@@ -136,16 +139,17 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	} else {
 		goDI.processEvent = goDI.uploadSnapshot
 	}
-
 	closeRingbuffer, err := goDI.startRingbufferConsumer(opts.RateLimitPerProbePerSecond)
 	if err != nil {
 		return nil, fmt.Errorf("could not set up new ringbuffer consumer: %w", err)
 	}
 
+	stopFunctions = append(stopFunctions, goDI.ConfigManager.Stop)
+	stopFunctions = append(stopFunctions, closeRingbuffer)
 	goDI.Close = func() {
-		closeRingbuffer()
-		goDI.ConfigManager.Stop()
-		close(diagnostics.Diagnostics.Updates)
+		for i := range stopFunctions {
+			stopFunctions[i]()
+		}
 	}
 
 	return goDI, nil

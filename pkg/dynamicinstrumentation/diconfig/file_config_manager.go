@@ -9,39 +9,39 @@ package diconfig
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func NewFileConfigManager(configFile string) (*ReaderConfigManager, error) {
+func NewFileConfigManager(configFile string) (*ReaderConfigManager, func(), error) {
+	stopChan := make(chan bool)
+	stop := func() {
+		stopChan <- true
+	}
+
 	cm, err := NewReaderConfigManager()
 	if err != nil {
-		return nil, err
+		return nil, stop, err
 	}
 
 	fw := util.NewFileWatcher(configFile)
 	updateChan, err := fw.Watch()
 	if err != nil {
-		return nil, fmt.Errorf("failed to watch config file %s: %s", configFile, err)
+		return nil, stop, fmt.Errorf("failed to watch config file %s: %s", configFile, err)
 	}
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
 
 	go func() {
 		for {
 			select {
 			case rawBytes := <-updateChan:
 				cm.ConfigWriter.Write(rawBytes)
-			case <-c:
+			case <-stopChan:
 				log.Info("stopping file config manager")
 				fw.Stop()
 				return
 			}
 		}
 	}()
-	return cm, nil
+	return cm, stop, nil
 }
