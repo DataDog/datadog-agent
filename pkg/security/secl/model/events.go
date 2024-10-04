@@ -238,7 +238,7 @@ func (t EventType) String() string {
 	case OnDemandEventType:
 		return "ondemand"
 	case RawPacketEventType:
-		return "raw_packet"
+		return "packet"
 	case CustomLostReadEventType:
 		return "lost_events_read"
 	case CustomLostWriteEventType:

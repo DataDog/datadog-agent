@@ -41,7 +41,8 @@ func GetAllCategories() []EventCategory {
 func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	switch eventType {
 	// Process
-	case ExecEventType.String(),
+	case
+		ExecEventType.String(),
 		SignalEventType.String(),
 		ExitEventType.String(),
 		ForkEventType.String(),
@@ -49,17 +50,19 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		return ProcessCategory
 
 	// Kernel
-	case BPFEventType.String(),
+	case
+		BPFEventType.String(),
 		SELinuxEventType.String(),
 		MMapEventType.String(),
 		MProtectEventType.String(),
 		PTraceEventType.String(),
 		UnloadModuleEventType.String(),
-		BindEventType.String():
+		BindEventType.String(),
+		DNSEventType.String():
 		return KernelCategory
 
 	// Network
-	case DNSEventType.String(),
+	case
 		IMDSEventType.String(),
 		RawPacketEventType.String():
 		return NetworkCategory

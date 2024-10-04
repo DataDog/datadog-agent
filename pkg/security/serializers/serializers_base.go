@@ -216,6 +216,20 @@ type BaseEventSerializer struct {
 	*CGroupContextSerializer    `json:"cgroup,omitempty"`
 }
 
+// TSLContextSerializer defines a tls context serializer
+// easyjson:json
+type TSLContextSerializer struct {
+	Version string `json:"version,omitempty"`
+}
+
+// RawPacketSerializer defines a raw packet serializer
+// easyjson:json
+type RawPacketSerializer struct {
+	*NetworkContextSerializer
+
+	TLSContext *TSLContextSerializer `json:"tls,omitempty"`
+}
+
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	mrs := MatchedRuleSerializer{
 		ID:            r.RuleID,

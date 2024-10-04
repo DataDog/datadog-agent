@@ -326,7 +326,7 @@ var (
 		"SIGNALED":   ExitSignaled,
 	}
 
-	sslVersionContants = map[string]uint16{
+	tlsVersionContants = map[string]uint16{
 		"SSL_2_0": 0x0200,
 		"SSL_3_0": 0x0300,
 		"TLS_1_0": 0x0301,
@@ -343,6 +343,7 @@ var (
 	l4ProtocolStrings    = map[L4Protocol]string{}
 	addressFamilyStrings = map[uint16]string{}
 	exitCauseStrings     = map[ExitCause]string{}
+	tlsVersionStrings    = map[uint16]string{}
 )
 
 // File flags
@@ -433,8 +434,9 @@ func initBoolConstants() {
 }
 
 func initSSLVersionConstants() {
-	for k, v := range sslVersionContants {
+	for k, v := range tlsVersionContants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		tlsVersionStrings[v] = k
 	}
 }
 
@@ -466,6 +468,7 @@ func initConstants() {
 	initBPFMapNamesConstants()
 	initAUIDConstants()
 	usersession.InitUserSessionTypes()
+	initSSLVersionConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -522,6 +525,13 @@ type L3Protocol uint16
 
 func (proto L3Protocol) String() string {
 	return l3ProtocolStrings[proto]
+}
+
+// TLSVersion tls version
+type TLSVersion uint16
+
+func (tls TLSVersion) String() string {
+	return tlsVersionStrings[uint16(tls)]
 }
 
 const (
