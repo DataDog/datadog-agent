@@ -36,7 +36,6 @@ from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
 from tasks.otel_agent import OT_AGENT_IMAGE_NAME
-from tasks.otel_agent import build as otel_agent_build
 from tasks.otel_agent import image_build as otel_agent_image_build
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -916,11 +915,6 @@ def check_otel_module_versions(ctx):
 def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64", tag="byoc-ot"):
     """run image_build task and perform follow-on tests to ensure image builds correctly"""
     try:
-        otel_agent_build(ctx)
-    except Exception as e:
-        print(f"Error occurred during otel agent build command: {e}")
-        raise
-    try:
         otel_agent_image_build(
             ctx,
             arch=arch,
@@ -928,6 +922,7 @@ def check_otel_byoc_image_build(ctx, python_command="python3", arch="amd64", tag
             tag=tag,
             docker_file="Dockerfile.agent-otel",
             build_context="comp/otelcol/collector-contrib/impl",
+            copy_dist=False,
         )
     except Exception as e:
         print(f"Error occurred during image build command: {e}")

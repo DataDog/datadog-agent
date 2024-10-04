@@ -24,11 +24,10 @@ integration_tests_otel:
 
 docker_image_build_otel:  
   stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  needs: ["go_deps", "integration_tests_otel"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  needs: ["integration_tests_otel"]
   tags: ["arch:amd64"]
   script:
-    - !reference [.retrieve_linux_go_deps]
     - inv check-otel-byoc-image-build
   rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/

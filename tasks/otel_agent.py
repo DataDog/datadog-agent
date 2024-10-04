@@ -49,6 +49,7 @@ def image_build(
     no_cache=False,
     docker_file="Dockerfile",
     build_context="Dockerfiles/agent",
+    copy_dist=True,
 ):
     """
     Build the otel agent container image
@@ -58,12 +59,13 @@ def image_build(
     otel_binary = os.path.join(BIN_DIR, BIN_NAME)
     config_file = os.path.join(BIN_DIR, "dist", CFG_NAME)
 
-    if (not os.path.exists(otel_binary)) or (not os.path.exists(config_file)):
-        print("Please run otel-agent.build")
-        raise Exit(code=1)
+    if copy_dist:
+        if (not os.path.exists(otel_binary)) or (not os.path.exists(config_file)):
+            print("Please run otel-agent.build")
+            raise Exit(code=1)
 
-    shutil.copy2(otel_binary, build_context)
-    shutil.copy2(config_file, build_context)
+        shutil.copy2(otel_binary, build_context)
+        shutil.copy2(config_file, build_context)
 
     common_build_opts = (
         f"-t {OT_AGENT_IMAGE_NAME}:{tag} -f {dockerfile} --build-arg=\"BASE_IMAGE_DD_VERSION={base_version}\""
