@@ -49,7 +49,6 @@ const (
 type sender interface {
 	startSession(cancelCtx context.Context) *senderSession
 	flushSession(ss *senderSession) error
-	sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error
 }
 
@@ -73,25 +72,22 @@ type senderImpl struct {
 	payloadTemplate             Payload
 	metadataPayloadTemplate     AgentMetadataPayload
 	agentMetricsPayloadTemplate AgentMetricsPayload
-	agentStatusPayloadTemplate  AgentStatusPayload
 }
 
 // HostPayload defines the host payload object. It is currently used only as payload's header
 // and it is not stored with backend. It could be removed in the future completly. It is expected
 // by backend to be present in the payload and currently tootaly reducted.
 type HostPayload struct {
-	Hostname      string `json:"hostname"`
-	OS            string `json:"os"`
-	Arch          string `json:"architecture"`
-	KernelName    string `json:"kernel_name"`
-	KernelRelease string `json:"kernel_release"`
-	KernelVersion string `json:"kernel_version"`
+	Hostname string `json:"hostname"`
 }
 
 // AgentMetadataPayload should be top level object in the payload but currently tucked into specific payloads
 // until backend will be adjusted properly
 type AgentMetadataPayload struct {
-	HostID string `json:"hostid"`
+	HostID   string `json:"hostid"`
+	Hostname string `json:"hostname"`
+	OS       string `json:"os"`
+	OSVer    string `json:"osver"`
 }
 
 // Payload defines the top level object in the payload
@@ -141,16 +137,6 @@ type MetricPayload struct {
 	Type    string                 `json:"type"`
 	Tags    map[string]interface{} `json:"tags,omitempty"`
 	Buckets map[string]interface{} `json:"buckets,omitempty"`
-}
-
-// -------------
-// AGENT STATUS
-//
-
-// AgentStatusPayload defines AgentStatus object
-type AgentStatusPayload struct {
-	Message     string                 `json:"message"`
-	AgentStatus map[string]interface{} `json:"agent_status"`
 }
 
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
@@ -214,14 +200,9 @@ func newSenderImpl(
 	// Get host information (only hostid is used for now)
 	info := metadatautils.GetInformation()
 
-	// Redact all host info for now until we have a proper way to handle it
+	// Complying with intake schema by providing dummy data (may change in the future)
 	host := HostPayload{
-		Hostname:      "[REDACTED]", // info.Hostname,
-		OS:            "[REDACTED]", // info.OS,
-		Arch:          "[REDACTED]", // info.KernelArch,
-		KernelName:    "[REDACTED]", // info.Platform,
-		KernelRelease: "[REDACTED]", // info.PlatformVersion,
-		KernelVersion: "[REDACTED]", // info.KernelVersion,
+		Hostname: "x",
 	}
 
 	agentVersion, _ := version.Agent()
@@ -240,13 +221,13 @@ func newSenderImpl(
 			Host:       host,
 		},
 		metadataPayloadTemplate: AgentMetadataPayload{
-			HostID: info.HostID,
+			HostID:   info.HostID,
+			Hostname: info.Hostname,
+			OS:       info.OS,
+			OSVer:    info.PlatformVersion,
 		},
 		agentMetricsPayloadTemplate: AgentMetricsPayload{
 			Message: "Agent metrics",
-		},
-		agentStatusPayloadTemplate: AgentStatusPayload{
-			Message: "Agent status",
 		},
 	}, nil
 }
@@ -411,14 +392,6 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	}
 
 	return nil
-}
-
-func (s *senderImpl) sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error {
-	payload := s.agentStatusPayloadTemplate
-	payload.AgentStatus = agentStatusPayload
-	payload.AgentStatus["agent_metadata"] = s.metadataPayloadTemplate
-
-	return s.sendPayload(ss, "agent-status", payload)
 }
 
 func (s *senderImpl) sendPayload(ss *senderSession, requestType string, payload interface{}) error {

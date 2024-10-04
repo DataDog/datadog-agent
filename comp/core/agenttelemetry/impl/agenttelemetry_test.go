@@ -28,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -61,9 +59,6 @@ func (s *senderMock) startSession(_ context.Context) *senderSession {
 	return &senderSession{}
 }
 func (s *senderMock) flushSession(_ *senderSession) error {
-	return nil
-}
-func (s *senderMock) sendAgentStatusPayload(_ *senderSession, _ map[string]interface{}) error {
 	return nil
 }
 func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentmetric) error {
@@ -147,10 +142,6 @@ func makeLogMock(t *testing.T) log.Component {
 	return logmock.New(t)
 }
 
-func makeStatusMock(t *testing.T) status.Component {
-	return fxutil.Test[status.Mock](t, fx.Options(statusimpl.MockModule()))
-}
-
 func makeSenderImpl(t *testing.T, c string) sender {
 	o := convertYamlStrToMap(t, c)
 	cfg := makeCfgMock(t, o)
@@ -190,7 +181,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, makeStatusMock(t), sndr, runner)
+	atel := createAtel(cfg, log, tel, sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}
@@ -271,10 +262,10 @@ func TestRun(t *testing.T) {
 
 	a.start()
 
-	// default configuration has 1 job with 2 profiles (more configurations needs to be tested)
+	// default configuration has 2 job with 2 profiles (more configurations needs to be tested)
 	// will be improved in future by providing deterministic configuration
-	assert.Equal(t, 1, len(r.(*runnerMock).jobs))
-	assert.Equal(t, 2, len(r.(*runnerMock).jobs[0].profiles))
+	assert.Equal(t, 2, len(r.(*runnerMock).jobs))
+	assert.Equal(t, 1, len(r.(*runnerMock).jobs[0].profiles))
 }
 
 func TestReportMetricBasic(t *testing.T) {
