@@ -11,9 +11,12 @@ package service
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -31,7 +34,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 		span.Finish(tracer.WithError(err))
 	}()
 	// Make sure there are no Agent already installed
-	_ = removeProduct("Datadog Agent")
+	_ = removeAgentIfInstalled(ctx)
 	err = installAgentPackage("stable", args)
 	return err
 }
@@ -91,36 +94,51 @@ func PromoteAgentExperiment(_ context.Context) error {
 
 // RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
-	defer func() {
-		if err != nil {
-			// removal failed, this should rarely happen.
-			// Rollback might have restored the Agent, but we can't be sure.
-			log.Errorf("Failed to remove agent: %s", err)
-		}
-		span.Finish(tracer.WithError(err))
-	}()
-	err = removeProduct("Datadog Agent")
-	return err
+	// Don't return an error if the Agent is already not installed.
+	// returning an error here will prevent the package from being removed
+	// from the local repository.
+	return removeAgentIfInstalled(ctx)
 }
 
 // ConfigureAgent noop
-func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+func ConfigureAgent(_ context.Context, _ cdn.CDN, _ *repository.Repositories) error {
+	return nil
+}
+
+// WriteAgentConfig noop
+func WriteAgentConfig(_ *cdn.Config, _ string) error {
 	return nil
 }
 
 func installAgentPackage(target string, args []string) error {
-	// TODO: Need args here to restore DDAGENTUSER
-	err := msiexec(target, datadogAgent, "/i", args)
+	// Lookup stored Agent user and pass it to the Agent MSI
+	// TODO: bootstrap doesn't have a command-line agent user parameter yet,
+	//       might need to update this when it does.
+	agentUser, err := winregistry.GetAgentUserName()
+	if err != nil {
+		return fmt.Errorf("failed to get Agent user: %w", err)
+	}
+	args = append(args, fmt.Sprintf("DDAGENTUSER_NAME=%s", agentUser))
+
+	err = msiexec(target, datadogAgent, "/i", args)
 	if err != nil {
 		return fmt.Errorf("failed to install Agent %s: %w", target, err)
 	}
 	return nil
 }
 
-func removeAgentIfInstalled(ctx context.Context) error {
+func removeAgentIfInstalled(ctx context.Context) (err error) {
 	if isProductInstalled("Datadog Agent") {
-		err := RemoveAgent(ctx)
+		span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
+		defer func() {
+			if err != nil {
+				// removal failed, this should rarely happen.
+				// Rollback might have restored the Agent, but we can't be sure.
+				log.Errorf("Failed to remove agent: %s", err)
+			}
+			span.Finish(tracer.WithError(err))
+		}()
+		err := removeProduct("Datadog Agent")
 		if err != nil {
 			return err
 		}

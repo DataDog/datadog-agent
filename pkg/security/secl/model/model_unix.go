@@ -13,9 +13,10 @@ package model
 import (
 	"time"
 
+	"modernc.org/mathutil"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"modernc.org/mathutil"
 )
 
 // Event represents an event sent from the kernel
@@ -84,9 +85,6 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
-
-	// used for ebpfless
-	NSID uint64 `field:"-"`
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -437,6 +435,8 @@ type PIDContext struct {
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	// used for ebpfless
+	NSID uint64 `field:"-"`
 }
 
 // RenameEvent represents a rename event
@@ -603,7 +603,9 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File FileEvent `field:"file"` // Path to the cgroup
+	File        FileEvent `field:"file"` // Path to the cgroup
+	Pid         uint32    `field:"-"`    // PID of the process added to the cgroup
+	CGroupFlags uint32    `field:"-"`    // CGroup flags
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

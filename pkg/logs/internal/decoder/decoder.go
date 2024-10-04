@@ -92,7 +92,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, false, tailerInfo)
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
@@ -111,7 +111,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, true, tailerInfo)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgconfigsetup.Datadog()), maxContentSize, true, tailerInfo, "legacy_auto_multi_line")
 				syncSourceInfo(source, lh)
 				lineHandler = lh
 			} else {

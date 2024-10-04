@@ -39,7 +39,7 @@ func (h *SingleLineHandler) flush() {
 
 func addTruncatedTag(msg *message.Message) {
 	if pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
-		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("single_line"))
 	}
 }
 

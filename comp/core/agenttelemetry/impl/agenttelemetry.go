@@ -533,7 +533,7 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 
 // start is called by FX when the application starts.
 func (a *atel) start() error {
-	a.logComp.Info("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
+	a.logComp.Infof("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
 
