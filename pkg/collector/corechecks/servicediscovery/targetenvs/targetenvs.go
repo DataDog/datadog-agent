@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package targetenvs provides functionality to extract target environment variables of interest.
+// Package targetenvs provides target environment variables of interest.
 package targetenvs
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 )
 
@@ -42,6 +43,12 @@ const (
 	envJavaJdpaOpts          = "JDPA_OPTS"
 )
 
+const (
+	envSpringConfigLocations = "SPRING_CONFIG_LOCATIONS"
+	envSpringConfigName      = "SPRING_CONFIG_NAME"
+	envSpringProfilesActive  = "SPRING_PROFILES_ACTIVE"
+)
+
 // envsJavaDetector list of environment variables used for Java detection
 // these environment variables pass options to the JVM
 var envsJavaDetector = []string{
@@ -55,23 +62,33 @@ var envsJavaDetector = []string{
 	EnvJavaDetectorCatalinaOpts,
 }
 
-// targetsMap list of environment variables of interest, uses computed hash to improve performance.
-var targetsMap = map[uint64]string{
-	hashBytes([]byte(EnvDdService)):                EnvDdService,
-	hashBytes([]byte(EnvDdTags)):                   EnvDdTags,
-	hashBytes([]byte(EnvDiscoveryEnabled)):         EnvDiscoveryEnabled,
-	hashBytes([]byte(EnvInjectionEnabled)):         EnvInjectionEnabled,
-	hashBytes([]byte(EnvPwd)):                      EnvPwd,
-	hashBytes([]byte(EnvDotNetDetector)):           EnvDotNetDetector,
-	hashBytes([]byte(EnvGunicornCmdArgs)):          EnvGunicornCmdArgs,
-	hashBytes([]byte(EnvWsgiApp)):                  EnvWsgiApp,
-	hashBytes([]byte(EnvSpringApplicationName)):    EnvSpringApplicationName,
-	hashBytes([]byte(envJavaToolOps)):              envJavaToolOps,
-	hashBytes([]byte(envUnderscoreJavaOptions)):    envUnderscoreJavaOptions,
-	hashBytes([]byte(envJdkJavaOptions)):           envJdkJavaOptions,
-	hashBytes([]byte(envJavaOptions)):              envJavaOptions,
-	hashBytes([]byte(EnvJavaDetectorCatalinaOpts)): EnvJavaDetectorCatalinaOpts,
-	hashBytes([]byte(envJavaJdpaOpts)):             envJavaJdpaOpts,
+// Targets list of environment variables of interest, uses computed hash to improve performance.
+var Targets = map[uint64]string{
+	HashBytes([]byte(EnvDdService)):                EnvDdService,
+	HashBytes([]byte(EnvDdTags)):                   EnvDdTags,
+	HashBytes([]byte(EnvDiscoveryEnabled)):         EnvDiscoveryEnabled,
+	HashBytes([]byte(EnvInjectionEnabled)):         EnvInjectionEnabled,
+	HashBytes([]byte(EnvPwd)):                      EnvPwd,
+	HashBytes([]byte(EnvDotNetDetector)):           EnvDotNetDetector,
+	HashBytes([]byte(EnvGunicornCmdArgs)):          EnvGunicornCmdArgs,
+	HashBytes([]byte(EnvWsgiApp)):                  EnvWsgiApp,
+	HashBytes([]byte(EnvSpringApplicationName)):    EnvSpringApplicationName,
+	HashBytes([]byte(envSpringConfigLocations)):    envSpringConfigLocations,
+	HashBytes([]byte(envSpringConfigName)):         envSpringConfigName,
+	HashBytes([]byte(envSpringProfilesActive)):     envSpringProfilesActive,
+	HashBytes([]byte(envJavaToolOps)):              envJavaToolOps,
+	HashBytes([]byte(envUnderscoreJavaOptions)):    envUnderscoreJavaOptions,
+	HashBytes([]byte(envJdkJavaOptions)):           envJdkJavaOptions,
+	HashBytes([]byte(envJavaOptions)):              envJavaOptions,
+	HashBytes([]byte(EnvJavaDetectorCatalinaOpts)): EnvJavaDetectorCatalinaOpts,
+	HashBytes([]byte(envJavaJdpaOpts)):             envJavaJdpaOpts,
+}
+
+// HashBytes return hash value of a bytes array using FNV-1a hash function
+func HashBytes(b []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(b)
+	return h.Sum64()
 }
 
 // find - looks for a variable in the environment variable map
@@ -87,7 +104,7 @@ func find(envs map[string]string, env string) (string, bool) {
 func GetExpectedEnvs() ([]string, map[string]string) {
 	var expectedEnvs []string
 	var expectedMap = make(map[string]string)
-	for _, env := range targetsMap {
+	for _, env := range Targets {
 		expectedEnvs = append(expectedEnvs, fmt.Sprintf("%s=true", env))
 		expectedMap[env] = "true"
 	}

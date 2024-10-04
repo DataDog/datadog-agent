@@ -16,8 +16,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 )
 
 func TestIsSpringBootArchive(t *testing.T) {

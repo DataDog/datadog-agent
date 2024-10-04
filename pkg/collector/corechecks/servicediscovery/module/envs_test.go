@@ -13,10 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 )
 
 func TestInjectedEnvBasic(t *testing.T) {

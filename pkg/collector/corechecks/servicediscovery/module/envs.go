@@ -8,6 +8,9 @@
 package module
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,6 +32,11 @@ const (
 	// file.
 	// matches limit in the [auto injector](https://github.com/DataDog/auto_inject/blob/5ae819d01d8625c24dcf45b8fef32a7d94927d13/librouter.c#L52)
 	memFdMaxSize = 65536
+)
+
+const (
+	// maxSizeEnvsMap - maximum number of returned environment variables
+	maxSizeEnvsMap = 400
 )
 
 // getInjectionMeta gets metadata from auto injector injection, if
@@ -155,18 +163,97 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 	return envs, nil
 }
 
-// getTargetEnvs searches the environment variables of interest in the proc file by reading the proc file
-func getTargetEnvs(proc *process.Process) (map[string]string, error) {
-	envs, err := targetenvs.GetEnvs(proc)
-	if err != nil {
-		return envs, err
+// EnvReader reads the environment variables from /proc/<pid>/environ file.
+// It collects only those variables that match the target map if the map is not empty,
+// otherwise collect all environment variables.
+type EnvReader struct {
+	file    *os.File          // open pointer to environment variables file
+	scanner *bufio.Scanner    // iterator to read strings from text file
+	targets map[uint64]string // map of environment variables of interest
+	envs    map[string]string // collected environment variables
+}
+
+func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\x00' {
+			return i + 1, data[:i], nil
+		}
 	}
+	if !atEOF {
+		return 0, nil, nil
+	}
+	return 0, data, bufio.ErrFinalToken
+}
+
+// newEnvReader returns a new [EnvReader] to read from path.
+func newEnvReader(proc *process.Process) (*EnvReader, error) {
+	envPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "environ")
+	file, err := os.Open(envPath)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(zeroSplitter)
+
+	return &EnvReader{
+		file:    file,
+		scanner: scanner,
+		targets: targetenvs.Targets,
+		envs:    make(map[string]string, len(targetenvs.Targets)),
+	}, nil
+}
+
+// finish closes an open file.
+func (es *EnvReader) finish() {
+	if es.file != nil {
+		es.file.Close()
+	}
+}
+
+// add adds env. variable to the map of environment variables.
+func (es *EnvReader) add() error {
+	if len(es.envs) == maxSizeEnvsMap {
+		return fmt.Errorf("read proc env can't add more than max (%d) environment variables", maxSizeEnvsMap)
+	}
+	b := es.scanner.Bytes()
+	eq := bytes.IndexByte(b, '=')
+	if eq == -1 {
+		// ignore invalid env. variable
+		return nil
+	}
+
+	h := targetenvs.HashBytes(b[:eq])
+	_, exists := es.targets[h]
+	if exists {
+		name := string(b[:eq])
+		es.envs[name] = string(b[eq+1:])
+	}
+
+	return nil
+}
+
+// getTargetEnvs searches the environment variables of interest in the /proc/<pid>/environ file.
+func getTargetEnvs(proc *process.Process) (map[string]string, error) {
+	es, err := newEnvReader(proc)
+	defer es.finish()
+	if err != nil {
+		return nil, err
+	}
+
+	for es.scanner.Scan() {
+		err := es.add()
+		if err != nil {
+			return es.envs, err
+		}
+	}
+
 	injectionMeta, ok := getInjectionMeta(proc)
 	if !ok {
-		return envs, nil
+		return es.envs, nil
 	}
 	for _, env := range injectionMeta.InjectedEnv {
-		addEnvToMap(string(env), envs)
+		addEnvToMap(string(env), es.envs)
 	}
-	return envs, nil
+	return es.envs, nil
 }
