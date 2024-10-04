@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
-from pathlib import Path
 
 import gitlab
 import yaml
@@ -31,8 +30,6 @@ CONFIG_SPECIAL_OBJECTS = {
     "variables",
     "workflow",
 }
-# This file is used to set exceptions for jobs that do not require needs or rules
-CONFIG_SPECIAL_JOBS = Path(".ci-needs-rules-allowlist.yml")
 
 
 def get_gitlab_token():
@@ -1198,33 +1195,23 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     return before_config, after_config, diff
 
 
-def get_special_jobs(lint=False, all_jobs=None, all_stages=None):
+def full_config_get_all_leaf_jobs(full_config: dict) -> set[str]:
     """
-    Parses the special jobs file and lints it.
-
-    - lint: If True, will lint the file to verify that each job / stage is present in the configuration
-    - all_jobs: All the jobs in the configuration used to verify that the specified jobs are present within the full configuration
-    - all_stages: All the stages in the configuration used to verify that the specified stages are present within the full configuration
+    Get all leaf jobs from a full gitlab-ci configuration
     """
+    all_jobs = set()
+    for config in full_config.values():
+        all_jobs.update({job for job in config if is_leaf_job(job, config[job])})
 
-    with open(CONFIG_SPECIAL_JOBS) as f:
-        exceptions = yaml.safe_load(f) or {}
+    return all_jobs
 
-    error_msg = ''
-    exception_jobs = set(exceptions.get("allowed-jobs", []))
-    exception_stages = set(exceptions.get("allowed-stages", []))
 
-    if lint:
-        # Verify the special jobs file
-        error_exception_jobs = [job for job in exception_jobs if job not in all_jobs]
-        error_exception_stages = [stage for stage in exception_stages if stage not in all_stages]
+def full_config_get_all_stages(full_config: dict) -> set[str]:
+    """
+    Get all stages from a full gitlab-ci configuration
+    """
+    all_stages = set()
+    for config in full_config.values():
+        all_stages.update(config.get("stages", []))
 
-        if error_exception_jobs:
-            error_exception_jobs = '\n'.join(f'- {job}' for job in error_exception_jobs)
-            error_msg += f"{color_message('Error', Color.RED)}: The {CONFIG_SPECIAL_JOBS} file contains jobs that are not present in the configuration:\n{error_exception_jobs}\n"
-
-        if error_exception_stages:
-            error_exception_stages = '\n'.join(f'- {stage}' for stage in error_exception_stages)
-            error_msg += f"{color_message('Error', Color.RED)}: The {CONFIG_SPECIAL_JOBS} file contains stages that are not present in the configuration:\n{error_exception_stages}\n"
-
-    return error_msg, exception_jobs, exception_stages
+    return all_stages

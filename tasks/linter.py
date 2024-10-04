@@ -13,15 +13,16 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
-    CONFIG_SPECIAL_JOBS,
     MultiGitlabCIDiff,
+    full_config_get_all_leaf_jobs,
+    full_config_get_all_stages,
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_preset_contexts,
-    get_special_jobs,
     is_leaf_job,
     load_context,
     read_includes,
@@ -472,7 +473,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
         with open(config_file) as f:
             conf = yaml.safe_load(f)
 
-        all_configs = conf
+        full_config = conf
 
         jobs = []
         for file_jobs in conf.values():
@@ -483,7 +484,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
-        all_configs = diff.after
+        full_config = diff.after
         jobs = [
             (job, contents)
             for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
@@ -494,23 +495,20 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
             print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
             return
 
-    # All jobs / stages from all gitlab config entry points
-    all_jobs = set()
-    for config in all_configs.values():
-        all_jobs.update({job for job in config if is_leaf_job(job, config[job])})
-
-    all_stages = set()
-    for config in all_configs.values():
-        all_stages.update(config.get("stages", []))
-
-    error_msg, exception_jobs, exception_stages = get_special_jobs(lint=True, all_jobs=all_jobs, all_stages=all_stages)
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
 
     # Verify the jobs
     error_jobs = []
     n_ignored = 0
     for job, contents in jobs:
         error = "needs" not in contents or "rules" not in contents
-        to_ignore = job in exception_jobs or contents['stage'] in exception_stages
+        to_ignore = (
+            job in ci_linters_config.needs_rules_jobs or contents['stage'] in ci_linters_config.needs_rules_stages
+        )
 
         if to_ignore:
             if error:
@@ -520,19 +518,19 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
         if error:
             error_jobs.append((job, contents['stage']))
 
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path})'
+        )
+
     if error_jobs:
         error_jobs = sorted(error_jobs)
         error_jobs = '\n'.join(f'- {job} ({stage} stage)' for job, stage in error_jobs)
 
-        error_msg += f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {CONFIG_SPECIAL_JOBS}\n"
-
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {CONFIG_SPECIAL_JOBS})'
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {ci_linters_config.path}",
+            code=1,
         )
-
-    if error_msg:
-        raise Exit(error_msg.strip(), code=1)
     else:
         print(f'{color_message("Success", Color.GREEN)}: All jobs have "needs" and "rules"')
 
