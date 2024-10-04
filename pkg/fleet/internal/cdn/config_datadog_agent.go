@@ -50,10 +50,9 @@ func (a *agentConfig) Version() string {
 	return a.version
 }
 
-// SetLayers sets the agent configuration layers.
-func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) error {
+func newAgentConfig(configOrder *orderConfig, rawLayers ...[]byte) (*agentConfig, error) {
 	if configOrder == nil {
-		return fmt.Errorf("order config is nil")
+		return nil, fmt.Errorf("order config is nil")
 	}
 
 	// Unmarshal layers
@@ -88,7 +87,7 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 		if layer.AgentConfig != nil {
 			agentConfig, err := merge(compiledLayer.AgentConfig, layer.AgentConfig)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			compiledLayer.AgentConfig = agentConfig.(map[string]interface{})
 		}
@@ -96,7 +95,7 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 		if layer.SecurityAgentConfig != nil {
 			securityAgentConfig, err := merge(compiledLayer.SecurityAgentConfig, layer.SecurityAgentConfig)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			compiledLayer.SecurityAgentConfig = securityAgentConfig.(map[string]interface{})
 		}
@@ -104,7 +103,7 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 		if layer.SystemProbeConfig != nil {
 			systemProbeAgentConfig, err := merge(compiledLayer.SystemProbeConfig, layer.SystemProbeConfig)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			compiledLayer.SystemProbeConfig = systemProbeAgentConfig.(map[string]interface{})
 		}
@@ -114,31 +113,32 @@ func (a *agentConfig) SetLayers(configOrder *orderConfig, rawLayers ...[]byte) e
 	compiledLayer.AgentConfig[layerKeys] = layerIDs
 
 	// Marshal into YAML configs
-	agentConfig, err := marshalAgentConfig(compiledLayer.AgentConfig)
+	config, err := marshalAgentConfig(compiledLayer.AgentConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	securityAgentConfig, err := marshalAgentConfig(compiledLayer.SecurityAgentConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	systemProbeConfig, err := marshalAgentConfig(compiledLayer.SystemProbeConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	hash := sha256.New()
 	version, err := json.Marshal(compiledLayer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	hash.Write(version)
 
-	a.version = fmt.Sprintf("%x", hash.Sum(nil))
-	a.datadog = agentConfig
-	a.securityAgent = securityAgentConfig
-	a.systemProbe = systemProbeConfig
-	return nil
+	return &agentConfig{
+		version:       fmt.Sprintf("%x", hash.Sum(nil)),
+		datadog:       config,
+		securityAgent: securityAgentConfig,
+		systemProbe:   systemProbeConfig,
+	}, nil
 }
 
 // Write writes the agent configuration to the given directory.

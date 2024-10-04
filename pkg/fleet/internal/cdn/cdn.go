@@ -29,7 +29,6 @@ type orderConfig struct {
 // Config represents a configuration.
 type Config interface {
 	Version() string
-	SetLayers(order *orderConfig, layers ...[]byte) error
 	Write(dir string) error
 }
 

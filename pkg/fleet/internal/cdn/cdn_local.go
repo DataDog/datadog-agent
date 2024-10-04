@@ -28,13 +28,6 @@ func newLocal(env *env.Env) (CDN, error) {
 
 // Get gets the configuration from the CDN.
 func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
-	switch pkg {
-	case "datadog-agent":
-		cfg = &agentConfig{}
-	default:
-		return nil, ErrProductNotSupported
-	}
-
 	files, err := os.ReadDir(c.dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read directory %s: %w", c.dirPath, err)
@@ -66,10 +59,16 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 		return nil, fmt.Errorf("no configuration_order found")
 	}
 
-	err = cfg.SetLayers(orderConfig, layers...)
-	if err != nil {
-		return nil, err
+	switch pkg {
+	case "datadog-agent":
+		cfg, err = newAgentConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, ErrProductNotSupported
 	}
+
 	return cfg, nil
 }
 

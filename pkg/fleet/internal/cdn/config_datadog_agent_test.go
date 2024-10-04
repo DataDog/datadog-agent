@@ -42,9 +42,7 @@ func TestConfig(t *testing.T) {
 		Order: []string{"base", "override"},
 	}
 
-	config := &agentConfig{}
-
-	err = config.SetLayers(order, baseLayerRaw, overrideLayerRaw)
+	config, err := newAgentConfig(order, baseLayerRaw, overrideLayerRaw)
 	assert.NoError(t, err)
 	expectedConfig := doNotEditDisclaimer + `
 api_key: "1234"

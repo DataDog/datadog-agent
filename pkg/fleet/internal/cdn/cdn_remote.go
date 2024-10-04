@@ -46,21 +46,19 @@ func (c *cdnRemote) Get(ctx context.Context, pkg string) (cfg Config, err error)
 	span, _ := tracer.StartSpanFromContext(ctx, "cdn.Get")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
-	switch pkg {
-	case "datadog-agent":
-		cfg = &agentConfig{}
-	default:
-		return nil, ErrProductNotSupported
-	}
-
 	orderConfig, layers, err := c.get(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	err = cfg.SetLayers(orderConfig, layers...)
-	if err != nil {
-		return nil, err
+	switch pkg {
+	case "datadog-agent":
+		cfg, err = newAgentConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, ErrProductNotSupported
 	}
 
 	return cfg, nil
