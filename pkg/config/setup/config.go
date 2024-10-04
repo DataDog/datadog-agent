@@ -1248,9 +1248,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
-	// Agent Telemetry. It is experimental feature and is subject to change.
-	// It should not be enabled unless prompted by Datadog Support
-	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	// Agent Telemetry
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 

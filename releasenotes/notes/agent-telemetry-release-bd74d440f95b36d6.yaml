@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Datadog may collect environmental, performance, and feature usage
+    information about the Datadog Agent. This may include diagnostic
+    logs and crash dumps of the Datadog Agent with obfuscated stack
+    traces to support and further improve the Datadog Agent.
+
+    More details could be found in the
+    `https://docs.datadoghq.com/data_security/agent/#telemetry-collection`
