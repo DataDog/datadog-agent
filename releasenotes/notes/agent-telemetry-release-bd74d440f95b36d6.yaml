@@ -14,4 +14,4 @@ enhancements:
     traces to support and further improve the Datadog Agent.
 
     More details could be found in the
-    `https://docs.datadoghq.com/data_security/agent/#telemetry-collection`
+    `docs <https://docs.datadoghq.com/data_security/agent/#telemetry-collection>`_
