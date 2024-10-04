@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -30,6 +31,7 @@ type cudaEventConsumer struct {
 	streamHandlers                  map[model.StreamKey]*StreamHandler
 	wg                              sync.WaitGroup
 	scanTerminatedProcessesInterval time.Duration
+	running                         atomic.Bool
 }
 
 // NewCudaEventConsumer creates a new CUDA event consumer.
@@ -48,10 +50,10 @@ func (c *cudaEventConsumer) Stop() {
 		return
 	}
 	c.eventHandler.Stop()
-	c.wg.Wait()
 	c.once.Do(func() {
 		close(c.closed)
 	})
+	c.wg.Wait()
 }
 
 // Start starts the CUDA event consumer.
@@ -65,6 +67,7 @@ func (c *cudaEventConsumer) Start() {
 
 	c.wg.Add(1)
 	go func() {
+		c.running.Store(true)
 		processSync := time.NewTicker(c.scanTerminatedProcessesInterval)
 
 		defer func() {
@@ -75,6 +78,7 @@ func (c *cudaEventConsumer) Start() {
 			}
 			c.wg.Done()
 			log.Trace("CUDA event consumer stopped")
+			c.running.Store(false)
 		}()
 
 		dataChannel := c.eventHandler.DataChannel()
