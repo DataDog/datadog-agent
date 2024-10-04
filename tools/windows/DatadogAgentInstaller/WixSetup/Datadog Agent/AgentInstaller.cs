@@ -4,9 +4,11 @@ using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Xml.Linq;
 using WixSharp;
 using WixSharp.CommonTasks;
+using File = System.IO.File;
 
 namespace WixSetup.Datadog_Agent
 {
@@ -65,6 +67,11 @@ namespace WixSetup.Datadog_Agent
 
         public Project Configure()
         {
+            if (!File.Exists("7zr.exe"))
+            {
+                new WebClient().DownloadFile("https://www.7-zip.org/a/7zr.exe", "7zr.exe");
+            }
+
             var project = new ManagedProject("Datadog Agent",
                 // Use 2 LaunchConditions, one for server versions,
                 // one for client versions.
@@ -512,7 +519,6 @@ namespace WixSetup.Datadog_Agent
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                     }
-
             );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
@@ -533,6 +539,9 @@ namespace WixSetup.Datadog_Agent
             );
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
+                // Temporary binary for extracting the embedded Python - will be deleted
+                // by the CustomAction
+                new WixSharp.File(new Id("sevenzipr"), "7zr.exe"),
                 // Each EventSource must have KeyPath=yes to avoid having the parent directory placed in the CreateFolder table.
                 // The EventSource supports being a KeyPath.
                 // https://wixtoolset.org/docs/v3/xsd/util/eventsource/
@@ -543,11 +552,8 @@ namespace WixSetup.Datadog_Agent
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
-
                 agentBinDir,
-
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree)
-
             );
             if (_agentPython.IncludePython2)
             {
