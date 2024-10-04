@@ -226,7 +226,7 @@ def gen_config_from_ci_pipeline(
                 if result is False:
                     package, test = test.split(":", maxsplit=1)
                     failed_tests.add(test)
-                    failed_packages.add(package)
+                    failed_packages.add(f"./{package}")  # Use relative path to the package so the suggestions for kmt.test work correctly
                 elif result is True:  # It can also be None if the test was skipped
                     successful_tests.add(test)
 
