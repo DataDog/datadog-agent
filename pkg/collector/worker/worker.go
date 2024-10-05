@@ -140,6 +140,13 @@ func (w *Worker) Run() {
 			continue
 		}
 
+		if !haagent.ShouldRunForCheck(check.String()) {
+			checkLogger.Debug("HA Agent check is not run since agent is not primary")
+			// Remove the check from the running list
+			w.checksTracker.DeleteCheck(check.ID())
+			continue
+		}
+
 		checkStartTime := time.Now()
 
 		checkLogger.CheckStarted()
@@ -150,19 +157,7 @@ func (w *Worker) Run() {
 		utilizationTracker.CheckStarted()
 
 		// Run the check
-		var checkErr error
-
-		if haagent.IsEnabled() && check.String() == "snmp" {
-			isPrimary := haagent.IsPrimary()
-
-			// TODO: REMOVE ME
-			log.Warnf("[Worker.Run] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-				check.String(), haagent.IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
-
-			if isPrimary {
-				checkErr = check.Run()
-			}
-		}
+		checkErr := check.Run()
 
 		utilizationTracker.CheckFinished()
 

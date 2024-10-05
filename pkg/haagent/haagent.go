@@ -12,6 +12,11 @@ import (
 	"go.uber.org/atomic"
 )
 
+// TODO: SHOULD BE A COMPONENT WITH STATE
+// TODO: SHOULD BE A COMPONENT WITH STATE
+// TODO: SHOULD BE A COMPONENT WITH STATE
+// TODO: SHOULD BE A COMPONENT WITH STATE
+
 var runtimeRole = atomic.NewString("")
 
 func IsEnabled() bool {
@@ -31,4 +36,20 @@ func IsPrimary() bool {
 
 func SetRole(role string) {
 	runtimeRole.Store(role)
+}
+
+func ShouldRunForCheck(checkName string) bool {
+	// TODO: handle check name generically
+	if IsEnabled() && checkName == "snmp" {
+		isPrimary := IsPrimary()
+
+		// TODO: REMOVE ME
+		log.Warnf("[Worker.Run] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
+			checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
+
+		if !isPrimary {
+			return false
+		}
+	}
+	return true
 }
