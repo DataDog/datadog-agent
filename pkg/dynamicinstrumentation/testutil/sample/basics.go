@@ -88,7 +88,7 @@ func ExecuteBasicFuncs() {
 
 	test_single_bool(true)
 	test_single_byte('a')
-	test_single_rune('ă')
+	test_single_rune(1)
 	test_single_int(-1512)
 	test_single_uint(1512)
 	test_type_alias(typeAlias(3))

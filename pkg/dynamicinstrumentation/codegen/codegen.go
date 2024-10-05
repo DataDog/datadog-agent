@@ -247,13 +247,13 @@ func generateStringHeader(stringParam *ditypes.Parameter, out io.Writer) error {
 	if stringParam == nil {
 		return errors.New("nil string parameter when generating header code")
 	}
-	if len(stringParam.ParameterPieces) != 1 {
-		return errors.New("invalid string parameter when generating header code")
+	if len(stringParam.ParameterPieces) != 2 {
+		return fmt.Errorf("invalid string parameter when generating header code (pieces len %d)", len(stringParam.ParameterPieces))
 	}
 
 	x := []byte{}
 	buf := bytes.NewBuffer(x)
-	err := generateStringLengthHeader(stringParam.ParameterPieces[0], buf)
+	err := generateStringLengthHeader(stringParam.ParameterPieces[1], buf)
 	if err != nil {
 		return err
 	}
