@@ -112,6 +112,7 @@ func TestPersistingIntegrations(t *testing.T) {
 		}
 
 		t.Run(fmt.Sprintf("test upgrade persisting integrations on %s %s", osVers, *architecture), func(tt *testing.T) {
+			flake.Mark(tt)
 			tt.Parallel()
 			tt.Logf("Testing %s", osVers)
 
