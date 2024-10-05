@@ -54,14 +54,13 @@ func (jq *jobQueue) start(ctx context.Context) {
 	jq.m.Unlock()
 	defer jq.queue.ShutDown()
 	go wait.Until(jq.worker, time.Second, ctx.Done())
-	infoTicker := time.NewTicker(15 * time.Second)
+	infoTicker := time.NewTicker(60 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("Stopping series payload job queue")
 			return
 		case <-infoTicker.C:
-			log.Infof("Series payload job queue length: %d", jq.queue.Len())
 			log.Infof("Loadstore info: %s", jq.store.GetStoreInfo())
 		}
 	}

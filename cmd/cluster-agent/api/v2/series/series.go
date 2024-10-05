@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 )
 
@@ -44,6 +45,7 @@ func NewSeriesHandler(ctx context.Context) *Handler {
 }
 
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
+	log.Tracef("Received series request from %s", r.RemoteAddr)
 	var err error
 	var rc io.ReadCloser
 	switch r.Header.Get("Content-Encoding") {

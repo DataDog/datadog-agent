@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EntityValueHeap is a min-heap of EntityValues based on timestamp.
@@ -154,10 +156,7 @@ func (es *EntityStore) GetEntitiesByNamespace(namespace string) map[*Entity]*Ent
 	return result
 }
 
-// DeleteEntityByHashKey deltes an entity from the store.
-func (es *EntityStore) DeleteEntityByHashKey(hash uint64) {
-	es.lock.Lock() // Lock for writing
-	defer es.lock.Unlock()
+func (es *EntityStore) deleteInternal(hash uint64) {
 	entityValueBlob, exists := es.key2ValuesMap[hash]
 	if !exists || entityValueBlob == nil || entityValueBlob.entity == nil {
 		return
@@ -165,6 +164,19 @@ func (es *EntityStore) DeleteEntityByHashKey(hash uint64) {
 	delete(es.key2ValuesMap, hash)
 	delete(es.metric2KeysMap[entityValueBlob.entity.MetricName], hash)
 	delete(es.namespace2KeysMap[entityValueBlob.entity.Namespace], hash)
+	if len(es.metric2KeysMap[entityValueBlob.entity.MetricName]) == 0 {
+		delete(es.metric2KeysMap, entityValueBlob.entity.MetricName)
+	}
+	if len(es.namespace2KeysMap[entityValueBlob.entity.Namespace]) == 0 {
+		delete(es.namespace2KeysMap, entityValueBlob.entity.Namespace)
+	}
+}
+
+// DeleteEntityByHashKey deltes an entity from the store.
+func (es *EntityStore) DeleteEntityByHashKey(hash uint64) {
+	es.lock.Lock() // Lock for writing
+	defer es.lock.Unlock()
+	es.deleteInternal(hash)
 }
 
 // purgeInactiveEntities purges inactive entities.
@@ -174,13 +186,14 @@ func (es *EntityStore) purgeInactiveEntities(purgeInterval time.Duration) {
 	for hash, entityValueBlob := range es.key2ValuesMap {
 		lastActive := entityValueBlob.lastActiveTs
 		if time.Since(time.Unix(int64(lastActive), 0)) > purgeInterval {
-			es.DeleteEntityByHashKey(hash)
+			es.deleteInternal(hash)
 		}
 	}
 }
 
 // startCleanupInBackground purges expired entities periodically.
 func (es *EntityStore) startCleanupInBackground(ctx context.Context) {
+	log.Infof("Starting entity store cleanup")
 	// Launch periodic cleanup mechanism
 	go func() {
 		ticker := time.NewTicker(defaultPurgeInterval)
