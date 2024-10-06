@@ -201,7 +201,7 @@ var structCaptures = fixtures{
 		"aInt16": capturedValue("int16", "2"),
 	}}},
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct_pointer": {"x": {Type: "ptr", Fields: fieldMap{
-		"": {
+		"arg_0": {
 			Type: "struct", Fields: fieldMap{
 				"aBool":  capturedValue("bool", "true"),
 				"aInt":   capturedValue("int", "1"),
