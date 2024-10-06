@@ -7,12 +7,14 @@
 package flowaggregator
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"sync"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -190,14 +192,20 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	//}
 	clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
 
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		agg.logger.Warnf("Error getting the hostname: %v", err)
+	}
+
 	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
 	// TODO: USING NDM NETFLOW EXPORTER FOR POC
 	netflowExporters := []metadata.NetflowExporter{
 		{
-			ID:        "ha-agent",
-			IPAddress: "1.1.1.1",
-			FlowType:  "netflow9",
-			ClusterId: clusterId,
+			ID:            "ha-agent",
+			IPAddress:     "1.1.1.1",
+			FlowType:      "netflow9",
+			ClusterId:     clusterId,
+			AgentHostname: agentHostname,
 		},
 	}
 	//for _, exporterID := range ids {
