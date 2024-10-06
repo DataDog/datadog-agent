@@ -139,6 +139,17 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 			}
 		}
 	}
+
+	// source code integration
+	if os.Getenv("DD_TRACE_GIT_METADATA_ENABLED") != "false" {
+		if gitCommitSha, ok := os.LookupEnv("DD_GIT_COMMIT_SHA"); ok {
+			executionSpan.Meta["git.commit.sha"] = gitCommitSha
+		}
+		if gitRepositoryUrl, ok := os.LookupEnv("DD_GIT_REPOSITORY_URL"); ok {
+			executionSpan.Meta["git.repository_url"] = gitRepositoryUrl
+		}
+	}
+
 	if endDetails.IsError {
 		executionSpan.Error = 1
 
