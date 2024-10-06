@@ -273,13 +273,20 @@ func (e *ebpfProgram) Start() error {
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+	var err error
+	for _, pm := range e.PerfMaps {
+		err = errors.Join(err, pm.Stop(manager.CleanAll))
+	}
+	for _, rb := range e.RingBuffers {
+		err = errors.Join(err, rb.Stop(manager.CleanAll))
+	}
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
 		protocol.Stop(m)
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
-	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
-	return e.Stop(manager.CleanAll)
+	return errors.Join(err, e.Stop(manager.CleanAll))
 }
 
 func (e *ebpfProgram) initCORE() error {
