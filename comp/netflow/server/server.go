@@ -73,7 +73,8 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 
 	var statusProvider status.Provider
 
-	if conf.Enabled {
+	//if conf.Enabled  {
+	if true {
 		statusProvider = Provider{
 			server: server,
 		}

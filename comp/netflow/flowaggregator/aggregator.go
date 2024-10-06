@@ -9,16 +9,15 @@ package flowaggregator
 import (
 	"encoding/json"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -158,52 +157,64 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 }
 
 func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime time.Time) {
-	// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
-	exporterMap := make(map[string]map[string]metadata.NetflowExporter)
+	//// exporterMap structure: map[NAMESPACE]map[EXPORTER_ID]metadata.NetflowExporter
+	//exporterMap := make(map[string]map[string]metadata.NetflowExporter)
+	//
+	//// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
+	//// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
+	//orderedExporterIDs := make(map[string][]string)
+	//
+	//for _, flow := range flows {
+	//	exporterIPAddress := format.IPAddr(flow.ExporterAddr)
+	//	if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
+	//		agg.logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
+	//		continue
+	//	}
+	//	exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
+	//	if _, ok := exporterMap[flow.Namespace]; !ok {
+	//		exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
+	//	}
+	//	if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
+	//		// this exporter is already in the map, no need to reprocess it
+	//		continue
+	//	}
+	//	exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
+	//		ID:        exporterID,
+	//		IPAddress: exporterIPAddress,
+	//		FlowType:  string(flow.FlowType),
+	//	}
+	//	orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
+	//}
+	//for namespace, ids := range orderedExporterIDs {
+	//
+	//}
+	clusterId := pkgconfigsetup.Datadog().GetString("ha_agent.cluster_id")
 
-	// orderedExporterIDs is used to build predictable metadata payload (consistent batches and orders)
-	// orderedExporterIDs structure: map[NAMESPACE][]EXPORTER_ID
-	orderedExporterIDs := make(map[string][]string)
-
-	for _, flow := range flows {
-		exporterIPAddress := format.IPAddr(flow.ExporterAddr)
-		if exporterIPAddress == "" || strings.HasPrefix(exporterIPAddress, "?") {
-			agg.logger.Errorf("Invalid exporter Addr: %s", exporterIPAddress)
-			continue
-		}
-		exporterID := flow.Namespace + ":" + exporterIPAddress + ":" + string(flow.FlowType)
-		if _, ok := exporterMap[flow.Namespace]; !ok {
-			exporterMap[flow.Namespace] = make(map[string]metadata.NetflowExporter)
-		}
-		if _, ok := exporterMap[flow.Namespace][exporterID]; ok {
-			// this exporter is already in the map, no need to reprocess it
-			continue
-		}
-		exporterMap[flow.Namespace][exporterID] = metadata.NetflowExporter{
-			ID:        exporterID,
-			IPAddress: exporterIPAddress,
-			FlowType:  string(flow.FlowType),
-		}
-		orderedExporterIDs[flow.Namespace] = append(orderedExporterIDs[flow.Namespace], exporterID)
+	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
+	// TODO: USING NDM NETFLOW EXPORTER FOR POC
+	netflowExporters := []metadata.NetflowExporter{
+		{
+			ID:        "ha-agent",
+			IPAddress: "1.1.1.1",
+			FlowType:  "netflow9",
+			ClusterId: clusterId,
+		},
 	}
-	for namespace, ids := range orderedExporterIDs {
-		var netflowExporters []metadata.NetflowExporter
-		for _, exporterID := range ids {
-			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
+	//for _, exporterID := range ids {
+	//	netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
+	//}
+	metadataPayloads := metadata.BatchPayloads("default", "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
+	for _, payload := range metadataPayloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			agg.logger.Errorf("Error marshalling device metadata: %s", err)
+			continue
 		}
-		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
-		for _, payload := range metadataPayloads {
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				agg.logger.Errorf("Error marshalling device metadata: %s", err)
-				continue
-			}
-			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-			m := message.NewMessage(payloadBytes, nil, "", 0)
-			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
-			if err != nil {
-				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
-			}
+		agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
+		m := message.NewMessage(payloadBytes, nil, "", 0)
+		err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
+		if err != nil {
+			agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)
 		}
 	}
 }
@@ -273,6 +284,7 @@ func (agg *FlowAggregator) flush() int {
 		agg.sendFlows(flowsToFlush, flushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, flushTime)
+	// TODO: POC, MOVE TO OWN MODULE
 
 	flushCount := len(flowsToFlush)
 
