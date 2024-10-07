@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
@@ -923,9 +923,10 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
+	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
@@ -934,7 +935,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.webhooks = c.generateWebhooks(wmeta, nil)
+			c.webhooks = c.generateWebhooks(wmeta, nil, datadogConfig)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -951,8 +952,8 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := common.DefaultLabelSelectors(true)
-	_, objectSelector := common.DefaultLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultLabelSelectors(true, mockConfig)
+	_, objectSelector := common.DefaultLabelSelectors(false, mockConfig)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.ValidatingWebhook {
 		return admiv1beta1.ValidatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1038,7 +1039,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = NewConfig(false, tt.namespaceSelector)
 
-			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, mockConfig)
 
 			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
 		})
@@ -1055,8 +1056,8 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := common.DefaultLabelSelectors(true)
-	_, objectSelector := common.DefaultLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultLabelSelectors(true, mockConfig)
+	_, objectSelector := common.DefaultLabelSelectors(false, mockConfig)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1143,7 +1144,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = NewConfig(false, tt.namespaceSelector)
 
-			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector, mockConfig)
 
 			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
 		})
@@ -1164,6 +1165,7 @@ func newFixtureV1beta1(t *testing.T) *fixtureV1beta1 {
 func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
 	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	datadogConfig := fxutil.Test[config.Component](f.t, core.MockBundle())
 	return NewControllerV1beta1(
 		f.client,
 		factory.Core().V1().Secrets(),
@@ -1174,6 +1176,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		v1beta1Cfg,
 		wmeta,
 		nil,
+		datadogConfig,
 	), factory
 }
 

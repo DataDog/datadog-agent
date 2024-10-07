@@ -17,8 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -68,7 +71,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry),
+							*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 						},
 					},
 				}
@@ -114,7 +117,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "container-name"},
-						*getDefaultSidecarTemplate(commonRegistry),
+						*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 					},
 				},
 			},
@@ -130,7 +133,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(commonRegistry),
+							*getDefaultSidecarTemplate(commonRegistry, config.NewMock(t)),
 						},
 					},
 				}
@@ -153,7 +156,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry)
+				sidecar := *getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 				_, _ = withEnvOverrides(
 					&sidecar,
 					corev1.EnvVar{
@@ -254,7 +257,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectError:     false,
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate(commonRegistry)
+				sidecar := *getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 
 				_, _ = withEnvOverrides(
 					&sidecar,
@@ -349,8 +352,8 @@ func TestInjectAgentSidecar(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-
-			webhook := NewWebhook()
+			datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+			webhook := NewWebhook(datadogConfig)
 
 			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
 
@@ -415,7 +418,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate(test.containerRegistry)
+			sidecar := getDefaultSidecarTemplate(test.containerRegistry, config.NewMock(t))
 			assert.Equal(tt, test.expectedImage, sidecar.Image)
 		})
 	}
@@ -565,7 +568,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate(commonRegistry)
+			sidecar := getDefaultSidecarTemplate(commonRegistry, config.NewMock(t))
 			envVarsMap := make(map[string]corev1.EnvVar)
 			for _, envVar := range sidecar.Env {
 				envVarsMap[envVar.Name] = envVar

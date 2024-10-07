@@ -21,11 +21,11 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -63,66 +63,25 @@ const (
 	webhookName = "agent_config"
 )
 
-var (
-	agentHostIPEnvVar = corev1.EnvVar{
-		Name:  agentHostEnvVarName,
-		Value: "",
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: "status.hostIP",
-			},
-		},
-	}
-
-	agentHostServiceEnvVar = corev1.EnvVar{
-		Name:  agentHostEnvVarName,
-		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
-	}
-
-	defaultDdEntityIDEnvVar = corev1.EnvVar{
-		Name:  ddEntityIDEnvVarName,
-		Value: "",
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: "metadata.uid",
-			},
-		},
-	}
-
-	traceURLSocketEnvVar = corev1.EnvVar{
-		Name:  traceURLEnvVarName,
-		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
-	}
-
-	dogstatsdURLSocketEnvVar = corev1.EnvVar{
-		Name:  dogstatsdURLEnvVarName,
-		Value: pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
-	}
-)
-
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name            string
-	isEnabled       bool
-	endpoint        string
 	resources       []string
 	operations      []admissionregistrationv1.OperationType
-	mode            string
 	wmeta           workloadmeta.Component
 	injectionFilter mutatecommon.InjectionFilter
+	datadogConfig   config.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter, datadogConfig config.Component) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled"),
-		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:       []string{"pods"},
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		mode:            pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.mode"),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
+		datadogConfig:   datadogConfig,
 	}
 }
 
@@ -138,12 +97,17 @@ func (w *Webhook) WebhookType() common.WebhookType {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.isEnabled
+	return w.datadogConfig.GetBool("admission_controller.inject_config.enabled")
 }
 
 // Endpoint returns the endpoint of the webhook
 func (w *Webhook) Endpoint() string {
-	return w.endpoint
+	return w.datadogConfig.GetString("admission_controller.inject_config.endpoint")
+}
+
+// mode returns the injection mode
+func (w *Webhook) mode() string {
+	return w.datadogConfig.GetString("admission_controller.inject_config.mode")
 }
 
 // Resources returns the kubernetes resources for which the webhook should
@@ -161,7 +125,7 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultLabelSelectors(useNamespaceSelector, w.datadogConfig)
 }
 
 // WebhookFunc returns the function that mutates the resources
@@ -178,27 +142,64 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	var injectedConfig, injectedEntity, injectedExternalEnv bool
 
+	var (
+		agentHostIPEnvVar = corev1.EnvVar{
+			Name:  agentHostEnvVarName,
+			Value: "",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.hostIP",
+				},
+			},
+		}
+
+		agentHostServiceEnvVar = corev1.EnvVar{
+			Name:  agentHostEnvVarName,
+			Value: w.datadogConfig.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+		}
+
+		defaultDdEntityIDEnvVar = corev1.EnvVar{
+			Name:  ddEntityIDEnvVarName,
+			Value: "",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.uid",
+				},
+			},
+		}
+
+		traceURLSocketEnvVar = corev1.EnvVar{
+			Name:  traceURLEnvVarName,
+			Value: w.datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"),
+		}
+
+		dogstatsdURLSocketEnvVar = corev1.EnvVar{
+			Name:  dogstatsdURLEnvVarName,
+			Value: w.datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"),
+		}
+	)
+
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !w.injectionFilter.ShouldMutatePod(pod) {
+	if !w.injectionFilter.ShouldMutatePod(pod, w.datadogConfig) {
 		return false, nil
 	}
 
 	// Inject DD_AGENT_HOST
-	switch injectionMode(pod, w.mode) {
+	switch injectionMode(pod, w.mode()) {
 	case hostIP:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostIPEnvVar)
 	case service:
 		injectedConfig = mutatecommon.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		injectedVolumes := injectSocketVolumes(pod)
+		injectedVolumes := injectSocketVolumes(pod, w.datadogConfig)
 		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumes || injectedEnv
 	default:
-		log.Errorf("invalid injection mode %q", w.mode)
+		log.Errorf("invalid injection mode %q", w.mode())
 		return false, errors.New(metrics.InvalidInput)
 	}
 
@@ -282,16 +283,16 @@ func buildVolume(volumeName, path string, hostpathType corev1.HostPathType, read
 // wait if the agent has issues that prevent it from creating the sockets.
 //
 // This function returns true if at least one volume was injected.
-func injectSocketVolumes(pod *corev1.Pod) bool {
+func injectSocketVolumes(pod *corev1.Pod, datadogConfig config.Component) bool {
 	var injectedVolNames []string
 
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.type_socket_volumes") {
+	if datadogConfig.GetBool("admission_controller.inject_config.type_socket_volumes") {
 		volumes := map[string]string{
 			DogstatsdSocketVolumeName: strings.TrimPrefix(
-				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
+				datadogConfig.GetString("admission_controller.inject_config.dogstatsd_socket"), "unix://",
 			),
 			TraceAgentSocketVolumeName: strings.TrimPrefix(
-				pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
+				datadogConfig.GetString("admission_controller.inject_config.trace_agent_socket"), "unix://",
 			),
 		}
 
@@ -305,7 +306,7 @@ func injectSocketVolumes(pod *corev1.Pod) bool {
 	} else {
 		volume, volumeMount := buildVolume(
 			DatadogVolumeName,
-			pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.socket_path"),
+			datadogConfig.GetString("admission_controller.inject_config.socket_path"),
 			corev1.HostPathDirectoryOrCreate,
 			true,
 		)

@@ -13,9 +13,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -55,8 +55,8 @@ func providerIsSupported(provider string) bool {
 
 // applyProviderOverrides applies the necessary overrides for the provider
 // configured. It returns a boolean that indicates if the pod was mutated.
-func applyProviderOverrides(pod *corev1.Pod) (bool, error) {
-	provider := pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.provider")
+func applyProviderOverrides(pod *corev1.Pod, datadogConfig config.Component) (bool, error) {
+	provider := datadogConfig.GetString("admission_controller.agent_sidecar.provider")
 
 	if !providerIsSupported(provider) {
 		return false, fmt.Errorf("unsupported provider: %v", provider)
