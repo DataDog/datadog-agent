@@ -44,12 +44,13 @@ func nextGroupID() int32 {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	hostName   string
-	clusterID  string
-	sender     sender.Sender
-	processor  *processors.Processor
-	config     *oconfig.OrchestratorConfig
-	systemInfo *model.SystemInfo
+	hostName               string
+	clusterID              string
+	sender                 sender.Sender
+	processor              *processors.Processor
+	config                 *oconfig.OrchestratorConfig
+	systemInfo             *model.SystemInfo
+	terminatedPodCollector *TerminatedPodCollector
 }
 
 // Factory creates a new check factory
@@ -114,11 +115,15 @@ func (c *Check) Configure(
 		log.Warnf("Failed to collect system info: %s", err)
 	}
 
+	c.terminatedPodCollector = NewTerminatedPodCollector(c.hostName, c.clusterID, c.sender, c.processor, c.config, c.systemInfo)
+
 	return nil
 }
 
 // Run executes the check
 func (c *Check) Run() error {
+	c.terminatedPodCollector.Run()
+
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
@@ -162,4 +167,9 @@ func (c *Check) Run() error {
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)
 
 	return nil
+}
+
+// Stop stops the check
+func (c *Check) Stop() {
+	c.terminatedPodCollector.Stop()
 }
