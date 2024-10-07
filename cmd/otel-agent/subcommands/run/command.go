@@ -92,7 +92,28 @@ func (o *orchestratorinterfaceimpl) Reset() {
 }
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
-	err := fxutil.Run(
+	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	if err != nil && err != agentConfig.ErrNoDDExporter {
+		return err
+	}
+	uris := append(params.ConfPaths, params.Sets...)
+	if err == agentConfig.ErrNoDDExporter {
+		return fxutil.Run(
+			fx.Supply(uris),
+			fx.Supply(optional.NewNoneOption[coreconfig.Component]()),
+			converterfx.Module(),
+			fx.Provide(func(cp converter.Component) confmap.Converter {
+				return cp
+			}),
+			collectorcontribFx.Module(),
+			collectorfx.ModuleNoAgent(),
+			fx.Options(opts...),
+			fx.Invoke(func(_ collectordef.Component) {
+			}),
+		)
+	}
+
+	return fxutil.Run(
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
@@ -108,20 +129,15 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
-			if err != nil {
-				return nil, err
-			}
-			pkgconfigenv.DetectFeatures(c)
-			return c, nil
+			pkgconfigenv.DetectFeatures(acfg)
+			return acfg, nil
 		}),
+		fxutil.ProvideOptional[coreconfig.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		fx.Provide(func() []string {
-			return append(params.ConfPaths, params.Sets...)
-		}),
+		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
@@ -197,10 +213,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		traceagentfx.Module(),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
