@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"math"
 	"math/rand"
+	"net/url"
 	"runtime"
 	"sort"
 	"strings"
@@ -329,6 +330,28 @@ func TestStatsSyncWriter(t *testing.T) {
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
+}
+
+func TestStatsWriterUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+	sw, srv := testStatsSyncWriter()
+	go sw.Run()
+	defer sw.Stop()
+
+	url, err := url.Parse(srv.URL + pathStats)
+	assert.NoError(err)
+
+	assert.Len(sw.senders, 1)
+	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
+
+	sw.UpdateAPIKey("invalid", "foo")
+	assert.Equal("123", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
+
+	sw.UpdateAPIKey("123", "foo")
+	assert.Equal("foo", sw.senders[0].cfg.apiKey)
+	assert.Equal(url, sw.senders[0].cfg.url)
 }
 
 func testStatsWriter() (*DatadogStatsWriter, *testServer) {

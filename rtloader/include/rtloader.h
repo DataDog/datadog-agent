@@ -496,6 +496,15 @@ public:
     */
     virtual void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t) = 0;
 
+    //! setEmitAgentTelemetryCb member.
+    /*!
+      \param A cb_emit_agent_telemetry_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow emitting a metric for
+      specific check instances.
+    */
+    virtual void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t) = 0;
+
 protected:
     //! _allocateInternalErrorDiagnoses member.
     /*!

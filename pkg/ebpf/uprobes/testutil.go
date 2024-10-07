@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/mock"
@@ -152,4 +153,52 @@ func getLibSSLPath(t *testing.T) string {
 // replace the registry with a mock object
 func (ua *UprobeAttacher) SetRegistry(registry FileRegistry) {
 	ua.fileRegistry = registry
+}
+
+// checkIfEventually checks a condition repeatedly until it returns true or a timeout is reached.
+func checkIfEventually(condition func() bool, checkInterval time.Duration, checkTimeout time.Duration) bool {
+	ch := make(chan bool, 1)
+
+	timer := time.NewTimer(checkTimeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for tick := ticker.C; ; {
+		select {
+		case <-timer.C:
+			return false
+		case <-tick:
+			tick = nil
+			go func() { ch <- condition() }()
+		case v := <-ch:
+			if v {
+				return true
+			}
+			tick = ticker.C
+		}
+	}
+}
+
+// waitAndRetryIfFail is basically a way to do require.Eventually with multiple retries.
+// In each retry, it will run the setupFunc, then wait until the condition defined by testFunc is met or the timeout is reached, and then run the retryCleanup function.
+// If the condition is met, it will return, otherwise it will retry the same thing again.
+// If the condition is not met after maxRetries, it will fail the test.
+func waitAndRetryIfFail(t *testing.T, setupFunc func(), testFunc func() bool, retryCleanup func(), maxRetries int, checkInterval time.Duration, maxSingleCheckTime time.Duration, msgAndArgs ...interface{}) {
+	for i := 0; i < maxRetries; i++ {
+		if setupFunc != nil {
+			setupFunc()
+		}
+		result := checkIfEventually(testFunc, checkInterval, maxSingleCheckTime)
+		if retryCleanup != nil {
+			retryCleanup()
+		}
+
+		if result {
+			return
+		}
+	}
+
+	require.Fail(t, "condition not met after %d retries", maxRetries, msgAndArgs)
 }

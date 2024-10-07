@@ -243,6 +243,7 @@
 /Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-delivery
+/omnibus/python-scripts/                @DataDog/platform-integrations
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
@@ -307,6 +308,7 @@
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
+/pkg/gpu/                               @DataDog/ebpf-platform
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
@@ -326,7 +328,7 @@
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
 /pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
-/pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
+/pkg/trace/telemetry/                   @DataDog/apm-trace-storage
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
@@ -341,7 +343,7 @@
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
-/pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
+/pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
@@ -355,6 +357,7 @@
 /pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/processes
+/pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
