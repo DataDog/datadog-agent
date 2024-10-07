@@ -65,6 +65,11 @@ func (c *cdnLocal) Get(_ context.Context, pkg string) (cfg Config, err error) {
 		if err != nil {
 			return nil, err
 		}
+	case "datadog-apm-inject":
+		cfg, err = newInjectorConfig(orderConfig, layers...)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, ErrProductNotSupported
 	}

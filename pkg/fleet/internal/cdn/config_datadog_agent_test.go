@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConfig(t *testing.T) {
+func TestAgentConfig(t *testing.T) {
 	baseLayer := &agentConfigLayer{
 		ID: "base",
 		AgentConfig: map[string]interface{}{
