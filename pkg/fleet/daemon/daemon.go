@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -40,7 +41,7 @@ const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
-	refreshStateInterval = 5 * time.Minute
+	refreshStateInterval = 1 * time.Minute
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -53,6 +54,9 @@ type Daemon interface {
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
+	StartConfigExperiment(ctx context.Context, pkg string, hash string) error
+	StopConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
@@ -67,7 +71,7 @@ type daemonImpl struct {
 	env           *env.Env
 	installer     installer.Installer
 	rc            *remoteConfig
-	cdn           *cdn.CDN
+	cdn           cdn.CDN
 	catalog       catalog
 	requests      chan remoteAPIRequest
 	requestsWG    sync.WaitGroup
@@ -94,14 +98,14 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	cdn, err := cdn.New(env, "opt/datadog-packages/run/rc/daemon")
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_daemon"))
 	if err != nil {
 		return nil, err
 	}
 	return newDaemon(rc, installer, env, cdn), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn *cdn.CDN) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env, cdn cdn.CDN) *daemonImpl {
 	i := &daemonImpl{
 		env:           env,
 		rc:            rc,
@@ -349,6 +353,72 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 	return nil
 }
 
+// StartConfigExperiment starts a config experiment with the given package.
+func (d *daemonImpl) StartConfigExperiment(ctx context.Context, url string, version string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.startConfigExperiment(ctx, url, version)
+}
+
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, url string, version string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Starting config experiment for package from %s", url)
+	err = d.installer.InstallConfigExperiment(ctx, url, version)
+	if err != nil {
+		return fmt.Errorf("could not start config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully started config experiment for package from %s", url)
+	return nil
+}
+
+// PromoteConfigExperiment promotes the experiment to stable.
+func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.promoteConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "promote_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
+	err = d.installer.PromoteConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not promote config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully promoted config experiment for package %s", pkg)
+	return nil
+}
+
+// StopConfigExperiment stops the experiment.
+func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error {
+	d.m.Lock()
+	defer d.m.Unlock()
+	return d.stopConfigExperiment(ctx, pkg)
+}
+
+func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "stop_config_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
+	err = d.installer.RemoveConfigExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop config experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
+	return nil
+}
+
 func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 	d.m.Lock()
 	defer d.m.Unlock()
@@ -418,6 +488,22 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	case methodPromoteExperiment:
 		log.Infof("Installer: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		return d.promoteExperiment(ctx, request.Package)
+
+	case methodStartConfigExperiment:
+		var params taskWithVersionParams
+		err = json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		log.Infof("Installer: Received remote request %s to start config experiment for package %s", request.ID, request.Package)
+		return d.startConfigExperiment(ctx, request.Package, params.Version)
+	case methodStopConfigExperiment:
+		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
+		return d.stopConfigExperiment(ctx, request.Package)
+	case methodPromoteConfigExperiment:
+		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
+		return d.promoteConfigExperiment(ctx, request.Package)
+
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
@@ -470,15 +556,15 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
-func (d *daemonImpl) resolveAgentRemoteConfigVersion(ctx context.Context) (string, error) {
+func (d *daemonImpl) resolveRemoteConfigVersion(ctx context.Context, pkg string) (string, error) {
 	if !d.env.RemotePolicies {
 		return "", nil
 	}
-	config, err := d.cdn.Get(ctx)
+	config, err := d.cdn.Get(ctx, pkg)
 	if err != nil {
-		return "", fmt.Errorf("could not get agent cdn config: %w", err)
+		return "", fmt.Errorf("could not get cdn config: %w", err)
 	}
-	return config.Version, nil
+	return config.Version(), nil
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
@@ -497,10 +583,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
-	configVersion, err := d.resolveAgentRemoteConfigVersion(ctx)
-	if err != nil {
-		log.Errorf("could not get agent remote config version: %v", err)
-	}
 
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -514,9 +596,17 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			p.StableConfigVersion = cs.Stable
 			p.ExperimentConfigVersion = cs.Experiment
 		}
-		if pkg == "datadog-agent" {
-			p.RemoteConfigVersion = configVersion
+
+		configVersion, err := d.resolveRemoteConfigVersion(ctx, pkg)
+		if err != nil {
+			log.Errorf("could not get agent remote config version: %v", err)
 		}
+		if err == nil {
+			p.RemoteConfigVersion = configVersion
+		} else if err != cdn.ErrProductNotSupported {
+			log.Warnf("could not get remote config version: %v", err)
+		}
+
 		requestState, ok := d.requestsState[pkg]
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError

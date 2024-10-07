@@ -79,6 +79,7 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 

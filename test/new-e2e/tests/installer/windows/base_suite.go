@@ -12,7 +12,6 @@ import (
 	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	instlr "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
@@ -86,10 +85,6 @@ func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
 // SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-
-	if instlr.GetInstallMethodFromEnv() != instlr.InstallMethodWindows {
-		s.T().Skip("Skipping Windows-only tests as the install method isn't Windows")
-	}
 
 	// TODO:FA-779
 	if s.Env().Environment.PipelineID() == "" && os.Getenv("DD_INSTALLER_MSI_URL") == "" {

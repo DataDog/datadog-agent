@@ -30,16 +30,20 @@ type ControllerContext struct {
 	IsLeaderFunc        func() bool
 	LeaderSubscribeFunc func() <-chan struct{}
 	SecretInformers     informers.SharedInformerFactory
-	WebhookInformers    informers.SharedInformerFactory
+	ValidatingInformers informers.SharedInformerFactory
+	MutatingInformers   informers.SharedInformerFactory
 	Client              kubernetes.Interface
 	StopCh              chan struct{}
+	ValidatingStopCh    chan struct{}
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.MutatingWebhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.Webhook, error) {
+	var webhooks []webhook.Webhook
+
 	if !pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
-		return nil, nil
+		return webhooks, nil
 	}
 
 	certConfig := secret.NewCertConfig(
@@ -60,19 +64,20 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 
 	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
 	if err != nil {
-		return nil, err
+		return webhooks, err
 	}
 
 	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
-		return nil, err
+		return webhooks, err
 	}
 
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
 	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
-		ctx.WebhookInformers.Admissionregistration(),
+		ctx.ValidatingInformers.Admissionregistration(),
+		ctx.MutatingInformers.Admissionregistration(),
 		ctx.IsLeaderFunc,
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
@@ -84,19 +89,26 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	go webhookController.Run(ctx.StopCh)
 
 	ctx.SecretInformers.Start(ctx.StopCh)
-	ctx.WebhookInformers.Start(ctx.StopCh)
+	ctx.ValidatingInformers.Start(ctx.ValidatingStopCh)
+	ctx.MutatingInformers.Start(ctx.StopCh)
 
 	informers := map[apiserver.InformerName]cache.SharedInformer{
 		apiserver.SecretsInformer: ctx.SecretInformers.Core().V1().Secrets().Informer(),
 	}
 
 	if v1Enabled {
-		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
-		getWebhookStatus = getWebhookStatusV1
+		informers[apiserver.ValidatingWebhooksInformer] = ctx.ValidatingInformers.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
+		informers[apiserver.MutatingWebhooksInformer] = ctx.MutatingInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+		getValidatingWebhookStatus = getValidatingWebhookStatusV1
+		getMutatingWebhookStatus = getMutatingWebhookStatusV1
 	} else {
-		informers[apiserver.WebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
-		getWebhookStatus = getWebhookStatusV1beta1
+		informers[apiserver.ValidatingWebhooksInformer] = ctx.ValidatingInformers.Admissionregistration().V1beta1().ValidatingWebhookConfigurations().Informer()
+		informers[apiserver.MutatingWebhooksInformer] = ctx.MutatingInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
+		getValidatingWebhookStatus = getValidatingWebhookStatusV1beta1
+		getMutatingWebhookStatus = getMutatingWebhookStatusV1beta1
 	}
 
-	return webhookController.EnabledWebhooks(), apiserver.SyncInformers(informers, 0)
+	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	return webhooks, apiserver.SyncInformers(informers, 0)
 }

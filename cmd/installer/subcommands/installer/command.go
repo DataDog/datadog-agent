@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -46,6 +48,11 @@ const (
 	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 )
 
+// BootstrapCommand returns the bootstrap command.
+func BootstrapCommand() *cobra.Command {
+	return bootstrapCommand()
+}
+
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{
@@ -56,6 +63,9 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		installExperimentCommand(),
 		removeExperimentCommand(),
 		promoteExperimentCommand(),
+		installConfigExperimentCommand(),
+		removeConfigExperimentCommand(),
+		promoteConfigExperimentCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
 		isInstalledCommand(),
@@ -110,7 +120,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.Stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.env, "opt/datadog-packages/run/rc/cmd")
+	i, err := installer.NewInstaller(cmd.env)
 	if err != nil {
 		return nil, err
 	}
@@ -156,12 +166,40 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	}
 }
 
-func newTelemetry(env *env.Env) *telemetry.Telemetry {
-	if env.APIKey == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
-		return nil
+type telemetryConfigFields struct {
+	APIKey string `yaml:"api_key"`
+	Site   string `yaml:"site"`
+}
+
+// telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
+func telemetryConfig() telemetryConfigFields {
+	configPath := "/etc/datadog-agent/datadog.yaml"
+	if runtime.GOOS == "windows" {
+		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	}
-	t, err := telemetry.NewTelemetry(env, "datadog-installer")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return telemetryConfigFields{}
+	}
+	var config telemetryConfigFields
+	err = yaml.Unmarshal(rawConfig, &config)
+	if err != nil {
+		return telemetryConfigFields{}
+	}
+	return config
+}
+
+func newTelemetry(env *env.Env) *telemetry.Telemetry {
+	config := telemetryConfig()
+	apiKey := env.APIKey
+	if apiKey == "" {
+		apiKey = config.APIKey
+	}
+	site := env.Site
+	if site == "" {
+		site = config.Site
+	}
+	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil
@@ -232,14 +270,14 @@ func setupCommand() *cobra.Command {
 		Hidden:  true,
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstraperCmd("setup")
-			defer func() { b.Stop(err) }()
-			ctx, cancel := context.WithTimeout(b.ctx, timeout)
+			cmd := newCmd("setup")
+			defer func() { cmd.Stop(err) }()
+			ctx, cancel := context.WithTimeout(cmd.ctx, timeout)
 			defer cancel()
-			return bootstraper.InstallDefaultPackages(ctx, b.env)
+			return installer.Setup(ctx, cmd.env)
 		},
 	}
-	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to install with")
 	return cmd
 }
 
@@ -354,6 +392,64 @@ func promoteExperimentCommand() *cobra.Command {
 			defer i.stop(err)
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func installConfigExperimentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "install-config-experiment <package> <version>",
+		Short:   "Install a config experiment",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("install_config_experiment")
+			if err != nil {
+				return err
+			}
+			defer func() { i.Stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			i.span.SetTag("params.version", args[1])
+			return i.InstallConfigExperiment(i.ctx, args[0], args[1])
+		},
+	}
+	return cmd
+}
+
+func removeConfigExperimentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "remove-config-experiment <package>",
+		Short:   "Remove a config experiment",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("remove_config_experiment")
+			if err != nil {
+				return err
+			}
+			defer func() { i.Stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			return i.RemoveConfigExperiment(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func promoteConfigExperimentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "promote-config-experiment <package>",
+		Short:   "Promote a config experiment",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("promote_config_experiment")
+			if err != nil {
+				return err
+			}
+			defer func() { i.Stop(err) }()
+			i.span.SetTag("params.package", args[0])
+			return i.PromoteConfigExperiment(i.ctx, args[0])
 		},
 	}
 	return cmd

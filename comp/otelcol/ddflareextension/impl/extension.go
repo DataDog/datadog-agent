@@ -20,6 +20,7 @@ import (
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Type exports the internal metadata type for easy reference
@@ -202,7 +203,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
-			AgentVersion:     ext.info.Version,
+			AgentVersion:     version.AgentVersion,
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,
