@@ -79,7 +79,7 @@ notify_github:
   allow_failure: true
   script:
     - !reference [.setup_agent_github_app]
-    - pip install -r tasks/libs/requirements-github.txt
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
