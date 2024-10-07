@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -118,7 +120,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.Stop(err)
 		}
 	}()
-	i, err := installer.NewInstaller(cmd.env, "opt/datadog-packages/run/rc/cmd")
+	i, err := installer.NewInstaller(cmd.env)
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +166,40 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	}
 }
 
-func newTelemetry(env *env.Env) *telemetry.Telemetry {
-	if env.APIKey == "" {
-		return nil
+type telemetryConfigFields struct {
+	APIKey string `yaml:"api_key"`
+	Site   string `yaml:"site"`
+}
+
+// telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
+func telemetryConfig() telemetryConfigFields {
+	configPath := "/etc/datadog-agent/datadog.yaml"
+	if runtime.GOOS == "windows" {
+		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	}
-	t, err := telemetry.NewTelemetry(env, "datadog-installer")
+	rawConfig, err := os.ReadFile(configPath)
+	if err != nil {
+		return telemetryConfigFields{}
+	}
+	var config telemetryConfigFields
+	err = yaml.Unmarshal(rawConfig, &config)
+	if err != nil {
+		return telemetryConfigFields{}
+	}
+	return config
+}
+
+func newTelemetry(env *env.Env) *telemetry.Telemetry {
+	config := telemetryConfig()
+	apiKey := env.APIKey
+	if apiKey == "" {
+		apiKey = config.APIKey
+	}
+	site := env.Site
+	if site == "" {
+		site = config.Site
+	}
+	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil

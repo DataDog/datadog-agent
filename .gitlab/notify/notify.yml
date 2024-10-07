@@ -59,8 +59,8 @@ send_pipeline_stats:
 
 notify_github:
   stage: notify
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
@@ -78,14 +78,15 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
-    - !reference [.install_pr_commenter]
+    - !reference [.setup_agent_github_app]
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
     - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
-    - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
+    - inv -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
     - rm "$messagefile"
 
 notify_gitlab_ci_changes:
@@ -94,8 +95,7 @@ notify_gitlab_ci_changes:
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64"]
   rules:
-    - if: $CI_PIPELINE_SOURCE != "push"
-      when: never
+    - !reference [.compute_gitlab_ci_config_rules]
     - changes:
         paths:
           - .gitlab-ci.yml
@@ -104,7 +104,6 @@ notify_gitlab_ci_changes:
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - !reference [.setup_agent_github_app]
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:

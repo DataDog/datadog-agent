@@ -105,6 +105,11 @@ type NetworkContext struct {
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
+}
+
 // SpanContext describes a span context
 type SpanContext struct {
 	SpanID  uint64          `field:"-"`

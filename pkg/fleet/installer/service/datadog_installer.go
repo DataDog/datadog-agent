@@ -75,6 +75,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
 	}
+	// Run directory can already be created by the RC client
+	err = os.Chmod("/opt/datadog-packages/run", 0755)
+	if err != nil {
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
+	}
 	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages/run/locks: %w", err)

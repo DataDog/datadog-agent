@@ -28,6 +28,8 @@ var (
 	DefaultUserConfigsDir string
 	// StableInstallerPath is the path to the stable installer binary.
 	StableInstallerPath string
+	// RunPath is the default run path
+	RunPath string
 )
 
 func init() {
@@ -39,4 +41,5 @@ func init() {
 	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
 	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	RunPath = filepath.Join(PackagesPath, "run")
 }
