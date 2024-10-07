@@ -1475,7 +1475,7 @@ func TestProcessExecExit(t *testing.T) {
 
 			execPid = event.ProcessContext.Pid
 			if ebpfLessEnabled {
-				nsID = event.NSID
+				nsID = event.ProcessContext.NSID
 			}
 
 		case model.ExitEventType:

@@ -866,9 +866,8 @@ core,github.com/docker/docker/api/types/versions,Apache-2.0,"Copyright 2012-2017
 core,github.com/docker/docker/api/types/volume,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/client,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/errdefs,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/image/spec/specs-go/v1,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
+core,github.com/moby/docker-image-spec/specs-go/v1,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/internal/multierror,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/docker/pkg/homedir,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/nat,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -1238,26 +1237,26 @@ core,github.com/gorilla/websocket,BSD-3-Clause,Copyright (c) 2023 The Gorilla Au
 core,github.com/gosnmp/gosnmp,BSD-2-Clause,Copyright 2012-2020 The GoSNMP Authors. All rights reserved.
 core,github.com/grafana/regexp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/grafana/regexp/syntax,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/go-grpc-middleware,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/auth,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
+core,github.com/grpc-ecosystem/go-grpc-middleware/util/metautils,Apache-2.0,Copyright (c) The go-grpc-middleware Authors.
 core,github.com/grpc-ecosystem/go-grpc-prometheus,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/internal/casing,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/internal/gengateway,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
-core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,Copyright 2016 Michal Witkowski. All Rights Reserved.
+core,github.com/grpc-ecosystem/grpc-gateway/codegenerator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/internal,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/internal/casing,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc. | Copyright 2010 The Go Authors.  All rights reserved"
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/generator,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/internal/gengateway,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/genswagger,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/runtime,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/utilities,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/runtime,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
+core,github.com/grpc-ecosystem/grpc-gateway/v2/utilities,BSD-3-Clause,"Copyright (c) 2015, Gengo, Inc | Copyright (c) 2015, Gengo, Inc."
 core,github.com/h2non/filetype,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers,MIT,Copyright (c) Tomas Aparicio
 core,github.com/h2non/filetype/matchers/isobmff,MIT,Copyright (c) Tomas Aparicio
@@ -1868,9 +1867,9 @@ core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 201
 core,github.com/pierrec/lz4/v4/internal/lz4errors,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4stream,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/xxh32,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
-core,github.com/pjbgf/sha1cd,Apache-2.0,Copyright 2023 pjbgf
-core,github.com/pjbgf/sha1cd/internal,Apache-2.0,Copyright 2023 pjbgf
-core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,Copyright 2023 pjbgf
+core,github.com/pjbgf/sha1cd,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
+core,github.com/pjbgf/sha1cd/internal,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
+core,github.com/pjbgf/sha1cd/ubc,Apache-2.0,"Copyright 2009 The Go Authors. All rights reserved. | Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com> | Copyright 2022 Paulo Gomes <pjbgf@linux.com> | Copyright 2023 pjbgf"
 core,github.com/pkg/browser,BSD-2-Clause,"Copyright (c) 2014, Dave Cheney <dave@cheney.net>"
 core,github.com/pkg/errors,BSD-2-Clause,"Copyright (c) 2015, Dave Cheney <dave@cheney.net>"
 core,github.com/planetscale/vtprotobuf/protohelpers,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved | Copyright (c) 2018 The Go Authors. All rights reserved | Copyright (c) 2021, PlanetScale Inc. All rights reserved"
@@ -2725,16 +2724,16 @@ core,google.golang.org/api/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc.
 core,google.golang.org/api/transport/grpc,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
-core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/api/expr/v1alpha1,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/type/date,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,Copyright 2015 Google LLC
-core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Copyright 2015 Google LLC
+core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/api/expr/v1alpha1,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/api/httpbody,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/rpc/code,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/rpc/errdetails,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/rpc/status,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/type/date,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/googleapis/type/expr,Apache-2.0,Copyright 2020 Google LLC
+core,google.golang.org/genproto/protobuf/field_mask,Apache-2.0,Copyright 2020 Google LLC
 core,google.golang.org/grpc,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/attributes,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/backoff,Apache-2.0,Copyright 2014 gRPC authors.

@@ -17,15 +17,17 @@ import (
 	"slices"
 	"strconv"
 
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -46,7 +48,7 @@ type Webhook struct {
 	isEnabled         bool
 	endpoint          string
 	resources         []string
-	operations        []admiv1.OperationType
+	operations        []admissionregistrationv1.OperationType
 	namespaceSelector *metav1.LabelSelector
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
@@ -56,14 +58,14 @@ type Webhook struct {
 func NewWebhook() *Webhook {
 	nsSelector, objSelector := labelSelectors()
 
-	containerRegistry := common.ContainerRegistry("admission_controller.agent_sidecar.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.agent_sidecar.container_registry")
 
 	return &Webhook{
 		name:              webhookName,
 		isEnabled:         pkgconfigsetup.Datadog().GetBool("admission_controller.agent_sidecar.enabled"),
 		endpoint:          pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.endpoint"),
 		resources:         []string{"pods"},
-		operations:        []admiv1.OperationType{admiv1.Create},
+		operations:        []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		namespaceSelector: nsSelector,
 		objectSelector:    objSelector,
 		containerRegistry: containerRegistry,
@@ -73,6 +75,11 @@ func NewWebhook() *Webhook {
 // Name returns the name of the webhook
 func (w *Webhook) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *Webhook) WebhookType() common.WebhookType {
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -93,7 +100,7 @@ func (w *Webhook) Resources() []string {
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *Webhook) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -103,14 +110,11 @@ func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelecto
 	return w.namespaceSelector, w.objectSelector
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.WebhookFunc {
-	return w.mutate
-}
-
-// mutate handles mutating pod requests for the agentsidecar webhook
-func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.injectAgentSidecar, request.DynamicClient)
+// WebhookFunc returns the function that mutates the resources
+func (w *Webhook) WebhookFunc() admission.WebhookFunc {
+	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.injectAgentSidecar, request.DynamicClient))
+	}
 }
 
 func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {

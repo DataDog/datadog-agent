@@ -4,7 +4,7 @@
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
     [
@@ -40,21 +40,15 @@
     KUBERNETES_CPU_REQUEST: 16
     DD_PKG_ARCH: "x86_64"
     PACKAGE_ARCH: "amd64"
+    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
+    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
   artifacts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
-
-agent_heroku_deb-x64-a6:
-  extends: .heroku_build_base
-  variables:
-    DESTINATION_DEB: "datadog-heroku-agent_6_amd64.deb"
-    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_6_amd64.deb"
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
-    PYTHON_RUNTIMES: "2,3"
 
 agent_heroku_deb-x64-a7:
   extends: .heroku_build_base
