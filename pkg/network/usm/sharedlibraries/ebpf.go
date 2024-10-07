@@ -47,6 +47,7 @@ var traceTypes = []string{"enter", "exit"}
 var progSingletonLock sync.Mutex
 var progSingleton *EbpfProgram
 
+// LibraryCallback defines the type of the callback function that will be called when a shared library event is detected
 type LibraryCallback func(LibPath)
 
 // EbpfProgram represents the shared libraries eBPF program.
