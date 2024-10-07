@@ -12,6 +12,9 @@ const ZlibKind = "zlib"
 // ZstdKind  defines a const value for the zstd compressor
 const ZstdKind = "zstd"
 
+// Using the native golang zstd compressor
+const NativeZstdKind = "nativezstd"
+
 // GzipKind  defines a const value for the gzip compressor
 const GzipKind = "gzip"
 

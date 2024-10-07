@@ -30,6 +30,8 @@ func (*CompressorFactory) NewCompressor(kind string, level int, option string, v
 		return strategy.NewZlibStrategy()
 	case ZstdKind:
 		return strategy.NewZstdStrategy(level)
+	case NativeZstdKind:
+		return strategy.NewZstdNativeStrategy(level)
 	case GzipKind:
 		return strategy.NewGzipStrategy(level)
 	case NoneKind:
