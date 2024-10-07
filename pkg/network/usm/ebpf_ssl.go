@@ -463,7 +463,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 
 		nodejs, err := newNodeJSMonitor(c, m)
 		if err != nil {
-			return nil, fmt.Errorf("error initializing nodejs monitor: %s", err)
+			return nil, fmt.Errorf("error initializing nodejs monitor: %w", err)
 		}
 
 		return &sslProgram{
