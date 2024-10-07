@@ -552,7 +552,7 @@ func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
 //
 // See also CreateTestOutputDir()
 func (bs *BaseSuite[Env]) CreateTestOutputDir() (string, error) {
-	root, err := bs.CreateRootOutputDir()
+	root, err := bs.GetRootOutputDir()
 	if err != nil {
 		return "", err
 	}
