@@ -110,7 +110,12 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
 
 
 def ninja_define_ebpf_compiler(
-    nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False, arch: Arch | None = None
+    nw: NinjaWriter,
+    strip_object_files=False,
+    kernel_release=None,
+    with_unit_test=False,
+    arch: Arch | None = None,
+    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -123,7 +128,7 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
@@ -133,12 +138,12 @@ def ninja_define_ebpf_compiler(
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compiler: str = "clang"):
     nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
-        command="clang -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -553,6 +558,7 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -583,8 +589,10 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-            ninja_define_co_re_compiler(nw, arch=arch)
+            ninja_define_ebpf_compiler(
+                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
+            )
+            ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
@@ -612,6 +620,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
+    ebpf_compiler='clang',
 ):
     """
     Build the system-probe
@@ -625,6 +634,7 @@ def build(
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
             bundle_ebpf=bundle_ebpf,
+            ebpf_compiler=ebpf_compiler,
         )
 
     build_sysprobe_binary(
@@ -1251,10 +1261,21 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(
+        ctx,
+        nf_path,
+        major_version,
+        arch,
+        debug,
+        strip_object_files,
+        kernel_release,
+        with_unit_test,
+        ebpf_compiler=ebpf_compiler,
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1371,6 +1392,7 @@ def build_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1398,6 +1420,7 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:
@@ -1468,6 +1491,7 @@ def build_cws_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1484,8 +1508,10 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
+def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'):
+    build_object_files(
+        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
+    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
