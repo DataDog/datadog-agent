@@ -165,7 +165,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.59.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.59.0-rc.1 // indirect
@@ -228,7 +227,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/json v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.59.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.1 // indirect
