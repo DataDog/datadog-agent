@@ -12,8 +12,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -98,16 +96,6 @@ func RemoveAgent(ctx context.Context) (err error) {
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
 	return removeAgentIfInstalled(ctx)
-}
-
-// ConfigureAgent noop
-func ConfigureAgent(_ context.Context, _ cdn.CDN, _ *repository.Repositories) error {
-	return nil
-}
-
-// WriteAgentConfig noop
-func WriteAgentConfig(_ *cdn.Config, _ string) error {
-	return nil
 }
 
 func installAgentPackage(target string, args []string) error {

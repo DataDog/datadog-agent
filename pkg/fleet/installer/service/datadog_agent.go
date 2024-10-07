@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -239,29 +237,4 @@ func StopAgentExperiment(ctx context.Context) error {
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	return StopAgentExperiment(ctx)
-}
-
-// ConfigureAgent configures the stable agent
-// TODO: this could be shared between multiple packages
-func ConfigureAgent(ctx context.Context, cdn cdn.CDN, configs *repository.Repositories) error {
-	config, err := cdn.Get(ctx, agentPackage)
-	if err != nil {
-		return fmt.Errorf("could not get cdn config: %w", err)
-	}
-	tmpDir, err := configs.MkdirTemp()
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	err = config.Write(tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not write agent config: %w", err)
-	}
-
-	err = configs.Create(agentPackage, config.Version(), tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not create repository: %w", err)
-	}
-	return nil
 }

@@ -539,14 +539,35 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	if !i.env.RemotePolicies {
 		return nil
 	}
 
+	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
 	switch pkg {
 	case packageDatadogAgent:
-		return service.ConfigureAgent(ctx, i.cdn, i.configs)
+		config, err := i.cdn.Get(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
+		}
+		tmpDir, err := i.configs.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		err = config.Write(tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not write %s config: %w", pkg, err)
+		}
+		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not create %s repository: %w", pkg, err)
+		}
+		return nil
 	default:
 		return nil
 	}
