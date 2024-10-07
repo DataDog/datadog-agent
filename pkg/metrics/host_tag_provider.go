@@ -16,20 +16,15 @@ import (
 	"github.com/benbjohnson/clock"
 )
 
-// NOTE: to avoid races, do not modify the contents of the `expectedTags`
-// slice, as those contents are referenced without holding the lock.
-
 type HostTagProvider struct {
 	hostTags []string
 	sync.RWMutex
 }
 
-// NewLocalProvider returns a new local Provider.
 func NewHostTagProvider() *HostTagProvider {
 	return newHostTagProviderWithClock(clock.New())
 }
 
-// newLocalProviderWithClock returns a provider using the given clock.
 func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 	p := &HostTagProvider{
 		hostTags: []string{},
@@ -37,10 +32,7 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
 	p.hostTags = append(p.hostTags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
-		// expected tags deadline is based on the agent start time, which may have been earlier
-		// than the current time.
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
-		// reset submitExpectedTags after deadline elapsed
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()
 			defer p.Unlock()
