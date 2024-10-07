@@ -12,12 +12,14 @@ type Libset string
 const (
 	// LibsetCrypto is the libset that contains the crypto libraries (libssl, libcrypto, libgnutls)
 	LibsetCrypto Libset = "crypto"
+	LibsetGPU    Libset = "gpu"
 )
 
 // LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries that belong to that libset. Should be
 // the same as in the probes.h file
 var LibsetToLibSuffixes = map[Libset][]string{
 	LibsetCrypto: {"libssl", "crypto", "gnutls"},
+	LibsetGPU:    {"libcudart"},
 }
 
 // IsLibsetValid checks if the given libset is valid (i.e., it's in the LibsetToLibSuffixes map)
