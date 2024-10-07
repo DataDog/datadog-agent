@@ -275,6 +275,8 @@ func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	var err error
+	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
+	// to them. If we don't do this, we might send events on closed channels which will panic.
 	for _, pm := range e.PerfMaps {
 		err = errors.Join(err, pm.Stop(manager.CleanAll))
 	}
