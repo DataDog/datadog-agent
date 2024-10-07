@@ -218,7 +218,6 @@ func TestInitData(t *testing.T) {
 		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
-		"feature_usm_http_by_status_code_enabled":      true,
 		"feature_usm_go_tls_enabled":                   true,
 		"feature_discovery_enabled":                    true,
 		"feature_tcp_queue_length_enabled":             true,
@@ -492,7 +491,6 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
@@ -545,7 +543,6 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
@@ -646,7 +643,6 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
