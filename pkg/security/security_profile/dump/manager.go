@@ -776,6 +776,8 @@ func (adm *ActivityDumpManager) SendStats() error {
 		}
 	}
 
+	adm.storage.SendTelemetry()
+
 	return nil
 }
 

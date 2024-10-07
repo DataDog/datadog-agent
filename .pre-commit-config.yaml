@@ -43,6 +43,11 @@ repos:
     hooks:
       - id: end-of-file-fixer
         files: release.json
+- repo: https://github.com/rhysd/actionlint
+  rev: v1.7.3
+  hooks:
+    - id: actionlint
+      args: [ "-ignore", "shellcheck" ]
 - repo: local
   hooks:
     - id: protected-branches

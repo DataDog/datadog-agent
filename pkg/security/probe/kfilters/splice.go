@@ -9,8 +9,6 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -36,30 +34,29 @@ var spliceCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, error) {
-	kfilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
+func spliceKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	kfilters, fieldHandled, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "splice.file.name", "splice.file.path": // already handled by getBasenameKFilters
 		case "splice.pipe_entry_flag":
 			kfilter, err := getFlagsKFilter("splice_entry_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		case "splice.pipe_exit_flag":
 			kfilter, err := getFlagsKFilter("splice_exit_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), nil
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }

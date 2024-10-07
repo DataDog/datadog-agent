@@ -23,12 +23,15 @@ const (
 	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
+	envRegistryUsername      = "DD_INSTALLER_REGISTRY_USERNAME"
+	envRegistryPassword      = "DD_INSTALLER_REGISTRY_PASSWORD"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
 	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
 	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
+	envCDNLocalDirPath       = "DD_INSTALLER_DEBUG_CDN_LOCAL_DIR_PATH"
 )
 
 var defaultEnv = Env{
@@ -38,8 +41,12 @@ var defaultEnv = Env{
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
+	RegistryUsername:            "",
+	RegistryPassword:            "",
 	RegistryOverrideByImage:     map[string]string{},
 	RegistryAuthOverrideByImage: map[string]string{},
+	RegistryUsernameByImage:     map[string]string{},
+	RegistryPasswordByImage:     map[string]string{},
 
 	DefaultPackagesInstallOverride: map[string]bool{},
 	DefaultPackagesVersionOverride: map[string]string{},
@@ -64,8 +71,12 @@ type Env struct {
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
+	RegistryUsername            string
+	RegistryPassword            string
 	RegistryOverrideByImage     map[string]string
 	RegistryAuthOverrideByImage map[string]string
+	RegistryUsernameByImage     map[string]string
+	RegistryPasswordByImage     map[string]string
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
@@ -76,6 +87,8 @@ type Env struct {
 	AgentMinorVersion string
 
 	InstallScript InstallScriptEnv
+
+	CDNLocalDirPath string
 }
 
 // FromEnv returns an Env struct with values from the environment.
@@ -88,8 +101,12 @@ func FromEnv() *Env {
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
+		RegistryUsername:            getEnvOrDefault(envRegistryUsername, defaultEnv.RegistryUsername),
+		RegistryPassword:            getEnvOrDefault(envRegistryPassword, defaultEnv.RegistryPassword),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
+		RegistryUsernameByImage:     overridesByNameFromEnv(envRegistryUsername, func(s string) string { return s }),
+		RegistryPasswordByImage:     overridesByNameFromEnv(envRegistryPassword, func(s string) string { return s }),
 
 		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
@@ -100,6 +117,8 @@ func FromEnv() *Env {
 		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 
 		InstallScript: installScriptEnvFromEnv(),
+
+		CDNLocalDirPath: getEnvOrDefault(envCDNLocalDirPath, ""),
 	}
 }
 
@@ -112,6 +131,8 @@ func FromConfig(config model.Reader) *Env {
 		RemotePolicies:       config.GetBool("remote_policies"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
+		RegistryUsername:     config.GetString("installer.registry.username"),
+		RegistryPassword:     config.GetString("installer.registry.password"),
 	}
 }
 
@@ -136,6 +157,12 @@ func (e *Env) ToEnv() []string {
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
+	if e.RegistryUsername != "" {
+		env = append(env, envRegistryUsername+"="+e.RegistryUsername)
+	}
+	if e.RegistryPassword != "" {
+		env = append(env, envRegistryPassword+"="+e.RegistryPassword)
+	}
 	if len(e.ApmLibraries) > 0 {
 		libraries := []string{}
 		for l, v := range e.ApmLibraries {
@@ -150,6 +177,8 @@ func (e *Env) ToEnv() []string {
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryUsername, e.RegistryUsernameByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryPassword, e.RegistryPasswordByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env

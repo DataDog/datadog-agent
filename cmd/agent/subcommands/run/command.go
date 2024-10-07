@@ -376,7 +376,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		commonendpoints.Module(),
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
@@ -416,15 +416,7 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
-		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
-		// other already migrated components to request it.
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return params
-		}),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 

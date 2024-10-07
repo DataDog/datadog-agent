@@ -265,10 +265,12 @@ def get_version(
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
         if not agent_version_cache_file_exist:
             if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-                ctx.run(
+                result = ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
                     hide="stdout",
                 )
+                if "unable to locate credentials" in result.stderr.casefold():
+                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
@@ -327,10 +329,12 @@ def get_version_numeric_only(ctx, major_version='7'):
     if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
         try:
             if not os.path.exists(AGENT_VERSION_CACHE_NAME):
-                ctx.run(
+                result = ctx.run(
                     f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
                     hide="stdout",
                 )
+                if "unable to locate credentials" in result.stderr.casefold():
+                    raise Exit("Permanent error: unable to locate credentials, retry the job", 42)
 
             with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)

@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 
 	"go.opentelemetry.io/collector/component"
@@ -21,6 +20,7 @@ import (
 
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Type exports the internal metadata type for easy reference
@@ -33,8 +33,7 @@ type ddExtension struct {
 	cfg *Config // Extension configuration.
 
 	telemetry   component.TelemetrySettings
-	server      *http.Server
-	tlsListener net.Listener
+	server      *server
 	info        component.BuildInfo
 	debug       extensionDef.DebugSourceResponse
 	configStore *configStore
@@ -151,7 +150,7 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 
 	ext.configStore.setProvidedConf(providedConf)
 
-	ext.server, ext.tlsListener, err = buildHTTPServer(cfg.HTTPConfig.Endpoint, ext)
+	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +162,7 @@ func (ext *ddExtension) Start(_ context.Context, _ component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	go func() {
-		if err := ext.server.Serve(ext.tlsListener); err != nil && err != http.ErrServerClosed {
+		if err := ext.server.start(); err != nil && err != http.ErrServerClosed {
 			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
 			ext.telemetry.Logger.Info("DD Extension HTTP could not start", zap.String("err", err.Error()))
 		}
@@ -178,7 +177,7 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 	ext.telemetry.Logger.Info("Shutting down HTTP server")
 
 	// Give the server a grace period to finish handling requests.
-	return ext.server.Shutdown(ctx)
+	return ext.server.shutdown(ctx)
 }
 
 // ServeHTTP the request handler for the extension.
@@ -204,7 +203,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
-			AgentVersion:     ext.info.Version,
+			AgentVersion:     version.AgentVersion,
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,

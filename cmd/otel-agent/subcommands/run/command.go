@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -91,7 +92,24 @@ func (o *orchestratorinterfaceimpl) Reset() {
 }
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
-	err := fxutil.Run(
+	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+	if err != nil && err != agentConfig.ErrNoDDExporter {
+		return err
+	}
+	if err == agentConfig.ErrNoDDExporter {
+		return fxutil.Run(
+			fx.Provide(func() []string {
+				return append(params.ConfPaths, params.Sets...)
+			}),
+			collectorcontribFx.Module(),
+			collectorfx.ModuleNoAgent(),
+			fx.Options(opts...),
+			fx.Invoke(func(_ collectordef.Component) {
+			}),
+		)
+	}
+
+	return fxutil.Run(
 		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
@@ -107,14 +125,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
-			if err != nil {
-				return nil, err
-			}
-			pkgconfigenv.DetectFeatures(c)
-			return c, nil
+			pkgconfigenv.DetectFeatures(acfg)
+			return acfg, nil
 		}),
-		workloadmetafx.Module(workloadmeta.NewParams()),
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
+		}),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
@@ -163,7 +180,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
 		}),
 
-		fx.Provide(tagger.NewTaggerParams),
+		fx.Provide(func() tagger.Params {
+			return tagger.NewNodeRemoteTaggerParamsWithFallback()
+		}),
 		taggerimpl.Module(),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
@@ -191,10 +210,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 		traceagentfx.Module(),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
