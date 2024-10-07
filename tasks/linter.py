@@ -727,7 +727,7 @@ def gitlab_change_paths(ctx):
 
 
 @task
-def gitlab_ci_job_owners(_, config_file=None, diff_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+def gitlab_ci_jobs_owners(_, config_file=None, diff_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """
     Verifies that each job is defined within JOBOWNERS files.
 
