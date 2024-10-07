@@ -12,7 +12,9 @@ type Libset string
 const (
 	// LibsetCrypto is the libset that contains the crypto libraries (libssl, libcrypto, libgnutls)
 	LibsetCrypto Libset = "crypto"
-	LibsetGPU    Libset = "gpu"
+
+	// LibsetGPU contains the libraryes for GPU monitoring (libcudart)
+	LibsetGPU Libset = "gpu"
 )
 
 // LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries that belong to that libset. Should be
