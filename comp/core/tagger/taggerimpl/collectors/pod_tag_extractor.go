@@ -26,9 +26,12 @@ func (p *PodTagExtractor) Extract(podEntity *workloadmeta.KubernetesPod, cardina
 
 	switch cardinality {
 	case types.HighCardinality:
-		return tagInfos.HighCardTags
+		tags := tagInfos.LowCardTags
+		tags = append(tags, tagInfos.HighCardTags...)
+		tags = append(tags, tagInfos.OrchestratorCardTags...)
+		return tags
 	case types.OrchestratorCardinality:
-		return tagInfos.OrchestratorCardTags
+		return append(tagInfos.LowCardTags, tagInfos.OrchestratorCardTags...)
 	case types.LowCardinality:
 		return tagInfos.LowCardTags
 	default:

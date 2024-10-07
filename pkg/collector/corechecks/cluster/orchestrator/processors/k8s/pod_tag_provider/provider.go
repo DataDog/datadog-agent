@@ -14,8 +14,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,10 +26,11 @@ type PodTagProvider interface {
 // In case of CLC runner, the provider will calculate tags based on the pod resource on demand each time
 // In case of Node agent or Cluster agent, the provider will get pod tags by querying the tagger
 func NewPodTagProvider(cfg config.Component, store workloadmeta.Component) PodTagProvider {
-	if flavor.GetFlavor() != flavor.ClusterAgent && pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
+	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		// Running in a CLC Runner
 		return newCLCTagProvider(cfg, store)
 	}
 
+	// Running in the Node Agent or in the Cluster Agent
 	return newNodePodTagProvider()
 }
