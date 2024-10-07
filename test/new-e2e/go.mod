@@ -59,7 +59,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20241003134706-f3aa4172342a
+	github.com/DataDog/test-infra-definitions v0.0.0-20241007120001-37578c0d08e7
 	github.com/aws/aws-sdk-go-v2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -77,7 +77,7 @@ require (
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
-	github.com/pulumi/pulumi/sdk/v3 v3.131.0
+	github.com/pulumi/pulumi/sdk/v3 v3.133.0
 	github.com/samber/lo v1.47.0
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -226,9 +226,9 @@ require (
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.16.3 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.16.6 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
-	github.com/pulumiverse/pulumi-time/sdk v0.0.17 // indirect
+	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
