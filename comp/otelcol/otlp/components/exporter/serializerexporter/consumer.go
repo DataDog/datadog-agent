@@ -15,15 +15,14 @@ import (
 
 	"go.uber.org/multierr"
 
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
-	"github.com/tinylib/msgp/msgp"
-
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/tinylib/msgp/msgp"
 )
 
 var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
