@@ -210,18 +210,19 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
     # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
     # Once the bucket is cleaned up we can switch to the pulumi CLI
     res = ctx.run(
-        f"aws s3api list-objects --bucket {pulumi_backend} --prefix .pulumi/stacks/e2eci",
+        "pulumi stack ls --all --json",
         hide=True,
         warn=True,
     )
     if res.exited != 0:
-        print(f"Failed to list stacks in bucket {pulumi_backend}:", res.stdout, res.stderr)
+        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
         return
     to_delete_stacks = set()
     stacks = json.loads(res.stdout)
-    for stack in stacks.get("Contents", []):
+    print(stacks)
+    for stack in stacks:
         stack_id = (
-            stack.get("Key", "")
+            stack.get("name", "")
             .split("/")[-1]
             .replace(".json.bak", "")
             .replace(".json", "")
