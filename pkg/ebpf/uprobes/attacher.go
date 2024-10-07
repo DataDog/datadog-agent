@@ -419,14 +419,17 @@ func (ua *UprobeAttacher) Start() error {
 			return errors.New("shared libraries tracing not supported for this platform")
 		}
 
-		ua.soWatcher = sharedlibraries.NewEBPFProgram(ua.config.EbpfConfig, ua.config.SharedLibsLibset)
+		ua.soWatcher = sharedlibraries.GetEBPFProgram(ua.config.EbpfConfig)
 
-		err := ua.soWatcher.Init()
+		err := ua.soWatcher.InitWithLibsets(ua.config.SharedLibsLibset)
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)
 		}
 
-		cleanupSharedLibs = ua.soWatcher.Subscribe(ua.handleLibraryOpen)
+		cleanupSharedLibs, err = ua.soWatcher.Subscribe(ua.handleLibraryOpen, ua.config.SharedLibsLibset)
+		if err != nil {
+			return fmt.Errorf("error subscribing to shared libraries events: %w", err)
+		}
 	}
 
 	if ua.config.PerformInitialScan {
