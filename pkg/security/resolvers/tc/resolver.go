@@ -26,8 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ProgmanKey is used to uniquely identify a tc program
-type ProgmanKey struct {
+// ProgramKey is used to uniquely identify a tc program
+type ProgramKey struct {
 	UID              string
 	FuncName         string
 	NetDevice        model.NetDevice
@@ -35,7 +35,7 @@ type ProgmanKey struct {
 }
 
 // Key return an identifier
-func (t *ProgmanKey) Key() string {
+func (t *ProgramKey) Key() string {
 	return t.UID + "_" + t.FuncName + "_" + t.NetDevice.GetKey()
 }
 
@@ -43,14 +43,14 @@ func (t *ProgmanKey) Key() string {
 type Resolver struct {
 	sync.RWMutex
 	config   *config.Config
-	programs map[ProgmanKey]*manager.Probe
+	programs map[ProgramKey]*manager.Probe
 }
 
 // NewResolver returns a TC resolver
 func NewResolver(config *config.Config) *Resolver {
 	return &Resolver{
 		config:   config,
-		programs: make(map[ProgmanKey]*manager.Probe),
+		programs: make(map[ProgramKey]*manager.Probe),
 	}
 }
 
@@ -100,7 +100,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		}
 
 		// make sure we're not overriding an existing network probe
-		progKey := ProgmanKey{
+		progKey := ProgramKey{
 			UID:              tcProbe.UID,
 			FuncName:         tcProbe.EBPFFuncName,
 			NetDevice:        device,
