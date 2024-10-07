@@ -11,12 +11,10 @@ unit_tests_notify:
     - !reference [.setup_agent_github_app]
     - inv notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME
   needs:
-    - tests_deb-x64-py3
-    - tests_deb-arm64-py3
-    - tests_rpm-x64-py3
-    - tests_rpm-arm64-py3
+    - tests_linux-x64-py3
+    - tests_linux-arm64-py3
     - tests_windows-x64
-    - tests_flavor_iot_deb-x64
-    - tests_flavor_dogstatsd_deb-x64
-    - tests_flavor_heroku_deb-x64
+    - tests_flavor_iot-x64
+    - tests_flavor_dogstatsd-x64
+    - tests_flavor_heroku-x64
   allow_failure: true
