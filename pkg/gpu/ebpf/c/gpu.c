@@ -31,7 +31,7 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
 
 SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
-    cuda_kernel_launch_t launch_data;
+    cuda_kernel_launch_t launch_data = { 0 };
     long read_ret = 0;
     __u64 shared_mem = 0;
     __u64 stream = 0;
@@ -47,8 +47,6 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
         log_debug("cudaLaunchKernel: failed to read stream");
         return 0;
     }
-
-    bpf_memset(&launch_data, 0, sizeof(launch_data));
 
     load_dim3(grid_xy, grid_z, &launch_data.grid_size);
     load_dim3(block_xy, block_z, &launch_data.block_size);
@@ -82,7 +80,7 @@ SEC("uretprobe/cudaMalloc")
 int BPF_URETPROBE(uretprobe__cudaMalloc) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     cuda_alloc_request_args_t *args;
-    cuda_memory_event_t mem_data;
+    cuda_memory_event_t mem_data = { 0 };
 
     log_debug("cudaMalloc[ret]: pid=%llx\n", pid_tgid);
 
@@ -91,8 +89,6 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
         log_debug("cudaMalloc[ret]: failed to find cudaMalloc request");
         return 0;
     }
-
-    bpf_memset(&mem_data, 0, sizeof(mem_data));
 
     mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
     mem_data.header.stream_id = (uint64_t)0;
@@ -117,9 +113,7 @@ out:
 
 SEC("uprobe/cudaFree")
 int BPF_UPROBE(uprobe__cudaFree, void *mem) {
-    cuda_memory_event_t mem_data;
-
-    bpf_memset(&mem_data, 0, sizeof(mem_data));
+    cuda_memory_event_t mem_data = { 0 };
 
     mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
     mem_data.header.stream_id = (uint64_t)0;
@@ -148,7 +142,7 @@ SEC("uretprobe/cudaStreamSynchronize")
 int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u64 *stream = NULL;
-    cuda_sync_t event;
+    cuda_sync_t event = { 0 };
 
     log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", pid_tgid);
 
@@ -157,8 +151,6 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
         log_debug("cudaStreamSyncronize[ret]: failed to find cudaStreamSyncronize request");
         return 0;
     }
-
-    bpf_memset(&event, 0, sizeof(event));
 
     event.header.pid_tgid = bpf_get_current_pid_tgid();
     event.header.stream_id = *stream;
