@@ -28,8 +28,8 @@ func RunSample(t *testing.T, name SampleName) (*exec.Cmd, error) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	sourceFile := filepath.Join(curDir, "testdata", string(name)+".c")
-	binaryFile := filepath.Join(curDir, "testdata", string(name))
+	sourceFile := filepath.Join(curDir, "..", "testdata", string(name)+".c")
+	binaryFile := filepath.Join(curDir, "..", "testdata", string(name))
 
 	builtBin, err := buildCBinary(sourceFile, binaryFile)
 	require.NoError(t, err)
