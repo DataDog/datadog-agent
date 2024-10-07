@@ -337,7 +337,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		collectionSpec.Maps["lock_stat"].MaxEntries = ranges
 		collectionSpec.Maps["ranges"].MaxEntries = ranges
 
-		// Ideally we would want this to be the max number of proccesses allowed
+		// Ideally we would want this to be the max number of processes allowed
 		// by the kernel, however verifier constraints force us to choose a smaller
 		// value. This value has been experimentally determined to pass the verifier.
 		collectionSpec.Maps["tstamp"].MaxEntries = 16384
@@ -365,7 +365,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 			if errors.As(err, &ve) {
 				return fmt.Errorf("verfier error loading collection: %s\n%+v", err, ve)
 			}
-			return fmt.Errorf("failed to load objects: %w", err)
+			return fmt.Errorf("failed to load objects (%d ranges): %w", l.ranges, err)
 		}
 
 		return nil
