@@ -78,6 +78,7 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
+    - !reference [.setup_agent_github_app]
     - pip install -r tasks/libs/requirements-github.txt
     # - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
