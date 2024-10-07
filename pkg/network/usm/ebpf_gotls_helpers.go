@@ -8,14 +8,133 @@
 package usm
 
 import (
+	"debug/elf"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
+	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
+	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// GoTLSBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
+// such as the argument passing convention and the lack of uprobes
+type GoTLSBinaryInspector struct {
+	structFieldsLookupFunctions map[bininspect.FieldIdentifier]bininspect.StructLookupFunction
+	paramLookupFunctions        map[string]bininspect.ParameterLookupFunction
+
+	// eBPF map holding the result of binary analysis, indexed by binaries'
+	// inodes.
+	offsetsDataMap *ebpf.Map
+
+	// binAnalysisMetric handles telemetry on the time spent doing binary
+	// analysis
+	binAnalysisMetric *libtelemetry.Counter
+
+	// binNoSymbolsMetric counts Golang binaries without symbols.
+	binNoSymbolsMetric *libtelemetry.Counter
+}
+
+// Ensure GoTLSBinaryInspector implements BinaryInspector
+var _ uprobes.BinaryInspector = &GoTLSBinaryInspector{}
+
+// Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
+func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+	start := time.Now()
+
+	path := fpath.HostPath
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("could not open file %s, %w", path, err)
+	}
+	defer f.Close()
+
+	elfFile, err := elf.NewFile(f)
+	if err != nil {
+		return nil, false, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
+	}
+
+	functionsConfig := make(map[string]bininspect.FunctionConfiguration, len(requests))
+	for _, req := range requests {
+		lookupFunc, ok := p.paramLookupFunctions[req.Name]
+		if !ok {
+			return nil, false, fmt.Errorf("no parameter lookup function found for function %s", req.Name)
+		}
+
+		functionsConfig[req.Name] = bininspect.FunctionConfiguration{
+			IncludeReturnLocations: req.IncludeReturnLocations,
+			ParamLookupFunction:    lookupFunc,
+		}
+	}
+
+	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, p.structFieldsLookupFunctions)
+	if err != nil {
+		if errors.Is(err, elf.ErrNoSymbols) {
+			p.binNoSymbolsMetric.Add(1)
+		}
+		return nil, false, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
+	}
+
+	if err := p.addInspectionResultToMap(fpath.ID, inspectionResult); err != nil {
+		return nil, false, fmt.Errorf("failed adding inspection rules: %w", err)
+	}
+
+	elapsed := time.Since(start)
+	p.binAnalysisMetric.Add(elapsed.Milliseconds())
+
+	return inspectionResult.Functions, true, nil
+}
+
+// Cleanup removes the inspection result for the binary at the given path from the map.
+func (p *GoTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
+	p.removeInspectionResultFromMap(fpath.ID)
+}
+
+// addInspectionResultToMap runs a binary inspection and adds the result to the
+// map that's being read by the probes, indexed by the binary's inode number `ino`.
+func (p *GoTLSBinaryInspector) addInspectionResultToMap(binID utils.PathIdentifier, result *bininspect.Result) error {
+	offsetsData, err := inspectionResultToProbeData(result)
+	if err != nil {
+		return fmt.Errorf("error while parsing inspection result: %w", err)
+	}
+
+	key := &gotls.TlsBinaryId{
+		Id_major: unix.Major(binID.Dev),
+		Id_minor: unix.Minor(binID.Dev),
+		Ino:      binID.Inode,
+	}
+	if err := p.offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData)); err != nil {
+		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
+	}
+
+	return nil
+}
+
+func (p *GoTLSBinaryInspector) removeInspectionResultFromMap(binID utils.PathIdentifier) {
+	key := &gotls.TlsBinaryId{
+		Id_major: unix.Major(binID.Dev),
+		Id_minor: unix.Minor(binID.Dev),
+		Ino:      binID.Inode,
+	}
+	if err := p.offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
+		// Ignore errors for non-existing keys: if the inspect process fails, we won't have added the key to the map
+		// but the deactivation callback (which calls Cleanup and thus this method) will still be called. So it's normal
+		// to not find the key in the map. We report other errors though.
+		if !errors.Is(err, unix.ENOENT) {
+			log.Errorf("could not remove binary inspection result from map for binID %v: %v", binID, err)
+		}
+	}
+}
 
 func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {
 	closeConnPointer, err := getConnPointer(result, bininspect.CloseGoTLSFunc)
