@@ -86,6 +86,8 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
+TEST_HELPER_CBINS = ["cudasample"]
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -975,6 +977,12 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
+
+        for cbin in TEST_HELPER_CBINS:
+            source = Path(pkg) / "testdata" / f"{cbin}.c"
+            if not is_windows and source.is_file():
+                binary = Path(target_path) / cbin
+                ctx.run(f"clang -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
