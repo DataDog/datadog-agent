@@ -31,7 +31,7 @@ int classifier_raw_packet(struct __sk_buff *skb) {
     asm ("r1 = %[len]\n\t"
          "if r1 > 0 goto + 2\n\t"
          "r0 = 0\n\t"
-         "exit\n\t" :: [len]"r"(len));
+         "exit\n\t" :: [len]"r"((u64)len));
 
     if (len > sizeof(evt->data)) {
         return ACT_OK;
