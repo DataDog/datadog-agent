@@ -36,11 +36,11 @@ func (tl testLogger) Write(p []byte) (n int, err error) {
 // used to avoid name collisions between parallel runs.
 //
 // A new directory is created on each call to this function, it is recommended to save this result
-// and use it for all tests in a run. For example see BaseSuite.CreateTestOutputDir().
+// and use it for all tests in a run. For example see BaseSuite.GetRootOutputDir().
 //
 // See runner.GetProfile().GetOutputDir() for the root output directory selection logic.
 //
-// See GetTestOutputDir for a function that returns a subdirectory for a specific test.
+// See CreateTestOutputDir and BaseSuite.CreateTestOutputDir for a function that returns a subdirectory for a specific test.
 func CreateRootOutputDir() (string, error) {
 	outputRoot, err := runner.GetProfile().GetOutputDir()
 	if err != nil {

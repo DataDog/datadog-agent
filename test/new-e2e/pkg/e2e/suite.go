@@ -533,13 +533,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 }
 
-// CreateRootOutputDir returns the root output directory for tests to store output files and artifacts.
+// GetRootOutputDir returns the root output directory for tests to store output files and artifacts.
 // The directory is created on the first call to this function and reused in future calls.
 //
 // See BaseSuite.CreateTestOutputDir() for a function that returns a directory for the current test.
 //
 // See CreateRootOutputDir() for details on the root directory creation.
-func (bs *BaseSuite[Env]) CreateRootOutputDir() (string, error) {
+func (bs *BaseSuite[Env]) GetRootOutputDir() (string, error) {
 	var err error
 	bs.onceTestSessionOutputDir.Do(func() {
 		// Store the timestamped directory to be used by all tests in the suite
