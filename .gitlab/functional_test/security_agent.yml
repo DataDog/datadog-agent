@@ -101,7 +101,10 @@ kitchen_test_security_agent_amazonlinux_x64:
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
         KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "amazonlinux"
-        KITCHEN_OSVERS: "amazonlinux2022-5-15,amazonlinux2023"
+        KITCHEN_OSVERS: "amazonlinux2023"
+        KITCHEN_CWS_PLATFORM: [docker]
+      - KITCHEN_PLATFORM: "amazonlinux"
+        KITCHEN_OSVERS: "amazonlinux2022-5-15"
         KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_test_security_agent_x64_ec2:

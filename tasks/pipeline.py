@@ -85,14 +85,15 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
 
     match = re.match(v7_pattern, git_ref)
 
+    # TODO(@spencergilbert): remove cross reference check when all references to a6 are removed
     if release_version_6 and match:
         # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
         tag_name = "6." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
-        except GitlabError as e:
+        except GitlabError:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            raise Exit(code=1) from e
+            print("v6 tags are no longer created, this check will be removed in a later commit")
 
         print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
@@ -593,11 +594,13 @@ def changelog(ctx, new_commit_sha):
     print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
-    ctx.run(
+    res = ctx.run(
         f"aws ssm put-parameter --name ci.datadog-agent.gitlab_changelog_commit_sha --value {new_commit_sha} "
         "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
+    if "unable to locate credentials" in res.stderr.casefold():
+        raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
 
 
 @task

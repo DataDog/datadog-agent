@@ -9,9 +9,8 @@ package utils
 import (
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"go.uber.org/atomic"
 )
 
 type cacheEntry struct {
@@ -38,8 +37,8 @@ type Limiter[K comparable] struct {
 }
 
 // NewLimiter returns a rate limiter that is sized to the configured number of unique tokens, and each unique token is allowed 'numAllowedTokensPerPeriod' times per 'period'.
-func NewLimiter[K comparable](numUniqueTokens int, numAllowedTokensPerPeriod int, period time.Duration) (*Limiter[K], error) {
-	cache, err := simplelru.NewLRU[K, *cacheEntry](numUniqueTokens, nil)
+func NewLimiter[K comparable](maxUniqueToken int, numAllowedTokensPerPeriod int, period time.Duration) (*Limiter[K], error) {
+	cache, err := simplelru.NewLRU[K, *cacheEntry](maxUniqueToken, nil)
 	if err != nil {
 		return nil, err
 	}

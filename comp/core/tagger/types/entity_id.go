@@ -26,38 +26,38 @@ type EntityID interface {
 	String() string
 }
 
-// defaultEntityID implements EntityID as a plain string id
-type defaultEntityID string
+// DefaultEntityID implements EntityID as a plain string id
+type DefaultEntityID string
 
 // GetID implements EntityID#GetID
-func (de defaultEntityID) GetID() string {
-	parts := strings.SplitN(string(de), separator, 2)
+func (de DefaultEntityID) GetID() string {
+	separatorIndex := strings.Index(string(de), separator)
 
-	if len(parts) != 2 {
+	if separatorIndex == -1 {
 		return ""
 	}
 
-	return parts[1]
+	return string(de[separatorIndex+len(separator):])
 }
 
 // GetPrefix implements EntityID#GetPrefix
-func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	parts := strings.SplitN(string(de), separator, 2)
+func (de DefaultEntityID) GetPrefix() EntityIDPrefix {
+	separatorIndex := strings.Index(string(de), separator)
 
-	if len(parts) != 2 {
+	if separatorIndex == -1 {
 		return ""
 	}
 
-	return EntityIDPrefix(parts[0])
+	return EntityIDPrefix(de[:separatorIndex])
 }
 
 // String implements EntityID#String
-func (de defaultEntityID) String() string {
+func (de DefaultEntityID) String() string {
 	return string(de)
 }
 
-func newDefaultEntityID(id string) EntityID {
-	return defaultEntityID(id)
+func newDefaultEntityID(id string) DefaultEntityID {
+	return DefaultEntityID(id)
 }
 
 // compositeEntityID implements EntityID as a struct of prefix and id
@@ -109,6 +109,11 @@ func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
 	}
 	return newDefaultEntityID(plainStringID), nil
+}
+
+// NewDefaultEntityIDFromStr constructs a default EntityID from a plain string id
+func NewDefaultEntityIDFromStr(plainStringID string) EntityID {
+	return newDefaultEntityID(plainStringID)
 }
 
 const (

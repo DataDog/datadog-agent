@@ -14,11 +14,12 @@ from invoke.exceptions import Exit
 
 from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
+    compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
-    get_full_gitlab_ci_configuration,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
     print_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
@@ -173,7 +174,7 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
         raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
 
-    config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
+    config = resolve_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
 
     jobs = [j for j in jobs.split(',') if j] + jobs_to_keep
     required = set()
@@ -242,7 +243,7 @@ def print_ci(
     keep_special_objects: bool = False,
     expand_matrix: bool = False,
     git_ref: str | None = None,
-    ignore_errors: bool = False,
+    with_lint: bool = True,
 ):
     """
     Prints the full gitlab ci configuration.
@@ -251,7 +252,7 @@ def print_ci(
     - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
     - keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
     - expand_matrix: Will expand matrix jobs into multiple jobs
-    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - with_lint: If False, do not lint the configuration
     - git_ref: If provided, use this git reference to fetch the configuration
     - NOTE: This requires a full api token access level to the repository
     """
@@ -262,7 +263,7 @@ def print_ci(
         clean=clean,
         expand_matrix=expand_matrix,
         git_ref=git_ref,
-        ignore_errors=ignore_errors,
+        with_lint=with_lint,
         keep_special_objects=keep_special_objects,
     )
 
@@ -281,3 +282,31 @@ def print_entry_points(ctx):
     print(len(entry_points), 'entry points:')
     for entry_point, config in entry_points.items():
         print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')
+
+
+@task
+def compute_gitlab_ci_config(
+    ctx,
+    before: str | None = None,
+    after: str | None = None,
+    before_file: str = 'before.gitlab-ci.yml',
+    after_file: str = 'after.gitlab-ci.yml',
+    diff_file: str = 'diff.gitlab-ci.yml',
+):
+    """
+    Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
+    """
+
+    before_config, after_config, diff = compute_gitlab_ci_config_diff(ctx, before, after)
+
+    print('Writing', before_file)
+    with open(before_file, 'w') as f:
+        f.write(yaml.safe_dump(before_config))
+
+    print('Writing', after_file)
+    with open(after_file, 'w') as f:
+        f.write(yaml.safe_dump(after_config))
+
+    print('Writing', diff_file)
+    with open(diff_file, 'w') as f:
+        f.write(yaml.safe_dump(diff.to_dict()))

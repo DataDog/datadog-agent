@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
@@ -21,13 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-)
-
-const (
-	// StableInstallerPath is the path to the stable installer binary.
-	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
-	// ExperimentInstallerPath is the path to the experiment installer binary.
-	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -56,8 +50,12 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
-	cmd.Cancel = func() error {
-		return cmd.Process.Signal(os.Interrupt)
+	if runtime.GOOS != "windows" {
+		// os.Interrupt is not support on Windows
+		// It gives " run failed: exec: canceling Cmd: not supported by windows"
+		cmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
 	}
 	env = append(env, telemetry.EnvFromSpanContext(span.Context())...)
 	cmd.Env = env
@@ -106,6 +104,27 @@ func (i *InstallerExec) RemoveExperiment(ctx context.Context, pkg string) (err e
 // PromoteExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-experiment", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// InstallConfigExperiment installs an experiment.
+func (i *InstallerExec) InstallConfigExperiment(ctx context.Context, url string, version string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", url, version)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// RemoveConfigExperiment removes an experiment.
+func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "remove-config-experiment", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// PromoteConfigExperiment promotes an experiment to stable.
+func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
 }
@@ -167,6 +186,19 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 	return defaultPackages, nil
 }
 
+// Setup runs the setup command.
+func (i *InstallerExec) Setup(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "setup")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error running setup: %w\n%s", err, stderr.String())
+	}
+	return nil
+}
+
 // AvailableDiskSpace returns the available disk space.
 func (i *InstallerExec) AvailableDiskSpace() (uint64, error) {
 	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
@@ -199,6 +231,11 @@ func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
 	states, err := repositories.GetStates()
 	log.Debugf("config repositories states: %v", states)
 	return states, err
+}
+
+// Close cleans up any resources.
+func (i *InstallerExec) Close() error {
+	return nil
 }
 
 func (iCmd *installerCmd) Run() error {
