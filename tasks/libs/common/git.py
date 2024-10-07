@@ -45,6 +45,41 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
+def get_file_modifications(
+    ctx, base_branch=DEFAULT_BRANCH, added=False, modified=False, removed=False, only_names=False
+) -> list[tuple[str, str]]:
+    """
+    Get file status changes for the current branch compared to the base branch.
+
+    If no filter is provided, will return all the files.
+
+    - added: Include added files
+    - modified: Include modified files
+    - removed: Include removed files
+    - only_names: Return only the file names without the status
+    - Returns a list of (status, filename)
+    """
+
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
+
+    modifications = [
+        line.split()
+        for line in ctx.run(f"git diff --name-status {last_main_commit}..HEAD", hide=True).stdout.splitlines()
+    ]
+
+    if added or modified or removed:
+        modifications = [
+            (status, file)
+            for status, file in modifications
+            if (added and status == "A") or (modified and status in "MCRT") or (removed and status == "D")
+        ]
+
+    if only_names:
+        modifications = [file for _, file in modifications]
+
+    return modifications
+
+
 def get_modified_files(ctx, base_branch="main") -> list[str]:
     last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()

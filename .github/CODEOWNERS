@@ -66,7 +66,24 @@
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx-infra or agent-delivery
 # Files that only describe structure (eg. includes, rules) are owned by agent-devx-infra
 
-/.gitlab/                                            @DataDog/agent-devx-infra
+/.gitlab/.ci-linters.yml                             @DataDog/agent-devx-infra
+/.gitlab/.pre/*                                      @DataDog/agent-devx-infra
+/.gitlab/check_deploy/*                              @DataDog/agent-delivery
+/.gitlab/check_merge/*                               @DataDog/agent-devx-infra
+/.gitlab/deploy*/*                                   @DataDog/agent-delivery
+/.gitlab/deps_fetch/*                                @DataDog/agent-devx-infra
+/.gitlab/e2e/*                                       @DataDog/agent-devx-loops
+/.gitlab/e2e_install_packages/*                      @DataDog/agent-delivery
+/.gitlab/e2e_pre_test/*                              @DataDog/agent-devx-loops
+/.gitlab/junit_upload/*                              @DataDog/agent-devx-infra
+/.gitlab/kernel_matrix_testing/*                     @DataDog/ebpf-platform
+/.gitlab/lint/*                                      @DataDog/agent-devx-infra
+/.gitlab/maintenance_jobs/*                          @DataDog/agent-devx-loops
+/.gitlab/notify/*                                    @DataDog/agent-devx-infra
+/.gitlab/pkg_metrics/*                               @DataDog/agent-devx-infra
+/.gitlab/post_rc_build/*                             @DataDog/agent-devx-infra
+/.gitlab/setup/*                                     @DataDog/agent-devx-infra
+/.gitlab/trigger_release/*                           @DataDog/agent-devx-infra
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-delivery
