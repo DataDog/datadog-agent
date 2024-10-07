@@ -259,15 +259,7 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 
 func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
 	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2LocalhostScenario(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2LocalhostScenario(t, false)
-	})
-}
 
-func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
 	assert := assert.New(t)
 	cliport := uint16(6000)
 	serverport := uint16(80)
