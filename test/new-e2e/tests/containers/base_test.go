@@ -23,11 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-type baseSuite[Env any] struct {
+type baseSuite[Env environments.Fakeintake] struct {
 	e2e.BaseSuite[Env]
 
 	startTime     time.Time
@@ -46,6 +47,7 @@ func (suite *baseSuite[Env]) SetupSuite() {
 
 	suite.startTime = time.Now()
 	suite.BaseSuite.SetupSuite()
+	suite.Env().Fakeintake()
 }
 
 func (suite *baseSuite[Env]) TearDownSuite() {
@@ -101,6 +103,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 
 func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
+	suite.Env().Fakeintake()
 	suite.Run("metric   "+prettyMetricQuery, func() {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {

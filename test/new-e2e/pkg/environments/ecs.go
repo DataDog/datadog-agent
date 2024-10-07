@@ -36,3 +36,7 @@ func (e *ECS) Init(_ e2e.Context) error {
 	e.DatadogClient = datadog.NewClient(apiKey, appKey)
 	return nil
 }
+
+func (e ECS) Fakeintake() *components.FakeIntake {
+	return e.FakeIntake
+}

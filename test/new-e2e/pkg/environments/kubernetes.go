@@ -16,3 +16,7 @@ type Kubernetes struct {
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
 }
+
+func (k Kubernetes) Fakeintake() *components.FakeIntake {
+	return k.FakeIntake
+}
