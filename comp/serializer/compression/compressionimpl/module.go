@@ -31,7 +31,7 @@ func FromConfig(cfg config.Component) compression.Component {
 		cfg.GetString("serializer_compressor_kind"),
 		cfg.GetInt("serializer_zstd_compressor_level"),
 		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
+		[]string{"zstd", "zlib", "nativezstd"},
 	)
 }
 

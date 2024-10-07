@@ -56,7 +56,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 		deps.Config.GetString("serializer_compressor_kind"),
 		deps.Config.GetInt("serializer_zstd_compressor_level"),
 		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
+		[]string{"zstd", "zlib", "nativezstd"},
 	)
 
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, compressor, "hostname")

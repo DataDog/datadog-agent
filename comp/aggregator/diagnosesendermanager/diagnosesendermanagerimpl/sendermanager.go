@@ -75,7 +75,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		config.GetString("serializer_compressor_kind"),
 		config.GetInt("serializer_zstd_compressor_level"),
 		"serializer_compressor_kind",
-		[]string{"zstd", "zlib"},
+		[]string{"zstd", "zlib", "nativezstd"},
 	)
 
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
