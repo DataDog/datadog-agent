@@ -2,25 +2,6 @@
 include:
   - .gitlab/common/container_publish_job_templates.yml
 
-dev_branch-a6:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.manual]
-  needs:
-    - docker_build_agent6
-    - docker_build_agent6_jmx
-    - docker_build_agent6_py2py3_jmx
-  variables:
-    IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG},agent-dev:${CI_COMMIT_REF_SLUG}-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-jmx,agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-py2py3-jmx-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
-
 dev_branch-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -32,27 +13,6 @@ dev_branch-dogstatsd:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
-
-dev_branch_multiarch-a6:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_all_builds_manual]
-  needs:
-    - docker_build_agent6
-    - docker_build_agent6_arm64
-    - docker_build_agent6_jmx
-    - docker_build_agent6_jmx_arm64
-    - docker_build_agent6_py2py3_jmx
-  variables:
-    IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG},agent-dev:${CI_COMMIT_REF_SLUG}-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-jmx,agent-dev:${CI_COMMIT_REF_SLUG}-py2-jmx
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-py2py3-jmx-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-py2py3-jmx
 
 dev_branch_multiarch-a7:
   extends: .docker_publish_job_definition
@@ -83,25 +43,6 @@ dev_branch_multiarch-dogstatsd:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: dogstatsd-dev:${CI_COMMIT_REF_SLUG}
-
-dev_master-a6:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_main]
-  needs:
-    - docker_build_agent6
-    - docker_build_agent6_arm64
-    - docker_build_agent6_jmx
-    - docker_build_agent6_jmx_arm64
-    - docker_build_agent6_py2py3_jmx
-  variables:
-    IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
-        IMG_DESTINATIONS: agent-dev:master,agent-dev:master-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:master-jmx,agent-dev:master-py2-jmx
 
 dev_master-a7:
   extends: .docker_publish_job_definition
@@ -178,26 +119,6 @@ cws_instrumentation_dev_branch_multiarch:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cws-instrumentation-dev:${CI_COMMIT_REF_SLUG}
-
-# deploys nightlies to agent-dev
-dev_nightly_docker_hub-a6:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch]
-  needs:
-    - docker_build_agent6
-    - docker_build_agent6_arm64
-    - docker_build_agent6_jmx
-    - docker_build_agent6_jmx_arm64
-    - docker_build_agent6_py2py3_jmx
-  variables:
-    IMG_REGISTRIES: dev
-  parallel:
-    matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py2,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py2
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-6-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-py2-jmx,agent-dev:nightly-${CI_COMMIT_REF_SLUG}-py2-jmx
 
 # deploys nightlies to agent-dev
 dev_nightly-a7:

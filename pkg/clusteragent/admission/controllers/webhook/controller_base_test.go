@@ -31,6 +31,7 @@ func TestNewController(t *testing.T) {
 		client,
 		factory.Core().V1().Secrets(),
 		factory.Admissionregistration(),
+		factory.Admissionregistration(),
 		func() bool { return true },
 		make(chan struct{}),
 		v1Cfg,
@@ -44,6 +45,7 @@ func TestNewController(t *testing.T) {
 	controller = NewController(
 		client,
 		factory.Core().V1().Secrets(),
+		factory.Admissionregistration(),
 		factory.Admissionregistration(),
 		func() bool { return true },
 		make(chan struct{}),

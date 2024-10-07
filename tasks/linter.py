@@ -6,22 +6,28 @@ import sys
 from collections import defaultdict
 from glob import glob
 
+import yaml
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    MultiGitlabCIDiff,
+    full_config_get_all_leaf_jobs,
+    full_config_get_all_stages,
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
-    get_gitlab_repo,
     get_preset_contexts,
+    is_leaf_job,
     load_context,
     read_includes,
     retrieve_all_paths,
+    test_gitlab_configuration,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
@@ -301,21 +307,33 @@ def lint_flavor(
 
 
 @task
-def list_ssm_parameters(_):
+def list_parameters(_, type):
     """
     List all SSM parameters used in the datadog-agent repository.
     """
-
-    ssm_owner = re.compile(r"^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
-    ssm_params = defaultdict(list)
+    if type == "ssm":
+        section_pattern = re.compile(r"aws ssm variables")
+    elif type == "vault":
+        section_pattern = re.compile(r"vault variables")
+    else:
+        raise Exit(f"{color_message('Error', Color.RED)}: pattern must be in [ssm, vault], not |{type}|")
+    in_param_section = False
+    param_owner = re.compile(r"^[^:]+: (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    params = defaultdict(list)
     with open(".gitlab-ci.yml") as f:
         for line in f:
-            m = ssm_owner.match(line.strip())
-            if m:
-                ssm_params[m.group("owner")].append(m.group("param"))
-    for owner in ssm_params.keys():
+            section = section_pattern.search(line)
+            if section:
+                in_param_section = not in_param_section
+            if in_param_section:
+                if len(line.strip()) == 0:
+                    break
+                m = param_owner.match(line.strip())
+                if m:
+                    params[m.group("owner")].append(m.group("param"))
+    for owner in params.keys():
         print(f"Owner:{owner}")
-        for param in ssm_params[owner]:
+        for param in params[owner]:
             print(f"  - {param}")
 
 
@@ -412,33 +430,8 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
     """
-
-    agent = get_gitlab_repo()
-    has_errors = False
-
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx)
-
-    def test_gitlab_configuration(entry_point, input_config, context=None):
-        nonlocal has_errors
-
-        # Update config and lint it
-        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
-        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
-        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
-        if len(res.warnings) > 0:
-            print(
-                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-                file=sys.stderr,
-            )
-        if not res.valid:
-            print(
-                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-                file=sys.stderr,
-            )
-            has_errors = True
+    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
@@ -453,12 +446,93 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(entry_point, input_config, dict(context))
+                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
             else:
-                test_gitlab_configuration(entry_point, input_config)
+                test_gitlab_configuration(ctx, entry_point, input_config)
 
-    if has_errors:
-        raise Exit(code=1)
+
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+    """
+    Verifies that each added / modified job contains `needs` and also `rules`.
+    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
+    All configurations are checked (even downstream ones).
+
+    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+
+    - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+    - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+    """
+
+    assert (
+        diff_file or config_file and not (diff_file and config_file)
+    ), "You must provide either a diff file or a config file and not both"
+
+    # Load all the jobs from the files
+    if config_file:
+        with open(config_file) as f:
+            conf = yaml.safe_load(f)
+
+        full_config = conf
+
+        jobs = []
+        for file_jobs in conf.values():
+            for job_name, job_contents in file_jobs.items():
+                if is_leaf_job(job_name, job_contents):
+                    jobs.append((job_name, job_contents))
+    else:
+        with open(diff_file) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+
+        full_config = diff.after
+        jobs = [
+            (job, contents)
+            for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
+            if is_leaf_job(job, contents)
+        ]
+
+        if not jobs:
+            print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+            return
+
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
+    # Verify the jobs
+    error_jobs = []
+    n_ignored = 0
+    for job, contents in jobs:
+        error = "needs" not in contents or "rules" not in contents
+        to_ignore = (
+            job in ci_linters_config.needs_rules_jobs or contents['stage'] in ci_linters_config.needs_rules_stages
+        )
+
+        if to_ignore:
+            if error:
+                n_ignored += 1
+            continue
+
+        if error:
+            error_jobs.append((job, contents['stage']))
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path})'
+        )
+
+    if error_jobs:
+        error_jobs = sorted(error_jobs)
+        error_jobs = '\n'.join(f'- {job} ({stage} stage)' for job, stage in error_jobs)
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {ci_linters_config.path}",
+            code=1,
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have "needs" and "rules"')
 
 
 @task

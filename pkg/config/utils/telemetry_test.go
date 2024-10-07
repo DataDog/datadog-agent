@@ -19,6 +19,7 @@ func TestIsCheckTelemetryEnabled(t *testing.T) {
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	pkgconfigsetup.InitConfig(mockConfig)
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.enabled", false)
 
 	assert.False(IsCheckTelemetryEnabled("cpu", mockConfig))

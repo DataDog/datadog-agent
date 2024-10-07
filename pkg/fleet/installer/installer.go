@@ -60,6 +60,10 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
+	InstallConfigExperiment(ctx context.Context, pkg string, version string) error
+	RemoveConfigExperiment(ctx context.Context, pkg string) error
+	PromoteConfigExperiment(ctx context.Context, pkg string) error
+
 	GarbageCollect(ctx context.Context) error
 
 	InstrumentAPMInjector(ctx context.Context, method string) error
@@ -73,7 +77,7 @@ type installerImpl struct {
 	m sync.Mutex
 
 	env        *env.Env
-	cdn        *cdn.CDN
+	cdn        cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -84,7 +88,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -93,7 +97,7 @@ func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, configDBPath)
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create CDN client: %w", err)
 	}
@@ -244,6 +248,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
+
 	return i.startExperiment(ctx, pkg.Name)
 }
 
@@ -283,6 +288,74 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	defer i.m.Unlock()
 
 	repository := i.packages.Get(pkg)
+	err := repository.PromoteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not promote experiment: %w", err)
+	}
+	return i.promoteExperiment(ctx, pkg)
+}
+
+// InstallConfigExperiment installs an experiment on top of an existing package.
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	config, err := i.cdn.Get(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not get cdn config: %w", err)
+	}
+	if config.Version() != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
+	}
+
+	tmpDir, err := i.packages.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	err = config.Write(tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not write agent config: %w", err)
+	}
+
+	configRepo := i.configs.Get(pkg)
+	err = configRepo.SetExperiment(version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not set experiment: %w", err)
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		return nil // TODO: start config experiment for Windows
+	default:
+		return i.startExperiment(ctx, pkg)
+	}
+}
+
+// RemoveConfigExperiment removes an experiment.
+func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	err := i.stopExperiment(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not stop experiment: %w", err)
+	}
+	repository := i.configs.Get(pkg)
+	err = repository.DeleteExperiment()
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	return nil
+}
+
+// PromoteConfigExperiment promotes an experiment to stable.
+func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	repository := i.configs.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
@@ -466,14 +539,35 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	if !i.env.RemotePolicies {
 		return nil
 	}
 
+	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
 	switch pkg {
 	case packageDatadogAgent:
-		return service.ConfigureAgent(ctx, i.cdn, i.configs)
+		config, err := i.cdn.Get(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
+		}
+		tmpDir, err := i.configs.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		err = config.Write(tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not write %s config: %w", pkg, err)
+		}
+		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not create %s repository: %w", pkg, err)
+		}
+		return nil
 	default:
 		return nil
 	}

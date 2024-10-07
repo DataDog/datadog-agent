@@ -917,3 +917,19 @@ func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string
 
 	return fimPathsperExecPath, execAndParent
 }
+
+// ExtractSyscalls return the syscalls present in an activity tree
+func (at *ActivityTree) ExtractSyscalls(arch string) []string {
+	var syscalls []string
+
+	at.visit(func(processNode *ProcessNode) {
+		for _, s := range processNode.Syscalls {
+			sycallKey := utils.SyscallKey{Arch: arch, ID: s}
+			syscall, ok := utils.Syscalls[sycallKey]
+			if ok {
+				syscalls = append(syscalls, syscall)
+			}
+		}
+	})
+	return syscalls
+}

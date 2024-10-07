@@ -11,9 +11,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
@@ -61,21 +66,20 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	return NewExtension(c, cfg, telemetry, info)
 }
 
-func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(t)
-	assert.NoError(t, err)
-	assert.NotNil(t, ext)
+func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
 
-	_, ok := ext.(*ddExtension)
-	assert.True(t, ok)
-}
-
-func TestExtensionHTTPHandler(t *testing.T) {
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	token := apiutil.GetAuthToken()
+	if tokenOverride != "" {
+		token = tokenOverride
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	// Create a ResponseRecorder
 	rr := httptest.NewRecorder()
@@ -99,8 +103,37 @@ func TestExtensionHTTPHandler(t *testing.T) {
 	ddExt.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
+	handler := ddExt.server.srv.Handler
+
 	// Call the handler's ServeHTTP method
-	ddExt.ServeHTTP(rr, req)
+	handler.ServeHTTP(rr, req)
+
+	return rr
+}
+
+func TestNewExtension(t *testing.T) {
+	ext, err := getTestExtension(t)
+	assert.NoError(t, err)
+	assert.NotNil(t, ext)
+
+	_, ok := ext.(*ddExtension)
+	assert.True(t, ok)
+}
+
+func TestExtensionHTTPHandler(t *testing.T) {
+	oldConfig := pkgconfigsetup.Datadog()
+	defer func() {
+		pkgconfigsetup.SetDatadog(oldConfig)
+	}()
+
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetDatadog(conf)
+	err := apiutil.CreateAndSetAuthToken(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := getResponseToHandlerRequest(t, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -126,6 +159,27 @@ func TestExtensionHTTPHandler(t *testing.T) {
 		_, ok := response[key]
 		assert.True(t, ok)
 	}
+}
+
+func TestExtensionHTTPHandlerBadToken(t *testing.T) {
+	oldConfig := pkgconfigsetup.Datadog()
+	defer func() {
+		pkgconfigsetup.SetDatadog(oldConfig)
+	}()
+
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetDatadog(conf)
+	err := apiutil.CreateAndSetAuthToken(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := getResponseToHandlerRequest(t, "badtoken")
+
+	// Check the response status code
+	assert.Equalf(t, http.StatusForbidden, rr.Code,
+		"handler returned wrong status code: got %v want %v", rr.Code, http.StatusForbidden)
+
 }
 
 type hostWithExtensions struct {

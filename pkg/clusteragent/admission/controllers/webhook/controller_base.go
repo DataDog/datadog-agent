@@ -23,11 +23,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
@@ -37,14 +38,15 @@ import (
 // Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
 type Controller interface {
 	Run(stopCh <-chan struct{})
-	EnabledWebhooks() []MutatingWebhook
+	EnabledWebhooks() []Webhook
 }
 
 // NewController returns the adequate implementation of the Controller interface.
 func NewController(
 	client kubernetes.Interface,
 	secretInformer coreinformers.SecretInformer,
-	admissionInterface admissionregistration.Interface,
+	validatingInformers admissionregistration.Interface,
+	mutatingInformers admissionregistration.Interface,
 	isLeaderFunc func() bool,
 	isLeaderNotif <-chan struct{},
 	config Config,
@@ -52,16 +54,17 @@ func NewController(
 	pa workload.PodPatcher,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
 	}
-
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
 }
 
-// MutatingWebhook represents a mutating webhook
-type MutatingWebhook interface {
+// Webhook represents an admission webhook
+type Webhook interface {
 	// Name returns the name of the webhook
 	Name() string
+	// WebhookType Type returns the type of the webhook
+	WebhookType() common.WebhookType
 	// IsEnabled returns whether the webhook is enabled
 	IsEnabled() bool
 	// Endpoint returns the endpoint of the webhook
@@ -75,41 +78,57 @@ type MutatingWebhook interface {
 	// LabelSelectors returns the label selectors that specify when the webhook
 	// should be invoked
 	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
-	// MutateFunc returns the function that mutates the resources
-	MutateFunc() admission.WebhookFunc
+	// WebhookFunc runs the logic of the webhook and returns the admission response
+	WebhookFunc() admission.WebhookFunc
 }
 
-// mutatingWebhooks returns the list of mutating webhooks. Notice that the order
-// of the webhooks returned is the order in which they will be executed. For
-// now, the only restriction is that the agent sidecar webhook needs to go after
-// the config one. The reason is that the volume mount for the APM socket added
-// by the config webhook doesn't always work on Fargate (one of the envs where
-// we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []MutatingWebhook {
+// generateWebhooks returns the list of webhooks. The order of the webhooks returned
+// is the order in which they will be executed. For now, the only restriction is that
+// the agent sidecar webhook needs to go after the configWebhook one.
+// The reason is that the volume mount for the APM socket added by the configWebhook webhook
+// doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
+// the agent sidecar webhook needs to remove it.
+func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []Webhook {
 	// Note: the auto_instrumentation pod injection filter is used across
 	// multiple mutating webhooks, so we add it as a hard dependency to each
 	// of the components that use it via the injectionFilter parameter.
 	injectionFilter := autoinstrumentation.GetInjectionFilter()
 
-	webhooks := []MutatingWebhook{
-		config.NewWebhook(wmeta, injectionFilter),
-		tagsfromlabels.NewWebhook(wmeta, injectionFilter),
-		agentsidecar.NewWebhook(),
-		autoscaling.NewWebhook(pa),
+	var webhooks []Webhook
+	var validatingWebhooks []Webhook
+	var mutatingWebhooks []Webhook
+
+	// Add Validating webhooks.
+	if c.config.isValidationEnabled() {
+		// Future validating webhooks can be added here.
+		validatingWebhooks = []Webhook{}
+		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
-	apm, err := autoinstrumentation.NewWebhook(wmeta, injectionFilter)
-	if err == nil {
-		webhooks = append(webhooks, apm)
-	} else {
-		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
-	}
+	// Add Mutating webhooks.
+	if c.config.isMutationEnabled() {
+		mutatingWebhooks = []Webhook{
+			configWebhook.NewWebhook(wmeta, injectionFilter),
+			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
+			agentsidecar.NewWebhook(),
+			autoscaling.NewWebhook(pa),
+		}
+		webhooks = append(webhooks, mutatingWebhooks...)
 
-	cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta)
-	if err == nil {
-		webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
-	} else {
-		log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+		// APM Instrumentation webhook needs to be registered after the configWebhook webhook.
+		apm, err := autoinstrumentation.NewWebhook(wmeta, injectionFilter)
+		if err == nil {
+			webhooks = append(webhooks, apm)
+		} else {
+			log.Errorf("failed to register APM Instrumentation webhook: %v", err)
+		}
+
+		cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta)
+		if err == nil {
+			webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
+		} else {
+			log.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+		}
 	}
 
 	return webhooks
@@ -119,22 +138,23 @@ func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []Mu
 // It contains the shared fields and provides shared methods.
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
-	clientSet        kubernetes.Interface //nolint:structcheck
-	config           Config
-	secretsLister    corelisters.SecretLister
-	secretsSynced    cache.InformerSynced //nolint:structcheck
-	webhooksSynced   cache.InformerSynced //nolint:structcheck
-	queue            workqueue.RateLimitingInterface
-	isLeaderFunc     func() bool
-	isLeaderNotif    <-chan struct{}
-	mutatingWebhooks []MutatingWebhook
+	clientSet                kubernetes.Interface //nolint:structcheck
+	config                   Config
+	secretsLister            corelisters.SecretLister
+	secretsSynced            cache.InformerSynced //nolint:structcheck
+	validatingWebhooksSynced cache.InformerSynced //nolint:structcheck
+	mutatingWebhooksSynced   cache.InformerSynced //nolint:structcheck
+	queue                    workqueue.RateLimitingInterface
+	isLeaderFunc             func() bool
+	isLeaderNotif            <-chan struct{}
+	webhooks                 []Webhook
 }
 
 // EnabledWebhooks returns the list of enabled webhooks.
-func (c *controllerBase) EnabledWebhooks() []MutatingWebhook {
-	var res []MutatingWebhook
+func (c *controllerBase) EnabledWebhooks() []Webhook {
+	var res []Webhook
 
-	for _, webhook := range c.mutatingWebhooks {
+	for _, webhook := range c.webhooks {
 		if webhook.IsEnabled() {
 			res = append(res, webhook)
 		}
@@ -257,7 +277,7 @@ func (c *controllerBase) processNextWorkItem(reconcile func() error) bool {
 
 	if err := reconcile(); err != nil {
 		c.requeue(key)
-		log.Infof("Couldn't reconcile Webhook %s: %v", c.config.getWebhookName(), err)
+		log.Errorf("Couldn't reconcile webhook %s: %v", c.config.getWebhookName(), err)
 		metrics.ReconcileErrors.Inc(metrics.WebhooksControllerName)
 		return true
 	}
