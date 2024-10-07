@@ -106,3 +106,15 @@ message TaggerState {
 message TaggerStateResponse {
     bool loaded = 1;
 }
+
+message GaugeRequest {
+    string name = 1;
+    double value = 2;
+    repeated string tags = 3;
+}
+
+message GaugeResponse {
+    string name = 1;
+    double value = 2;
+    repeated string tags = 3;
+}

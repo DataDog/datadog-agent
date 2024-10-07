@@ -94,6 +94,13 @@ service AgentSecure {
         };
     };
 
+    rpc Gauge(datadog.model.v1.GaugeRequest) returns (datadog.model.v1.GaugeResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/metrics/gauge"
+            body: "*"
+        };
+    };
+
     rpc ClientGetConfigs(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
         option (google.api.http) = {
             post: "/v1/grpc/remoteconfig/configs"

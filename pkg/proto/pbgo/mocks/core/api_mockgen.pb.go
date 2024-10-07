@@ -199,6 +199,26 @@ func (mr *MockAgentSecureClientMockRecorder) DogstatsdSetTaggerState(ctx, in int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureClient)(nil).DogstatsdSetTaggerState), varargs...)
 }
 
+// Gauge mocks base method.
+func (m *MockAgentSecureClient) Gauge(ctx context.Context, in *core.GaugeRequest, opts ...grpc.CallOption) (*core.GaugeResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Gauge", varargs...)
+	ret0, _ := ret[0].(*core.GaugeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Gauge indicates an expected call of Gauge.
+func (mr *MockAgentSecureClientMockRecorder) Gauge(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Gauge", reflect.TypeOf((*MockAgentSecureClient)(nil).Gauge), varargs...)
+}
+
 // GetConfigState mocks base method.
 func (m *MockAgentSecureClient) GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*core.GetStateConfigResponse, error) {
 	m.ctrl.T.Helper()
@@ -626,6 +646,21 @@ func (m *MockAgentSecureServer) DogstatsdSetTaggerState(arg0 context.Context, ar
 func (mr *MockAgentSecureServerMockRecorder) DogstatsdSetTaggerState(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DogstatsdSetTaggerState", reflect.TypeOf((*MockAgentSecureServer)(nil).DogstatsdSetTaggerState), arg0, arg1)
+}
+
+// Gauge mocks base method.
+func (m *MockAgentSecureServer) Gauge(arg0 context.Context, arg1 *core.GaugeRequest) (*core.GaugeResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Gauge", arg0, arg1)
+	ret0, _ := ret[0].(*core.GaugeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Gauge indicates an expected call of Gauge.
+func (mr *MockAgentSecureServerMockRecorder) Gauge(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Gauge", reflect.TypeOf((*MockAgentSecureServer)(nil).Gauge), arg0, arg1)
 }
 
 // GetConfigState mocks base method.
