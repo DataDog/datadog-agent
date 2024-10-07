@@ -10,8 +10,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 
@@ -22,39 +24,78 @@ import (
 
 const systemdPath = "/etc/systemd/system"
 
-func stopUnit(ctx context.Context, unit string, args ...string) error {
+func stopUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"stop", unit}, args...)
-	return newCommandRunner(ctx, "systemctl", args...).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	if exitErr.ExitCode() == 5 {
+		// exit code 5 means the unit is not loaded, we can continue
+		return nil
+	}
+	return errors.New(string(exitErr.Stderr))
 }
 
-func startUnit(ctx context.Context, unit string, args ...string) error {
+func startUnit(ctx context.Context, unit string, args ...string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
-	return newCommandRunner(ctx, "systemctl", args...).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", args...).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
-func enableUnit(ctx context.Context, unit string) error {
+func enableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
-	return newCommandRunner(ctx, "systemctl", "enable", unit).runWithError()
+	err = exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
-func disableUnit(ctx context.Context, unit string) error {
+func disableUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
-	return newCommandRunner(ctx, "systemctl", "disable", unit).runWithError()
+
+	enabledErr := exec.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
+	if enabledErr != nil {
+		// unit is already disabled or doesn't exist, we can return fast
+		return nil
+	}
+
+	err = exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	if exitErr.ExitCode() == 5 {
+		// exit code 5 means the unit is not loaded, we can continue
+		return nil
+	}
+	return errors.New(string(exitErr.Stderr))
 }
 
-func loadUnit(ctx context.Context, unit string) error {
+func loadUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	content, err := embedded.FS.ReadFile(unit)
 	if err != nil {
@@ -64,17 +105,23 @@ func loadUnit(ctx context.Context, unit string) error {
 	return os.WriteFile(unitPath, content, 0644)
 }
 
-func removeUnit(ctx context.Context, unit string) error {
+func removeUnit(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_unit")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 	return os.Remove(path.Join(systemdPath, unit))
 }
 
-func systemdReload(ctx context.Context) error {
+func systemdReload(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
-	defer span.Finish()
-	return newCommandRunner(ctx, "systemctl", "daemon-reload").runWithError()
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	err = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	span.SetTag("exit_code", exitErr.ExitCode())
+	return errors.New(string(exitErr.Stderr))
 }
 
 // isSystemdRunning checks if systemd is running using the documented way

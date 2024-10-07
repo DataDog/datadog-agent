@@ -1,0 +1,8 @@
+# lint stage
+# Include job that run linters on the Agent code.
+
+include:
+  - .gitlab/lint/technical_linters.yml
+  - .gitlab/lint/linux.yml
+  - .gitlab/lint/windows.yml
+

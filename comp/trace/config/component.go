@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -30,7 +30,7 @@ import (
 // Component is the component type.
 type Component interface {
 	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
+	Warnings() *model.Warnings
 
 	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
@@ -43,6 +43,9 @@ type Component interface {
 
 	// Object returns wrapped config
 	Object() *traceconfig.AgentConfig
+
+	// OnUpdateAPIKey registers a callback for API Key changes
+	OnUpdateAPIKey(func(oldKey, newKey string))
 }
 
 // Module defines the fx options for this component.

@@ -38,10 +38,10 @@ api_key: "1234"
 apm:
   enabled: true
   env: prod
-  sampling_rate: 0.7
+  sampling_rate: 0.5
 fleet_layers:
-- base
 - override
+- base
 `
 	assert.Equal(t, expectedConfig, string(config.Datadog))
 }

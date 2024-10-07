@@ -6,7 +6,7 @@
 package utils
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -21,7 +21,7 @@ type CommonPayload struct {
 }
 
 // GetCommonPayload fills and return the common metadata payload
-func GetCommonPayload(hostname string, conf config.Reader) *CommonPayload {
+func GetCommonPayload(hostname string, conf model.Reader) *CommonPayload {
 	return &CommonPayload{
 		// olivier: I _think_ `APIKey` is only a legacy field, and
 		// is not actually used by the backend

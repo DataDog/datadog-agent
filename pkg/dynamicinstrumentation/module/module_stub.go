@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf
+//go:build !(linux_bpf && arm64)
 
 // Package module provides the dynamic instrumentaiton module. This is a stub meaning
 // this empty file is used if the target platform does not support features required

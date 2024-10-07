@@ -17,6 +17,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -34,25 +35,10 @@
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
 
-.package_deb_agent_6:
-  variables:
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
-
 .package_deb_agent_7:
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7
-
-agent_deb-x64-a6:
-  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_6]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["datadog-agent-6-x64"]
-  variables:
-    DESTINATION_DEB: "datadog-agent_6_amd64.deb"
-    DD_PROJECT: "agent"
 
 agent_deb-x64-a7:
   extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
@@ -62,16 +48,6 @@ agent_deb-x64-a7:
   needs: ["datadog-agent-7-x64"]
   variables:
     DESTINATION_DEB: "datadog-agent_7_amd64.deb"
-    DD_PROJECT: "agent"
-
-agent_deb-arm64-a6:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_6]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["datadog-agent-6-arm64"]
-  variables:
-    DESTINATION_DEB: "datadog-agent_6_arm64.deb"
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7:
@@ -123,6 +99,9 @@ installer_deb-amd64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PROJECT: "installer"
+    # There are currently no files to check for in the installer so we
+    # explicitly disable the check
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -133,6 +112,7 @@ installer_deb-arm64:
   variables:
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PROJECT: "installer"
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
   extends: [.package_deb_agent_7]
@@ -156,6 +136,7 @@ installer_deb-arm64:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
@@ -191,6 +172,7 @@ dogstatsd_deb-x64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 
 dogstatsd_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
@@ -201,4 +183,5 @@ dogstatsd_deb-arm64:
   variables:
     DD_PROJECT: dogstatsd
     DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-deb.txt"
 

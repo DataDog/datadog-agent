@@ -190,23 +190,23 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 
 // ResolveContainerRuntime retrieves the container runtime managing the container
 func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	if _, found := fh.ResolveContainerContext(ev); !found {
-		return ""
+	if ev.CGroupContext.CGroupFlags != 0 && ev.ContainerContext.ContainerID != "" {
+		return getContainerRuntime(ev.CGroupContext.CGroupFlags)
 	}
 
-	return getContainerRuntime((ev.CGroupContext.CGroupFlags))
+	return ""
 }
 
 // getContainerRuntime returns the container runtime managing the cgroup
 func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch {
-	case (uint64(flags) & uint64(containerutils.CGroupManagerCRI)) != 0:
+	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
+	case containerutils.CGroupManagerCRI:
 		return string(workloadmeta.ContainerRuntimeContainerd)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerCRIO)) != 0:
+	case containerutils.CGroupManagerCRIO:
 		return string(workloadmeta.ContainerRuntimeCRIO)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerDocker)) != 0:
+	case containerutils.CGroupManagerDocker:
 		return string(workloadmeta.ContainerRuntimeDocker)
-	case (uint64(flags) & uint64(containerutils.CGroupManagerPodman)) != 0:
+	case containerutils.CGroupManagerPodman:
 		return string(workloadmeta.ContainerRuntimePodman)
 	default:
 		return ""
@@ -242,12 +242,18 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.
 
 // ResolveProcessArgs resolves the args of the event
 func (fh *EBPFFieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Process) string {
-	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
+	if process.Args == "" {
+		process.Args = strings.Join(fh.ResolveProcessArgv(ev, process), " ")
+	}
+	return process.Args
 }
 
 // ResolveProcessArgsScrubbed resolves the args of the event
 func (fh *EBPFFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, process *model.Process) string {
-	return strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+	if process.ArgsScrubbed == "" {
+		process.ArgsScrubbed = strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+	}
+	return process.ArgsScrubbed
 }
 
 // ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.

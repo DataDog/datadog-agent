@@ -54,9 +54,9 @@ int rethook_get_pipe_info(ctx_t *ctx) {
         syscall->splice.file_found = 1;
         syscall->resolver.key = syscall->splice.file.path_key;
         syscall->resolver.dentry = syscall->splice.dentry;
-        syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_SPLICE : 0;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
+        syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
 
         resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
@@ -91,8 +91,8 @@ int __attribute__((always_inline)) sys_splice_ret(void *ctx, int retval) {
         syscall->splice.pipe_exit_flag = get_pipe_last_buffer_flags(syscall->splice.pipe_info, syscall->splice.bufs);
     }
 
-    if (filter_syscall(syscall, splice_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, splice_approvers) == DISCARDED) {
+        return 0;
     }
 
     struct splice_event_t event = {

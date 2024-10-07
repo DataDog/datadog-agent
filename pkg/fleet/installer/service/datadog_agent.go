@@ -75,7 +75,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
+			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
@@ -195,11 +195,6 @@ func stopOldAgentUnits(ctx context.Context) error {
 	defer span.Finish()
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			exitError, ok := err.(*exec.ExitError)
-			if ok && exitError.ExitCode() == 5 {
-				// exit code 5 means the unit is not loaded, we can continue
-				continue
-			}
 			return fmt.Errorf("failed to stop %s: %v", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
@@ -250,7 +245,7 @@ func PromoteAgentExperiment(ctx context.Context) error {
 }
 
 // ConfigureAgent configures the stable agent
-func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repositories) error {
+func ConfigureAgent(ctx context.Context, cdn cdn.CDN, configs *repository.Repositories) error {
 	config, err := cdn.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get cdn config: %w", err)
@@ -260,37 +255,47 @@ func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repos
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
+
+	err = WriteAgentConfig(config, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not write agent config: %w", err)
+	}
+
+	err = configs.Create(agentPackage, config.Version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create repository: %w", err)
+	}
+	return nil
+}
+
+// WriteAgentConfig writes the agent configuration to the given directory
+func WriteAgentConfig(config *cdn.Config, dir string) error {
 	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
 
 	if config.Datadog != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configDatadogYAML), []byte(config.Datadog), 0640)
+		err = os.WriteFile(filepath.Join(dir, configDatadogYAML), []byte(config.Datadog), 0640)
 		if err != nil {
 			return fmt.Errorf("could not write datadog.yaml: %w", err)
 		}
-		err = os.Chown(filepath.Join(tmpDir, configDatadogYAML), ddAgentUID, ddAgentGID)
+		err = os.Chown(filepath.Join(dir, configDatadogYAML), ddAgentUID, ddAgentGID)
 		if err != nil {
 			return fmt.Errorf("could not chown datadog.yaml: %w", err)
 		}
 	}
 	if config.SecurityAgent != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configSecurityAgentYAML), []byte(config.SecurityAgent), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSecurityAgentYAML), []byte(config.SecurityAgent), 0600)
 		if err != nil {
 			return fmt.Errorf("could not write datadog.yaml: %w", err)
 		}
 	}
 	if config.SystemProbe != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configSystemProbeYAML), []byte(config.SystemProbe), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSystemProbeYAML), []byte(config.SystemProbe), 0600)
 		if err != nil {
 			return fmt.Errorf("could not write datadog.yaml: %w", err)
 		}
-	}
-
-	err = configs.Create(agentPackage, config.Version, tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not create repository: %w", err)
 	}
 	return nil
 }

@@ -23,7 +23,7 @@ import (
 	criv1alpha2 "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -112,9 +112,9 @@ func (c *CRIUtil) init() error {
 func GetUtil() (*CRIUtil, error) {
 	once.Do(func() {
 		globalCRIUtil = &CRIUtil{
-			queryTimeout:      config.Datadog().GetDuration("cri_query_timeout") * time.Second,
-			connectionTimeout: config.Datadog().GetDuration("cri_connection_timeout") * time.Second,
-			socketPath:        config.Datadog().GetString("cri_socket_path"),
+			queryTimeout:      pkgconfigsetup.Datadog().GetDuration("cri_query_timeout") * time.Second,
+			connectionTimeout: pkgconfigsetup.Datadog().GetDuration("cri_connection_timeout") * time.Second,
+			socketPath:        pkgconfigsetup.Datadog().GetString("cri_socket_path"),
 		}
 		globalCRIUtil.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "criutil",

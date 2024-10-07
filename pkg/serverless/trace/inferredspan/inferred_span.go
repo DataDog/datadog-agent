@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
@@ -76,7 +76,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := configUtils.GetConfiguredTags(config.Datadog(), false)
+	ddTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {
@@ -125,7 +125,7 @@ func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
 // IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
-	return config.Datadog().GetBool("serverless.trace_enabled") && config.Datadog().GetBool("serverless.trace_managed_services")
+	return pkgconfigsetup.Datadog().GetBool("serverless.trace_enabled") && pkgconfigsetup.Datadog().GetBool("serverless.trace_managed_services")
 }
 
 // AddTagToInferredSpan is used to add new tags to the inferred span in

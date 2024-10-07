@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -199,6 +199,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	tagList.AddLow(tags.ShortImage, image.ShortName)
 	tagList.AddLow(tags.ImageTag, image.Tag)
 	tagList.AddLow(tags.ImageID, image.ID)
+	tagList.AddLow(tags.KubeGPUType, container.Resources.GPUType)
 
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
 		if image.Tag != "" {
@@ -360,7 +361,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	}
 
 	kubeServiceDisabled := false
-	for _, disabledTag := range config.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
+	for _, disabledTag := range pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
 			kubeServiceDisabled = true
 			break
@@ -447,7 +448,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 
 	if task.ClusterName != "" {
-		if !config.Datadog().GetBool("disable_cluster_name_tag_key") {
+		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		taskTags.AddLow(tags.EcsClusterName, task.ClusterName)

@@ -30,9 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -70,14 +71,15 @@ var (
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	config.SetupLogger(
-		config.LoggerName("test"),
+	pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName("test"),
 		"debug",
 		"",
 		"",
 		false,
 		true,
 		false,
+		pkgconfigsetup.Datadog(),
 	)
 
 	retryTicker := time.NewTicker(time.Duration(*retryDelay) * time.Second)
@@ -116,12 +118,12 @@ type testDeps struct {
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
-	config.Datadog().SetConfigType("yaml")
-	err := config.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
+	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
 		return nil, err
 	}
-	config.SetFeaturesNoCleanup(env.Docker)
+	env.SetFeaturesNoCleanup(env.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
 	var deps testDeps

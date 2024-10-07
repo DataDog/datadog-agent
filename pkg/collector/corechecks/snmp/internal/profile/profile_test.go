@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -109,7 +109,7 @@ func Test_getProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			coreconfig.Datadog().SetWithoutSource("confd_path", path)
+			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
 
 			actualProfiles, err := GetProfiles(tt.profiles)
 			if tt.expectedErr != "" {

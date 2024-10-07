@@ -19,16 +19,26 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// SyncInformersError represents an Informer synchronization error.
+type SyncInformersError struct {
+	Name InformerName
+}
+
+// Error returns the error message.
+func (e *SyncInformersError) Error() string {
+	return fmt.Sprintf("couldn't sync informer %s", e.Name)
+}
+
 // SyncInformers should be called after the instantiation of new informers.
 // It's blocking until the informers are synced or the timeout exceeded.
-// An extra timeout duration can be provided depending on the informer
+// An extra timeout duration can be provided depending on the informer.
 func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) error {
 	var g errgroup.Group
-	timeoutConfig := config.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait
@@ -42,7 +52,7 @@ func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait ti
 				end := time.Now()
 				cacheSyncTimeouts.Inc()
 				log.Warnf("couldn't sync informer %s in %v (kube_cache_sync_timeout_seconds: %v)", name, end.Sub(start), timeoutConfig)
-				return fmt.Errorf("couldn't sync informer %s in %v", name, end.Sub(start))
+				return &SyncInformersError{name}
 			}
 			log.Debugf("Sync done for informer %s in %v, last resource version: %s", name, time.Since(start), informers[name].LastSyncResourceVersion())
 			return nil
@@ -60,7 +70,7 @@ type syncInformerResult struct {
 func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
 	resultChan := make(chan syncInformerResult)
 	errors := make(map[InformerName]error, len(informers))
-	timeoutConfig := config.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	timeoutConfig := pkgconfigsetup.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait

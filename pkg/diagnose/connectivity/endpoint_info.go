@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // endpointInfo is a value object that contains all the information we need to
@@ -31,7 +31,7 @@ type endpointInfo struct {
 	Payload []byte
 }
 
-func getEndpointsInfo(cfg config.Reader) []endpointInfo {
+func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 	emptyPayload := []byte("{}")
 	checkRunPayload := []byte("{\"check\": \"test\", \"status\": 0}")
 

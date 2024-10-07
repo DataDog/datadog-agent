@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,7 +36,7 @@ func (f InjectionFilter) ShouldMutatePod(pod *corev1.Pod) bool {
 		return true
 	}
 
-	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
+	return pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled")
 }
 
 type podMutationLabelFlag int

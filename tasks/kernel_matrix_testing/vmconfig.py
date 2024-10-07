@@ -658,7 +658,7 @@ def gen_config_for_stack(
 
     ## get all possible (recipe, version, arch) combinations we can support.
     vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
-    if os.path.exists(vmconfig_file):
+    if os.path.exists(vmconfig_file) and not new:
         raise Exit(
             "Editing configuration is current not supported. Destroy the stack first to change the configuration."
         )
@@ -677,11 +677,22 @@ def gen_config_for_stack(
     with open(tmpfile, "w") as f:
         f.write(vm_config_str)
 
-    if new:
-        empty_config("/tmp/empty.json")
-        ctx.run(f"git diff /tmp/empty.json {tmpfile}", warn=True)
-    else:
-        ctx.run(f"git diff {vmconfig_file} {tmpfile}", warn=True)
+    info(f"[+] We will apply the following configuration to {stack} (file: {vmconfig_file}): ")
+    for vmset in vm_config["vmsets"]:
+        if "arch" not in vmset:
+            continue
+
+        arch = vmset["arch"]
+        if arch == local_arch:
+            print(f"Local {Arch.local().name} VMs")
+        else:
+            print(f"Remote {arch} VMs (running in EC2 instance)")
+
+        for cpu, mem in itertools.product(vmset.get("vcpu", []), vmset.get("memory", [])):
+            for kernel in vmset.get("kernels", []):
+                print(f"  - {kernel['tag']} ({cpu} vCPUs, {mem} MB memory)")
+
+        print()
 
     if not yes and ask("are you sure you want to apply the diff? (y/n)") != "y":
         warn("[-] diff not applied")
