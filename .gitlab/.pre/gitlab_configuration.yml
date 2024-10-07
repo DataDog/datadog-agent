@@ -74,4 +74,4 @@ lint_gitlab_ci_jobs_codeowners:
   rules:
     - !reference [.on_gitlab_changes]
   script:
-    - inv -e linter.gitlab-ci-jobs-codeowners --all-files
+    - inv -e linter.gitlab-ci-jobs-codeowners
