@@ -62,6 +62,7 @@ lint_gitlab_ci:
     - changes:
         paths:
           - .gitlab/.ci-linters.yml
+          - .gitlab/JOBOWNERS
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
     - inv -e linter.gitlab-ci-jobs-needs-rules --diff-file artifacts/diff.gitlab-ci.yml
