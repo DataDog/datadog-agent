@@ -95,7 +95,7 @@ func createIterableMetrics(
 	serializer serializer.MetricSerializer,
 	logPayloads bool,
 	isServerless bool,
-	hostTagProvider *metrics.HostTagProvider,
+	hostTagProvider *HostTagProvider,
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches

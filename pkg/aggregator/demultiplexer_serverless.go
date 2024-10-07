@@ -37,7 +37,7 @@ type ServerlessDemultiplexer struct {
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
-	hostTagProvider *metrics.HostTagProvider
+	hostTagProvider *HostTagProvider
 
 	*senders
 }
@@ -64,7 +64,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 		serializer:                  serializer,
 		metricSamplePool:            metricSamplePool,
 		flushLock:                   &sync.Mutex{},
-		hostTagProvider:             metrics.NewHostTagProvider(),
+		hostTagProvider:             NewHostTagProvider(),
 		flushAndSerializeInParallel: flushAndSerializeInParallel,
 	}
 

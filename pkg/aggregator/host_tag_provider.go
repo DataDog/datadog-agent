@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive
-package metrics
+package aggregator
 
 import (
 	"context"

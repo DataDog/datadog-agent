@@ -63,7 +63,7 @@ type AgentDemultiplexer struct {
 
 	senders *senders
 
-	hostTagProvider *metrics.HostTagProvider
+	hostTagProvider *HostTagProvider
 
 	// sharded statsd time samplers
 	statsd
@@ -208,7 +208,7 @@ func initAgentDemultiplexer(
 			noAggSerializer:  noAggSerializer,
 		},
 
-		hostTagProvider: metrics.NewHostTagProvider(),
+		hostTagProvider: NewHostTagProvider(),
 		senders:         newSenders(agg),
 
 		// statsd time samplers

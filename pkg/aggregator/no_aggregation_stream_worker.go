@@ -49,7 +49,7 @@ type noAggregationStreamWorker struct {
 	samplesChan chan metrics.MetricSampleBatch
 	stopChan    chan trigger
 
-	hostTagProvider *metrics.HostTagProvider
+	hostTagProvider *HostTagProvider
 
 	logThrottling util.SimpleThrottler
 }
@@ -97,7 +97,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSam
 		stopChan:    make(chan trigger),
 		samplesChan: make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size")),
 
-		hostTagProvider: metrics.NewHostTagProvider(),
+		hostTagProvider: NewHostTagProvider(),
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
 		logThrottling: util.NewSimpleThrottler(200, 5*time.Minute, "Pausing the unsupported metric type warning message for 5m"),
