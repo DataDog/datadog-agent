@@ -46,6 +46,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `mount` | File | [Experimental] A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
+| `packet` | Network | A raw network packet captured | 7.60 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
 | `removexattr` | File | Remove extended attributes | 7.27 |
 | `rename` | File | A file/directory was renamed | 7.27 |
@@ -521,11 +522,10 @@ A DNS request was sent
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
@@ -722,11 +722,10 @@ An IMDS event was captured
 | [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
@@ -932,6 +931,23 @@ A file was opened
 | [`open.syscall.flags`](#open-syscall-flags-doc) | Flags argument of the syscall |
 | [`open.syscall.mode`](#open-syscall-mode-doc) | Mode argument of the syscall |
 | [`open.syscall.path`](#open-syscall-path-doc) | Path argument of the syscall |
+
+### Event `packet`
+
+A raw network packet captured
+
+| Property | Definition |
+| -------- | ------------- |
+| [`packet.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
+| [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
+| [`packet.payload`](#packet-payload-doc) | Payload of the l3/l4 packet |
+| [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
+| [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
+| [`packet.tls.version`](#packet-tls-version-doc) | TLS version |
 
 ### Event `ptrace`
 
@@ -2058,6 +2074,15 @@ Definition: ID of the cgroup
 `cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
 
 
+### `*.ifname` {#common-networkdevicecontext-ifname-doc}
+Type: string
+
+Definition: Interface ifname
+
+`*.ifname` has 2 possible prefixes:
+`network.device` `packet.device`
+
+
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
 Type: bool
 
@@ -2081,8 +2106,8 @@ Type: IP/CIDR
 
 Definition: IP address
 
-`*.ip` has 3 possible prefixes:
-`bind.addr` `network.destination` `network.source`
+`*.ip` has 5 possible prefixes:
+`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
@@ -2128,6 +2153,30 @@ Definition: Kubernetes username of the user that executed the process
 
 `*.k8s_username` has 11 possible prefixes:
 `exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.l3_protocol` {#common-networkcontext-l3_protocol-doc}
+Type: int
+
+Definition: L3 protocol of the network packet
+
+`*.l3_protocol` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [L3 protocols](#l3-protocols)
+
+
+
+### `*.l4_protocol` {#common-networkcontext-l4_protocol-doc}
+Type: int
+
+Definition: L4 protocol of the network packet
+
+`*.l4_protocol` has 2 possible prefixes:
+`network` `packet`
+
+Constants: [L4 protocols](#l4-protocols)
+
 
 
 ### `*.length` {#common-string-length-doc}
@@ -2263,8 +2312,8 @@ Type: int
 
 Definition: Port number
 
-`*.port` has 3 possible prefixes:
-`bind.addr` `network.destination` `network.source`
+`*.port` has 5 possible prefixes:
+`bind.addr` `network.destination` `network.source` `packet.destination` `packet.source`
 
 
 ### `*.ppid` {#common-process-ppid-doc}
@@ -2298,6 +2347,15 @@ Definition: Rights of the file
 
 Constants: [File mode constants](#file-mode-constants)
 
+
+
+### `*.size` {#common-networkcontext-size-doc}
+Type: int
+
+Definition: Size in bytes of the network packet
+
+`*.size` has 2 possible prefixes:
+`network` `packet`
 
 
 ### `*.tid` {#common-pidcontext-tid-doc}
@@ -2904,47 +2962,6 @@ Constants: [Virtual Memory flags](#virtual-memory-flags)
 
 
 
-### `network.device.ifindex` {#network-device-ifindex-doc}
-Type: int
-
-Definition: Interface ifindex
-
-
-
-### `network.device.ifname` {#network-device-ifname-doc}
-Type: string
-
-Definition: Interface ifname
-
-
-
-### `network.l3_protocol` {#network-l3_protocol-doc}
-Type: int
-
-Definition: L3 protocol of the network packet
-
-
-Constants: [L3 protocols](#l3-protocols)
-
-
-
-### `network.l4_protocol` {#network-l4_protocol-doc}
-Type: int
-
-Definition: L4 protocol of the network packet
-
-
-Constants: [L4 protocols](#l4-protocols)
-
-
-
-### `network.size` {#network-size-doc}
-Type: int
-
-Definition: Size in bytes of the network packet
-
-
-
 ### `open.file.destination.mode` {#open-file-destination-mode-doc}
 Type: int
 
@@ -2983,6 +3000,20 @@ Definition: Mode argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
+
+
+
+### `packet.payload` {#packet-payload-doc}
+Type: string
+
+Definition: Payload of the l3/l4 packet
+
+
+
+### `packet.tls.version` {#packet-tls-version-doc}
+Type: int
+
+Definition: TLS version
 
 
 
