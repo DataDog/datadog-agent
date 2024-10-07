@@ -109,9 +109,6 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 
 // ExportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
 func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error {
-	var f *os.File
-	var bufWriter *bufio.Writer
-
 	if err := EnsureDirExists(streamLogParams.FilePath); err != nil {
 		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
 	}
@@ -121,11 +118,12 @@ func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
 	}
 	defer func() {
-		err := bufWriter.Flush()
-		if err != nil {
+		if err = bufWriter.Flush(); err != nil {
 			log.Errorf("Error flushing buffer for log stream: %v", err)
 		}
-		f.Close()
+		if err = f.Close(); err != nil {
+			log.Errorf("Error closing file for log stream: %v", err)
+		}
 	}()
 
 	messageReceiver := la.GetMessageReceiver()
