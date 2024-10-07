@@ -353,6 +353,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
+	// flare configs
+	config.BindEnvAndSetDefault("flare_provider_timeout", 10)
+
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
@@ -1248,9 +1251,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
-	// Agent Telemetry. It is experimental feature and is subject to change.
-	// It should not be enabled unless prompted by Datadog Support
-	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	// Agent Telemetry
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 

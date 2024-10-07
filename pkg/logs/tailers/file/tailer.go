@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -270,6 +271,8 @@ func (t *Tailer) StopAfterFileRotation() {
 			if err != nil {
 				log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
 			} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
+				metrics.BytesMissed.Add(remainingBytes)
+				metrics.TlmBytesMissed.Add(float64(remainingBytes))
 				log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 			}
 		}
