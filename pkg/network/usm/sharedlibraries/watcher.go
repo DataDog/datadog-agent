@@ -42,6 +42,10 @@ func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
+func ToString(l *LibPath) string {
+	return string(ToBytes(l))
+}
+
 // Rule is a rule to match against a shared library path
 type Rule struct {
 	Re           *regexp.Regexp
@@ -71,17 +75,17 @@ var _ utils.Attacher = &Watcher{}
 // NewWatcher creates a new Watcher instance
 func NewWatcher(cfg *config.Config, libset Libset, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := GetEBPFProgram(&cfg.Config)
-	err := ebpfProgram.Init()
+	err := ebpfProgram.InitWithLibsets(libset)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
 	}
 
 	return &Watcher{
-		wg:             sync.WaitGroup{},
-		done:           make(chan struct{}),
-		procRoot:       kernel.ProcFSRoot(),
-		rules:          rules,
-		loadEvents:     ebpfProgram.GetPerfHandler(),
+		wg:       sync.WaitGroup{},
+		done:     make(chan struct{}),
+		procRoot: kernel.ProcFSRoot(),
+		rules:    rules,
+		// loadEvents:     ebpfProgram.GetPerfHandler(),
 		processMonitor: monitor.GetProcessMonitor(),
 		ebpfProgram:    ebpfProgram,
 		registry:       utils.NewFileRegistry("shared_libraries"),

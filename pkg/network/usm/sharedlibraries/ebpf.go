@@ -12,7 +12,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 
@@ -44,8 +43,9 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
+// We cannot use sync.Once as we need to reset the singleton
+var progSingletonLock sync.Mutex
 var progSingleton *EbpfProgram
-var progSingletonOnce sync.Once
 
 type LibraryCallback func(LibPath)
 
@@ -65,7 +65,7 @@ type EbpfProgram struct {
 	// We need to protect the initialization variables with a mutex, as the program can be initialized
 	// from multiple goroutines
 	initMutex      sync.Mutex
-	enabledLibsets []Libset
+	enabledLibsets map[Libset]struct{}
 	isInitialized  bool
 }
 
@@ -87,16 +87,28 @@ func IsSupported(cfg *ddebpf.Config) bool {
 
 // GetEBPFProgram returns an instance of the shared libraries eBPF program singleton
 func GetEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
-	progSingletonOnce.Do(func() {
+	progSingletonLock.Lock()
+	defer progSingletonLock.Unlock()
+
+	if progSingleton == nil {
 		progSingleton = newEBPFProgram(cfg)
-	})
+	}
 	progSingleton.refcount.Inc()
+
 	return progSingleton
 }
 
 func newEBPFProgram(c *ddebpf.Config) *EbpfProgram {
+	return &EbpfProgram{
+		cfg:            c,
+		enabledLibsets: make(map[Libset]struct{}),
+		callbacks:      make(map[Libset]map[*LibraryCallback]struct{}),
+	}
+}
+
+func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 	mgr := &manager.Manager{}
-	perfHandlers := make(map[Libset]*ddebpf.PerfHandler)
+	e.perfHandlers = make(map[Libset]*ddebpf.PerfHandler)
 
 	// Tell the manager to load all possible maps
 	for libset := range LibsetToLibSuffixes {
@@ -111,12 +123,12 @@ func newEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 				RecordHandler:      perfHandler.RecordHandler,
 				LostHandler:        perfHandler.LostHandler,
 				RecordGetter:       perfHandler.RecordGetter,
-				TelemetryEnabled:   c.InternalTelemetryEnabled,
+				TelemetryEnabled:   e.cfg.InternalTelemetryEnabled,
 			},
 		}
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
-		perfHandlers[libset] = perfHandler
+		e.perfHandlers[libset] = perfHandler
 	}
 
 	probeIDs := getSysOpenHooksIdentifiers()
@@ -129,16 +141,12 @@ func newEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 		)
 	}
 
-	return &EbpfProgram{
-		cfg:          c,
-		Manager:      ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
-		perfHandlers: perfHandlers,
-	}
+	e.Manager = ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{})
 }
 
 func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	for _, libset := range libsets {
-		if !slices.Contains(e.enabledLibsets, libset) {
+		if _, ok := e.enabledLibsets[libset]; !ok {
 			return false
 		}
 	}
@@ -146,33 +154,7 @@ func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	return true
 }
 
-// Init initializes the eBPF program. It is guaranteed to perform the initialization only if needed
-// For example, if the program is already initialized to listen for a certain libset, it will not reinitialize
-// the program to listen for the same libset. However, if the libsets are changed, it will reinitialize the program.
-func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
-	// Ensure we have all valid libsets, we don't want cryptic errors later
-	for _, libset := range libsets {
-		if !IsLibsetValid(libset) {
-			return fmt.Errorf("libset %s is not valid, ensure it is in the LibsetToLibSuffixes map", libset)
-		}
-	}
-
-	// Lock for the initialization variables
-	e.initMutex.Lock()
-	defer e.initMutex.Unlock()
-
-	// If the program is initialized, check if the libsets are already enabled
-	if e.isInitialized {
-		// If the libsets are already enabled, return, we have nothing to do
-		if e.areLibsetsAlreadyEnabled(libsets...) {
-			return nil
-		}
-
-		// If not, we need to reinitialize the eBPF program, so we stop it
-		// We use stopImpl to avoid changing the refcount
-		e.stopImpl()
-	}
-
+func (e *EbpfProgram) loadProgram() error {
 	var err error
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
@@ -202,7 +184,53 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("prebuilt load failed: %w", err)
 	}
 
-	return e.start()
+	return nil
+}
+
+// InitWithLibsets initializes the eBPF program. It is guaranteed to perform the initialization only if needed
+// For example, if the program is already initialized to listen for a certain libset, it will not reinitialize
+// the program to listen for the same libset. However, if the libsets are changed, it will reinitialize the program.
+func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
+	// Ensure we have all valid libsets, we don't want cryptic errors later
+	for _, libset := range libsets {
+		if !IsLibsetValid(libset) {
+			return fmt.Errorf("libset %s is not valid, ensure it is in the LibsetToLibSuffixes map", libset)
+		}
+	}
+
+	// Lock for the initialization variables
+	e.initMutex.Lock()
+	defer e.initMutex.Unlock()
+
+	// If the program is initialized, check if the libsets are already enabled
+	if e.isInitialized {
+		// If the libsets are already enabled, return, we have nothing to do
+		if e.areLibsetsAlreadyEnabled(libsets...) {
+			return nil
+		}
+
+		// If not, we need to reinitialize the eBPF program, so we stop it
+		// We use stopImpl to avoid changing the refcount
+		e.stopImpl()
+	}
+
+	// Add the libsets to the enabled libsets
+	for _, libset := range libsets {
+		e.enabledLibsets[libset] = struct{}{}
+	}
+
+	e.setupManagerAndPerfHandlers()
+
+	if err := e.loadProgram(); err != nil {
+		return fmt.Errorf("cannot load program: %w", err)
+	}
+
+	if err := e.start(); err != nil {
+		return fmt.Errorf("cannot start manager: %w", err)
+	}
+
+	e.isInitialized = true
+	return nil
 }
 
 func (e *EbpfProgram) start() error {
@@ -260,7 +288,7 @@ func (e *EbpfProgram) CheckLibsetsEnabled(libsets ...Libset) error {
 
 	var err error
 	for _, libset := range libsets {
-		if !slices.Contains(e.enabledLibsets, libset) {
+		if _, ok := e.enabledLibsets[libset]; !ok {
 			err = multierror.Append(err, fmt.Errorf("libset %s is not enabled", libset))
 		}
 	}
@@ -308,18 +336,26 @@ func (e *EbpfProgram) Stop() {
 
 	e.stopImpl()
 
-	// Only stop telemetry reporting if we are the last instance
-	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+	// Reset the program
+	progSingletonLock.Lock()
+	defer progSingletonLock.Unlock()
+	progSingleton = nil
 }
 
 func (e *EbpfProgram) stopImpl() {
-	_ = e.Manager.Stop(manager.CleanAll)
+	if e.Manager != nil {
+		_ = e.Manager.Stop(manager.CleanAll)
+	}
+
 	for _, perfHandler := range e.perfHandlers {
 		perfHandler.Stop()
 	}
 	for _, done := range e.done {
 		close(done)
 	}
+
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+	e.Manager = nil
 }
 
 func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
@@ -336,10 +372,10 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		)
 	}
 
-	for _, lib := range e.enabledLibsets {
+	for lib := range e.enabledLibsets {
 		constEd := manager.ConstantEditor{
 			Name:  fmt.Sprintf("%s_libset_enabled", string(lib)),
-			Value: 1,
+			Value: uint64(1),
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, constEd)
