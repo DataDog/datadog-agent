@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			streamlogsimpl.NewRCStreamLogFlare,
+			streamlogsimpl.NewComponent,
 		),
 	)
 }

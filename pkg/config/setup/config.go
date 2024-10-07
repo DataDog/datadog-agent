@@ -1553,7 +1553,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control streamlogs log collection for remote config
-	config.BindEnvAndSetDefault("logs_config.streaming.enable_streamlogs", true)
+	config.BindEnvAndSetDefault("logs_config.streaming.enable_streamlogs", false)
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
 }

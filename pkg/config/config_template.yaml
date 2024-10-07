@@ -1024,10 +1024,10 @@ api_key:
   ## This section allows you to configure streaming logs via remote config.
   # streaming:
 
-    ## @param enable_streamlogs - bool - optional - default: true
-    ## @env DD_LOGS_CONFIG_STREAMING_ENABLE_STREAMLOGS - bool - optional - default: true  
+    ## @param enable_streamlogs - bool - optional - default: false
+    ## @env DD_LOGS_CONFIG_STREAMING_ENABLE_STREAMLOGS - bool - optional - default: false  
     ## Enable streaming logs via remote config.
-    # enable_streamlogs: true
+    # enable_streamlogs: false
 
     ## @param streamlogs_log_file - string - optional
     ## @env DD_LOGS_CONFIG_STREAMING_STREAMLOGS_LOG_FILE - string - optional

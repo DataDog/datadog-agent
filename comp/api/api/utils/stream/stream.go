@@ -17,19 +17,9 @@ import (
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// LogParams represents the parameters for streaming logs
-type LogParams struct {
-	// FilePath represents the output file path to write the log stream to.
-	FilePath string
-
-	// Duration represents the duration of the log stream.
-	Duration time.Duration
-}
 
 // MessageReceiver is an exported interface for a valid receiver of streamed output
 type MessageReceiver interface {
@@ -103,53 +93,6 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
 				flusher.Flush()
 			}
-		}
-	}
-}
-
-// ExportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
-func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error {
-	if err := EnsureDirExists(streamLogParams.FilePath); err != nil {
-		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
-	}
-
-	f, bufWriter, err := OpenFileForWriting(streamLogParams.FilePath)
-	if err != nil {
-		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
-	}
-	defer func() {
-		if err = bufWriter.Flush(); err != nil {
-			log.Errorf("Error flushing buffer for log stream: %v", err)
-		}
-		if err = f.Close(); err != nil {
-			log.Errorf("Error closing file for log stream: %v", err)
-		}
-	}()
-
-	messageReceiver := la.GetMessageReceiver()
-
-	if !messageReceiver.SetEnabled(true) {
-		return fmt.Errorf("unable to enable message receiver, another client is already streaming logs")
-	}
-	defer messageReceiver.SetEnabled(false)
-
-	var filters diagnostic.Filters
-	done := make(chan struct{})
-	defer close(done)
-
-	logChan := messageReceiver.Filter(&filters, done)
-
-	timer := time.NewTimer(streamLogParams.Duration)
-	defer timer.Stop()
-
-	for {
-		select {
-		case log := <-logChan:
-			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
-				return fmt.Errorf("failed to write to file: %v", err)
-			}
-		case <-timer.C:
-			return nil
 		}
 	}
 }

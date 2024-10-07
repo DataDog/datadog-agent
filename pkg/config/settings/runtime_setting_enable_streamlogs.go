@@ -9,8 +9,7 @@ import (
 	"fmt"
 	"strconv"
 
-	componentConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,12 +42,12 @@ func (s *EnableStreamLogsRuntimeSetting) Name() string {
 }
 
 // Get returns the current value of the runtime setting.
-func (s *EnableStreamLogsRuntimeSetting) Get(_ componentConfig.Component) (interface{}, error) {
-	return config.Datadog().GetBool("logs_config.streaming.enable_streamlogs"), nil
+func (s *EnableStreamLogsRuntimeSetting) Get(config config.Component) (interface{}, error) {
+	return config.Get("logs_config.streaming.enable_streamlogs"), nil
 }
 
 // Set changes the value of the runtime setting.
-func (s *EnableStreamLogsRuntimeSetting) Set(_ componentConfig.Component, v interface{}, source model.Source) error {
+func (s *EnableStreamLogsRuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
 	var enable bool
 
 	// Switch cases depends on input from terminal or environment variables
@@ -64,7 +63,7 @@ func (s *EnableStreamLogsRuntimeSetting) Set(_ componentConfig.Component, v inte
 		return fmt.Errorf("invalid value type: %T", v)
 	}
 
-	config.Datadog().Set("logs_config.streaming.enable_streamlogs", enable, source)
+	config.Set("logs_config.streaming.enable_streamlogs", enable, source)
 	log.Debugf("enable_streamlogs is set as: %v", enable)
 	return nil
 }
