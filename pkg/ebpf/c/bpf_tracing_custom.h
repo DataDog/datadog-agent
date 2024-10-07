@@ -34,6 +34,7 @@
 #define DI_REGISTER_15 r15
 #define DI_REGISTER_16 ip
 
+#define DI_STACK_VALUE_REG DI_REGISTER_7
 
 #elif defined(bpf_target_arm64)
 
@@ -77,6 +78,8 @@
 #define DI_REGISTER_29 regs[29]
 #define DI_REGISTER_30 regs[30]
 #define DI_REGISTER_31 regs[31]
+
+#define DI_STACK_VALUE_REG DI_REGISTER_29
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])

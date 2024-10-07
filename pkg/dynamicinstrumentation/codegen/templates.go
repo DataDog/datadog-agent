@@ -76,7 +76,7 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 `
 
 var sliceLengthStackTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->__PT_FP_REG+{{.Parameter.Location.StackOffset}}]);
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->DI_STACK_VALUE_REG+{{.Parameter.Location.StackOffset}}]);
 `
 
 // The length of strings aren't known until parsing, so they require
@@ -125,7 +125,7 @@ outputOffset += 3;
 `
 
 var stringLengthStackTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}));
+bpf_probe_read(&param_size, sizeof(param_size), (char*)((ctx->DI_STACK_VALUE_REG)+{{.Location.StackOffset}}));
 `
 
 var sliceRegisterTemplateText = `
@@ -138,7 +138,7 @@ outputOffset += MAX_SLICE_SIZE;
 var sliceStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read contents of slice
-bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->__PT_FP_REG+{{.Location.StackOffset}});
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->DI_STACK_VALUE_REG+{{.Location.StackOffset}});
 outputOffset += MAX_SLICE_SIZE;`
 
 var stringRegisterTemplateText = `
@@ -167,7 +167,7 @@ if (string_size_{{.ID}}_new > MAX_STRING_SIZE) {
     string_size_{{.ID}}_new = MAX_STRING_SIZE;
 }
 // Read contents of string
-bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->__PT_FP_REG+{{.Location.StackOffset}}));
+bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->DI_STACK_VALUE_REG+{{.Location.StackOffset}}));
 bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}_new, (void*)(ret_addr));
 outputOffset += string_size_{{.ID}}_new;
 `
@@ -191,7 +191,7 @@ var pointerStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read the pointer value (address of underlying value)
 void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}+8));
+bpf_probe_read(&ptrTo{{.ID}}, sizeof(ptrTo{{.ID}}), (char*)((ctx->DI_STACK_VALUE_REG)+{{.Location.StackOffset}}+8));
 
 // Write the underlying value to output
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
@@ -211,7 +211,7 @@ outputOffset += {{.TotalSize}};
 var normalValueStackTemplateText = `
 // Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
 // Read value for {{.Name}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->__PT_FP_REG)+{{.Location.StackOffset}}));
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->DI_STACK_VALUE_REG)+{{.Location.StackOffset}}));
 outputOffset += {{.TotalSize}};
 `
 
