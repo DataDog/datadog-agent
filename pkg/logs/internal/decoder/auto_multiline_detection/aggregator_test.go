@@ -129,7 +129,8 @@ func TestTagTruncatedLogs(t *testing.T) {
 
 	ag.Aggregate(newMessage("1234567890"), startGroup)
 	ag.Aggregate(newMessage("12345678901"), aggregate) // Causes overflow, truncate and flush
-	ag.Aggregate(newMessage("2"), aggregate)
+	ag.Aggregate(newMessage("12345"), aggregate)
+	ag.Aggregate(newMessage("6789"), aggregate)
 	ag.Aggregate(newMessage("3"), noAggregate)
 
 	msg := <-outputChan
@@ -145,7 +146,12 @@ func TestTagTruncatedLogs(t *testing.T) {
 	msg = <-outputChan
 	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
-	assertMessageContent(t, msg, "...TRUNCATED...2")
+	assertMessageContent(t, msg, "...TRUNCATED...12345...TRUNCATED...")
+
+	msg = <-outputChan
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedReasonTag("auto_multiline")})
+	assertMessageContent(t, msg, "...TRUNCATED...6789")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
