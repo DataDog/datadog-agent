@@ -5,17 +5,17 @@ import re
 import sys
 from datetime import timedelta
 
+import yaml
 from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.github_tasks import pr_commenter
+from tasks.gitlab_helpers import compute_gitlab_ci_config_diff
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
-    get_all_gitlab_ci_configurations,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
@@ -138,7 +138,9 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
 
 
 @task
-def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False):
+def gitlab_ci_diff(
+    ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False, from_diff: str | None = None
+):
     """
     Creates a diff from two gitlab-ci configurations.
 
@@ -168,20 +170,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         job_url = os.environ['CI_JOB_URL']
 
     try:
-        before_name = before or "merge base"
-        after_name = after or "local files"
-
-        # The before commit is the LCA commit between before and after
-        before = before or DEFAULT_BRANCH
-        before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
-
-        print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
-
-        print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
-
-        diff = MultiGitlabCIDiff(before_config, after_config)
+        if from_diff:
+            with open(from_diff) as f:
+                diff_data = yaml.safe_load(f)
+            diff = MultiGitlabCIDiff.from_dict(diff_data)
+        else:
+            _, _, diff = compute_gitlab_ci_config_diff(ctx, before, after)
 
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))

@@ -65,8 +65,7 @@ build do
   end
 
   # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
-
+  env = with_standard_compiler_flags(with_embedded_path(env))
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -237,4 +236,8 @@ build do
   unless windows_target?
     delete "#{install_dir}/uselessfile"
   end
+
+  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+  mkdir "#{install_dir}/python-scripts"
+  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
 end

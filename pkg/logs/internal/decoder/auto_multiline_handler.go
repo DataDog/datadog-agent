@@ -52,7 +52,7 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 			maxContentSize,
 			flushTimeout,
 			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
-			pkgconfigsetup.Datadog().GetBool("logs_config.tag_auto_multi_line_logs"),
+			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
 			tailerInfo),
 	}
 }
