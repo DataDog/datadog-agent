@@ -191,7 +191,6 @@ func initAgentDemultiplexer(
 	}
 
 	// --
-	fmt.Println("WACKWACK7")
 	demux := &AgentDemultiplexer{
 		log:       log,
 		options:   options,

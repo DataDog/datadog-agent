@@ -184,6 +184,5 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
-	fmt.Println("wack3", t)
 	return t
 }

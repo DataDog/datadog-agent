@@ -35,7 +35,6 @@ type serializerConsumer struct {
 	sketches        metrics.SketchSeriesList
 	apmstats        []io.Reader
 	apmReceiverAddr string
-	hostTagProvider *metrics.HostTagProvider
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
