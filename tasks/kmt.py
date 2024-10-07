@@ -166,6 +166,12 @@ def gen_config(
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
+
+        if use_local_if_possible:
+            raise Exit(
+                "--use-local-if-possible can only be used with --from-ci-pipeline. If you want to set up local VMs, use the local specifier in the VM list (e.g., ubuntu_22-distro-local instead of ubuntu_22-distro-arm64)"
+            )
+
         vmconfig.gen_config(
             ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
         )
@@ -1034,6 +1040,7 @@ def kmt_sysprobe_prepare(
                 "fmapper",
                 "prefetch_file",
                 "fake_server",
+                "sample_service",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
