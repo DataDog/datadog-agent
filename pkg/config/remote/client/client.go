@@ -80,7 +80,7 @@ type Client struct {
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
 	// when in use
-	installerState *atomic.Value // []*pbgo.PackageState
+	installerState *atomic.Value // *pbgo.ClientUpdater
 	cwsWorkloads   *atomic.Value // []string
 }
 
@@ -278,7 +278,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	cwsWorkloads.Store([]string{})
 
 	installerState := &atomic.Value{}
-	installerState.Store([]*pbgo.PackageState{})
+	installerState.Store(&pbgo.ClientUpdater{})
 
 	return &Client{
 		Options:        options,
@@ -363,8 +363,8 @@ func (c *Client) SetCWSWorkloads(workloads []string) {
 }
 
 // GetInstallerState gets the installer state
-func (c *Client) GetInstallerState() []*pbgo.PackageState {
-	return c.installerState.Load().([]*pbgo.PackageState)
+func (c *Client) GetInstallerState() *pbgo.ClientUpdater {
+	return c.installerState.Load().(*pbgo.ClientUpdater)
 }
 
 // SetInstallerState sets the installer state

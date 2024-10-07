@@ -60,7 +60,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
-	GetRemoteConfigState() []*pbgo.PackageState
+	GetRemoteConfigState() *pbgo.ClientUpdater
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
@@ -129,7 +129,7 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 }
 
 // GetRemoteConfigState returns the remote config state.
-func (d *daemonImpl) GetRemoteConfigState() []*pbgo.PackageState {
+func (d *daemonImpl) GetRemoteConfigState() *pbgo.ClientUpdater {
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -583,17 +583,10 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
-<<<<<<< HEAD
-	configVersion, err := d.resolveAgentRemoteConfigVersion(ctx)
-	if err != nil {
-		log.Errorf("could not get agent remote config version: %v", err)
-	}
 	availableSpace, err := d.installer.AvailableDiskSpace()
 	if err != nil {
 		log.Errorf("could not get available size: %v", err)
 	}
-=======
->>>>>>> origin/main
 
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {

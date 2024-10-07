@@ -24,7 +24,7 @@ type remoteConfigClient interface {
 	Start()
 	Close()
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	GetInstallerState() []*pbgo.PackageState
+	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
 }
 
@@ -65,7 +65,7 @@ func (rc *remoteConfig) Close() {
 }
 
 // GetState gets the state of the remote config client.
-func (rc *remoteConfig) GetState() []*pbgo.PackageState {
+func (rc *remoteConfig) GetState() *pbgo.ClientUpdater {
 	return rc.client.GetInstallerState()
 }
 

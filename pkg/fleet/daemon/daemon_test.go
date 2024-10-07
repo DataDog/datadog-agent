@@ -154,7 +154,7 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
 }
 
-func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
 	return nil
 }
 
