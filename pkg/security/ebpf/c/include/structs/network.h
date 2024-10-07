@@ -91,7 +91,7 @@ struct raw_packet_t {
     struct network_device_context_t device;
 
     int len;
-    char data[1500];
+    char data[256];
 };
 
 #endif
