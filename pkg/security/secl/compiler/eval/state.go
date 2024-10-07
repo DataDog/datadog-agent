@@ -12,7 +12,6 @@ import (
 )
 
 type registerInfo struct {
-	iterator  Iterator
 	field     Field
 	subFields map[Field]bool
 }
