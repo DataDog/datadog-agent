@@ -7,3 +7,6 @@
 package a
 
 import _ "github.com/DataDog/datadog-agent/pkg/config" // want "pkg/config should not be used inside comp folder"
+
+// TODO: Remove me
+// Trigger notify_github job
