@@ -452,62 +452,47 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 test_gitlab_configuration(ctx, entry_point, input_config)
 
 
-def gitlab_ci_linter(func=None, only_names=False):
+def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
     """
-    Decorator used to declare a gitlab ci linter task.
-    It creates a task (no need to @task the function) taking either --diff-file or --config-file as arguments.
+    Utility to get the jobs from full gitlab ci configuration file or from a diff file.
 
     - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
     - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
     """
 
-    def decorator(func):
-        @task(name=func.__name__)
-        def wrapper(ctx, diff_file=None, config_file=None):
-            assert (
-                diff_file or config_file and not (diff_file and config_file)
-            ), "You must provide either a diff file or a config file and not both"
+    assert (
+        diff_file or config_file and not (diff_file and config_file)
+    ), "You must provide either a diff file or a config file and not both"
 
-            # Load all the jobs from the files
-            if config_file:
-                with open(config_file) as f:
-                    full_config = yaml.safe_load(f)
-                    jobs = [
-                        (job, job_contents)
-                        for contents in full_config.values()
-                        for job, job_contents in contents.items()
-                        if is_leaf_job(job, job_contents)
-                    ]
-            else:
-                with open(diff_file) as f:
-                    diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+    # Load all the jobs from the files
+    if config_file:
+        with open(config_file) as f:
+            full_config = yaml.safe_load(f)
+            jobs = [
+                (job, job_contents)
+                for contents in full_config.values()
+                for job, job_contents in contents.items()
+                if is_leaf_job(job, job_contents)
+            ]
+    else:
+        with open(diff_file) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
-                full_config = diff.after
-                jobs = [
-                    (job, contents)
-                    for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)
-                ]
+        full_config = diff.after
+        jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
 
-            if not jobs:
-                print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping {func.__name__} lint")
-                return
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return
 
-            if only_names:
-                jobs = [job for job, _ in jobs]
+    if only_names:
+        jobs = [job for job, _ in jobs]
 
-            return func(ctx, jobs=jobs, full_config=full_config)
-
-        return wrapper
-
-    # No provided args
-    if func:
-        return decorator(func)
-
-    return decorator
+    return jobs, full_config
 
 
-@gitlab_ci_linter
-def gitlab_ci_jobs_needs_rules(_, jobs, full_config):
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
     Verifies that each added / modified job contains `needs` and also `rules`.
     It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
@@ -516,6 +501,7 @@ def gitlab_ci_jobs_needs_rules(_, jobs, full_config):
     SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
     """
 
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -760,35 +746,13 @@ def gitlab_change_paths(ctx):
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
 
 
-# TODO: path_jobowners arg
-@gitlab_ci_linter
-def gitlab_ci_jobs_owners(_, jobs, full_config, path_jobowners='.gitlab/JOBOWNERS'):
+@task
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """
     Verifies that each job is defined within JOBOWNERS files.
     """
 
-    # assert (
-    #     diff_file or config_file and not (diff_file and config_file)
-    # ), "You must provide either a diff file or a config file and not both"
-
-    # # Load all the jobs from the files
-    # if config_file:
-    #     with open(config_file) as f:
-    #         full_config = yaml.safe_load(f)
-    # else:
-    #     with open(diff_file) as f:
-    #         full_config = MultiGitlabCIDiff.from_dict(yaml.safe_load(f)).after
-
-    # jobs = [
-    #     job
-    #     for entry_point in full_config.values()
-    #     for job, contents in entry_point.items()
-    #     if is_leaf_job(job, contents)
-    # ]
-    # if not jobs:
-    #     print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-    #     return
-
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
