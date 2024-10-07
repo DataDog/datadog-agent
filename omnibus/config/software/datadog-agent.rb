@@ -67,6 +67,9 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_standard_compiler_flags(with_embedded_path(env))
   default_install_dir = "/opt/datadog-agent"
+  if Omnibus::Config.host_distribution == "ociru"
+    default_install_dir = "/opt/datadog-packages/datadog-agent"
+  end
   
   # we assume the go deps are already installed before running omnibus
   if windows_target?
