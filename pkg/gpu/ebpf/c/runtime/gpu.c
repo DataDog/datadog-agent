@@ -208,4 +208,49 @@ cleanup:
     return 0;
 }
 
+SEC("uprobe/cudaSetDevice")
+int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    log_debug("cudaSetDevice: pid_tgid=%llu, device=%u", pid_tgid, device);
+    bpf_map_update_elem(&cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaSetDevice")
+int BPF_URETPROBE(uretprobe__cudaSetDevice) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    int *device = NULL;
+    cuda_set_device_event_t event = { 0 };
+    __u32 retval = PT_REGS_RC(ctx);
+
+    log_debug("cudaSetDevice[ret]: pid_tgid=%llu, retval=%d\n", pid_tgid, retval);
+
+    if (retval != 0) {
+        // Do not emit event if cudaSetDevice failed
+        goto cleanup;
+    }
+
+    device = bpf_map_lookup_elem(&cuda_set_device_cache, &pid_tgid);
+    if (!device) {
+        log_debug("cudaSetDevice[ret]: failed to find cudaSetDevice request");
+        return 0;
+    }
+
+    event.header.pid_tgid = bpf_get_current_pid_tgid();
+    event.header.stream_id = (uint64_t)0;
+    event.header.type = cuda_set_device;
+    event.header.ktime_ns = bpf_ktime_get_ns();
+    event.device = *device;
+
+    log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
+    bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
+
+cleanup:
+    bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
+
+    return 0;
+}
+
 char __license[] SEC("license") = "GPL";
