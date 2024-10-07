@@ -779,6 +779,7 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
+        [sync_secl_win_pkg],
     ]
     failing_tasks = []
 
