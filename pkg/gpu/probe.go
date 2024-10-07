@@ -63,6 +63,8 @@ const (
 	cudaStreamSyncProbe    probeFuncName = "uprobe__cudaStreamSynchronize"
 	cudaStreamSyncRetProbe probeFuncName = "uretprobe__cudaStreamSynchronize"
 	cudaFreeProbe          probeFuncName = "uprobe__cudaFree"
+	cudaSetDeviceProbe    probeFuncName = "uprobe__cudaSetDevice"
+	cudaSetDeviceRetProbe probeFuncName = "uretprobe__cudaSetDevice"
 )
 
 // ProbeDependencies holds the dependencies for the probe
@@ -300,6 +302,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaStreamSyncRetProbe}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaFreeProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cudaSetDeviceRetProbe}},
 						},
 					},
 				},
