@@ -302,7 +302,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// Discovery module / system-probe
