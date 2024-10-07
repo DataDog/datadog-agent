@@ -201,7 +201,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	// TODO: USING NDM NETFLOW EXPORTER FOR POC
 	netflowExporters := []metadata.NetflowExporter{
 		{
-			ID:            "ha-agent",
+			ID:            "ha-agent-" + agentHostname,
 			IPAddress:     "1.1.1.1",
 			FlowType:      "netflow9",
 			ClusterId:     clusterId,
