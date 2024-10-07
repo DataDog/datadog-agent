@@ -587,7 +587,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 				Targets: AttachToSharedLibraries,
 			},
 			{
-				LibraryNameRegex: regexp.MustCompile(`libtls.so`),
+				LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.ProbeSelector{
 						ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -893,7 +893,8 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 			LibraryNameRegex: regexp.MustCompile(`fooroot-crypto.so`),
 			Targets:          AttachToSharedLibraries,
 		}},
-		EbpfConfig: ebpfCfg,
+		EbpfConfig:       ebpfCfg,
+		SharedLibsLibset: sharedlibraries.LibsetCrypto,
 	}
 
 	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
