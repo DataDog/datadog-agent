@@ -123,7 +123,7 @@ func load() (*types.Config, error) {
 	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 
-	if npmEnabled || usmEnabled || ccmEnabled || csmEnabled {
+	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {

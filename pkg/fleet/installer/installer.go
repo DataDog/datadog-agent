@@ -88,7 +88,7 @@ type installerImpl struct {
 }
 
 // NewInstaller returns a new Package Manager.
-func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensureRepositoriesExist()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
@@ -97,7 +97,7 @@ func NewInstaller(env *env.Env, configDBPath string) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	cdn, err := cdn.New(env, configDBPath)
+	cdn, err := cdn.New(env, filepath.Join(paths.RunPath, "rc_cmd"))
 	if err != nil {
 		return nil, fmt.Errorf("could not create CDN client: %w", err)
 	}
@@ -300,12 +300,12 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	config, err := i.cdn.Get(ctx)
+	config, err := i.cdn.Get(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not get cdn config: %w", err)
 	}
-	if config.Version != version {
-		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version, version)
+	if config.Version() != version {
+		return fmt.Errorf("version mismatch: expected %s, got %s", config.Version(), version)
 	}
 
 	tmpDir, err := i.packages.MkdirTemp()
@@ -314,9 +314,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Note: this is definitely not package agnostic, because the CDN isn't.
-	// This will be addressed in a follow-up PR
-	err = service.WriteAgentConfig(config, tmpDir)
+	err = config.Write(tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not write agent config: %w", err)
 	}
@@ -541,14 +539,35 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) configurePackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string) (err error) {
 	if !i.env.RemotePolicies {
 		return nil
 	}
 
+	span, _ := tracer.StartSpanFromContext(ctx, "configure_package")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
 	switch pkg {
 	case packageDatadogAgent:
-		return service.ConfigureAgent(ctx, i.cdn, i.configs)
+		config, err := i.cdn.Get(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not get %s CDN config: %w", pkg, err)
+		}
+		tmpDir, err := i.configs.MkdirTemp()
+		if err != nil {
+			return fmt.Errorf("could not create temporary directory: %w", err)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		err = config.Write(tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not write %s config: %w", pkg, err)
+		}
+		err = i.configs.Create(pkg, config.Version(), tmpDir)
+		if err != nil {
+			return fmt.Errorf("could not create %s repository: %w", pkg, err)
+		}
+		return nil
 	default:
 		return nil
 	}
