@@ -924,11 +924,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
+		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
+			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else {
 			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			if pce == nil {
+				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -2226,3 +2228,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		}
 	}
 }
+
+// newPlaceholderProcessCacheEntryPTraceMe returns a new empty process cache entry for PTRACE_TRACEME calls,
+// it's similar to model.NewPlaceholderProcessCacheEntry with pid = tid = 0, and isKworker = false
+var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
+	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
+})
