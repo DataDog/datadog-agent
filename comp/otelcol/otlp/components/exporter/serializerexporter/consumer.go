@@ -115,7 +115,7 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error
 	metrics.Serialize(
-		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000, metrics.NewHostTagProvider()),
+		metrics.NewIterableSeries(func(_ *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(_ *metrics.SketchSeries) {}, 200, 4000),
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			for _, serie := range c.series {

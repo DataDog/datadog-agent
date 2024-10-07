@@ -5,10 +5,6 @@
 
 package metrics
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/tagset"
-)
-
 // IterableSeries is an specialisation of iterableMetrics for serie.
 type IterableSeries struct {
 	iterableMetrics
@@ -17,16 +13,10 @@ type IterableSeries struct {
 // NewIterableSeries creates a new instance of *IterableSeries
 //
 // `callback` is called in the context of the sender's goroutine each time `Append` is called.
-func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int, hostTagProvider *HostTagProvider) *IterableSeries {
-
+func NewIterableSeries(callback func(*Serie), chanSize int, bufferSize int) *IterableSeries {
 	return &IterableSeries{
 		iterableMetrics: *newIterableMetric(func(value interface{}) {
-			serie := value.(*Serie)
-			hostTags := hostTagProvider.GetHostTags()
-			if hostTags != nil {
-				serie.Tags = tagset.CombineCompositeTagsAndSlice(serie.Tags, hostTagProvider.GetHostTags())
-			}
-			callback(serie)
+			callback(value.(*Serie))
 		}, chanSize, bufferSize),
 	}
 }

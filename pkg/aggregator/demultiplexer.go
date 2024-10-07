@@ -6,11 +6,11 @@
 package aggregator
 
 import (
-	"fmt"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -99,16 +99,18 @@ func createIterableMetrics(
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
-	fmt.Println("cringe0")
 	if serializer.AreSeriesEnabled() {
 		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
 			if logPayloads {
 				log.Debugf("Flushing serie: %s", se)
 			}
+			hostTags := hostTagProvider.GetHostTags()
+			if hostTags != nil {
+				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
+			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize, hostTagProvider)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
-	fmt.Println("cringe1", series)
 	if serializer.AreSketchesEnabled() {
 		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
 			if logPayloads {
@@ -116,6 +118,10 @@ func createIterableMetrics(
 			}
 			if isServerless {
 				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			hostTags := hostTagProvider.GetHostTags()
+			if hostTags != nil {
+				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
