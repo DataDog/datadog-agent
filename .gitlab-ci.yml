@@ -1,7 +1,7 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/test_gitlab_configuration.yml
+  - .gitlab/.pre/gitlab_configuration.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -12,7 +12,6 @@ include:
   - .gitlab/powershell_script_deploy/powershell_script_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
@@ -92,8 +91,8 @@ stages:
   - deploy_packages
   - deploy_cws_instrumentation
   - deploy_dca
-  - trigger_release
   - choco_and_install_script_build
+  - trigger_release
   - choco_and_install_script_deploy
   - internal_image_deploy
   - install_script_testing
@@ -173,15 +172,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_WINBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_ARMBUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45605580-5f42ffba
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45186095-84d9d5f2
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45605580-5f42ffba
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -191,8 +190,8 @@ variables:
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-013ea43cbe85107c0"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-02fbd245475d6a63d"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
@@ -284,12 +283,6 @@ variables:
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-
-.if_version_6: &if_version_6
-  if: $RELEASE_VERSION_6 != ""
-
-.if_not_version_6: &if_not_version_6
-  if: $RELEASE_VERSION_6 == ""
 
 .if_version_7: &if_version_7
   if: $RELEASE_VERSION_7 != ""
@@ -429,10 +422,8 @@ workflow:
   - when: manual
     allow_failure: true
 
-.except_no_a6_or_no_a7:
+.except_no_a7:
   - !reference [.except_mergequeue]
-  - <<: *if_not_version_6
-    when: never
   - <<: *if_not_version_7
     when: never
 
@@ -756,6 +747,7 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
+  - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/source_test/ebpf.yml

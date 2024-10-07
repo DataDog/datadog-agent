@@ -27,7 +27,7 @@ windows_choco_offline_7_x64:
 # it is run only once the msi package is pushed
 windows_choco_online_7_x64:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_manual]
+    !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: choco_and_install_script_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["deploy_staging_windows_tags-7"]
@@ -42,6 +42,8 @@ windows_choco_online_7_x64:
     - docker run --rm -v "$(Get-Location):c:\mnt" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\chocopack.bat online
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - copy build-out\*.nupkg omnibus\pkg
+    - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
+    - Invoke-Expression $CopyNupkgToS3
   artifacts:
     expire_in: 2 weeks
     paths:

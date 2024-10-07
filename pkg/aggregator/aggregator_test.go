@@ -730,3 +730,24 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		Demultiplexer: InitAndStartAgentDemultiplexerForTest(deps, opts, ""),
 	}
 }
+
+func TestStatsCopy(t *testing.T) {
+	// Flushes    [32]int64 // circular buffer of recent flushes stat
+	// FlushIndex int       // last flush position in circular buffer
+	// LastFlush  int64     // most recent flush stat, provided for convenience
+	// Name       string
+
+	stats := &Stats{
+		Flushes:    [32]int64{1, 2, 3},
+		FlushIndex: 2,
+		LastFlush:  1,
+		Name:       "name",
+	}
+	stats.Flushes[31] = 32
+
+	statsCopy := stats.copy()
+	assert.Equal(t, stats.Flushes, statsCopy.Flushes)
+	assert.Equal(t, stats.FlushIndex, statsCopy.FlushIndex)
+	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
+	assert.Equal(t, stats.Name, statsCopy.Name)
+}
