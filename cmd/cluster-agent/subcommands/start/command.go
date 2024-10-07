@@ -218,6 +218,7 @@ func start(log log.Component,
 	logReceiver optional.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
+	datadogConfig config.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -471,7 +472,7 @@ func start(log log.Component,
 			ValidatingStopCh:    validatingStopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {
