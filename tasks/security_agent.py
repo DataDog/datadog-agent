@@ -800,7 +800,7 @@ def go_generate_check(ctx):
             print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
-            raise Exit(code=1)
+        raise Exit(code=1)
 
 
 @task
