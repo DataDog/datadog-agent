@@ -91,7 +91,7 @@ job-owners:
     - lint_flavor_dogstatsd_linux-x64
     - lint_flavor_heroku_linux-x64
     - lint_flavor_iot_linux-x64
-    - lint_gitlab_ci_jobs_needs_rules
+    - lint_gitlab_ci
     - lint_licenses
     - lint_linux-arm64
     - lint_linux-x64

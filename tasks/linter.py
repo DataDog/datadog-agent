@@ -727,11 +727,9 @@ def gitlab_change_paths(ctx):
 
 
 @task
-def gitlab_job_owners(
-    _, config_file=None, diff_file=None, path_codeowners='.github/CODEOWNERS', path_jobowners='.gitlab/JOBOWNERS'
-):
+def gitlab_job_owners(_, config_file=None, diff_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """
-    Verifies that each job is defined within the CODEOWNERS and JOBOWNERS files.
+    Verifies that each job is defined within JOBOWNERS files.
 
     - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
     - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
@@ -765,7 +763,6 @@ def gitlab_job_owners(
         all_stages=full_config_get_all_stages(full_config),
     )
 
-    # codeowners = read_owners(path_codeowners)
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
     error_jobs = []
