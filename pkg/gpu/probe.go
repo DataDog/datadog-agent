@@ -121,9 +121,8 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 				},
 			},
 		},
-		EbpfConfig:            cfg.Config,
-		PerformInitialScan:    true,
-		EnableDetailedLogging: true,
+		EbpfConfig:         cfg.Config,
+		PerformInitialScan: true,
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
