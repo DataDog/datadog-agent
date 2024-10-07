@@ -67,7 +67,7 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
         'go': {
             'current_v': current_go_v(ctx),
             'expected_v': expected_go_repo_v(),
-            'debug': current_go_v(ctx),
+            'debug': '' if not debug else current_go_v(ctx),
             'exit_on_error': False,
             'error_msg': "Warning: If you have linter errors it might be due to version mismatches.",
         },
