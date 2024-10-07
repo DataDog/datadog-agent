@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 // Package diagnostics provides a facility for dynamic instrumentation to upload diagnostic information
 package diagnostics
@@ -76,6 +76,10 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 		// TODO: if there is no consumer reading updates, this blocks the calling goroutine
 		m.Updates <- d
 	}
+}
+
+func StopGlobalDiagnostics() {
+	close(Diagnostics.Updates)
 }
 
 // Diagnostics is a global instance of a diagnostic manager
