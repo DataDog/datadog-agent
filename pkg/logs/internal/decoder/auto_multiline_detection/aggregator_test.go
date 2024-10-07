@@ -174,3 +174,15 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assert.Empty(t, msg.ParsingExtra.Tags)
 	assertMessageContent(t, msg, "2")
 }
+
+func TestTruncatedFlagIsOnlyAddedOnce(t *testing.T) {
+	outputChan, outputFn := makeHandler()
+	ag := NewAggregator(outputFn, 5, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
+
+	ag.Aggregate(newMessage("123456"), startGroup)
+	// Force a flush
+	ag.Aggregate(newMessage(""), startGroup)
+
+	msg := <-outputChan
+	assertMessageContent(t, msg, "...TRUNCATED...123456")
+}

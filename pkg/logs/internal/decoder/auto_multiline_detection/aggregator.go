@@ -43,8 +43,10 @@ func (b *bucket) isEmpty() bool {
 }
 
 func (b *bucket) truncate() {
-	b.buffer.Write(message.TruncatedFlag)
-	b.truncated = true
+	if !b.truncated {
+		b.buffer.Write(message.TruncatedFlag)
+		b.truncated = true
+	}
 }
 
 func (b *bucket) flush() *message.Message {
