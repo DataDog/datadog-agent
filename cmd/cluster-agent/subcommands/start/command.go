@@ -372,7 +372,7 @@ func start(log log.Component,
 	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
 
 	// Set up check collector
-	registerChecks()
+	registerChecks(wmeta, config)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	// start the autoconfig, this will immediately run any configured check
@@ -577,7 +577,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func registerChecks() {
+func registerChecks(wlm workloadmeta.Component, cfg config.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -590,6 +590,6 @@ func registerChecks() {
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg))
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 }
