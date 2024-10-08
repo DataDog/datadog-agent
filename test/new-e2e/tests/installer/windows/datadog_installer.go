@@ -135,6 +135,11 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
 }
 
+// Status returns the status provided by the running daemon
+func (d *DatadogInstaller) Status() (string, error) {
+	return d.execute("status")
+}
+
 // Params contains the optional parameters for the Datadog Installer Install command
 type Params struct {
 	installerURL   string

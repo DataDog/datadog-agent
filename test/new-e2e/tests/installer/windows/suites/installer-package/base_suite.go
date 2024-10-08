@@ -36,6 +36,9 @@ func (s *baseInstallerSuite) freshInstall() {
 		WithStatus("Stopped").
 		// no named pipe when service is not running
 		HasNoNamedPipe(installerwindows.NamedPipe)
+	// no status when service is not running (no daemon/named pipe)
+	_, err := s.Installer().Status()
+	s.Require().Error(err)
 }
 
 func (s *baseInstallerSuite) startServiceWithConfigFile() {

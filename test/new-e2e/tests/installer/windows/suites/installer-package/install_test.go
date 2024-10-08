@@ -68,6 +68,11 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 					),
 				},
 			))
+	status, err := s.Installer().Status()
+	s.Require().NoError(err)
+	// with no packages installed just prints version
+	// e.g. Datadog Installer v7.60.0-devel+git.56.86b2ae2
+	s.Require().Contains(status, "Datadog Installer")
 }
 
 func (s *testInstallerSuite) uninstall() {
