@@ -37,8 +37,6 @@ const (
 
 type ecsSuite struct {
 	baseSuite[environments.ECS]
-
-	ecsClusterName string
 }
 
 func TestECSSuite(t *testing.T) {

@@ -366,8 +366,12 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 		}
 		return nil
 	})
-	ecsClusterComp.Export(ctx, &env.ECSCluster.ClusterOutput)
-	return nil
+	if err != nil {
+		return err
+	}
+
+	return ecsClusterComp.Export(ctx, &env.ECSCluster.ClusterOutput)
+
 }
 
 // Provisioner creates a VM environment with an EC2 VM with Docker, an ECS Fargate FakeIntake and a Docker Agent configured to talk to each other.

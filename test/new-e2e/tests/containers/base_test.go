@@ -28,11 +28,10 @@ import (
 type baseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 
-	startTime     time.Time
-	endTime       time.Time
-	Fakeintake    *fakeintake.Client
-	datadogClient *datadog.Client
-	clusterName   string
+	startTime   time.Time
+	endTime     time.Time
+	Fakeintake  *fakeintake.Client
+	clusterName string
 }
 
 func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
