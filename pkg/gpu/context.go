@@ -14,10 +14,9 @@ import (
 
 	"github.com/prometheus/procfs"
 
-	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
-
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
@@ -46,6 +45,14 @@ type systemContext struct {
 
 	// procfsObj is the procfs filesystem object to retrieve process maps
 	procfsObj procfs.FS
+
+	// selectedDeviceByPID maps each process ID to the device index it has selected
+	// note that this is the device index as seen by the process itself, which might
+	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
+	selectedDeviceByPID map[int]int
+
+	// gpuDevices is the list of GPU devices on the system
+	gpuDevices []nvml.Device
 }
 
 // symbolsEntry embeds cuda.Symbols adding a field for keeping track of the last
@@ -187,4 +194,22 @@ func (ctx *systemContext) cleanupOldEntries() {
 			delete(ctx.cudaSymbols, path)
 		}
 	}
+}
+
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int) (*nvml.Device, error) {
+	visibleDevices, err := cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
+	if err != nil {
+		return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
+	}
+
+	if len(visibleDevices) == 0 {
+		return nil, fmt.Errorf("no GPU devices for process %d", pid)
+	}
+
+	selectedDeviceIndex := ctx.selectedDeviceByPID[pid] // Defaults to 0, which is the same as CUDA
+	if selectedDeviceIndex < 0 || selectedDeviceIndex >= len(visibleDevices) {
+		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
+	}
+
+	return &visibleDevices[selectedDeviceIndex], nil
 }
