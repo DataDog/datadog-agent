@@ -144,6 +144,7 @@ type NetflowExporter struct {
 	FlowType      string `json:"flow_type"`
 	ClusterId     string `json:"cluster_id"`
 	AgentHostname string `json:"agent_hostname"`
+	AgentRole     string `json:"agent_role"`
 }
 
 // Diagnosis contain data for a diagnosis

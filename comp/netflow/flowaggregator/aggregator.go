@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -208,6 +209,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			FlowType:      "netflow9",
 			ClusterId:     clusterId,
 			AgentHostname: agentHostname,
+			AgentRole:     haagent.GetRole(),
 		},
 	}
 	//for _, exporterID := range ids {
