@@ -327,8 +327,8 @@ type cubinParser struct {
 	sectPrefixToParser map[string]func(*elf.Section, *bytes.Reader, string) error
 }
 
-func newCubinParser() cubinParser {
-	cp := cubinParser{
+func newCubinParser() *cubinParser {
+	cp := &cubinParser{
 		kernels:            make(map[string]*CubinKernel),
 		sectPrefixToParser: make(map[string]func(*elf.Section, *bytes.Reader, string) error),
 	}
