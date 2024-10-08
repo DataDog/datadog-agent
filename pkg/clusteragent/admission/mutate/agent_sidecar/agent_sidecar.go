@@ -137,7 +137,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 		podUpdated = true
 	}
 
-	updated, err := applyProviderOverrides(pod)
+	updated, err := applyProviderOverrides(pod, w.datadogConfig)
 	if err != nil {
 		log.Errorf("Failed to apply provider overrides: %v", err)
 		return podUpdated, errors.New(metrics.InvalidInput)
@@ -148,7 +148,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
-			updated, err = applyProfileOverrides(&pod.Spec.Containers[i])
+			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.datadogConfig)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
@@ -257,7 +257,7 @@ func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSe
 	selectorsJSON := datadogConfig.GetString("admission_controller.agent_sidecar.selectors")
 
 	// Get sidecar profiles
-	_, err := loadSidecarProfiles()
+	_, err := loadSidecarProfiles(datadogConfig)
 	if err != nil {
 		log.Errorf("encountered issue when loading sidecar profiles: %s", err)
 		return nil, nil
