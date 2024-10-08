@@ -97,7 +97,20 @@ func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 
 // Cleanup removes the inspection result for the binary at the given path from the map.
 func (p *GoTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
-	p.removeInspectionResultFromMap(fpath.ID)
+	binID := fpath.ID
+	key := &gotls.TlsBinaryId{
+		Id_major: unix.Major(binID.Dev),
+		Id_minor: unix.Minor(binID.Dev),
+		Ino:      binID.Inode,
+	}
+	if err := p.offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
+		// Ignore errors for non-existing keys: if the inspect process fails, we won't have added the key to the map
+		// but the deactivation callback (which calls Cleanup and thus this method) will still be called. So it's normal
+		// to not find the key in the map. We report other errors though.
+		if !errors.Is(err, unix.ENOENT) {
+			log.Errorf("could not remove binary inspection result from map for binID %v: %v", binID, err)
+		}
+	}
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
@@ -118,22 +131,6 @@ func (p *GoTLSBinaryInspector) addInspectionResultToMap(binID utils.PathIdentifi
 	}
 
 	return nil
-}
-
-func (p *GoTLSBinaryInspector) removeInspectionResultFromMap(binID utils.PathIdentifier) {
-	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
-	}
-	if err := p.offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
-		// Ignore errors for non-existing keys: if the inspect process fails, we won't have added the key to the map
-		// but the deactivation callback (which calls Cleanup and thus this method) will still be called. So it's normal
-		// to not find the key in the map. We report other errors though.
-		if !errors.Is(err, unix.ENOENT) {
-			log.Errorf("could not remove binary inspection result from map for binID %v: %v", binID, err)
-		}
-	}
 }
 
 func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {
