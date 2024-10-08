@@ -376,8 +376,8 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 			}
 
 			var buffer *bytes.Reader
+			// do not provide a buffer for NOBITS sections, as they have no data
 			if sect.Type != elf.SHT_NOBITS {
-				// do not provide a buffer for NOBITS sections
 				sectData, err := sect.Data()
 				if err != nil {
 					return fmt.Errorf("failed to read section %s: %w", sect.Name, err)
