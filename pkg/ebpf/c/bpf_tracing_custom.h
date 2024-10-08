@@ -16,23 +16,23 @@
 #define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x,3)
 #define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x,4)
 
-#define DI_REGISTER_0 ax
-#define DI_REGISTER_1 dx
-#define DI_REGISTER_2 cx
-#define DI_REGISTER_3 bx
-#define DI_REGISTER_4 si
-#define DI_REGISTER_5 di
-#define DI_REGISTER_6 bp
-#define DI_REGISTER_7 sp
-#define DI_REGISTER_8 r8
-#define DI_REGISTER_9 r9
-#define DI_REGISTER_10 r10
-#define DI_REGISTER_11 r11
-#define DI_REGISTER_12 r12
-#define DI_REGISTER_13 r13
-#define DI_REGISTER_14 r14
-#define DI_REGISTER_15 r15
-#define DI_REGISTER_16 ip
+#define DI_REGISTER(0) ax
+#define DI_REGISTER(1) dx
+#define DI_REGISTER(2) cx
+#define DI_REGISTER(3) bx
+#define DI_REGISTER(4) si
+#define DI_REGISTER(5) di
+#define DI_REGISTER(6) bp
+#define DI_REGISTER(7) sp
+#define DI_REGISTER(8) r8
+#define DI_REGISTER(9) r9
+#define DI_REGISTER(10) r10
+#define DI_REGISTER(11) r11
+#define DI_REGISTER(12) r12
+#define DI_REGISTER(13) r13
+#define DI_REGISTER(14) r14
+#define DI_REGISTER(15) r15
+#define DI_REGISTER(16) ip
 
 #define DI_STACK_VALUE_REG DI_REGISTER_7
 
@@ -46,38 +46,7 @@
     p;                                                                     \
 })
 
-#define DI_REGISTER_0 regs[0]
-#define DI_REGISTER_1 regs[1]
-#define DI_REGISTER_2 regs[2]
-#define DI_REGISTER_3 regs[3]
-#define DI_REGISTER_4 regs[4]
-#define DI_REGISTER_5 regs[5]
-#define DI_REGISTER_6 regs[6]
-#define DI_REGISTER_7 regs[7]
-#define DI_REGISTER_8 regs[8]
-#define DI_REGISTER_9 regs[9]
-#define DI_REGISTER_10 regs[10]
-#define DI_REGISTER_11 regs[11]
-#define DI_REGISTER_12 regs[12]
-#define DI_REGISTER_13 regs[13]
-#define DI_REGISTER_14 regs[14]
-#define DI_REGISTER_15 regs[15]
-#define DI_REGISTER_16 regs[16]
-#define DI_REGISTER_17 regs[17]
-#define DI_REGISTER_18 regs[18]
-#define DI_REGISTER_19 regs[19]
-#define DI_REGISTER_20 regs[20]
-#define DI_REGISTER_21 regs[21]
-#define DI_REGISTER_22 regs[22]
-#define DI_REGISTER_23 regs[23]
-#define DI_REGISTER_24 regs[24]
-#define DI_REGISTER_25 regs[25]
-#define DI_REGISTER_26 regs[26]
-#define DI_REGISTER_27 regs[27]
-#define DI_REGISTER_28 regs[28]
-#define DI_REGISTER_29 regs[29]
-#define DI_REGISTER_30 regs[30]
-#define DI_REGISTER_31 regs[31]
+#define DI_REGISTER_(num) regs[num]
 
 #define DI_STACK_VALUE_REG DI_REGISTER_29
 
