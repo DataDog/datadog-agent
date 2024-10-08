@@ -28,7 +28,6 @@ github.com/elastic/*: Copyright 2017-2018 Elasticsearch B.V.
 github.com/golang/*: Copyright (c) 2009 The Go Authors. All rights reserved.
 github.com/googleapis/*: Copyright 2017 Google Inc.
 github.com/google/go-cmp/*: Copyright (c) 2017 The Go Authors. All rights reserved.
-github.com/grpc-ecosystem/*: Copyright (c) 2015, Gengo, Inc.
 github.com/hashicorp/*: Copyright © 2014-2018 HashiCorp, Inc
 github.com/prometheus/*: Copyright 2012-2015 The Prometheus Authors
 github.com/open-telemetry/*: Copyright The OpenTelemetry Authors
@@ -44,8 +43,9 @@ sigs.k8s.io/*: Copyright 2017 The Kubernetes Authors.
 contrib.go.opencensus.io/exporter/prometheus: Copyright 2020, OpenCensus Authors
 go.opencensus.io: Copyright 2018, OpenCensus Authors
 go.opencensus.io/*: Copyright 2018, OpenCensus Authors
-github.com/grpc-ecosystem/*: Copyright 2016 Michal Witkowski. All Rights Reserved.
-google.golang.org/genproto/*: Copyright 2015 Google LLC
+github.com/grpc-ecosystem/go-grpc-prometheus: Copyright 2016 Michal Witkowski. All Rights Reserved.
+github.com/grpc-ecosystem/go-grpc-middleware: Copyright (c) The go-grpc-middleware Authors.
+github.com/grpc-ecosystem/grpc-gateway: Copyright (c) 2015, Gengo, Inc.
 google.golang.org/grpc: Copyright 2014 gRPC authors.
 google.golang.org/grpc/*: Copyright 2014 gRPC authors.
 github.com/skydive-project/go-debouncer: Copyright (C) 2018 Red Hat, Inc.
@@ -213,6 +213,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Automatic "Copyright (c)"
 #  * Year is based on the year of the first commit to the repository
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
+github.com/moby/docker-image-spec/specs-go/v1: Copyright 2012-2017 Docker, Inc.
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
@@ -333,6 +334,7 @@ github.com/pjbgf/sha1cd:
  - Copyright 2009 The Go Authors. All rights reserved.
  - Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>
  - Copyright 2022 Paulo Gomes <pjbgf@linux.com>
+ - Copyright 2023 pjbgf
 
 github.com/kr/pretty: Copyright 2012 Keith Rarick
 github.com/kr/text: Copyright 2012 Keith Rarick
@@ -343,7 +345,6 @@ github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
 # Copyright information is in the LICENSE
 github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
-github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
 github.com/apache/arrow/*: Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.

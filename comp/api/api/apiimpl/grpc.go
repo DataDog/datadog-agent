@@ -109,7 +109,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	if taggerReplay == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
-	state := make([]taggerTypes.Entity, len(req.State))
+	state := make([]taggerTypes.Entity, 0, len(req.State))
 
 	// better stores these as the native type
 	for id, entity := range req.State {

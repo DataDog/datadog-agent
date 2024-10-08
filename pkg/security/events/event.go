@@ -11,6 +11,7 @@ package events
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -42,6 +43,7 @@ type Event interface {
 	GetTags() []string
 	GetType() string
 	GetActionReports() []model.ActionReport
+	GetFieldValue(eval.Field) (interface{}, error)
 }
 
 // EventSender defines an event sender

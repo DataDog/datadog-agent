@@ -32,6 +32,16 @@ import (
 
 // Comparison test to ensure APM stats generated from 2 different OTel ingestion paths are consistent.
 func TestOTelAPMStatsMatch(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTelAPMStatsMatch(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTelAPMStatsMatch(true, t)
+	})
+}
+
+func testOTelAPMStatsMatch(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	ctx := context.Background()
 	set := componenttest.NewNopTelemetrySettings()
 	set.MeterProvider = noop.NewMeterProvider()
@@ -39,6 +49,9 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	require.NoError(t, err)
 	tcfg := getTraceAgentCfg(attributesTranslator)
 	peerTagKeys := tcfg.ConfiguredPeerTags()
+	if enableReceiveResourceSpansV2 {
+		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 
 	metricsClient := &statsd.NoOpClient{}
 	timingReporter := timing.New(metricsClient)

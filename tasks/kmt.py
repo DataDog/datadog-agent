@@ -56,6 +56,7 @@ from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
     NPM_TAG,
+    TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
     get_ebpf_build_dir,
@@ -166,6 +167,12 @@ def gen_config(
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
+
+        if use_local_if_possible:
+            raise Exit(
+                "--use-local-if-possible can only be used with --from-ci-pipeline. If you want to set up local VMs, use the local specifier in the VM list (e.g., ubuntu_22-distro-local instead of ubuntu_22-distro-arm64)"
+            )
+
         vmconfig.gen_config(
             ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
         )
@@ -226,7 +233,9 @@ def gen_config_from_ci_pipeline(
                 if result is False:
                     package, test = test.split(":", maxsplit=1)
                     failed_tests.add(test)
-                    failed_packages.add(package)
+                    failed_packages.add(
+                        f"./{package}"
+                    )  # Use relative path to the package so the suggestions for kmt.test work correctly
                 elif result is True:  # It can also be None if the test was skipped
                     successful_tests.add(test)
 
@@ -542,6 +551,11 @@ def ninja_define_rules(nw: NinjaWriter):
         command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
     )
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
+
+    nw.rule(
+        name="cbin",
+        command="$cc $cflags -o $out $in $ldflags",
+    )
 
 
 def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, arch: Arch):
@@ -1034,6 +1048,7 @@ def kmt_sysprobe_prepare(
                 "fmapper",
                 "prefetch_file",
                 "fake_server",
+                "sample_service",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1049,6 +1064,19 @@ def kmt_sysprobe_prepare(
                             "tags": "-tags=\"test\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
+                        },
+                    )
+
+            for cbin in TEST_HELPER_CBINS:
+                source = Path(pkg) / "testdata" / f"{cbin}.c"
+                if source.is_file():
+                    binary_path = os.path.join(target_path, "testdata", cbin)
+                    nw.build(
+                        inputs=[os.fspath(source)],
+                        outputs=[binary_path],
+                        rule="cbin",
+                        variables={
+                            "cc": "clang",
                         },
                     )
 

@@ -267,7 +267,7 @@ func init() {
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
 // Initializing the config keys takes too much time for serverless, so we try to initialize only what is reachable.
-func initCommonWithServerless(config pkgconfigmodel.Config) {
+func initCommonWithServerless(config pkgconfigmodel.Setup) {
 	for _, f := range serverlessConfigComponents {
 		f(config)
 	}
@@ -275,7 +275,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
-func InitConfig(config pkgconfigmodel.Config) {
+func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
 	// Auto exit configuration
@@ -352,6 +352,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
+
+	// flare configs
+	config.BindEnvAndSetDefault("flare_provider_timeout", 10)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -722,6 +725,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.mutation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 	config.BindEnvAndSetDefault("admission_controller.container_registry", "gcr.io/datadoghq")
@@ -1246,9 +1251,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
-	// Agent Telemetry. It is experimental feature and is subject to change.
-	// It should not be enabled unless prompted by Datadog Support
-	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	// Agent Telemetry
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 
@@ -1529,7 +1533,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
-	config.BindEnvAndSetDefault("logs_config.tag_auto_multi_line_logs", false)
+	// Add a tag to logs that are multiline aggregated
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
@@ -1566,12 +1571,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// Max size in MB an integration logs file can use
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	// Max disk usage in MB all integrations logs files are allowed to use in total
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
+	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
+
 	// SDS logs blocking mechanism
 	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
 	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 }
 
 func vector(config pkgconfigmodel.Setup) {
