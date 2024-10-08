@@ -1,3 +1,8 @@
+.gitlab_changes_or_merge_queue_or_main:
+  - !reference [.on_gitlab_changes]
+  - !reference [.on_merge_queue]
+  - !reference [.on_main]
+
 test_gitlab_configuration:
   stage: .pre
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -58,11 +63,11 @@ lint_gitlab_ci:
   needs: [compute_gitlab_ci_config]
   rules:
     - !reference [.compute_gitlab_ci_config_rules]
-    - !reference [.on_gitlab_changes]
+    - !reference [.on_gitlab_changes_or_merge_queue_or_main]
     - changes:
         paths:
           - .gitlab/.ci-linters.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
-    - inv -e linter.gitlab-ci-jobs-needs-rules --diff-file artifacts/diff.gitlab-ci.yml
-    - inv -e linter.gitlab-ci-jobs-owners --diff-file artifacts/diff.gitlab-ci.yml
+    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml
+    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml
