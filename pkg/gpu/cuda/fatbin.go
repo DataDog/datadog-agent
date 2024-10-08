@@ -74,6 +74,17 @@ type fatbinHeader struct {
 	FatSize    uint64 // not including the header
 }
 
+func (fbh *fatbinHeader) validate() error {
+	if fbh.Magic != fatbinMagic {
+		return fmt.Errorf("invalid fatbin header, magic number %x does not match expected %x", fbh.Magic, fatbinMagic)
+	}
+	if fbh.Version != fatbinHeaderVersion {
+		return fmt.Errorf("invalid fatbin header, version %d does not match expected %d", fbh.Version, fatbinHeaderVersion)
+	}
+
+	return nil
+}
+
 type fatbinData struct {
 	Kind                    uint16
 	Version                 uint16
@@ -131,11 +142,8 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			}
 
 			// Check the header is valid
-			if fatbinHeader.Magic != fatbinMagic {
-				return nil, fmt.Errorf("invalid fatbin header, magic number %x does not match expected %x", fatbinHeader.Magic, fatbinMagic)
-			}
-			if fatbinHeader.Version != fatbinHeaderVersion {
-				return nil, fmt.Errorf("invalid fatbin header, version %d does not match expected %d", fatbinHeader.Version, fatbinHeaderVersion)
+			if err := fatbinHeader.validate(); err != nil {
+				return nil, fmt.Errorf("invalid fatbin header: %w", err)
 			}
 
 			// We need to read only up to the size given to us by the header, not to the end of the section.
