@@ -28,7 +28,7 @@ type injectorConfig struct {
 // injectorConfigLayer is a config layer that can be merged with other layers into a config.
 type injectorConfigLayer struct {
 	ID             string                 `json:"name"`
-	InjectorConfig map[string]interface{} `json:"injector"`
+	InjectorConfig map[string]interface{} `json:"apm_inject"`
 }
 
 // Version returns the version (hash) of the agent configuration.
