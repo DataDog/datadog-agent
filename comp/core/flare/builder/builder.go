@@ -16,7 +16,7 @@ import (
 //
 // When adding data to a flare the builder will do multiple things internally.
 //
-// First a log of the archive creation will be kept and shipped with the flare. When using FlareBuilder you
+// First a log of the archive creation will be kept and shipped with the flare. When using FlareBuilder we
 // should not stop at the first error. We want to collect as much as possible. Any error returned by a FlareBuilder
 // method is added to the flare log. In general, you can safely ignore those errors unless sending a flare without some
 // file/information would not make sense.
