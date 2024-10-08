@@ -206,7 +206,6 @@ require (
 	github.com/go-delve/delve v1.20.1
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.3.0
-	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/gobwas/glob v0.2.3
 	github.com/gogo/protobuf v1.3.2
@@ -256,6 +255,7 @@ require (
 	github.com/prometheus/client_golang v1.20.2
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/procfs v0.15.1
+	github.com/redis/go-redis/v9 v9.1.0
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.47.0
@@ -306,12 +306,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.10.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
-	golang.org/x/net v0.29.0
+	golang.org/x/net v0.30.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.25.0
-	golang.org/x/text v0.18.0
+	golang.org/x/sys v0.26.0
+	golang.org/x/text v0.19.0
 	golang.org/x/time v0.6.0
-	golang.org/x/tools v0.25.0
+	golang.org/x/tools v0.26.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.66.2
@@ -571,10 +571,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
-	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/mod v0.21.0
 	golang.org/x/oauth2 v0.23.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/term v0.25.0 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
 	google.golang.org/api v0.197.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect

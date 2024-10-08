@@ -281,9 +281,16 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 				Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
 			}
 
+			// Create object in store
 			dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-dca", 1, testTime, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
 			f.InformerObjects = append(f.InformerObjects, dpa)
+			f.Objects = append(f.Objects, dpaTyped)
 
+			f.RunControllerSync(true, id)
+			_, found := f.store.Get(id)
+			assert.True(t, found)
+
+			// Test that object gets updated with correct error status
 			expectedDPAError := &datadoghq.DatadogPodAutoscaler{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "DatadogPodAutoscaler",
@@ -347,10 +354,6 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			}
 			expectedUnstructuredError, err := autoscaling.ToUnstructured(expectedDPAError)
 			assert.NoError(t, err)
-			f.RunControllerSync(true, id)
-
-			f.Objects = append(f.Objects, dpaTyped)
-			f.Actions = nil
 
 			f.ExpectUpdateStatusAction(expectedUnstructuredError)
 			f.RunControllerSync(true, id)
