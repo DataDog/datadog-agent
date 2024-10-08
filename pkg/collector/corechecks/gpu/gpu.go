@@ -124,6 +124,10 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get GPU devices: %s", err)
 	}
 
+	if len(gpuDevices) == 0 {
+		return fmt.Errorf("no GPU devices found")
+	}
+
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("get gpu check: %s", err)
