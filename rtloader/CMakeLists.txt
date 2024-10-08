@@ -9,7 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Favor finding Python by location rather than by version
-cmake_policy(SET CMP0094 NEW)
+if (POLICY CMP0094)
+    cmake_policy(SET CMP0094 NEW)
+endif()
 
 if(WIN32)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin )
