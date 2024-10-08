@@ -16,25 +16,27 @@
 #define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x,3)
 #define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x,4)
 
-#define DI_REGISTER(0) ax
-#define DI_REGISTER(1) dx
-#define DI_REGISTER(2) cx
-#define DI_REGISTER(3) bx
-#define DI_REGISTER(4) si
-#define DI_REGISTER(5) di
-#define DI_REGISTER(6) bp
-#define DI_REGISTER(7) sp
-#define DI_REGISTER(8) r8
-#define DI_REGISTER(9) r9
-#define DI_REGISTER(10) r10
-#define DI_REGISTER(11) r11
-#define DI_REGISTER(12) r12
-#define DI_REGISTER(13) r13
-#define DI_REGISTER(14) r14
-#define DI_REGISTER(15) r15
-#define DI_REGISTER(16) ip
+#define DI_REGISTER_0 ax
+#define DI_REGISTER_1 dx
+#define DI_REGISTER_2 cx
+#define DI_REGISTER_3 bx
+#define DI_REGISTER_4 si
+#define DI_REGISTER_5 di
+#define DI_REGISTER_6 bp
+#define DI_REGISTER_7 sp
+#define DI_REGISTER_8 r8
+#define DI_REGISTER_9 r9
+#define DI_REGISTER_10 r10
+#define DI_REGISTER_11 r11
+#define DI_REGISTER_12 r12
+#define DI_REGISTER_13 r13
+#define DI_REGISTER_14 r14
+#define DI_REGISTER_15 r15
+#define DI_REGISTER_16 ip
 
-#define DI_STACK_VALUE_REG DI_REGISTER_7
+#define DI_REGISTER(num) DI_REGISTER_##num
+
+#define DI_STACK_VALUE_REG DI_REGISTER(7)
 
 #elif defined(bpf_target_arm64)
 
@@ -46,9 +48,9 @@
     p;                                                                     \
 })
 
-#define DI_REGISTER_(num) regs[num]
+#define DI_REGISTER(num) regs[num]
 
-#define DI_STACK_VALUE_REG DI_REGISTER_29
+#define DI_STACK_VALUE_REG DI_REGISTER(29)
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])
