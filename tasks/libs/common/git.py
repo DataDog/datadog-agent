@@ -46,7 +46,7 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
 
 
 def get_file_modifications(
-    ctx, base_branch=DEFAULT_BRANCH, added=False, modified=False, removed=False, only_names=False
+    ctx, base_branch=DEFAULT_BRANCH, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:
     """
     Get file status changes for the current branch compared to the base branch.
@@ -57,13 +57,17 @@ def get_file_modifications(
     - modified: Include modified files
     - removed: Include removed files
     - only_names: Return only the file names without the status
+    - no_renames: Do not include renamed files
     - Returns a list of (status, filename)
     """
 
     last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
 
+    flags = '--no-renames' if no_renames else ''
+
     modifications = [
-        line.split() for line in ctx.run(f"git diff --name-status {last_main_commit}", hide=True).stdout.splitlines()
+        line.split()
+        for line in ctx.run(f"git diff --name-status {flags} {last_main_commit}", hide=True).stdout.splitlines()
     ]
 
     if added or modified or removed:
@@ -80,8 +84,9 @@ def get_file_modifications(
 
 
 def get_modified_files(ctx, base_branch="main") -> list[str]:
-    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
-    return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
+    return get_file_modifications(
+        ctx, base_branch=base_branch, added=True, modified=True, only_names=True, no_renames=True
+    )
 
 
 def get_current_branch(ctx) -> str:
