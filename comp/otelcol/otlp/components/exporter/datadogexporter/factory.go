@@ -286,7 +286,7 @@ func (f *factory) createLogsExporter(
 	set exporter.Settings,
 	_ component.Config,
 ) (exporter.Logs, error) {
-	var logch chan *message.Message
+	var logch chan message.TimedMessage[*message.Message]
 	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
 		logch = provider.NextPipelineChan()
 	}

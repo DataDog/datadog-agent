@@ -15,13 +15,13 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
+// ZstdNativeStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdNativeStrategy struct {
 	level   int
 	encoder *zstd.Encoder
 }
 
-// NewZstdStrategy returns a new ZstdStrategy
+// NewZstdNativeStrategy returns a new ZstdStrategy
 func NewZstdNativeStrategy(level int) *ZstdNativeStrategy {
 	log.Debugf("Compressing native zstd at level %d", level)
 
@@ -39,7 +39,7 @@ func (s *ZstdNativeStrategy) Compress(src []byte) ([]byte, error) {
 }
 
 // Decompress will decompress the data with zstd
-func (s *ZstdNativeStrategy) Decompress(src []byte) ([]byte, error) {
+func (*ZstdNativeStrategy) Decompress(_ []byte) ([]byte, error) {
 	//return zstd.Decompress(nil, src)
 	return nil, nil
 }
@@ -50,12 +50,12 @@ func (s *ZstdNativeStrategy) CompressBound(sourceLen int) int {
 }
 
 // ContentEncoding returns the content encoding value for zstd
-func (s *ZstdNativeStrategy) ContentEncoding() string {
+func (*ZstdNativeStrategy) ContentEncoding() string {
 	return compression.ZstdEncoding
 }
 
+// NewStreamCompressor creates a new zstd stream compressor
 func (s *ZstdNativeStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	//return zstd.NewWriterLevel(output, s.level)
 	writer, _ := zstd.NewWriter(output, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
 	if writer == nil {
 		fmt.Println("wut wut wut")

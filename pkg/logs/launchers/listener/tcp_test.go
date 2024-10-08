@@ -50,7 +50,7 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	assert.Nil(t, err)
 
 	var msg message.TimedMessage[*message.Message]
-	fmt.Fprintf(conn, strings.Repeat("a", 80)+"\n")
+	fmt.Fprint(conn, strings.Repeat("a", 80)+"\n")
 	msg = <-msgChan
 	assert.Equal(t, strings.Repeat("a", 80), string(msg.Inner.GetContent()))
 

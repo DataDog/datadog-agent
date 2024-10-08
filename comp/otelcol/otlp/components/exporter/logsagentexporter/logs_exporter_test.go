@@ -279,13 +279,13 @@ func TestLogsExporter(t *testing.T) {
 			for i := 0; i < len(tt.want); i++ {
 				output := <-testChannel
 				outputJSON := make(map[string]interface{})
-				json.Unmarshal(output.GetContent(), &outputJSON)
+				json.Unmarshal(output.Inner.GetContent(), &outputJSON)
 				if src, ok := outputJSON["datadog.log.source"]; ok {
-					assert.Equal(t, src, output.Origin.Source())
+					assert.Equal(t, src, output.Inner.Origin.Source())
 				} else {
-					assert.Equal(t, tt.args.logSourceName, output.Origin.Source())
+					assert.Equal(t, tt.args.logSourceName, output.Inner.Origin.Source())
 				}
-				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags(nil))
+				assert.Equal(t, tt.expectedTags[i], output.Inner.Origin.Tags(nil))
 				ans = append(ans, outputJSON)
 			}
 			assert.Equal(t, tt.want, ans)

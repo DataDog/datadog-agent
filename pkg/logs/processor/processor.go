@@ -176,7 +176,6 @@ func (p *Processor) run() {
 
 			inUse := float64(time.Since(startInUse) / time.Millisecond)
 			tlmInUse.Add(inUse)
-			startIdle = time.Now()
 		case order := <-p.ReconfigChan:
 			p.mu.Lock()
 			p.applySDSReconfiguration(order)

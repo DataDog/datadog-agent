@@ -83,8 +83,8 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 
 func (suite *AgentTestSuite) sendTestMessages(agent *Agent) {
 	testChannel := agent.GetPipelineProvider().NextPipelineChan()
-	testChannel <- message.NewMessage([]byte("test log1"), message.NewOrigin(suite.source), "", 0)
-	testChannel <- message.NewMessage([]byte("test log2"), message.NewOrigin(suite.source), "", 0)
+	testChannel <- message.NewTimedMessage(message.NewMessage([]byte("test log1"), message.NewOrigin(suite.source), "", 0))
+	testChannel <- message.NewTimedMessage(message.NewMessage([]byte("test log2"), message.NewOrigin(suite.source), "", 0))
 }
 
 func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {

@@ -73,7 +73,7 @@ var (
 
 	// TlmLogsDiscardedFromSDSBuffer how many messages were dropped when waiting for an SDS configuration because the buffer is full
 	TlmLogsDiscardedFromSDSBuffer = telemetry.NewCounter("logs", "sds__dropped_from_buffer", nil, "Count of messages dropped from the buffer while waiting for an SDS configuration")
-	TlmLogsInput = telemetry.NewCounter("logs", "input", nil, "Total number of log messages read.")
+	TlmLogsInput                  = telemetry.NewCounter("logs", "input", nil, "Total number of log messages read.")
 	// For output see `TlmLogsSent`.
 	TlmFileRead = telemetry.NewGauge("processing", "file_read", []string{"file_name"}, "File read progress.")
 	TlmChanTime = telemetry.NewHistogram("processing",

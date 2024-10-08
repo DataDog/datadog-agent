@@ -9,13 +9,13 @@ package compressionimpl
 // ZlibKind defines a const value for the zlib compressor
 const ZlibKind = "zlib"
 
-// ZstdKind  defines a const value for the zstd compressor
+// ZstdKind defines a const value for the zstd compressor
 const ZstdKind = "zstd"
 
-// Using the native golang zstd compressor
+// NativeZstdKind defines a const value for the  native golang zstd compressor
 const NativeZstdKind = "nativezstd"
 
-// GzipKind  defines a const value for the gzip compressor
+// GzipKind defines a const value for the gzip compressor
 const GzipKind = "gzip"
 
 // NoneKind defines a const value for disabling compression

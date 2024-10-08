@@ -378,7 +378,7 @@ func (suite *TailerTestSuite) TestTruncatedTag() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Tags()
+	tags := msg.Inner.Tags()
 	suite.Contains(tags, message.TruncatedTag)
 }
 

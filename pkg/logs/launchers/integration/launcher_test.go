@@ -32,7 +32,7 @@ type LauncherTestSuite struct {
 	testDir  string
 	testPath string
 
-	outputChan       chan *message.Message
+	outputChan       chan message.TimedMessage[*message.Message]
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	integrationsComp integrations.Component

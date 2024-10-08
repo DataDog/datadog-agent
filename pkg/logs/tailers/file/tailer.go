@@ -124,12 +124,12 @@ type Tailer struct {
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
 	OutputChan    chan message.TimedMessage[*message.Message] // Required
-	File          *File                 // Required
-	SleepDuration time.Duration         // Required
-	Decoder       *decoder.Decoder      // Required
-	Info          *status.InfoRegistry  // Required
-	Rotated       bool                  // Optional
-	TagAdder      tag.EntityTagAdder    // Required
+	File          *File                                       // Required
+	SleepDuration time.Duration                               // Required
+	Decoder       *decoder.Decoder                            // Required
+	Info          *status.InfoRegistry                        // Required
+	Rotated       bool                                        // Optional
+	TagAdder      tag.EntityTagAdder                          // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
