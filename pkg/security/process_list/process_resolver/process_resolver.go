@@ -75,15 +75,17 @@ func (pr *ProcessResolver) GetExecCacheKey(process *model.Process) interface{} {
 }
 
 // GetParentProcessCacheKey returns the parent process unique identifier
-func (pr *ProcessResolver) GetParentProcessCacheKey(event *model.Event) interface{} {
-	if event.ProcessContext.Pid != 1 && event.ProcessContext.PPid > 0 {
-		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
+func (pr *ProcessResolver) GetParentProcessCacheKey(process *model.Process) interface{} {
+	if process.Pid != 1 && process.PPid > 0 {
+		// will be ok on most cases (where the parent PID namespace ID is the same), but
+		// sometime this will fail and triggers a procfs fallback
+		return processKey{pid: process.PPid, nsid: process.NSID}
 	}
 	return nil
 }
 
 // IsAValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
-func (pr *ProcessResolver) IsAValidRootNode(entry *model.Process) bool {
+func (pr *ProcessResolver) IsAValidRootNode(entry *model.ProcessContext) bool {
 	return entry.Pid == 1
 }
 

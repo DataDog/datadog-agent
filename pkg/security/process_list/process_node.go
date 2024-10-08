@@ -53,19 +53,19 @@ type ProcessNode struct {
 	UserData interface{}
 }
 
-// NewProcessExecNodeFromEvent returns a process node filled with an exec node corresponding to the given event
-func NewProcessExecNodeFromEvent(event *model.Event, processKey, execKey interface{}) *ProcessNode {
+// NewProcessExecNodeFromProcess returns a process node filled with an exec node corresponding to the given event
+func NewProcessExecNodeFromProcess(process *model.Process, processKey, execKey interface{}) *ProcessNode {
 	if processKey == nil {
 		processKey = rand.Uint64()
 	}
-	exec := NewExecNodeFromEvent(event, execKey)
-	process := &ProcessNode{
+	exec := NewExecNodeFromProcess(process, execKey)
+	processNode := &ProcessNode{
 		Key:           processKey,
 		CurrentExec:   exec,
 		PossibleExecs: []*ExecNode{exec},
 	}
-	exec.ProcessLink = process
-	return process
+	exec.ProcessLink = processNode
+	return processNode
 }
 
 // GetCurrentParent returns the current parent
@@ -169,7 +169,10 @@ func (pn *ProcessNode) Debug(w io.Writer, prefix string) {
 	pn.Lock()
 	defer pn.Unlock()
 
-	pn.CurrentExec.Debug(w, prefix)
+	// pn.CurrentExec.Debug(w, prefix)
+	for _, exec := range pn.PossibleExecs {
+		exec.Debug(w, prefix)
+	}
 	prefix = prefix + "  "
 	fmt.Fprintf(w, prefix+"%d children:\n", len(pn.Children))
 	for _, child := range pn.Children {

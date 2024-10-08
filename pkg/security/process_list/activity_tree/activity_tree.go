@@ -9,11 +9,14 @@
 package activitytree
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/exp/slices"
 
 	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	processresolver "github.com/DataDog/datadog-agent/pkg/security/process_list/process_resolver"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activitytree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -96,18 +99,66 @@ func (at *ActivityTree) GetExecCacheKey(process *model.Process) interface{} {
 }
 
 // GetParentProcessCacheKey returns the parent process unique identifier
-func (at *ActivityTree) GetParentProcessCacheKey(event *model.Event) interface{} {
-	if event.ProcessContext.Pid != 1 && event.ProcessContext.PPid > 0 {
-		return processKey{pid: event.ProcessContext.PPid, nsid: event.ProcessContext.NSID}
+func (at *ActivityTree) GetParentProcessCacheKey(process *model.Process) interface{} {
+	if process.Pid != 1 && process.PPid > 0 {
+		// will be ok on most cases (where the parent PID namespace ID is the same), but
+		// sometime this will fail and triggers a procfs fallback
+		return processKey{pid: process.PPid, nsid: process.NSID}
 	}
 	return nil
 }
 
 // IsAValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 // nolint: all
-func (at *ActivityTree) IsAValidRootNode(entry *model.Process) bool {
-	// TODO: check runc/containerid stuff
-	return true
+func (at *ActivityTree) IsAValidRootNode(entry *model.ProcessContext) bool {
+	// an ancestor is required
+	ancestor := GetNextAncestorBinaryOrArgv0(entry)
+	if ancestor == nil {
+		return false
+	}
+
+	if entry.FileEvent.IsFileless() {
+		// a fileless node is a valid root node only if not having runc as parent
+		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
+		return !(isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) || isContainerRuntimePrefix(entry.FileEvent.BasenameStr))
+	}
+
+	// container runtime prefixes are not valid root nodes
+	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+}
+
+func isContainerRuntimePrefix(basename string) bool {
+	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
+}
+
+// GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes
+func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessContext {
+	if entry == nil {
+		return nil
+	}
+	current := entry
+	ancestor := entry.Ancestor
+	for ancestor != nil {
+		if current.FileEvent.PathnameStr != ancestor.FileEvent.PathnameStr {
+			return &ancestor.ProcessContext
+		}
+		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {
+			currentArgv0, _ := process.GetProcessArgv0(&current.Process)
+			if len(currentArgv0) == 0 {
+				return nil
+			}
+			ancestorArgv0, _ := process.GetProcessArgv0(&ancestor.Process)
+			if len(ancestorArgv0) == 0 {
+				return nil
+			}
+			if currentArgv0 != ancestorArgv0 {
+				return &ancestor.ProcessContext
+			}
+		}
+		current = &ancestor.ProcessContext
+		ancestor = ancestor.Ancestor
+	}
+	return nil
 }
 
 // ExecMatches returns true if both exec matches
