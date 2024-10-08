@@ -42,54 +42,6 @@ type testProcess struct {
 	orArrayValues func() *StringValues
 }
 
-type testItemListIterator struct {
-	prev *list.Element
-}
-
-func (t *testItemListIterator) Front(ctx *Context) *list.Element {
-	if front := ctx.Event.(*testEvent).process.list.Front(); front != nil {
-		t.prev = front
-		return front
-	}
-	return nil
-}
-
-func (t *testItemListIterator) Next() *list.Element {
-	if next := t.prev.Next(); next != nil {
-		t.prev = next
-		return next
-	}
-	return nil
-}
-
-type testItemArrayIterator struct {
-	event *testEvent
-	index int
-}
-
-func (t *testItemArrayIterator) Front(ctx *Context) *testItem {
-	t.event = ctx.Event.(*testEvent)
-
-	array := ctx.Event.(*testEvent).process.array
-	if t.index < len(array) {
-		t.index++
-		return array[0]
-	}
-	return nil
-}
-
-func (t *testItemArrayIterator) Next() *testItem {
-	array := t.event.process.array
-	if t.index < len(array) {
-		value := array[t.index]
-		t.index++
-
-		return value
-	}
-
-	return nil
-}
-
 type testOpen struct {
 	filename string
 	mode     int
