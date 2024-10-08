@@ -7,7 +7,7 @@ name "libjemalloc"
 default_version "5.3.0"
 
 version "5.3.0" do
-  source sha256: "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179" 
+  source sha256: "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179"
 end
 
 ship_source_offer true
@@ -31,6 +31,7 @@ build do
       "--disable-stats",
       "--disable-fill",
       "--disable-prof",
+      "--disable-static",
     ]
     configure(*configure_options, env: env)
     command "make -j #{workers}", env: env
