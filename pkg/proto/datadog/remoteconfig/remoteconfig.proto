@@ -89,6 +89,13 @@ message Client {
   reserved 12, 13;
   bool is_updater = 14;
   ClientUpdater client_updater = 15;
+  bool is_operator = 16;
+  ClientOperator client_operator = 17;
+}
+
+message ClientOperator {
+  bool has_agent_rbacs = 1;
+  repeated string tags = 2;
 }
 
 message ClientTracer {

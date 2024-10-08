@@ -39,6 +39,10 @@ const (
 	recoveryInterval      = 2
 
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
+
+	operatorClientType = "datadog-operator"
+	updaterClientType  = "updater"
+	agentClientType    = "datadog-agent"
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -86,20 +90,21 @@ type Client struct {
 
 // Options describes the client options
 type Options struct {
-	isUpdater            bool
-	updaterTags          []string
-	agentVersion         string
-	agentName            string
-	products             []string
-	directorRootOverride string
-	site                 string
-	pollInterval         time.Duration
-	clusterName          string
-	clusterID            string
-	skipTufVerification  bool
+	clientType            string
+	tags                  []string
+	agentVersion          string
+	agentName             string
+	products              []string
+	directorRootOverride  string
+	site                  string
+	pollInterval          time.Duration
+	clusterName           string
+	clusterID             string
+	skipTufVerification   bool
+	operatorHasAgentRBACs bool
 }
 
-var defaultOptions = Options{pollInterval: 5 * time.Second}
+var defaultOptions = Options{pollInterval: 5 * time.Second, clientType: agentClientType}
 
 // TokenFetcher defines the callback used to fetch a token
 type TokenFetcher func() (string, error)
@@ -241,8 +246,18 @@ func WithAgent(name, version string) func(opts *Options) {
 // WithUpdater specifies that this client is an updater
 func WithUpdater(tags ...string) func(opts *Options) {
 	return func(opts *Options) {
-		opts.isUpdater = true
-		opts.updaterTags = tags
+		opts.clientType = updaterClientType
+		opts.tags = tags
+	}
+}
+
+// WithOperator specifies that this client is a datadog-operator. The datadog-operator imports
+// the RC go modules and uses the service/client to get the config updates.
+func WithOperator(hasAgentRBACs bool, tags ...string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.clientType = operatorClientType
+		opts.operatorHasAgentRBACs = hasAgentRBACs
+		opts.tags = tags
 	}
 }
 
@@ -589,8 +604,8 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 		CachedTargetFiles: pbCachedFiles,
 	}
 
-	switch c.Options.isUpdater {
-	case true:
+	switch c.Options.clientType {
+	case updaterClientType:
 		installerState, ok := c.installerState.Load().([]*pbgo.PackageState)
 		if !ok {
 			return nil, errors.New("could not load installerState")
@@ -598,10 +613,10 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 
 		req.Client.IsUpdater = true
 		req.Client.ClientUpdater = &pbgo.ClientUpdater{
-			Tags:     c.Options.updaterTags,
+			Tags:     c.Options.tags,
 			Packages: installerState,
 		}
-	case false:
+	case agentClientType:
 		cwsWorkloads, ok := c.cwsWorkloads.Load().([]string)
 		if !ok {
 			return nil, errors.New("could not load cwsWorkloads")
@@ -614,6 +629,12 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			ClusterName:  c.clusterName,
 			ClusterId:    c.clusterID,
 			CwsWorkloads: cwsWorkloads,
+		}
+	case operatorClientType:
+		req.Client.IsOperator = true
+		req.Client.ClientOperator = &pbgo.ClientOperator{
+			HasAgentRbacs: c.Options.operatorHasAgentRBACs,
+			Tags:          c.Options.tags,
 		}
 	}
 
