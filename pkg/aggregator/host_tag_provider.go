@@ -8,6 +8,7 @@ package aggregator
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
@@ -30,7 +31,9 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 		hostTags: []string{},
 	}
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
+	fmt.Println("hehexd", duration)
 	p.hostTags = append(p.hostTags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
+	fmt.Println("hehexd2", p.hostTags)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
