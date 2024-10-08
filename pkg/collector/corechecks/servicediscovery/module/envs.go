@@ -9,18 +9,18 @@ package module
 
 import (
 	"bufio"
-	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
+	"github.com/shirou/gopsutil/v3/process"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/process"
 )
 
 const (
@@ -32,11 +32,6 @@ const (
 	// file.
 	// matches limit in the [auto injector](https://github.com/DataDog/auto_inject/blob/5ae819d01d8625c24dcf45b8fef32a7d94927d13/librouter.c#L52)
 	memFdMaxSize = 65536
-)
-
-const (
-	// maxSizeEnvsMap - maximum number of returned environment variables
-	maxSizeEnvsMap = 400
 )
 
 // getInjectionMeta gets metadata from auto injector injection, if
@@ -167,10 +162,10 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 // It collects only those variables that match the target map if the map is not empty,
 // otherwise collect all environment variables.
 type EnvReader struct {
-	file    *os.File          // open pointer to environment variables file
-	scanner *bufio.Scanner    // iterator to read strings from text file
-	targets map[uint64]string // map of environment variables of interest
-	envs    map[string]string // collected environment variables
+	file    *os.File                  // open pointer to environment variables file
+	scanner *bufio.Scanner            // iterator to read strings from text file
+	targets map[string]string         // map of environment variables of interest
+	envs    envs.EnvironmentVariables // collected environment variables
 }
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -186,7 +181,7 @@ func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error
 }
 
 // newEnvReader returns a new [EnvReader] to read from path.
-func newEnvReader(proc *process.Process) (*EnvReader, error) {
+func newEnvReader(proc *process.Process, lang language.Language) (*EnvReader, error) {
 	envPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "environ")
 	file, err := os.Open(envPath)
 	if err != nil {
@@ -199,61 +194,52 @@ func newEnvReader(proc *process.Process) (*EnvReader, error) {
 	return &EnvReader{
 		file:    file,
 		scanner: scanner,
-		targets: targetenvs.Targets,
-		envs:    make(map[string]string, len(targetenvs.Targets)),
+		envs:    envs.NewEnvironmentVariables(nil, lang),
 	}, nil
 }
 
 // finish closes an open file.
-func (es *EnvReader) finish() {
-	if es.file != nil {
-		es.file.Close()
+func (er *EnvReader) finish() {
+	if er.file != nil {
+		er.file.Close()
 	}
 }
 
 // add adds env. variable to the map of environment variables.
-func (es *EnvReader) add() error {
-	if len(es.envs) == maxSizeEnvsMap {
-		return fmt.Errorf("read proc env can't add more than max (%d) environment variables", maxSizeEnvsMap)
+// returns true if the search should be stopped
+func (er *EnvReader) add() bool {
+	env := er.scanner.Text()
+	name, val, found := strings.Cut(env, "=")
+	if found {
+		return er.envs.Set(name, val)
 	}
-	b := es.scanner.Bytes()
-	eq := bytes.IndexByte(b, '=')
-	if eq == -1 {
-		// ignore invalid env. variable
-		return nil
-	}
-
-	h := targetenvs.HashBytes(b[:eq])
-	_, exists := es.targets[h]
-	if exists {
-		name := string(b[:eq])
-		es.envs[name] = string(b[eq+1:])
-	}
-
-	return nil
+	return false
 }
 
 // getTargetEnvs searches the environment variables of interest in the /proc/<pid>/environ file.
-func getTargetEnvs(proc *process.Process) (map[string]string, error) {
-	es, err := newEnvReader(proc)
-	defer es.finish()
+func getTargetEnvs(proc *process.Process, lang language.Language) (envs.EnvironmentVariables, error) {
+	er, err := newEnvReader(proc, lang)
+	defer er.finish()
 	if err != nil {
-		return nil, err
+		return envs.NewEnvironmentVariables(nil, lang), err
 	}
 
-	for es.scanner.Scan() {
-		err := es.add()
-		if err != nil {
-			return es.envs, err
+	for er.scanner.Scan() {
+		stop := er.add()
+		if stop {
+			break
 		}
 	}
 
 	injectionMeta, ok := getInjectionMeta(proc)
 	if !ok {
-		return es.envs, nil
+		return er.envs, nil
 	}
 	for _, env := range injectionMeta.InjectedEnv {
-		addEnvToMap(string(env), es.envs)
+		name, val, found := strings.Cut(string(env), "=")
+		if found {
+			er.envs.Set(name, val)
+		}
 	}
-	return es.envs, nil
+	return er.envs, nil
 }

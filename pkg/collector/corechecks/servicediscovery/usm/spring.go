@@ -318,7 +318,7 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	combined := &props.Combined{Sources: []props.PropertyGetter{
 		newArgumentSource(s.ctx.args, "--"),
 		newArgumentSource(s.ctx.args, "-D"),
-		newEnvironmentSource(s.ctx.envs),
+		newEnvironmentSource(s.ctx.envs.GetVars()),
 	}}
 
 	// resolved properties referring to other properties (thanks to the Expander)

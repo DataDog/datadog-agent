@@ -18,8 +18,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
@@ -82,7 +82,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:                  map[string]string{targetenvs.EnvDdService: "my-service"},
+			envs:                  map[string]string{"DD_SERVICE": "my-service"},
 			expectedDDService:     "my-service",
 			expectedGeneratedName: "my-server",
 		},
@@ -91,7 +91,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:                  map[string]string{targetenvs.EnvDdTags: "service:my-service"},
+			envs:                  map[string]string{"DD_TAGS": "service:my-service"},
 			expectedDDService:     "my-service",
 			expectedGeneratedName: "my-server",
 		},
@@ -116,7 +116,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			lang:                  language.Python,
 			expectedGeneratedName: "flask",
-			envs:                  map[string]string{targetenvs.EnvPwd: "testdata/python"},
+			envs:                  map[string]string{"PWD": "testdata/python"},
 			fs:                    &subUsmTestData,
 		},
 		{
@@ -134,7 +134,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
 			lang:                  language.Python,
-			envs:                  map[string]string{targetenvs.EnvPwd: "testdata/python"},
+			envs:                  map[string]string{"PWD": "testdata/python"},
 			expectedGeneratedName: "flask",
 			fs:                    &subUsmTestData,
 		},
@@ -259,7 +259,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"index.js",
 			},
 			lang:                  language.Node,
-			envs:                  map[string]string{targetenvs.EnvPwd: "testdata/deep"}, // it's relative but it's ok for testing purposes
+			envs:                  map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
 			fs:                    &subUsmTestData,
 			expectedGeneratedName: "my-awesome-package",
 		},
@@ -303,7 +303,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName:      "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
 			fs:                         &sub,
-			envs:                       map[string]string{targetenvs.EnvPwd: "/sibiling"},
+			envs:                       map[string]string{"PWD": "/sibiling"},
 		},
 		{
 			name: "wildfly 18 domain",
@@ -338,7 +338,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName:      "jboss-modules",
 			expectedAdditionalServices: []string{"web3", "web4"},
 			fs:                         &sub,
-			envs:                       map[string]string{targetenvs.EnvPwd: "/sibiling"},
+			envs:                       map[string]string{"PWD": "/sibiling"},
 		},
 		{
 			name: "weblogic 12",
@@ -359,7 +359,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"weblogic.Server",
 			},
 			lang:                       language.Java,
-			envs:                       map[string]string{targetenvs.EnvPwd: weblogicTestAppRootAbsolute},
+			envs:                       map[string]string{"PWD": weblogicTestAppRootAbsolute},
 			expectedGeneratedName:      "Server",
 			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
 		},
@@ -380,7 +380,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
 			},
 			lang:                  language.Java,
-			envs:                  map[string]string{targetenvs.EnvDdService: "dd-service-from-env"},
+			envs:                  map[string]string{"DD_SERVICE": "dd-service-from-env"},
 			expectedDDService:     "dd-service-from-property",
 			expectedGeneratedName: "app",
 		},
@@ -495,7 +495,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name:                  "DD_SERVICE_set_manually",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
 			lang:                  language.Java,
-			envs:                  map[string]string{targetenvs.EnvDdService: "howdy"},
+			envs:                  map[string]string{"DD_SERVICE": "howdy"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
 		},
@@ -503,7 +503,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name:                  "DD_SERVICE_set_manually_tags",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
 			lang:                  language.Java,
-			envs:                  map[string]string{targetenvs.EnvDdTags: "service:howdy"},
+			envs:                  map[string]string{"DD_TAGS": "service:howdy"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
 		},
@@ -511,7 +511,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name:                  "DD_SERVICE_set_manually_injection",
 			cmdline:               []string{"java", "-jar", "Foo.jar"},
 			lang:                  language.Java,
-			envs:                  map[string]string{targetenvs.EnvDdService: "howdy", targetenvs.EnvInjectionEnabled: "tracer,service_name"},
+			envs:                  map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
 			expectedDDService:     "howdy",
 			expectedGeneratedName: "Foo",
 			ddServiceInjected:     true,
@@ -557,7 +557,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"test:app",
 			},
-			envs:                  map[string]string{targetenvs.EnvGunicornCmdArgs: "--bind=127.0.0.1:8080 --workers=3 -n dummy"},
+			envs:                  map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3 -n dummy"},
 			expectedGeneratedName: "dummy",
 		},
 		{
@@ -565,7 +565,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:                  map[string]string{targetenvs.EnvGunicornCmdArgs: "--bind=127.0.0.1:8080 --workers=3"},
+			envs:                  map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3"},
 			expectedGeneratedName: "gunicorn",
 		},
 		{
@@ -582,7 +582,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"my.package",
 			},
-			envs:                  map[string]string{targetenvs.EnvWsgiApp: ""},
+			envs:                  map[string]string{"WSGI_APP": ""},
 			expectedGeneratedName: "my.package",
 		},
 		{
@@ -590,7 +590,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:                  map[string]string{targetenvs.EnvWsgiApp: "test:app"},
+			envs:                  map[string]string{"WSGI_APP": "test:app"},
 			expectedGeneratedName: "test",
 		},
 		{
@@ -624,7 +624,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			if tt.fs != nil {
 				fs = *tt.fs
 			}
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, tt.lang, make(DetectorContextMap))
+			meta, ok := ExtractServiceMetadata(tt.cmdline, envs.NewEnvironmentVariables(tt.envs, tt.lang), fs, tt.lang, make(DetectorContextMap))
 			if len(tt.expectedGeneratedName) == 0 && len(tt.expectedDDService) == 0 {
 				require.False(t, ok)
 			} else {

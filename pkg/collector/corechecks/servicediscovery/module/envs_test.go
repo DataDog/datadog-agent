@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestInjectedEnvBasic(t *testing.T) {
@@ -58,7 +59,7 @@ func TestInjectedEnvLimit(t *testing.T) {
 	require.False(t, ok)
 }
 
-// createEnvsMemfd creates an memfd in the current process with the specified
+// createEnvsMemfd creates a memfd in the current process with the specified
 // environment variables in the same way as Datadog/auto_inject.
 func createEnvsMemfd(t *testing.T, envs []string) {
 	t.Helper()
@@ -112,12 +113,12 @@ func TestTargetEnvs(t *testing.T) {
 	proc, err := process.NewProcess(int32(curPid))
 	require.NoError(t, err)
 
-	expectedEnvs, expectedMap := targetenvs.GetExpectedEnvs()
+	expectedEnvs, expectedMap := envs.GetExpectedEnvs()
 	createEnvsMemfd(t, expectedEnvs)
 
-	envs, err := getTargetEnvs(proc)
+	vars, err := getTargetEnvs(proc, language.Unknown)
 	require.NoError(t, err)
-	require.Equal(t, envs, expectedMap)
+	require.Equal(t, vars.GetVars(), expectedMap)
 }
 
 func BenchmarkGetEnvs(b *testing.B) {
@@ -143,7 +144,7 @@ func BenchmarkGetEnvsTarget(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getTargetEnvs(proc)
+		_, err = getTargetEnvs(proc, language.Unknown)
 		if err != nil {
 			return
 		}

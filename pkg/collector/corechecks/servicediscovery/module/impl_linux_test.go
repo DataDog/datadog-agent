@@ -44,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -384,7 +383,7 @@ func TestAPMInstrumentationInjected(t *testing.T) {
 	url := setupDiscoveryModule(t)
 
 	createEnvsMemfd(t, []string{
-		targetenvs.EnvInjectionEnabled + "=service_name,tracer",
+		"DD_INJECTION_ENABLED=service_name,tracer",
 	})
 
 	listener, err := net.Listen("tcp", "")
@@ -499,7 +498,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 			commandline: []string{"dotnet", "foo.dll"},
 			language:    language.DotNet,
 			env: []string{
-				targetenvs.EnvDotNetDetector + "=1",
+				"CORECLR_ENABLE_PROFILING=1",
 			},
 		},
 		"java": {
@@ -854,7 +853,7 @@ func TestCache(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		cmd := exec.CommandContext(ctx, "sleep", "100")
 		name := fmt.Sprintf("foo%d", i)
-		env := fmt.Sprintf("%s=%s", targetenvs.EnvDdService, name)
+		env := fmt.Sprintf("DD_SERVICE=%s", name)
 		cmd.Env = append(cmd.Env, env)
 		err = cmd.Start()
 		require.NoError(t, err)

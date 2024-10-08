@@ -18,7 +18,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestIsSpringBootArchive(t *testing.T) {
@@ -120,7 +121,7 @@ func TestParseUri(t *testing.T) {
 			expectedClassPathLocations: map[string][]string{},
 		},
 	}
-	parser := newSpringBootParser(NewDetectionContext(nil, nil, fstest.MapFS(nil)))
+	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Java), fstest.MapFS(nil)))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fsLocs, cpLocs := parser.parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles, tt.cwd)
@@ -214,7 +215,7 @@ func TestScanSourcesFromFileSystem(t *testing.T) {
 	full, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
 	sub := NewSubDirFS(full)
-	parser := newSpringBootParser(NewDetectionContext(nil, nil, sub))
+	parser := newSpringBootParser(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Unknown), sub))
 
 	fileSources := parser.scanSourcesFromFileSystem(map[string][]string{
 		"fs": {
@@ -347,7 +348,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 				spFullPath,
 			},
 			envs: map[string]string{
-				targetenvs.EnvSpringApplicationName: "found",
+				"SPRING_APPLICATION_NAME": "found",
 			},
 			expected: "found",
 		},
@@ -399,7 +400,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app, ok := newSpringBootParser(NewDetectionContext(tt.cmdline, tt.envs, RealFs{})).GetSpringBootAppName(tt.jarname)
+			app, ok := newSpringBootParser(NewDetectionContext(tt.cmdline, envs.NewEnvironmentVariables(tt.envs, language.Java), RealFs{})).GetSpringBootAppName(tt.jarname)
 			require.Equal(t, tt.expected, app)
 			require.Equal(t, len(app) > 0, ok)
 		})

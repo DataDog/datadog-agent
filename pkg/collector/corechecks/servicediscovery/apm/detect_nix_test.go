@@ -17,7 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
@@ -32,21 +33,21 @@ func TestInjected(t *testing.T) {
 		{
 			name: "injected",
 			envs: map[string]string{
-				targetenvs.EnvInjectionEnabled: "tracer",
+				"DD_INJECTION_ENABLED": "tracer",
 			},
 			result: true,
 		},
 		{
 			name: "one of injected",
 			envs: map[string]string{
-				targetenvs.EnvInjectionEnabled: "service_name,tracer",
+				"DD_INJECTION_ENABLED": "service_name,tracer",
 			},
 			result: true,
 		},
 		{
 			name: "not injected but with env variable",
 			envs: map[string]string{
-				targetenvs.EnvInjectionEnabled: "service_name",
+				"DD_INJECTION_ENABLED": "service_name",
 			},
 		},
 		{
@@ -55,7 +56,7 @@ func TestInjected(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := targetenvs.TracerInjectionEnabled(d.envs)
+			result := isInjected(envs.NewEnvironmentVariables(d.envs, language.Unknown))
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -87,14 +88,14 @@ func Test_javaDetector(t *testing.T) {
 			name: "CATALINA_OPTS",
 			args: []string{"java"},
 			envs: map[string]string{
-				targetenvs.EnvJavaDetectorCatalinaOpts: "-javaagent:dd-java-agent.jar",
+				"CATALINA_OPTS": "-javaagent:dd-java-agent.jar",
 			},
 			result: Provided,
 		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs, nil)
+			result := javaDetector(0, d.args, envs.NewEnvironmentVariables(d.envs, language.Java), nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -131,7 +132,7 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, nil, d.contextMap)
+			result := nodeDetector(0, nil, envs.NewEnvironmentVariables(nil, language.Node), d.contextMap)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -188,14 +189,14 @@ func TestDotNetDetector(t *testing.T) {
 		{
 			name: "profiling disabled",
 			envs: map[string]string{
-				targetenvs.EnvDotNetDetector: "0",
+				"CORECLR_ENABLE_PROFILING": "0",
 			},
 			result: None,
 		},
 		{
 			name: "profiling enabled",
 			envs: map[string]string{
-				targetenvs.EnvDotNetDetector: "1",
+				"CORECLR_ENABLE_PROFILING": "1",
 			},
 			result: Provided,
 		},
@@ -220,7 +221,7 @@ func TestDotNetDetector(t *testing.T) {
 		{
 			name: "in maps, env misleading",
 			envs: map[string]string{
-				targetenvs.EnvDotNetDetector: "0",
+				"CORECLR_ENABLE_PROFILING": "0",
 			},
 			maps: `
 785c8a400000-785c8aaeb000 r--s 00000000 fc:06 12762267                   /home/foo/hello/bin/release/net8.0/linux-x64/publish/Datadog.Trace.dll
@@ -231,7 +232,7 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, test.envs, nil)
+				result = dotNetDetector(0, nil, envs.NewEnvironmentVariables(test.envs, language.DotNet), nil)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}
@@ -260,12 +261,12 @@ func TestGoDetector(t *testing.T) {
 		_ = cmdWithoutSymbols.Process.Kill()
 	})
 
-	result := goDetector(os.Getpid(), nil, nil, nil)
+	result := goDetector(os.Getpid(), nil, envs.NewEnvironmentVariables(nil, language.Go), nil)
 	require.Equal(t, None, result)
 
-	result = goDetector(cmdWithSymbols.Process.Pid, nil, nil, nil)
+	result = goDetector(cmdWithSymbols.Process.Pid, nil, envs.NewEnvironmentVariables(nil, language.Go), nil)
 	require.Equal(t, Provided, result)
 
-	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, nil, nil)
+	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, envs.NewEnvironmentVariables(nil, language.Go), nil)
 	require.Equal(t, Provided, result)
 }

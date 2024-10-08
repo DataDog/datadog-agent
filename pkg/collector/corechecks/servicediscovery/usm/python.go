@@ -9,8 +9,6 @@ import (
 	"io/fs"
 	"path"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 )
 
 const (
@@ -114,13 +112,13 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 }
 
 func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
-	if fromEnv, ok := targetenvs.FindGunicornCmdArgs(g.ctx.envs); ok {
+	if fromEnv, ok := extractEnvVar(g.ctx.envs, "GUNICORN_CMD_ARGS"); ok {
 		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
 		if ok {
 			return NewServiceMetadata(name), true
 		}
 	}
-	if wsgiApp, ok := targetenvs.FindWsgiApp(g.ctx.envs); ok && len(wsgiApp) > 0 {
+	if wsgiApp, ok := extractEnvVar(g.ctx.envs, "WSGI_APP"); ok && len(wsgiApp) > 0 {
 		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
 	}
 

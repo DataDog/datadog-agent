@@ -326,11 +326,6 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	envs, err := getTargetEnvs(proc)
-	if err != nil {
-		return nil, err
-	}
-
 	exe, err := proc.Exe()
 	if err != nil {
 		return nil, err
@@ -348,6 +343,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
+	envs, err := getTargetEnvs(proc, lang)
+	if err != nil {
+		return nil, err
+	}
+
 	nameMeta := servicediscovery.GetServiceName(cmdline, envs, root, lang, contextMap)
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
 

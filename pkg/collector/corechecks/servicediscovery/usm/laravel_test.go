@@ -11,6 +11,9 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestGetLaravelAppNameFromEnv(t *testing.T) {
@@ -97,7 +100,7 @@ func TestGetLaravelAppNameFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name := newLaravelParser(NewDetectionContext(nil, nil, tt.filesystem)).GetLaravelAppName("artisan")
+			name := newLaravelParser(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.PHP), tt.filesystem)).GetLaravelAppName("artisan")
 			require.Equal(t, tt.expected, name)
 		})
 	}

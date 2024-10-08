@@ -11,6 +11,9 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestTomcatDefaultContextRootFromFile(t *testing.T) {
@@ -47,7 +50,7 @@ func TestTomcatDefaultContextRootFromFile(t *testing.T) {
 			expected: "",
 		},
 	}
-	extractor := newTomcatExtractor(NewDetectionContext(nil, nil, nil))
+	extractor := newTomcatExtractor(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Unknown), nil))
 	for _, tt := range tests {
 		t.Run("Should parse "+tt.filename, func(t *testing.T) {
 			value, ok := extractor.defaultContextRootFromFile(tt.filename)
@@ -92,7 +95,7 @@ func TestScanDirForDeployments(t *testing.T) {
 			},
 		},
 	}
-	extractor := tomcatExtractor{ctx: NewDetectionContext(nil, nil, memfs)}
+	extractor := tomcatExtractor{ctx: NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Unknown), memfs)}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deployments := extractor.scanDirForDeployments(tt.path, &map[string]struct{}{
@@ -169,7 +172,7 @@ func TestFindDeployedApps(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		extractor := tomcatExtractor{ctx: NewDetectionContext(nil, nil, tt.fs)}
+		extractor := tomcatExtractor{ctx: NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Unknown), tt.fs)}
 		deployments, ok := extractor.findDeployedApps(tt.domainHome)
 		require.Equal(t, len(tt.expected) > 0, ok)
 		require.Equal(t, tt.expected, deployments)

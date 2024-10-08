@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/targetenvs"
 )
 
 type testProc struct {
@@ -166,7 +165,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
-	t.Setenv(targetenvs.EnvDiscoveryEnabled, "true")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
 		servicesResp *model.ServicesResponse

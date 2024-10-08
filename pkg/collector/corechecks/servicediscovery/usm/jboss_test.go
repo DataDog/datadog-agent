@@ -13,6 +13,9 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestJbossExtractServerName(t *testing.T) {
@@ -209,7 +212,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 			if len(tt.location) > 0 {
 				memFs[tt.location] = &fstest.MapFile{Data: []byte(tt.jbossWebXML)}
 			}
-			value, ok := newJbossExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(memFs)
+			value, ok := newJbossExtractor(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Unknown), nil)).customExtractWarContextRoot(memFs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -397,10 +400,10 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// A sibling directory is used as PWD since the tests uses relative
 			// paths to the app root (../testdata/a).
-			envs := map[string]string{
+			envsMap := map[string]string{
 				"PWD": "/sibling",
 			}
-			value, ok := newJbossExtractor(NewDetectionContext(tt.args, envs, tt.fs)).findDeployedApps(tt.domainHome)
+			value, ok := newJbossExtractor(NewDetectionContext(tt.args, envs.NewEnvironmentVariables(envsMap, language.Java), tt.fs)).findDeployedApps(tt.domainHome)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
