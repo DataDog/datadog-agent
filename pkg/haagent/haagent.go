@@ -34,8 +34,12 @@ func IsPrimary() bool {
 	return currentRole == "primary"
 }
 
-func GetRole() string {
+func GetInitialRole() string {
 	return pkgconfigsetup.Datadog().GetString("ha_agent.role")
+}
+
+func GetRole() string {
+	return runtimeRole.Load()
 }
 
 func SetRole(role string) {

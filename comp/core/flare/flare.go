@@ -116,8 +116,13 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	} else { // secondary
 		role = "standby"
 	}
-	f.log.Infof("[onAgentTaskEvent] caseID=%s, caseIdNum=%d, userHandle=%s, role=%s", caseID, caseIdNum, userHandle, role)
-	haagent.SetRole(role)
+	initialRole := haagent.GetInitialRole()
+	if initialRole == "auto" {
+		f.log.Infof("[onAgentTaskEvent] SetRole caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
+		haagent.SetRole(role)
+	} else {
+		f.log.Infof("[onAgentTaskEvent] Skip caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
+	}
 
 	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, nil
