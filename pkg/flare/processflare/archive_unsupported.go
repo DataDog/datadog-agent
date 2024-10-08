@@ -5,6 +5,7 @@
 
 //go:build !process
 
+// Package processflare contains flare logic that only imports pkg/process when the process build tag is included
 package processflare
 
 import "errors"
