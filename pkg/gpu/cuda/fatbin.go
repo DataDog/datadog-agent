@@ -432,7 +432,7 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer *bytes.Reader, 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elf.Section, buffer *bytes.Reader, kernelName string) error {
+func (cp *cubinParser) parseTextSection(sect *elf.Section, _ *bytes.Reader, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
