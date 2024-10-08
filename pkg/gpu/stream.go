@@ -29,6 +29,7 @@ type StreamHandler struct {
 	allocations    []*model.MemoryAllocation
 	processEnded   bool // A marker to indicate that the process has ended, and this handler should be flushed
 	sysCtx         *systemContext
+	gpuDevice      *cuda.GpuDevice
 }
 
 type enrichedKernelLaunch struct {
@@ -37,10 +38,16 @@ type enrichedKernelLaunch struct {
 }
 
 func newStreamHandler(key *model.StreamKey, sysCtx *systemContext) *StreamHandler {
+	dev, err := sysCtx.getCurrentActiveGpuDevice(int(key.Pid))
+	if err != nil {
+		log.Warnf("Error getting GPU device for process %d: %v", key.Pid, err)
+	}
+
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 		key:            key,
 		sysCtx:         sysCtx,
+		gpuDevice:      dev,
 	}
 }
 

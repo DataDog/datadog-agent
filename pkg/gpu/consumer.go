@@ -160,6 +160,14 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	}
 }
 
+func (c *cudaEventConsumer) getStreamHandler(streamKey *model.StreamKey) *StreamHandler {
+	if _, ok := c.streamHandlers[*streamKey]; !ok {
+		c.streamHandlers[*streamKey] = newStreamHandler(streamKey, c.sysCtx)
+	}
+
+	return c.streamHandlers[*streamKey]
+}
+
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
 	_ = kernel.WithAllProcs("/proc", func(pid int) error {
