@@ -133,7 +133,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return([]*pbgo.PackageState(nil))
+	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
 	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()
