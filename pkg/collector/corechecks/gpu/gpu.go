@@ -72,9 +72,6 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	if err := processnet.CheckPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")); err != nil {
-		return fmt.Errorf("sysprobe socket: %s", err)
-	}
 
 	return nil
 }
