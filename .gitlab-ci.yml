@@ -1156,7 +1156,7 @@ workflow:
       # Pull coverage cache on dev branches
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
-.on_gitlab_changes_success:
+.on_gitlab_changes:
   changes:
     paths:
       - .gitlab-ci.yml
@@ -1164,12 +1164,8 @@ workflow:
       - .gitlab/**/.*
     compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_gitlab_changes:
-  - !reference [.except_mergequeue]
-  - !reference [.on_gitlab_changes_success]
-
 .on_gitlab_changes_or_mergequeue_or_main:
-  - !reference [.on_gitlab_changes_success]
+  - !reference [.on_gitlab_changes]
   - !reference [.on_mergequeue]
   - !reference [.on_main]
 
