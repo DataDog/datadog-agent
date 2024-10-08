@@ -5,7 +5,7 @@
 
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=nvInfoAttr,nvInfoFormat,fatbinDataKind -linecomment
 
-// package cuda provides helpers for CUDA binary parsing
+// Package cuda provides helpers for CUDA binary parsing
 package cuda
 
 import (
@@ -457,7 +457,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ *bytes.Reader,
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ *bytes.Reader, kernelName string) error {
+func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ *bytes.Reader, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
@@ -467,7 +467,7 @@ func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ *bytes.Reade
 		return nil
 	}
 
-	kernelName = match[1]
+	kernelName := match[1]
 	kernel := cp.getKernel(kernelName)
 	kernel.ConstantMem += sect.Size
 
