@@ -7,29 +7,24 @@ package containers
 
 import (
 	"context"
-	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/fatih/color"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 const (
@@ -47,41 +42,19 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
-	suite.Run(t, &ecsSuite{})
+	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(envecs.Provisioner(
+		envecs.WithECSWindowsNodeGroup(),
+		envecs.WithECSLinuxBottlerocketNodeGroup(),
+		envecs.WithECSLinuxECSOptimizedNodeGroup(),
+		envecs.WithTestingWorkload(),
+		envecs.WithECSFargateCapacityProvider(),
+	)))
 }
 
 func (suite *ecsSuite) SetupSuite() {
-	ctx := context.Background()
-
-	// Creating the stack
-	stackConfig := runner.ConfigMap{
-		"ddinfra:aws/ecs/linuxECSOptimizedNodeGroup": auto.ConfigValue{Value: "true"},
-		"ddinfra:aws/ecs/linuxBottlerocketNodeGroup": auto.ConfigValue{Value: "true"},
-		"ddinfra:aws/ecs/windowsLTSCNodeGroup":       auto.ConfigValue{Value: "true"},
-		"ddagent:deploy":                             auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":                         auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
-	}
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
-		ctx,
-		"ecs-cluster",
-		ecs.Run,
-		infra.WithConfigMap(stackConfig),
-	)
-	suite.Require().NoError(err)
-
-	fakeintake := &components.FakeIntake{}
-	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
-	suite.Require().NoError(err)
-	suite.Require().NoError(fakeintake.Import(fiSerialized, fakeintake))
-	suite.Require().NoError(fakeintake.Init(suite))
-	suite.Fakeintake = fakeintake.Client()
-
-	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
-	suite.clusterName = suite.ecsClusterName
-
 	suite.baseSuite.SetupSuite()
+	suite.Fakeintake = suite.Env().FakeIntake.Client()
+	suite.clusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsSuite) TearDownSuite() {
@@ -92,8 +65,8 @@ func (suite *ecsSuite) TearDownSuite() {
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
 	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
-		suite.ecsClusterName,
-		strings.TrimSuffix(suite.ecsClusterName, "-ecs"),
+		suite.clusterName,
+		strings.TrimSuffix(suite.clusterName, "-ecs"),
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
 	))
@@ -130,7 +103,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 				}
 
 				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
-					Cluster:    &suite.ecsClusterName,
+					Cluster:    &suite.clusterName,
 					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
 					NextToken:  nextToken,
 				})
@@ -142,7 +115,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 				nextToken = servicesList.NextToken
 
 				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &suite.ecsClusterName,
+					Cluster:  &suite.clusterName,
 					Services: servicesList.ServiceArns,
 				})
 				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
@@ -158,7 +131,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 						}
 
 						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
-							Cluster:       &suite.ecsClusterName,
+							Cluster:       &suite.clusterName,
 							ServiceName:   serviceDescription.ServiceName,
 							DesiredStatus: awsecstypes.DesiredStatusRunning,
 							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
@@ -171,7 +144,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 						nextToken = tasksList.NextToken
 
 						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
-							Cluster: &suite.ecsClusterName,
+							Cluster: &suite.clusterName,
 							Tasks:   tasksList.TaskArns,
 						})
 						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
@@ -201,20 +174,20 @@ func (suite *ecsSuite) TestNginxECS() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-nginx-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-nginx-ec2$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
-				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:`,
 				`^task_family:.*-nginx-ec2$`,
@@ -232,14 +205,14 @@ func (suite *ecsSuite) TestNginxECS() {
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-nginx-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-nginx-ec2$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
@@ -266,13 +239,13 @@ func (suite *ecsSuite) TestRedisECS() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
 				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:redis$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-redis-ec2$`,
 				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
@@ -294,14 +267,14 @@ func (suite *ecsSuite) TestRedisECS() {
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
 				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:ec2$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-redis-ec2$`,
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
@@ -328,16 +301,16 @@ func (suite *ecsSuite) TestNginxFargate() {
 			Tags: &[]string{
 				`^availability_zone:`,
 				`^availability-zone:`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:nginx$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:fargate$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
-				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^region:us-east-1$`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:`,
@@ -362,10 +335,10 @@ func (suite *ecsSuite) TestRedisFargate() {
 			Tags: &[]string{
 				`^availability_zone:`,
 				`^availability-zone:`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:redis$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:redis$`,
 				`^ecs_launch_type:fargate`,
 				`^image_id:sha256:`,
@@ -396,10 +369,10 @@ func (suite *ecsSuite) TestWindowsFargate() {
 			Tags: &[]string{
 				`^availability_zone:`,
 				`^availability-zone:`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:aspnetsample$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:aspnetsample$`,
 				`^ecs_launch_type:fargate$`,
 				`^image_id:sha256:`,
@@ -429,10 +402,10 @@ func (suite *ecsSuite) TestWindowsFargate() {
 			Tags: &[]string{
 				`^availability_zone:`,
 				`^availability-zone:`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:aspnetsample$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:aspnetsample$`,
 				`^ecs_launch_type:fargate$`,
 				`^image_id:sha256:`,
@@ -461,13 +434,13 @@ func (suite *ecsSuite) TestCPU() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-stress-ng-ec2-`,
 				`^docker_image:ghcr.io/colinianking/stress-ng:409201de7458c639c68088d28ec8270ef599fe47$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-stress-ng$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-stress-ng$`,
 				`^git.commit.sha:`,
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
 				`^image_id:sha256:`,
@@ -506,13 +479,13 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
@@ -537,13 +510,13 @@ func (suite *ecsSuite) TestPrometheus() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-prometheus-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-prometheus:main$`,
-				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 				`^ecs_container_name:prometheus$`,
-				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-prometheus$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.clusterName, "-ecs")) + `-prometheus$`,
 				`^endpoint:http://.*:8080/metrics$`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
@@ -586,11 +559,11 @@ func (suite *ecsSuite) testTrace(taskName string) {
 			})
 			// Assert origin detection is working properly
 			err = assertTags(tags, []*regexp.Regexp{
-				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`),
 				regexp.MustCompile(`^container_id:`),
 				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
 				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:main$`),
-				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`),
 				regexp.MustCompile(`^ecs_container_name:tracegen`),
 				regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label

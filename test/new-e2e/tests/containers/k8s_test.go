@@ -1026,7 +1026,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 
 func (suite *k8sSuite) TestContainerImage() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1096,7 +1096,7 @@ func (suite *k8sSuite) TestContainerImage() {
 
 func (suite *k8sSuite) TestSBOM() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1221,7 +1221,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	sendEvent := func(alertType, text string) {
-		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+		if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 			Title: pointer.Ptr(suite.T().Name()),
 			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 `+"```"+`
@@ -1314,7 +1314,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		sendEvent := func(alertType, text string, time *int) {
-			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 %s

@@ -25,7 +25,3 @@ var _ e2e.Initializable = &DockerHost{}
 func (e *DockerHost) Init(_ e2e.Context) error {
 	return nil
 }
-
-func (e DockerHost) Fakeintake() *components.FakeIntake {
-	return e.FakeIntake
-}

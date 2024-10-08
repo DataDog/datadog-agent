@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package environments
+package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/test-infra-definitions/components/ecs"
 )
 
-type Fakeintake interface {
-	Fakeintake() *components.FakeIntake
+// ECSCluster is an ECS Cluster
+type ECSCluster struct {
+	ecs.ClusterOutput
 }
