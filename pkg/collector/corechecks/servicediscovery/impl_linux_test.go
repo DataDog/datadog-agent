@@ -31,7 +31,7 @@ type testProc struct {
 }
 
 var (
-	bootTimeSeconds = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).Unix())
+	bootTimeSeconds = uint64(time.Date(2000, 0o1, 0o1, 0, 0, 0, 0, time.UTC).Unix())
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
 	procLaunchedSeconds = bootTimeSeconds + uint64((12 * time.Hour).Seconds())
@@ -172,6 +172,16 @@ func Test_linuxImpl(t *testing.T) {
 		time         time.Time
 	}
 
+	collectTargetPIDs := func(checkRuns []*checkRun) []int {
+		targetPIDs := make([]int, 0)
+		for _, cr := range checkRuns {
+			for _, service := range cr.servicesResp.Services {
+				targetPIDs = append(targetPIDs, service.PID)
+			}
+		}
+		return targetPIDs
+	}
+
 	tests := []struct {
 		name       string
 		checkRun   []*checkRun
@@ -232,6 +242,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -254,6 +265,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -276,6 +288,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -294,6 +307,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -312,6 +326,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
+						ContainerID:          "abcd",
 					},
 				},
 			},
@@ -366,6 +381,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -388,6 +404,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -405,6 +422,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -422,6 +440,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -444,6 +463,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 			},
@@ -501,6 +521,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
+						ContainerID:          "abcd",
 					},
 				},
 				{
@@ -521,6 +542,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  102,
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "injected",
+						ContainerID:          "abcd",
 					},
 				},
 			},
@@ -533,7 +555,9 @@ func Test_linuxImpl(t *testing.T) {
 			defer ctrl.Finish()
 
 			// check and mocks setup
-			check := newCheck()
+			targetPIDs := collectTargetPIDs(tc.checkRun)
+			cpStub := newContainerProviderStub(targetPIDs)
+			check := newCheck(cpStub)
 
 			mSender := mocksender.NewMockSender(check.ID())
 			mSender.SetupAcceptAll()
