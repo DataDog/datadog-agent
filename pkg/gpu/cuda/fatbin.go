@@ -168,78 +168,87 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
 			for currOffset := getBufferOffset(buffer); buffer.Len() > 0 && currOffset-readStart < int64(fatbinHeader.FatSize); currOffset = getBufferOffset(buffer) {
-				// Each data section starts with a data header, read it
-				var fatbinData fatbinData
-				err = binary.Read(buffer, binary.LittleEndian, &fatbinData)
-				if err != nil {
+				if err := parseFatbinData(buffer, fatbin); err != nil {
 					return nil, fmt.Errorf("failed to parse fatbin data: %w", err)
-				}
-
-				// Check that we have a valid header
-				if err := fatbinData.validate(); err != nil {
-					return nil, fmt.Errorf("invalid fatbin data: %w", err)
-				}
-
-				// The header size is the size of the struct, but the actual header in file might be larger
-				// If that's the case, we need to skip the rest of the header
-				fatbinDataSize := uint32(unsafe.Sizeof(fatbinData))
-				if fatbinData.HeaderSize > fatbinDataSize {
-					_, err = buffer.Seek(int64(fatbinData.HeaderSize-fatbinDataSize), io.SeekCurrent)
-					if err != nil {
-						return nil, fmt.Errorf("failed to skip rest of fatbin data header: %w", err)
-					}
-				}
-
-				if fatbinData.dataKind() != fatbinDataKindSm {
-					// We only support SM data for now, skip this one
-					_, err := buffer.Seek(int64(fatbinData.PaddedPayloadSize), io.SeekCurrent)
-					if err != nil {
-						return nil, fmt.Errorf("failed to skip PTX fatbin data: %w", err)
-					}
-					continue
-				}
-
-				// Now read the payload. Fatbin format could have both compressed and uncompressed payloads
-				var payload []byte
-				if fatbinData.UncompressedPayloadSize != 0 {
-					compressedPayload := make([]byte, fatbinData.PaddedPayloadSize)
-					_, err := io.ReadFull(buffer, compressedPayload)
-					if err != nil {
-						return nil, fmt.Errorf("failed to read fatbin compressed payload: %w", err)
-					}
-
-					// Keep only the actual payload, ignore the padding for the uncompression
-					compressedPayload = compressedPayload[:fatbinData.PayloadSize]
-
-					payload = make([]byte, fatbinData.UncompressedPayloadSize)
-					_, err = lz4.UncompressBlock(compressedPayload, payload)
-					if err != nil {
-						return nil, fmt.Errorf("failed to decompress fatbin payload: %w", err)
-					}
-				} else {
-					payload = make([]byte, fatbinData.PaddedPayloadSize)
-					_, err := io.ReadFull(buffer, payload)
-					if err != nil {
-						return nil, fmt.Errorf("failed to read fatbin payload: %w", err)
-					}
-				}
-
-				// The payload is a cubin ELF, parse it with the cubin parser
-				parser := newCubinParser()
-				err = parser.parseCubinElf(payload)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse cubin ELF: %w", err)
-				}
-
-				// Retrieve all the kernels found in the cubin parser and add them to the fatbin, including
-				// the SM version they were compiled for which is only available in the fatbin data
-				for _, kernel := range parser.kernels {
-					key := CubinKernelKey{Name: kernel.Name, SmVersion: fatbinData.SmVersion}
-					fatbin.Kernels[key] = kernel
 				}
 			}
 		}
 	}
 
 	return fatbin, nil
+}
+
+func parseFatbinData(buffer *bytes.Reader, fatbin *Fatbin) error {
+	// Each data section starts with a data header, read it
+	var fatbinData fatbinData
+	err := binary.Read(buffer, binary.LittleEndian, &fatbinData)
+	if err != nil {
+		return fmt.Errorf("failed to parse fatbin data: %w", err)
+	}
+
+	// Check that we have a valid header
+	if err := fatbinData.validate(); err != nil {
+		return fmt.Errorf("invalid fatbin data: %w", err)
+	}
+
+	// The header size is the size of the struct, but the actual header in file might be larger
+	// If that's the case, we need to skip the rest of the header
+	fatbinDataSize := uint32(unsafe.Sizeof(fatbinData))
+	if fatbinData.HeaderSize > fatbinDataSize {
+		_, err = buffer.Seek(int64(fatbinData.HeaderSize-fatbinDataSize), io.SeekCurrent)
+		if err != nil {
+			return fmt.Errorf("failed to skip rest of fatbin data header: %w", err)
+		}
+	}
+
+	if fatbinData.dataKind() != fatbinDataKindSm {
+		// We only support SM data for now, skip this one
+		_, err := buffer.Seek(int64(fatbinData.PaddedPayloadSize), io.SeekCurrent)
+		if err != nil {
+			return fmt.Errorf("failed to skip PTX fatbin data: %w", err)
+		}
+
+		return nil // Skip this data section
+	}
+
+	// Now read the payload. Fatbin format could have both compressed and uncompressed payloads
+	var payload []byte
+	if fatbinData.UncompressedPayloadSize != 0 {
+		compressedPayload := make([]byte, fatbinData.PaddedPayloadSize)
+		_, err := io.ReadFull(buffer, compressedPayload)
+		if err != nil {
+			return fmt.Errorf("failed to read fatbin compressed payload: %w", err)
+		}
+
+		// Keep only the actual payload, ignore the padding for the uncompression
+		compressedPayload = compressedPayload[:fatbinData.PayloadSize]
+
+		payload = make([]byte, fatbinData.UncompressedPayloadSize)
+		_, err = lz4.UncompressBlock(compressedPayload, payload)
+		if err != nil {
+			return fmt.Errorf("failed to decompress fatbin payload: %w", err)
+		}
+	} else {
+		payload = make([]byte, fatbinData.PaddedPayloadSize)
+		_, err := io.ReadFull(buffer, payload)
+		if err != nil {
+			return fmt.Errorf("failed to read fatbin payload: %w", err)
+		}
+	}
+
+	// The payload is a cubin ELF, parse it with the cubin parser
+	parser := newCubinParser()
+	err = parser.parseCubinElf(payload)
+	if err != nil {
+		return fmt.Errorf("failed to parse cubin ELF: %w", err)
+	}
+
+	// Retrieve all the kernels found in the cubin parser and add them to the fatbin, including
+	// the SM version they were compiled for which is only available in the fatbin data
+	for _, kernel := range parser.kernels {
+		key := CubinKernelKey{Name: kernel.Name, SmVersion: fatbinData.SmVersion}
+		fatbin.Kernels[key] = kernel
+	}
+
+	return nil
 }
