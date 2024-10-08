@@ -111,6 +111,11 @@ func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
 	return ParseFatbinFromELFFile(elfFile)
 }
 
+func getBufferOffset(buf io.Seeker) int64 {
+	offset, _ := buf.Seek(0, io.SeekCurrent)
+	return offset
+}
+
 // ParseFatbinFromPath parses the fatbin sections of the given ELF file and returns the information found in it
 func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 	fatbin := &Fatbin{
@@ -145,8 +150,8 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			}
 
 			// We need to read only up to the size given to us by the header, not to the end of the section.
-			readStart, _ := buffer.Seek(0, io.SeekCurrent)
-			for currOffset, _ := buffer.Seek(0, io.SeekCurrent); buffer.Len() > 0 && currOffset-readStart < int64(fatbinHeader.FatSize); currOffset, _ = buffer.Seek(0, io.SeekCurrent) {
+			readStart := getBufferOffset(buffer)
+			for currOffset := getBufferOffset(buffer); buffer.Len() > 0 && currOffset-readStart < int64(fatbinHeader.FatSize); currOffset = getBufferOffset(buffer) {
 				// Each data section starts with a data header, read it
 				var fatbinData fatbinData
 				err = binary.Read(buffer, binary.LittleEndian, &fatbinData)
