@@ -793,25 +793,25 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     """
 
     if all_files:
-        modified = glob('.gitlab/**/*.yml', recursive=True)
+        modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)
     else:
-        modified = get_file_modifications(ctx, added=True, modified=True, only_names=True)
-        modified = [path for path in modified if path.endswith('.yml')]
+        modified_yml_files = get_file_modifications(ctx, added=True, modified=True, only_names=True)
+        modified_yml_files = [path for path in modified_yml_files if path.endswith('.yml')]
 
     with open(path_codeowners) as f:
-        lines = f.readlines()
+        parsed_owners = f.readlines()
 
     # Keep only gitlab related lines to avoid defaults
-    lines = [line for line in lines if '/.gitlab/' in line]
-    owners = CodeOwners('\n'.join(lines))
+    parsed_owners = [line for line in parsed_owners if '/.gitlab/' in line]
+    gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
-    if not modified:
+    if not modified_yml_files:
         print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
         return
 
     error_files = []
-    for path in modified:
-        teams = [team for kind, team in owners.of(path) if kind == 'TEAM']
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
         if not teams:
             error_files.append(path)
 
