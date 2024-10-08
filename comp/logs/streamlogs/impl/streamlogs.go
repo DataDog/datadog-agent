@@ -9,7 +9,6 @@ package streamlogsimpl
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -118,7 +117,7 @@ func exportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 // exportStreamLogsIfEnabled streams logs when runtime is enabled
 func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Component, streamlogsLogFilePath string) error {
 	// If the streamlog runtime setting is set, start streaming log to default file
-	enableStreamLog, err := sl.coresetting.GetRuntimeSetting("enable_stream_logs")
+	enableStreamLog, err := sl.coresetting.GetRuntimeSetting("enable_streamlogs")
 	if err != nil {
 		return err
 	}
@@ -149,10 +148,9 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	// shouldIncludeFunc ensures that only correct extension/suffix log files are collected from the streamlogs_info folder
-	// This include log roll over files eg: streamlogs.log.1 and to exclude non log files that might be present in the folder.
+	// shouldIncludeFunc ensures that only correct .log files are collected from the streamlogs_info folder
 	shouldIncludeFunc := func(path string) bool {
-		return filepath.Ext(path) == ".log" || getFirstSuffix(path) == ".log"
+		return filepath.Ext(path) == ".log"
 	}
 
 	if err := fb.CopyDirTo(filepath.Dir(streamlogsLogFile), "logs/streamlogs_info", shouldIncludeFunc); err != nil {
@@ -160,9 +158,4 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	}
 
 	return nil
-}
-
-// getFirstSuffix returns the first suffix of a file name (e.g., for "stream.error.log", it returns ".error")
-func getFirstSuffix(s string) string {
-	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }

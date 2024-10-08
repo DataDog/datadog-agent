@@ -28,7 +28,7 @@ func NewEnableStreamLogsRuntimeSetting() *EnableStreamLogsRuntimeSetting {
 
 // Description returns the runtime setting's description.
 func (s *EnableStreamLogsRuntimeSetting) Description() string {
-	return "Enable or disable stream logs at runtime"
+	return "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings

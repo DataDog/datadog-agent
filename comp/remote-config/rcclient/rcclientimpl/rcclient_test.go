@@ -33,6 +33,10 @@ type mockLogLevelRuntimeSettings struct {
 	expectedError error
 	logLevel      string
 }
+type mockEnableStreamLogsRuntimeSettings struct {
+	expectedError    error
+	enableStreamLogs bool
+}
 
 func (m *mockLogLevelRuntimeSettings) Get(_ config.Component) (interface{}, error) {
 	return m.logLevel, nil
@@ -56,6 +60,31 @@ func (m *mockLogLevelRuntimeSettings) Description() string {
 }
 
 func (m *mockLogLevelRuntimeSettings) Hidden() bool {
+	return true
+}
+
+func (m *mockEnableStreamLogsRuntimeSettings) Get(_ config.Component) (interface{}, error) {
+	return m.enableStreamLogs, nil
+}
+
+func (m *mockEnableStreamLogsRuntimeSettings) Set(_ config.Component, v interface{}, source model.Source) error {
+	if m.expectedError != nil {
+		return m.expectedError
+	}
+	m.enableStreamLogs = v.(bool)
+	pkgconfig.Datadog().Set(m.Name(), m.enableStreamLogs, source)
+	return nil
+}
+
+func (m *mockEnableStreamLogsRuntimeSettings) Name() string {
+	return "enable_streamlogs"
+}
+
+func (m *mockEnableStreamLogsRuntimeSettings) Description() string {
+	return ""
+}
+
+func (m *mockEnableStreamLogsRuntimeSettings) Hidden() bool {
 	return true
 }
 
