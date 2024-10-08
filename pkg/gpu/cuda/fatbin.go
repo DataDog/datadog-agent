@@ -100,6 +100,22 @@ type fatbinData struct {
 	UncompressedPayloadSize uint64
 }
 
+func (fbd *fatbinData) dataKind() fatbinDataKind {
+	return fatbinDataKind(fbd.Kind)
+}
+
+func (fbd *fatbinData) validate() error {
+	dataKind := fbd.dataKind()
+	if dataKind < fatbinDataMinKind || dataKind > fatbinDataMaxKind {
+		return fmt.Errorf("kind %d is not in the expected range [%d, %d]", dataKind, fatbinDataMinKind, fatbinDataMaxKind)
+	}
+	if fbd.Version != fatbinDataVersion {
+		return fmt.Errorf("version %d does not match expected %d", fbd.Version, fatbinDataVersion)
+	}
+
+	return nil
+}
+
 // ParseFatbinFromELFFilePath opens the given path and parses the resulting ELF for CUDA kernels
 func ParseFatbinFromELFFilePath(path string) (*Fatbin, error) {
 	elfFile, err := elf.Open(path)
@@ -160,12 +176,8 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 				}
 
 				// Check that we have a valid header
-				dataKind := fatbinDataKind(fatbinData.Kind)
-				if dataKind < fatbinDataMinKind || dataKind > fatbinDataMaxKind {
-					return nil, fmt.Errorf("invalid fatbin data, kind %d is not in the expected range [%d, %d]", dataKind, fatbinDataMinKind, fatbinDataMaxKind)
-				}
-				if fatbinData.Version != fatbinDataVersion {
-					return nil, fmt.Errorf("invalid fatbin data, version %d does not match expected %d", fatbinData.Version, fatbinDataVersion)
+				if err := fatbinData.validate(); err != nil {
+					return nil, fmt.Errorf("invalid fatbin data: %w", err)
 				}
 
 				// The header size is the size of the struct, but the actual header in file might be larger
@@ -178,7 +190,7 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 					}
 				}
 
-				if dataKind != fatbinDataKindSm {
+				if fatbinData.dataKind() != fatbinDataKindSm {
 					// We only support SM data for now, skip this one
 					_, err := buffer.Seek(int64(fatbinData.PaddedPayloadSize), io.SeekCurrent)
 					if err != nil {
