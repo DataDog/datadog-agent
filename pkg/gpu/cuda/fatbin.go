@@ -31,9 +31,9 @@ type fatbinDataKind uint16
 const fatbinDataKindPtx fatbinDataKind = 1
 const fatbinDataKindSm fatbinDataKind = 2
 
-const fatbinMagic = 0xBA55ED50
-const fatbinHeaderVersion = 1
-const fatbinDataVersion = 0x0101
+const fatbinMagic uint32 = 0xBA55ED50
+const fatbinHeaderVersion uint16 = 1
+const fatbinDataVersion uint16 = 0x0101
 const fatbinDataMinKind = fatbinDataKindPtx
 const fatbinDataMaxKind = fatbinDataKindSm
 
