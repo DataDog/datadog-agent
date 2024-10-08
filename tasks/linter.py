@@ -34,6 +34,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -451,14 +452,9 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 test_gitlab_configuration(ctx, entry_point, input_config)
 
 
-@task
-def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
     """
-    Verifies that each added / modified job contains `needs` and also `rules`.
-    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
-    All configurations are checked (even downstream ones).
-
-    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    Utility to get the jobs from full gitlab ci configuration file or from a diff file.
 
     - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
     - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
@@ -471,30 +467,41 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     # Load all the jobs from the files
     if config_file:
         with open(config_file) as f:
-            conf = yaml.safe_load(f)
-
-        full_config = conf
-
-        jobs = []
-        for file_jobs in conf.values():
-            for job_name, job_contents in file_jobs.items():
-                if is_leaf_job(job_name, job_contents):
-                    jobs.append((job_name, job_contents))
+            full_config = yaml.safe_load(f)
+            jobs = [
+                (job, job_contents)
+                for contents in full_config.values()
+                for job, job_contents in contents.items()
+                if is_leaf_job(job, job_contents)
+            ]
     else:
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
         full_config = diff.after
-        jobs = [
-            (job, contents)
-            for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
-            if is_leaf_job(job, contents)
-        ]
+        jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
 
-        if not jobs:
-            print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-            return
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return
 
+    if only_names:
+        jobs = [job for job, _ in jobs]
+
+    return jobs, full_config
+
+
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+    """
+    Verifies that each added / modified job contains `needs` and also `rules`.
+    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
+    All configurations are checked (even downstream ones).
+
+    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -520,7 +527,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
 
     if n_ignored:
         print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path})'
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path}:needs-rules)'
         )
 
     if error_jobs:
@@ -737,3 +744,42 @@ def gitlab_change_paths(ctx):
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
         )
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
+
+
+@task
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+    """
+    Verifies that each job is defined within JOBOWNERS files.
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+
+    error_jobs = []
+    n_ignored = 0
+    for job in jobs:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            if job in ci_linters_config.job_owners_jobs:
+                n_ignored += 1
+            else:
+                error_jobs.append(job)
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
+        )
+
+    if error_jobs:
+        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')

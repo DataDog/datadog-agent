@@ -381,26 +381,33 @@ class GitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=False, modified=False, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
         """
         Will iterate over all jobs in all files for the given states
 
-        Returns a tuple of (job_name, contents, state)
+        - only_leaves: If True, will return only leaf jobs
+        - Returns a tuple of (job_name, contents, state)
 
         Note that the contents of the job is the contents after modification if modified or before removal if removed
         """
 
         if added:
             for job in self.added:
-                yield job, self.after[job], 'added'
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'added'
 
         if modified:
             for job in self.modified:
-                yield job, self.after[job], 'modified'
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'modified'
 
         if removed:
             for job in self.removed:
-                yield job, self.before[job], 'removed'
+                contents = self.before[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'removed'
 
 
 class MultiGitlabCIDiff:
@@ -528,17 +535,20 @@ class MultiGitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=False, modified=False, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
         """
         Will iterate over all jobs in all files for the given states
 
-        Returns a tuple of (entry_point, job_name, contents, state)
+        - only_leaves: If True, will return only leaf jobs
+        - Returns a tuple of (entry_point, job_name, contents, state)
 
         Note that the contents is the contents after modification or before removal
         """
 
         for diff in self.diffs:
-            for job, contents, state in diff.diff.iter_jobs(added=added, modified=modified, removed=removed):
+            for job, contents, state in diff.diff.iter_jobs(
+                added=added, modified=modified, removed=removed, only_leaves=only_leaves
+            ):
                 yield diff.entry_point, job, contents, state
 
 

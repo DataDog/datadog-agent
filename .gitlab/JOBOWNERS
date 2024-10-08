@@ -1,5 +1,13 @@
 *                                    @DataDog/agent-devx-infra
 
+# CI / DevX
+test_gitlab*                         @DataDog/agent-devx-infra
+invoke_unit_tests                    @DataDog/agent-devx-infra
+skip-ci-check                        @DataDog/agent-devx-infra
+slack_teams_channels_check           @DataDog/agent-devx-infra
+lint*                                @DataDog/agent-devx-infra
+notify*                              @DataDog/agent-devx-infra
+
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
@@ -90,7 +98,6 @@ qa_agent*                              @DataDog/agent-devx-loops
 qa_cws_instrumentation*                @DataDog/agent-devx-loops
 qa_dca*                                @DataDog/agent-devx-loops
 qa_dogstatsd*                          @DataDog/agent-devx-loops
-
 
 # Internal image deploy
 docker_trigger_internal*                     @DataDog/container-integrations
