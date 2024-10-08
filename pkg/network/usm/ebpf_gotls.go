@@ -87,7 +87,7 @@ type pid = uint32
 // goTLSProgram contains implementation for go-TLS.
 type goTLSProgram struct {
 	attacher  *uprobes.UprobeAttacher
-	inspector *GoTLSBinaryInspector
+	inspector *goTLSBinaryInspector
 	cfg       *config.Config
 	manager   *manager.Manager
 
@@ -178,7 +178,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			attacherCfg.ExcludeTargets |= uprobes.ExcludeSelf
 		}
 
-		inspector := &GoTLSBinaryInspector{
+		inspector := &goTLSBinaryInspector{
 			structFieldsLookupFunctions: structFieldsLookupFunctions,
 			paramLookupFunctions:        paramLookupFunctions,
 			binAnalysisMetric:           libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),

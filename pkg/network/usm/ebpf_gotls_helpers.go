@@ -27,9 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GoTLSBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
+// goTLSBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
 // such as the argument passing convention and the lack of uprobes
-type GoTLSBinaryInspector struct {
+type goTLSBinaryInspector struct {
 	structFieldsLookupFunctions map[bininspect.FieldIdentifier]bininspect.StructLookupFunction
 	paramLookupFunctions        map[string]bininspect.ParameterLookupFunction
 
@@ -45,11 +45,11 @@ type GoTLSBinaryInspector struct {
 	binNoSymbolsMetric *libtelemetry.Counter
 }
 
-// Ensure GoTLSBinaryInspector implements BinaryInspector
-var _ uprobes.BinaryInspector = &GoTLSBinaryInspector{}
+// Ensure goTLSBinaryInspector implements BinaryInspector
+var _ uprobes.BinaryInspector = &goTLSBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
-func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
 	start := time.Now()
 
 	path := fpath.HostPath
@@ -96,7 +96,7 @@ func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 }
 
 // Cleanup removes the inspection result for the binary at the given path from the map.
-func (p *GoTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
+func (p *goTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
 	binID := fpath.ID
 	key := &gotls.TlsBinaryId{
 		Id_major: unix.Major(binID.Dev),
@@ -115,7 +115,7 @@ func (p *GoTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func (p *GoTLSBinaryInspector) addInspectionResultToMap(binID utils.PathIdentifier, result *bininspect.Result) error {
+func (p *goTLSBinaryInspector) addInspectionResultToMap(binID utils.PathIdentifier, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
