@@ -71,6 +71,7 @@ lint_gitlab_ci_jobs_codeowners:
   stage: .pre
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
+  needs: []
   rules:
     - !reference [.on_gitlab_changes]
   script:
