@@ -7,6 +7,7 @@
 // References:
 // - https://github.com/VivekPanyam/cudaparsers
 
+// Generate String() methods for nvInfoAttr,nvInfoFormat,fatbinDataKind enums so they can be printed in logs/error messages
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=nvInfoAttr,nvInfoFormat,fatbinDataKind -linecomment
 
 // Package cuda provides helpers for CUDA binary parsing
