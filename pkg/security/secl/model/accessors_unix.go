@@ -4456,15 +4456,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "packet.payload":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ev := ctx.Event.(*Event)
-				return ev.RawPacket.Payload
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "packet.size":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -18011,7 +18002,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.device.ifname",
 		"packet.l3_protocol",
 		"packet.l4_protocol",
-		"packet.payload",
 		"packet.size",
 		"packet.source.ip",
 		"packet.source.port",
@@ -20075,8 +20065,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.RawPacket.NetworkContext.L3Protocol), nil
 	case "packet.l4_protocol":
 		return int(ev.RawPacket.NetworkContext.L4Protocol), nil
-	case "packet.payload":
-		return ev.RawPacket.Payload, nil
 	case "packet.size":
 		return int(ev.RawPacket.NetworkContext.Size), nil
 	case "packet.source.ip":
@@ -26580,8 +26568,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "packet", nil
 	case "packet.l4_protocol":
 		return "packet", nil
-	case "packet.payload":
-		return "packet", nil
 	case "packet.size":
 		return "packet", nil
 	case "packet.source.ip":
@@ -29353,8 +29339,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "packet.l4_protocol":
 		return reflect.Int, nil
-	case "packet.payload":
-		return reflect.String, nil
 	case "packet.size":
 		return reflect.Int, nil
 	case "packet.source.ip":
@@ -34968,13 +34952,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "RawPacket.NetworkContext.L4Protocol"}
 		}
 		ev.RawPacket.NetworkContext.L4Protocol = uint16(rv)
-		return nil
-	case "packet.payload":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "RawPacket.Payload"}
-		}
-		ev.RawPacket.Payload = rv
 		return nil
 	case "packet.size":
 		rv, ok := value.(int)

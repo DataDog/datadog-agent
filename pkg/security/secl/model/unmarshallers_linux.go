@@ -1312,13 +1312,8 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[read:]
 
-	size := binary.NativeEndian.Uint32(data)
-	if int(size) > len(data[4:]) {
-		return 0, ErrNotEnoughData
-	}
+	e.Size = binary.NativeEndian.Uint32(data)
 	data = data[4:]
-
-	e.Size = size
 
 	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
 	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
@@ -1340,14 +1335,12 @@ func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
 			e.L4Protocol = uint16(layers.LayerTypeUDP)
 			e.Source.Port = uint16(rl.SrcPort)
 			e.Destination.Port = uint16(rl.DstPort)
-			e.Payload = string(rl.LayerPayload())
 		}
 	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
 		if rl, ok := layer.(*layers.TCP); ok {
 			e.L4Protocol = uint16(layers.IPProtocolTCP)
 			e.Source.Port = uint16(rl.SrcPort)
 			e.Destination.Port = uint16(rl.DstPort)
-			e.Payload = string(rl.LayerPayload())
 		}
 	}
 

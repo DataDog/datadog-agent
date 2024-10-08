@@ -943,7 +943,6 @@ A raw network packet captured
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
-| [`packet.payload`](#packet-payload-doc) | Payload of the l3/l4 packet |
 | [`packet.size`](#common-networkcontext-size-doc) | Size in bytes of the network packet |
 | [`packet.source.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`packet.source.port`](#common-ipportcontext-port-doc) | Port number |
@@ -3000,13 +2999,6 @@ Definition: Mode argument of the syscall
 Type: string
 
 Definition: Path argument of the syscall
-
-
-
-### `packet.payload` {#packet-payload-doc}
-Type: string
-
-Definition: Payload of the l3/l4 packet
 
 
 

@@ -1350,7 +1350,7 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "description": "size is the size in bytes of the network event"
                 },
                 "tls": {
-                    "$ref": "#/$defs/TSLContext"
+                    "$ref": "#/$defs/TLSContext"
                 }
             },
             "additionalProperties": false,
@@ -1601,7 +1601,7 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "array",
             "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
         },
-        "TSLContext": {
+        "TLSContext": {
             "properties": {
                 "version": {
                     "type": "string"
@@ -1609,7 +1609,7 @@ CSM Threats event for Linux systems have the following JSON schema:
             },
             "additionalProperties": false,
             "type": "object",
-            "description": "TSLContextSerializer defines a tls context serializer"
+            "description": "TLSContextSerializer defines a tls context serializer"
         },
         "UserContext": {
             "properties": {
@@ -3742,7 +3742,7 @@ CSM Threats event for Linux systems have the following JSON schema:
             "description": "size is the size in bytes of the network event"
         },
         "tls": {
-            "$ref": "#/$defs/TSLContext"
+            "$ref": "#/$defs/TLSContext"
         }
     },
     "additionalProperties": false,
@@ -3772,7 +3772,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ---------- |
 | [NetworkDevice](#networkdevice) |
 | [IPPort](#ipport) |
-| [TSLContext](#tslcontext) |
+| [TLSContext](#tlscontext) |
 
 ## `SELinuxBoolChange`
 
@@ -4166,7 +4166,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 
 
-## `TSLContext`
+## `TLSContext`
 
 
 {{< code-block lang="json" collapsible="true" >}}
@@ -4178,7 +4178,7 @@ CSM Threats event for Linux systems have the following JSON schema:
     },
     "additionalProperties": false,
     "type": "object",
-    "description": "TSLContextSerializer defines a tls context serializer"
+    "description": "TLSContextSerializer defines a tls context serializer"
 }
 
 {{< /code-block >}}

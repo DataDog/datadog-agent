@@ -4772,14 +4772,6 @@ func (ev *Event) GetPacketL4Protocol() uint16 {
 	return ev.RawPacket.NetworkContext.L4Protocol
 }
 
-// GetPacketPayload returns the value of the field, resolving if necessary
-func (ev *Event) GetPacketPayload() string {
-	if ev.GetEventType().String() != "packet" {
-		return ""
-	}
-	return ev.RawPacket.Payload
-}
-
 // GetPacketSize returns the value of the field, resolving if necessary
 func (ev *Event) GetPacketSize() uint32 {
 	if ev.GetEventType().String() != "packet" {

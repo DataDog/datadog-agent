@@ -83,7 +83,7 @@ func (v Variables) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *Variables) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(l, v)
 }
-func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(in *jlexer.Lexer, out *TSLContextSerializer) {
+func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(in *jlexer.Lexer, out *TLSContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -114,7 +114,7 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(i
 		in.Consumed()
 	}
 }
-func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(out *jwriter.Writer, in TSLContextSerializer) {
+func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(out *jwriter.Writer, in TLSContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -128,12 +128,12 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(o
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v TSLContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+func (v TLSContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(w, v)
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *TSLContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *TLSContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(l, v)
 }
 func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(in *jlexer.Lexer, out *RawPacketSerializer) {
@@ -162,7 +162,7 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				out.TLSContext = nil
 			} else {
 				if out.TLSContext == nil {
-					out.TLSContext = new(TSLContextSerializer)
+					out.TLSContext = new(TLSContextSerializer)
 				}
 				(*out.TLSContext).UnmarshalEasyJSON(in)
 			}

@@ -1339,7 +1339,7 @@
           "description": "size is the size in bytes of the network event"
         },
         "tls": {
-          "$ref": "#/$defs/TSLContext"
+          "$ref": "#/$defs/TLSContext"
         }
       },
       "additionalProperties": false,
@@ -1590,7 +1590,7 @@
       "type": "array",
       "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
     },
-    "TSLContext": {
+    "TLSContext": {
       "properties": {
         "version": {
           "type": "string"
@@ -1598,7 +1598,7 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "description": "TSLContextSerializer defines a tls context serializer"
+      "description": "TLSContextSerializer defines a tls context serializer"
     },
     "UserContext": {
       "properties": {

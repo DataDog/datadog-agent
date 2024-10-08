@@ -3645,11 +3645,6 @@
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
-          "name": "packet.payload",
-          "definition": "Payload of the l3/l4 packet",
-          "property_doc_link": "packet-payload-doc"
-        },
-        {
           "name": "packet.size",
           "definition": "Size in bytes of the network packet",
           "property_doc_link": "common-networkcontext-size-doc"
@@ -10138,18 +10133,6 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "packet.payload",
-      "link": "packet-payload-doc",
-      "type": "string",
-      "definition": "Payload of the l3/l4 packet",
-      "prefixes": [
-        "packet"
       ],
       "constants": "",
       "constants_link": "",

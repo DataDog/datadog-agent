@@ -596,6 +596,5 @@ type TLSContext struct {
 type RawPacketEvent struct {
 	NetworkContext
 
-	TLSContext TLSContext `field:"tls"`     // SECLDoc[tls] Definition:`TLS context`
-	Payload    string     `field:"payload"` // SECLDoc[payload] Definition:`Payload of the l3/l4 packet`
+	TLSContext TLSContext `field:"tls"` // SECLDoc[tls] Definition:`TLS context`
 }
