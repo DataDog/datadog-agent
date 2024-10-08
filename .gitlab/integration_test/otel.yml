@@ -34,6 +34,13 @@ docker_image_build_otel:
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
+    - wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O
+      /usr/bin/yq && chmod +x /usr/bin/yq
+    - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.otelcol_version)
+    - /usr/bin/yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod"  
+      "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver ${OTELCOL_VERSION}"
+    - /usr/bin/yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod" 
+      "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor ${OTELCOL_VERSION}"
   script:
     - docker build -t agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
     - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
