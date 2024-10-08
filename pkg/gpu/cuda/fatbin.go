@@ -220,85 +220,85 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 type nvInfoFormat uint8
 
 const (
-	NVI_FMT_NONE nvInfoFormat = 0x01
-	NVI_FMT_BVAL nvInfoFormat = 0x02
-	NVI_FMT_HVAL nvInfoFormat = 0x03
-	NVI_FMT_SVAL nvInfoFormat = 0x04
+	nviFmtNone nvInfoFormat = 0x01
+	nviFmtBval nvInfoFormat = 0x02
+	nviFmtHval nvInfoFormat = 0x03
+	nviFmtSval nvInfoFormat = 0x04
 )
 
 // nvInfoAttr defines the attribute of a .nv.info item
 type nvInfoAttr uint8
 
 const (
-	NVI_ATTR_ERROR nvInfoAttr = iota
-	NVI_ATTR_PAD
-	NVI_ATTR_IMAGE_SLOT
-	NVI_ATTR_JUMPTABLE_RELOCS
-	NVI_ATTR_CTAIDZ_USED
-	NVI_ATTR_MAX_THREADS
-	NVI_ATTR_IMAGE_OFFSET
-	NVI_ATTR_IMAGE_SIZE
-	NVI_ATTR_TEXTURE_NORMALIZED
-	NVI_ATTR_SAMPLER_INIT
-	NVI_ATTR_PARAM_CBANK
-	NVI_ATTR_SMEM_PARAM_OFFSETS
-	NVI_ATTR_CBANK_PARAM_OFFSETS
-	NVI_ATTR_SYNC_STACK
-	NVI_ATTR_TEXID_SAMPID_MAP
-	NVI_ATTR_EXTERNS
-	NVI_ATTR_REQNTID
-	NVI_ATTR_FRAME_SIZE
-	NVI_ATTR_MIN_STACK_SIZE
-	NVI_ATTR_SAMPLER_FORCE_UNNORMALIZED
-	NVI_ATTR_BINDLESS_IMAGE_OFFSETS
-	NVI_ATTR_BINDLESS_TEXTURE_BANK
-	NVI_ATTR_BINDLESS_SURFACE_BANK
-	NVI_ATTR_KPARAM_INFO
-	NVI_ATTR_SMEM_PARAM_SIZE
-	NVI_ATTR_CBANK_PARAM_SIZE
-	NVI_ATTR_QUERY_NUMATTRIB
-	NVI_ATTR_MAXREG_COUNT
-	NVI_ATTR_EXIT_INSTR_OFFSETS
-	NVI_ATTR_S2RCTAID_INSTR_OFFSETS
-	NVI_ATTR_CRS_STACK_SIZE
-	NVI_ATTR_NEED_CNP_WRAPPER
-	NVI_ATTR_NEED_CNP_PATCH
-	NVI_ATTR_EXPLICIT_CACHING
-	NVI_ATTR_ISTYPEP_USED
-	NVI_ATTR_MAX_STACK_SIZE
-	NVI_ATTR_SUQ_USED
-	NVI_ATTR_LD_CACHEMOD_INSTR_OFFSETS
-	NVI_ATTR_LOAD_CACHE_REQUEST
-	NVI_ATTR_ATOM_SYS_INSTR_OFFSETS
-	NVI_ATTR_COOP_GROUP_INSTR_OFFSETS
-	NVI_ATTR_COOP_GROUP_MAX_REGIDS
-	NVI_ATTR_SW1850030_WAR
-	NVI_ATTR_WMMA_USED
-	NVI_ATTR_HAS_PRE_V10_OBJECT
-	NVI_ATTR_ATOMF16_EMUL_INSTR_OFFSETS
-	NVI_ATTR_ATOM16_EMUL_INSTR_REG_MAP
-	NVI_ATTR_REGCOUNT
-	NVI_ATTR_SW2393858_WAR
-	NVI_ATTR_INT_WARP_WIDE_INSTR_OFFSETS
-	NVI_ATTR_SHARED_SCRATCH
-	NVI_ATTR_STATISTICS
+	nviAttrError nvInfoAttr = iota
+	nviAttrPad
+	nviAttrImageSlot
+	nviAttrJumptableRelocs
+	nviAttrCtaidzUsed
+	nviAttrMaxThreads
+	nviAttrImageOffset
+	nviAttrImageSize
+	nviAttrTextureNormalized
+	nviAttrSamplerInit
+	nviAttrParamCbank
+	nviAttrSmemParamOffsets
+	nviAttrCbankParamOffsets
+	nviAttrSyncStack
+	nviAttrTexidSampidMap
+	nviAttrExterns
+	nviAttrReqntid
+	nviAttrFrameSize
+	nviAttrMinStackSize
+	nviAttrSamplerForceUnnormalized
+	nviAttrBindlessImageOffsets
+	nviAttrBindlessTextureBank
+	nviAttrBindlessSurfaceBank
+	nviAttrKparamInfo
+	nviAttrSmemParamSize
+	nviAttrCbankParamSize
+	nviAttrQueryNumattrib
+	nviAttrMaxregCount
+	nviAttrExitInstrOffsets
+	nviAttrS2rctaidInstrOffsets
+	nviAttrCrsStackSize
+	nviAttrNeedCnpWrapper
+	nviAttrNeedCnpPatch
+	nviAttrExplicitCaching
+	nviAttrIstypepUsed
+	nviAttrMaxStackSize
+	nviAttrSuqUsed
+	nviAttrLdCachemodInstrOffsets
+	nviAttrLoadCacheRequest
+	nviAttrAtomSysInstrOffsets
+	nviAttrCoopGroupInstrOffsets
+	nviAttrCoopGroupMaxRegids
+	nviAttrSw1850030War
+	nviAttrWmmaUsed
+	nviAttrHasPreV10Object
+	nviAttrAtomf16EmulInstrOffsets
+	nviAttrAtom16EmulInstrRegMap
+	nviAttrRegcount
+	nviAttrSw2393858War
+	nviAttrIntWarpWideInstrOffsets
+	nviAttrSharedScratch
+	nviAttrStatistics
 
 	// New between cuda 10.2 and 11.6
-	NVI_ATTR_INDIRECT_BRANCH_TARGETS
-	NVI_ATTR_SW2861232_WAR
-	NVI_ATTR_SW_WAR
-	NVI_ATTR_CUDA_API_VERSION
-	NVI_ATTR_NUM_MBARRIERS
-	NVI_ATTR_MBARRIER_INSTR_OFFSETS
-	NVI_ATTR_COROUTINE_RESUME_ID_OFFSETS
-	NVI_ATTR_SAM_REGION_STACK_SIZE
-	NVI_ATTR_PER_REG_TARGET_PERF_STATS
+	nviAttrIndirectBranchTargets
+	nviAttrSw2861232War
+	nviAttrSwWar
+	nviAttrCudaApiVersion
+	nviAttrNumMbarriers
+	nviAttrMbarrierInstrOffsets
+	nviAttrCoroutineResumeIdOffsets
+	nviAttrSamRegionStackSize
+	nviAttrPerRegTargetPerfStats
 
 	// New between cuda 11.6 and 11.8
-	NVI_ATTR_CTA_PER_CLUSTER
-	NVI_ATTR_EXPLICIT_CLUSTER
-	NVI_ATTR_MAX_CLUSTER_RANK
-	NVI_ATTR_INSTR_REG_MAP
+	nviAttrCtaPerCluster
+	nviAttrExplicitCluster
+	nviAttrMaxClusterRank
+	nviAttrInstrRegMap
 )
 
 // nvInfoItem is the in-file representation of an item  header in the .nv.info section. The value follows
@@ -403,11 +403,11 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer *bytes.Reader, 
 		var valueSize int
 
 		switch item.Format {
-		case NVI_FMT_BVAL:
+		case nviFmtBval:
 			valueSize = 1
-		case NVI_FMT_HVAL:
+		case nviFmtHval:
 			valueSize = 2
-		case NVI_FMT_SVAL:
+		case nviFmtSval:
 			var nval uint16
 			if err := binary.Read(buffer, binary.LittleEndian, &nval); err != nil {
 				return fmt.Errorf("failed to parse value size: %w", err)
