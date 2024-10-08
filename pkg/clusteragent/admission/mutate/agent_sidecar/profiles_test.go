@@ -117,7 +117,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			profiles, err := loadSidecarProfiles()
+			profiles, err := loadSidecarProfiles(mockConfig)
 
 			if test.expectError {
 				assert.Error(tt, err)
@@ -361,7 +361,7 @@ func TestApplyProfileOverrides(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			mutated, err := applyProfileOverrides(test.baseContainer)
+			mutated, err := applyProfileOverrides(test.baseContainer, mockConfig)
 
 			assert.Equal(tt, test.expectMutated, mutated)
 

@@ -112,7 +112,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 		mutatingWebhooks = []Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter, datadogConfig),
 			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
-			agentsidecar.NewWebhook(),
+			agentsidecar.NewWebhook(datadogConfig),
 			autoscaling.NewWebhook(pa),
 		}
 		webhooks = append(webhooks, mutatingWebhooks...)
