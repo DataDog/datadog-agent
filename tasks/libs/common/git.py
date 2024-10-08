@@ -63,8 +63,7 @@ def get_file_modifications(
     last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
 
     modifications = [
-        line.split()
-        for line in ctx.run(f"git diff --name-status {last_main_commit}..HEAD", hide=True).stdout.splitlines()
+        line.split() for line in ctx.run(f"git diff --name-status {last_main_commit}", hide=True).stdout.splitlines()
     ]
 
     if added or modified or removed:
