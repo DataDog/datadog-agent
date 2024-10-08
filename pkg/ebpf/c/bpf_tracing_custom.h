@@ -16,27 +16,29 @@
 #define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x,3)
 #define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x,4)
 
-#define DI_REGISTER_0 ax
-#define DI_REGISTER_1 dx
-#define DI_REGISTER_2 cx
-#define DI_REGISTER_3 bx
-#define DI_REGISTER_4 si
-#define DI_REGISTER_5 di
-#define DI_REGISTER_6 bp
-#define DI_REGISTER_7 sp
-#define DI_REGISTER_8 r8
-#define DI_REGISTER_9 r9
-#define DI_REGISTER_10 r10
-#define DI_REGISTER_11 r11
-#define DI_REGISTER_12 r12
-#define DI_REGISTER_13 r13
-#define DI_REGISTER_14 r14
-#define DI_REGISTER_15 r15
-#define DI_REGISTER_16 ip
+// The following order of registers follows the x86_64 DWARF register number mapping
+// https://refspecs.linuxfoundation.org/elf/x86_64-abi-0.95.pdf#page=56
+#define DWARF_REGISTER_0 ax
+#define DWARF_REGISTER_1 dx
+#define DWARF_REGISTER_2 cx
+#define DWARF_REGISTER_3 bx
+#define DWARF_REGISTER_4 si
+#define DWARF_REGISTER_5 di
+#define DWARF_REGISTER_6 bp
+#define DWARF_REGISTER_7 sp
+#define DWARF_REGISTER_8 r8
+#define DWARF_REGISTER_9 r9
+#define DWARF_REGISTER_10 r10
+#define DWARF_REGISTER_11 r11
+#define DWARF_REGISTER_12 r12
+#define DWARF_REGISTER_13 r13
+#define DWARF_REGISTER_14 r14
+#define DWARF_REGISTER_15 r15
+#define DWARF_REGISTER_16 ip
 
-#define DI_REGISTER(num) DI_REGISTER_##num
+#define DWARF_REGISTER(num) DWARF_REGISTER_##num
 
-#define DI_STACK_VALUE_REG DI_REGISTER(7)
+#define DWARF_STACK_REGISTER DWARF_REGISTER(7)
 
 #elif defined(bpf_target_arm64)
 
@@ -48,9 +50,9 @@
     p;                                                                     \
 })
 
-#define DI_REGISTER(num) regs[num]
+#define DWARF_REGISTER(num) regs[num]
 
-#define DI_STACK_VALUE_REG DI_REGISTER(29)
+#define DWARF_STACK_REGISTER DWARF_REGISTER(29)
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])
