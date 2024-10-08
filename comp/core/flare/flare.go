@@ -99,15 +99,15 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, nil)
-	if err != nil {
-		return true, err
-	}
+	//filePath, err := f.Create(nil, nil)
+	//if err != nil {
+	//	return true, err
+	//}
 
-	f.log.Infof("Flare was created by remote-config at %s", filePath)
+	f.log.Infof("[onAgentTaskEvent] caseID=%d, userHandle=%s", caseID, userHandle)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
-	return true, err
+	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	return true, nil
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {

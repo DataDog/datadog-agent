@@ -15,6 +15,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -201,7 +202,8 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	// TODO: USING NDM NETFLOW EXPORTER FOR POC
 	netflowExporters := []metadata.NetflowExporter{
 		{
-			ID:            "ha-agent-" + agentHostname,
+			// UUID to avoid being cached in backend
+			ID:            "ha-agent-" + agentHostname + "-" + uuid.NewString(),
 			IPAddress:     "1.1.1.1",
 			FlowType:      "netflow9",
 			ClusterId:     clusterId,

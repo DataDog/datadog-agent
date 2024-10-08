@@ -247,6 +247,7 @@ func (rc rcClient) SubscribeAgentTask() {
 		pkglog.Errorf("No remote-config client")
 		return
 	}
+	pkglog.Debug("Subs agent task")
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
@@ -316,6 +317,8 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
+
+	pkglog.Debug("Agent task callback")
 
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
