@@ -78,6 +78,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
+exclude_members = ["ancostas", "Maascamp"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"

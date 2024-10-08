@@ -7,9 +7,11 @@ package common
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"regexp"
+	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -120,6 +122,10 @@ func CheckUninstallation(t *testing.T, client *TestClient) {
 		installFolderPath := client.Helper.GetInstallFolder()
 
 		entries, err := client.FileManager.ReadDir(installFolderPath)
-		require.Error(tt, err, "should not find anything in install folder, found %v dir entries ", len(entries))
+		var names []string
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		require.Error(tt, err, "should not find anything in install folder, found %v dir entries.\nContent: %+v ", len(entries), strings.Join(names, ", "))
 	})
 }

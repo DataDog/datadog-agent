@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -109,7 +109,7 @@ func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarF
 	for i := range containers {
 		env, err := fn(&containers[i], init)
 		if err != nil {
-			_ = log.Errorf("Error building env var: %v", err)
+			log.Errorf("Error building env var: %v", err)
 			continue
 		}
 		injected = injectEnvInContainer(&containers[i], env) || injected
@@ -181,11 +181,11 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
 func ContainerRegistry(specificConfigOpt string) string {
-	if config.Datadog().IsSet(specificConfigOpt) {
-		return config.Datadog().GetString(specificConfigOpt)
+	if pkgconfigsetup.Datadog().IsSet(specificConfigOpt) {
+		return pkgconfigsetup.Datadog().GetString(specificConfigOpt)
 	}
 
-	return config.Datadog().GetString("admission_controller.container_registry")
+	return pkgconfigsetup.Datadog().GetString("admission_controller.container_registry")
 }
 
 // MarkVolumeAsSafeToEvictForAutoscaler adds the Kubernetes cluster-autoscaler

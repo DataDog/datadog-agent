@@ -75,6 +75,44 @@ func TestObjectStore_GetSet(t *testing.T) {
 	test(t, true)
 }
 
+func TestObjectStore_GetWithEntityIDStr(t *testing.T) {
+	test := func(t *testing.T, isComposite bool) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("tagger.tagstore_use_composite_entity_id", isComposite)
+
+		store := NewObjectStore[any](cfg)
+
+		id := types.NewEntityID("prefix", "id")
+		idStr := id.String()
+		// getting a non-existent item
+		obj, found := store.GetWithEntityIDStr(idStr)
+		assert.Nil(t, obj)
+		assert.Falsef(t, found, "item should not be found in store")
+
+		// set item
+		store.Set(id, struct{}{})
+
+		// getting item
+		obj, found = store.GetWithEntityIDStr(idStr)
+		assert.NotNil(t, obj)
+		assert.Truef(t, found, "item should be found in store")
+
+		// unsetting item
+		store.Unset(id)
+
+		// getting a non-existent item
+		obj, found = store.GetWithEntityIDStr(idStr)
+		assert.Nil(t, obj)
+		assert.Falsef(t, found, "item should not be found in store")
+	}
+
+	// default store
+	test(t, false)
+
+	// composite store
+	test(t, true)
+}
+
 func TestObjectStore_Size(t *testing.T) {
 
 	test := func(t *testing.T, isComposite bool) {

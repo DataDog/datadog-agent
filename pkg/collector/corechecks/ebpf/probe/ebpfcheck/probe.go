@@ -28,7 +28,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -86,17 +86,17 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, err
 	}
 
-	if ddconfig.SystemProbe().GetBool("ebpf_check.kernel_bpf_stats") {
+	if pkgconfigsetup.SystemProbe().GetBool("ebpf_check.kernel_bpf_stats") {
 		probe.statsFD, err = ebpf.EnableStats(unix.BPF_STATS_RUN_TIME)
 		if err != nil {
 			log.Warnf("kernel ebpf stats failed to enable, program runtime and run count will be unavailable: %s", err)
 		}
 	}
 
-	probe.mapBuffers.keysBufferSizeLimit = uint32(ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
-	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
-	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
-	probe.entryCountMaxRestarts = ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_restarts")
+	probe.mapBuffers.keysBufferSizeLimit = uint32(pkgconfigsetup.SystemProbe().GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
+	probe.mapBuffers.valuesBufferSizeLimit = uint32(pkgconfigsetup.SystemProbe().GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
+	probe.mapBuffers.iterationRestartDetectionEntries = pkgconfigsetup.SystemProbe().GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
+	probe.entryCountMaxRestarts = pkgconfigsetup.SystemProbe().GetInt("ebpf_check.entry_count.max_restarts")
 
 	if isForEachElemHelperAvailable() {
 		probe.mphCache = newMapProgHelperCache()

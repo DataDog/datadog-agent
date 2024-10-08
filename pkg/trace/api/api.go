@@ -279,17 +279,18 @@ func (r *HTTPReceiver) Start() {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 			ln, err := r.listenUnix(path)
 			if err != nil {
+				log.Errorf("Error creating UDS listener: %v", err)
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				killProcess("Error creating UDS listener: %v", err)
+			} else {
+				go func() {
+					defer watchdog.LogOnPanic(r.statsd)
+					if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+						log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+						r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+					}
+				}()
+				log.Infof("Listening for traces at unix://%s", path)
 			}
-			go func() {
-				defer watchdog.LogOnPanic(r.statsd)
-				if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-					r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				}
-			}()
-			log.Infof("Listening for traces at unix://%s", path)
 		} else {
 			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
@@ -377,6 +378,16 @@ func (r *HTTPReceiver) Stop() error {
 	close(r.out)
 	r.telemetryForwarder.Stop()
 	return nil
+}
+
+// UpdateAPIKey rebuilds the server handler to update API Keys in all endpoints
+func (r *HTTPReceiver) UpdateAPIKey() {
+	if r.server == nil {
+		return
+	}
+	log.Debug("API Key updated. Rebuilding API handler.")
+	handler := r.buildMux()
+	r.server.Handler = handler
 }
 
 func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.ResponseWriter, *http.Request)) http.HandlerFunc {

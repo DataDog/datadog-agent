@@ -252,7 +252,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		infraEnv:   opts.InfraEnv,
 	}
 
-	stackManager.RetryStrategy = retryHandler.HandleError
+	stackManager.GetRetryStrategyFrom = retryHandler.HandleError
 	pulumiStack, upResult, pulumiErr := stackManager.GetStackNoDeleteOnFailure(
 		systemProbeTestEnv.context,
 		systemProbeTestEnv.name,

@@ -41,7 +41,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, deps.WMeta, deps.Telemetry)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, deps.Telemetry)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled

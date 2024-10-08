@@ -12,7 +12,7 @@
 static cb_get_connection_info_t cb_get_connection_info = NULL;
 
 // forward declarations
-static PyObject *get_connection_info();
+static PyObject *get_connection_info(PyObject *, PyObject *);
 
 static PyMethodDef methods[] = {
     { "get_connection_info", (PyCFunction)get_connection_info, METH_NOARGS, "Get kubelet connection information." },

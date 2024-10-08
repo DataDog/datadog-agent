@@ -47,17 +47,17 @@ const (
 	ProgramHTTP2Termination ProgramType = C.PROG_HTTP2_TERMINATION
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
-	// ProgramKafkaResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramKafkaResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0
-	// ProgramKafkaResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramKafkaResponsePartitionParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12
-	// ProgramKafkaResponseRecordBatchParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramKafkaResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
-	// ProgramKafkaResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramKafkaResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
-	// ProgramKafkaProduceResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	// ProgramKafkaFetchResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0 enum
+	ProgramKafkaFetchResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V0
+	// ProgramKafkaFetchResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12 enum
+	ProgramKafkaFetchResponsePartitionParserV12 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_PARTITION_PARSER_V12
+	// ProgramKafkaFetchResponseRecordBatchParserV0 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0 enum
+	ProgramKafkaFetchResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V0
+	// ProgramKafkaFetchResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12 enum
+	ProgramKafkaFetchResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_FETCH_RESPONSE_RECORD_BATCH_PARSER_V12
+	// ProgramKafkaProduceResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0 enum
 	ProgramKafkaProduceResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0
-	// ProgramKafkaProduceResponsePartitionParserV9 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	// ProgramKafkaProduceResponsePartitionParserV9 is the Golang representation of the C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9 enum
 	ProgramKafkaProduceResponsePartitionParserV9 ProgramType = C.PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V9
 	// ProgramKafkaTermination is tail call to process Kafka termination.
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION

@@ -1,6 +1,6 @@
 ---
 dist:
-  module: github.com/DataDog/comp/otelcol/collector-contrib
+  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib
   name: otelcol-contrib
   description: Valid (default) datadog converged Agent ocb manifest (should pass collector_tests.py)
   version: 0.104.0
@@ -19,7 +19,6 @@ extensions:
 
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.104.0
-  - gomod: go.opentelemetry.io/collector/exporter/loggingexporter v0.104.0
   - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.104.0
   - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.104.0
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.104.0

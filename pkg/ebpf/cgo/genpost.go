@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strings"
 )
 
 func main() {
@@ -23,10 +24,29 @@ func main() {
 
 	b = removeAbsolutePath(b, runtime.GOOS)
 
+	int8variableNames := []string{
+		"Buf",
+		"Cgroup",
+		"Cgroup_name",
+		"LocalAddr",
+		"LocalAddress",
+		"Probe_id",
+		"RemoteAddr",
+		"RemoteAddress",
+		"Request_fragment",
+		"Topic_name",
+		"Trigger_comm",
+		"Victim_comm",
+	}
+
 	// Convert []int8 to []byte in multiple generated fields from the kernel, to simplify
 	// conversion to string; see golang.org/issue/20753
-	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(Request_fragment|Topic_name|Buf|Cgroup|RemoteAddr|LocalAddr|Cgroup_name|Victim_comm|Trigger_comm|LocalAddress|RemoteAddress|Probe_id)(\s+)\[(\d+)\]u?int8`)
+	convertInt8ArrayToByteArrayRegex := regexp.MustCompile(`(` + strings.Join(int8variableNames, "|") + `)(\s+)\[(\d+)\]u?int8`)
 	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
+
+	// Convert generated pointers to CGo structs to uint64
+	convertPointerToUint64Regex := regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
+	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uint64"))
 
 	b, err = format.Source(b)
 	if err != nil {

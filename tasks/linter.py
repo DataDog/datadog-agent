@@ -6,28 +6,35 @@ import sys
 from collections import defaultdict
 from glob import glob
 
+import yaml
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
+from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    MultiGitlabCIDiff,
+    full_config_get_all_leaf_jobs,
+    full_config_get_all_stages,
     generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
-    get_gitlab_repo,
     get_preset_contexts,
+    is_leaf_job,
     load_context,
     read_includes,
     retrieve_all_paths,
+    test_gitlab_configuration,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -301,21 +308,33 @@ def lint_flavor(
 
 
 @task
-def list_ssm_parameters(_):
+def list_parameters(_, type):
     """
     List all SSM parameters used in the datadog-agent repository.
     """
-
-    ssm_owner = re.compile(r"^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
-    ssm_params = defaultdict(list)
+    if type == "ssm":
+        section_pattern = re.compile(r"aws ssm variables")
+    elif type == "vault":
+        section_pattern = re.compile(r"vault variables")
+    else:
+        raise Exit(f"{color_message('Error', Color.RED)}: pattern must be in [ssm, vault], not |{type}|")
+    in_param_section = False
+    param_owner = re.compile(r"^[^:]+: (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    params = defaultdict(list)
     with open(".gitlab-ci.yml") as f:
         for line in f:
-            m = ssm_owner.match(line.strip())
-            if m:
-                ssm_params[m.group("owner")].append(m.group("param"))
-    for owner in ssm_params.keys():
+            section = section_pattern.search(line)
+            if section:
+                in_param_section = not in_param_section
+            if in_param_section:
+                if len(line.strip()) == 0:
+                    break
+                m = param_owner.match(line.strip())
+                if m:
+                    params[m.group("owner")].append(m.group("param"))
+    for owner in params.keys():
         print(f"Owner:{owner}")
-        for param in ssm_params[owner]:
+        for param in params[owner]:
             print(f"  - {param}")
 
 
@@ -349,11 +368,11 @@ def ssm_parameters(ctx, mode="all", folders=None):
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
-    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for secret parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
         """
         Initialize an SSMParameterCall instance.
 
@@ -362,18 +381,16 @@ class SSMParameterCall:
             line_nb (int): The line number in the file where the SSM parameter call is located.
             with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
             with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
-            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
         """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
-        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper or not self.standard:
-            message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
+        if not self.with_wrapper:
+            message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
         return f"{self.file}:{self.line_nb + 1}. {message}"
@@ -383,29 +400,24 @@ class SSMParameterCall:
 
 
 def list_get_parameter_calls(file):
-    ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
-    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    # remove the first letter of the script name because '\f' is badly interpreted for windows paths
+    wrapper_call = re.compile(r"^.+etch_secret.(sh|ps1)[\"]? (-parameterName )?+(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
-                is_ssm_get = ssm_get.match(line.strip())
-                if is_ssm_get:
-                    m = aws_ssm_call.match(line.strip())
-                    if m:
-                        # Remove possible quotes
-                        param = m["param"].replace('"', '').replace("'", "")
-                        calls.append(
-                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
-                        )
-                    m = ssm_wrapper_call.match(line.strip())
-                    param = m["param"].replace('"', '').replace("'", "") if m else None
-                    if m and not (param.startswith("$") or "os.environ" in param):
-                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
-                    if not m:
-                        calls.append(SSMParameterCall(file, nb, standard=False))
+                m = aws_ssm_call.match(line.strip())
+                if m:
+                    # Remove possible quotes
+                    param = m["param"].replace('"', '').replace("'", "")
+                    calls.append(
+                        SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
+                    )
+                m = wrapper_call.match(line.strip())
+                param = m["param"].replace('"', '').replace("'", "") if m else None
+                if m and not (param.startswith("$") or "os.environ" in param):
+                    calls.append(SSMParameterCall(file, nb, with_wrapper=True))
         except UnicodeDecodeError:
             pass
     return calls
@@ -419,33 +431,8 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
     """
-
-    agent = get_gitlab_repo()
-    has_errors = False
-
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx)
-
-    def test_gitlab_configuration(entry_point, input_config, context=None):
-        nonlocal has_errors
-
-        # Update config and lint it
-        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
-        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
-        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
-        if len(res.warnings) > 0:
-            print(
-                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-                file=sys.stderr,
-            )
-        if not res.valid:
-            print(
-                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-                file=sys.stderr,
-            )
-            has_errors = True
+    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
 
     for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
@@ -460,12 +447,99 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(entry_point, input_config, dict(context))
+                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
             else:
-                test_gitlab_configuration(entry_point, input_config)
+                test_gitlab_configuration(ctx, entry_point, input_config)
 
-    if has_errors:
-        raise Exit(code=1)
+
+def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
+    """
+    Utility to get the jobs from full gitlab ci configuration file or from a diff file.
+
+    - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+    - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+    """
+
+    assert (
+        diff_file or config_file and not (diff_file and config_file)
+    ), "You must provide either a diff file or a config file and not both"
+
+    # Load all the jobs from the files
+    if config_file:
+        with open(config_file) as f:
+            full_config = yaml.safe_load(f)
+            jobs = [
+                (job, job_contents)
+                for contents in full_config.values()
+                for job, job_contents in contents.items()
+                if is_leaf_job(job, job_contents)
+            ]
+    else:
+        with open(diff_file) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+
+        full_config = diff.after
+        jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
+
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return
+
+    if only_names:
+        jobs = [job for job, _ in jobs]
+
+    return jobs, full_config
+
+
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+    """
+    Verifies that each added / modified job contains `needs` and also `rules`.
+    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
+    All configurations are checked (even downstream ones).
+
+    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
+    # Verify the jobs
+    error_jobs = []
+    n_ignored = 0
+    for job, contents in jobs:
+        error = "needs" not in contents or "rules" not in contents
+        to_ignore = (
+            job in ci_linters_config.needs_rules_jobs or contents['stage'] in ci_linters_config.needs_rules_stages
+        )
+
+        if to_ignore:
+            if error:
+                n_ignored += 1
+            continue
+
+        if error:
+            error_jobs.append((job, contents['stage']))
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path}:needs-rules)'
+        )
+
+    if error_jobs:
+        error_jobs = sorted(error_jobs)
+        error_jobs = '\n'.join(f'- {job} ({stage} stage)' for job, stage in error_jobs)
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {ci_linters_config.path}",
+            code=1,
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have "needs" and "rules"')
 
 
 @task
@@ -620,7 +694,9 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+        if "rules" in config[test] and not any(
+            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+        ):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
             else:
@@ -668,3 +744,42 @@ def gitlab_change_paths(ctx):
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
         )
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
+
+
+@task
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+    """
+    Verifies that each job is defined within JOBOWNERS files.
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+
+    error_jobs = []
+    n_ignored = 0
+    for job in jobs:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            if job in ci_linters_config.job_owners_jobs:
+                n_ignored += 1
+            else:
+                error_jobs.append(job)
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
+        )
+
+    if error_jobs:
+        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')

@@ -59,6 +59,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOpen",
 			"~TestUnlink",
 			"~TestActionKill",
+			"~TestActionHash",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
@@ -101,7 +102,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoginUID/login-uid-open-test",
 			"TestLoginUID/login-uid-exec-test",
 			"TestActionKillExcludeBinary",
-			"TestActionKillDisarm",
+			"~TestActionKillDisarm",
 		}
 
 		if disableSeccomp {

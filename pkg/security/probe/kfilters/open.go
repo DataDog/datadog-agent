@@ -9,52 +9,56 @@
 package kfilters
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var openCapabilities = rules.FieldCapabilities{
-	{
-		Field:       "open.flags",
-		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+var openCapabilities = mergeCapabilities(
+	rules.FieldCapabilities{
+		{
+			Field:       "open.flags",
+			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+			ValidateFnc:  validateBasenameFilter,
+			FilterWeight: 15,
+		},
+		{
+			Field:        "open.file.name",
+			TypeBitmask:  eval.ScalarValueType,
+			FilterWeight: 300,
+		},
 	},
-	{
-		Field:        "open.file.path",
-		TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-		ValidateFnc:  validateBasenameFilter,
-		FilterWeight: 15,
-	},
-	{
-		Field:        "open.file.name",
-		TypeBitmask:  eval.ScalarValueType,
-		FilterWeight: 10,
-	},
-}
+	processCapabilities,
+)
 
-func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
-	openKFilters, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
+func openKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+	kfilters, fieldHandled, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "open.file.name", "open.file.path": // already handled by getBasenameKFilters
 		case "open.flags":
 			kfilter, err := getFlagsKFilter("open_flags_approvers", uintValues[uint32](values)...)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			openKFilters = append(openKFilters, kfilter)
-
-		default:
-			return nil, fmt.Errorf("unknown field '%s'", field)
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
 		}
-
 	}
 
-	return newActiveKFilters(openKFilters...), nil
+	kfs, handled, err := getProcessKFilters(model.FileOpenEventType, approvers)
+	if err != nil {
+		return nil, nil, err
+	}
+	kfilters = append(kfilters, kfs...)
+	fieldHandled = append(fieldHandled, handled...)
+
+	return newActiveKFilters(kfilters...), fieldHandled, nil
 }

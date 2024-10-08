@@ -14,6 +14,8 @@ concurrency:
   group: ${{ github.workflow }}/PR#${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   baseline:
     name: Baseline

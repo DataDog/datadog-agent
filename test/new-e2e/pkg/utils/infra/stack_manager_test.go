@@ -8,12 +8,14 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"io"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -224,6 +226,50 @@ func TestStackManager(t *testing.T) {
 		assert.Contains(t, mockDatadogEventSender.events[0].Title, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", stackName))
 		assert.Contains(t, mockDatadogEventSender.events[1].Title, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", stackName))
 		assert.Contains(t, mockDatadogEventSender.events[2].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
+	})
+
+	t.Run("should-return-retry-strategy-on-retriable-errors", func(t *testing.T) {
+		t.Parallel()
+
+		type testError struct {
+			name              string
+			errMessage        string
+			expectedRetryType RetryType
+		}
+
+		testErrors := []testError{
+			{
+				name:              "timeout",
+				errMessage:        "i/o timeout",
+				expectedRetryType: ReCreate,
+			},
+			{
+				name:              "connection-refused",
+				errMessage:        "failed attempts: dial tcp :22: connect: connection refused",
+				expectedRetryType: ReCreate,
+			},
+			{
+				name:              "resource-not-exist",
+				errMessage:        "Resource provider reported that the resource did not exist while updating",
+				expectedRetryType: ReCreate,
+			},
+			{
+				name:              "cloud-init-timeout",
+				errMessage:        "Process exited with status 2: running \" sudo cloud-init status --wait\"",
+				expectedRetryType: ReCreate,
+			},
+			{
+				name:              "ecs-fakeintake-timeout",
+				errMessage:        "waiting for ECS Service (arn:aws:ecs:us-east-1:669783387624:service/fakeintake-ecs/ci-633219896-4670-e2e-dockersuite-80f62edf7bcc6194-aws-fakeintake-dockervm-srv) create: timeout while waiting for state to become 'tfSTABLE' (last state: 'tfPENDING', timeout: 20m0s)",
+				expectedRetryType: ReCreate,
+			},
+		}
+
+		for _, te := range testErrors {
+			err := errors.New(te.errMessage)
+			retryType, _ := stackManager.getRetryStrategyFrom(err, 0)
+			assert.Equal(t, te.expectedRetryType, retryType, te.name)
+		}
 	})
 }
 
