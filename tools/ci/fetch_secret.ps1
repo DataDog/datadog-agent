@@ -9,6 +9,7 @@ $maxRetries = 10
 
 # To catch the error message from aws cli
 $ErrorActionPreference = "Continue"
+exit 42
 
 while ($retryCount -lt $maxRetries) {
     if ($parameterField) {

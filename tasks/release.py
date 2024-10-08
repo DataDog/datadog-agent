@@ -1137,14 +1137,14 @@ def create_qa_cards(ctx, tag):
     """
     Automate the call to ddqa
     """
-    from tasks.libs.releasing.qa import get_labels, setup_ddqa
+    from tasks.libs.releasing.qa import setup_ddqa
 
     version = _create_version_from_match(VERSION_RE.match(tag))
     if not version.rc:
         print(f"{tag} is not a release candidate, skipping")
         return
     setup_ddqa(ctx)
-    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
+    # ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")
 
 
 @task
