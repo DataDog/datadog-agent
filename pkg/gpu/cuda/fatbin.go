@@ -1,7 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
+
+// This file contains a parser for the Cubin/Fatbin format.
+// References:
+// - https://github.com/VivekPanyam/cudaparsers
 
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=nvInfoAttr,nvInfoFormat,fatbinDataKind -linecomment
 
