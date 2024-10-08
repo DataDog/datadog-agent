@@ -114,6 +114,7 @@ type WindowsProbe struct {
 	// approvers
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
+	approverLock      sync.RWMutex
 }
 
 type approver interface {
@@ -412,6 +413,9 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 	if !p.config.Probe.EnableApprovers {
 		return true
 	}
+
+	p.approverLock.RLock()
+	defer p.approverLock.RUnlock()
 
 	approvers, exists := p.approvers[field]
 	if !exists {
@@ -750,6 +754,8 @@ func (p *WindowsProbe) Start() error {
 				return
 
 			case <-p.onError:
+				log.Errorf("error in underlying procmon")
+				continue
 				// in this case, we got some sort of error that the underlying
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 
@@ -1267,10 +1273,13 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	}
 
 	// remove old approvers
+	p.approverLock.Lock()
+	defer p.approverLock.Unlock()
+
 	clear(p.approvers)
 
 	for eventType, report := range ars.Policies {
-		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
 	}
@@ -1410,8 +1419,8 @@ func NewProbe(config *config.Config, opts Opts, telemetry telemetry.Component) (
 	return p, nil
 }
 
-// SetApprovers applies approvers and removes the unused ones
-func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers) error {
+// setApprovers applies approvers and removes the unused ones
+func (p *WindowsProbe) setApprovers(_ eval.EventType, approvers rules.Approvers) error {
 	for name, els := range approvers {
 		for _, el := range els {
 			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
