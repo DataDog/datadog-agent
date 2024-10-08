@@ -6,13 +6,14 @@
 package cdn
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestConfig(t *testing.T) {
-	baseLayer := &layer{
+	baseLayer := &agentConfigLayer{
 		ID: "base",
 		AgentConfig: map[string]interface{}{
 			"api_key": "1234",
@@ -22,7 +23,10 @@ func TestConfig(t *testing.T) {
 			},
 		},
 	}
-	overrideLayer := &layer{
+	baseLayerRaw, err := json.Marshal(baseLayer)
+	assert.NoError(t, err)
+
+	overrideLayer := &agentConfigLayer{
 		ID: "override",
 		AgentConfig: map[string]interface{}{
 			"apm": map[string]interface{}{
@@ -31,7 +35,14 @@ func TestConfig(t *testing.T) {
 			},
 		},
 	}
-	config, err := newConfig(baseLayer, overrideLayer)
+	overrideLayerRaw, err := json.Marshal(overrideLayer)
+	assert.NoError(t, err)
+
+	order := &orderConfig{
+		Order: []string{"base", "override"},
+	}
+
+	config, err := newAgentConfig(order, baseLayerRaw, overrideLayerRaw)
 	assert.NoError(t, err)
 	expectedConfig := doNotEditDisclaimer + `
 api_key: "1234"
@@ -43,5 +54,5 @@ fleet_layers:
 - override
 - base
 `
-	assert.Equal(t, expectedConfig, string(config.Datadog))
+	assert.Equal(t, expectedConfig, string(config.datadog))
 }

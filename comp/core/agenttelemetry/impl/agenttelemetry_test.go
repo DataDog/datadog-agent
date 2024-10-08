@@ -3,12 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 package agenttelemetryimpl
 
 import (
@@ -246,12 +240,6 @@ func TestEnableIfNotGovCloud(t *testing.T) {
 		"site":                    "datadoghq.eu"}
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.True(t, a.enabled)
-}
-
-func TestDisableByDefault(t *testing.T) {
-	o := map[string]any{"foo": "bar", "site": "foo.bar"}
-	a := getTestAtel(t, nil, o, nil, nil, nil)
-	assert.False(t, a.enabled)
 }
 
 func TestRun(t *testing.T) {

@@ -96,10 +96,14 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	if err != nil && err != agentConfig.ErrNoDDExporter {
 		return err
 	}
+	uris := append(params.ConfPaths, params.Sets...)
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
-			fx.Provide(func() []string {
-				return append(params.ConfPaths, params.Sets...)
+			fx.Supply(uris),
+			fx.Supply(optional.NewNoneOption[coreconfig.Component]()),
+			converterfx.Module(),
+			fx.Provide(func(cp converter.Component) confmap.Converter {
+				return cp
 			}),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
@@ -128,13 +132,12 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			pkgconfigenv.DetectFeatures(acfg)
 			return acfg, nil
 		}),
+		fxutil.ProvideOptional[coreconfig.Component](),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		fx.Provide(func() []string {
-			return append(params.ConfPaths, params.Sets...)
-		}),
+		fx.Supply(uris),
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),

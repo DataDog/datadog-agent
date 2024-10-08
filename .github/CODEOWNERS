@@ -308,6 +308,7 @@
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
+/pkg/gpu/                               @DataDog/ebpf-platform
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
@@ -356,6 +357,7 @@
 /pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/           @DataDog/processes
+/pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
