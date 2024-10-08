@@ -105,6 +105,11 @@ type NetworkContext struct {
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
+}
+
 // SpanContext describes a span context
 type SpanContext struct {
 	SpanID  uint64          `field:"-"`
@@ -313,8 +318,9 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	ToJSON() ([]byte, bool, error)
+	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
+	IsResolved() bool
 }
 
 // NewMatchedRule return a new MatchedRule instance
