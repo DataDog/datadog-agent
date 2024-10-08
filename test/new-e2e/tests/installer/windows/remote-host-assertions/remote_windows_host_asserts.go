@@ -169,7 +169,7 @@ func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindo
 	}
 }
 
-// HasNamedPipe checks if a named pipe exists on the remote host
+// HasNoNamedPipe checks if a named pipe does not exist on the remote host
 func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWindowsHostAssertions {
 	r.suite.T().Helper()
 
