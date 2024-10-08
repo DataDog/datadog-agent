@@ -38,7 +38,6 @@ func TestInjectedEnvBasic(t *testing.T) {
 	createEnvsMemfd(t, expected)
 
 	envMap, err := getEnvs(proc)
-
 	require.NoError(t, err)
 	require.Subset(t, envMap, map[string]string{
 		"key1": "val1",
@@ -108,6 +107,7 @@ func memfile(name string, b []byte) (int, error) {
 	return fd, nil
 }
 
+// TestTargetEnvs it checks reading of target environment variables only from /proc/<pid>/environ.
 func TestTargetEnvs(t *testing.T) {
 	curPid := os.Getpid()
 	proc, err := process.NewProcess(int32(curPid))
@@ -121,6 +121,7 @@ func TestTargetEnvs(t *testing.T) {
 	require.Equal(t, vars.GetVars(), expectedMap)
 }
 
+// BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
 func BenchmarkGetEnvs(b *testing.B) {
 	proc, err := customNewProcess(int32(os.Getpid()))
 	if err != nil {
@@ -136,6 +137,7 @@ func BenchmarkGetEnvs(b *testing.B) {
 	}
 }
 
+// BenchmarkGetEnvsTarget benchmarks reading of target environment variables only from /proc/<pid>/environ.
 func BenchmarkGetEnvsTarget(b *testing.B) {
 	proc, err := customNewProcess(int32(os.Getpid()))
 	if err != nil {

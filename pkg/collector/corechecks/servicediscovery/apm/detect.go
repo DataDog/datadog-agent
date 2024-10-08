@@ -217,7 +217,6 @@ func javaDetector(_ int, args []string, envs envs.EnvironmentVariables, _ usm.De
 		}
 	}
 	// also don't instrument if the javaagent is there in the environment variable JAVA_TOOL_OPTIONS and friends
-	// also don't instrument if the javaagent is there in the environment variable JAVA_TOOL_OPTIONS and friends
 	toolOptionEnvs := []string{
 		// These are the environment variables that are used to pass options to the JVM
 		"JAVA_TOOL_OPTIONS",
@@ -236,7 +235,6 @@ func javaDetector(_ int, args []string, envs envs.EnvironmentVariables, _ usm.De
 			}
 		}
 	}
-
 	return None
 }
 

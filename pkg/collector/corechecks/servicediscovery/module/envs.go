@@ -159,12 +159,9 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 }
 
 // EnvReader reads the environment variables from /proc/<pid>/environ file.
-// It collects only those variables that match the target map if the map is not empty,
-// otherwise collect all environment variables.
 type EnvReader struct {
 	file    *os.File                  // open pointer to environment variables file
 	scanner *bufio.Scanner            // iterator to read strings from text file
-	targets map[string]string         // map of environment variables of interest
 	envs    envs.EnvironmentVariables // collected environment variables
 }
 
@@ -180,7 +177,7 @@ func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error
 	return 0, data, bufio.ErrFinalToken
 }
 
-// newEnvReader returns a new [EnvReader] to read from path.
+// newEnvReader returns a new [EnvReader] to read from path, it reads null terminated strings.
 func newEnvReader(proc *process.Process, lang language.Language) (*EnvReader, error) {
 	envPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "environ")
 	file, err := os.Open(envPath)
@@ -205,8 +202,8 @@ func (er *EnvReader) finish() {
 	}
 }
 
-// add adds env. variable to the map of environment variables.
-// returns true if the search should be stopped
+// add adds env. variable to the map of environment variables,
+// returns true if reading should be stopped.
 func (er *EnvReader) add() bool {
 	env := er.scanner.Text()
 	name, val, found := strings.Cut(env, "=")
@@ -216,7 +213,7 @@ func (er *EnvReader) add() bool {
 	return false
 }
 
-// getTargetEnvs searches the environment variables of interest in the /proc/<pid>/environ file.
+// getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
 func getTargetEnvs(proc *process.Process, lang language.Language) (envs.EnvironmentVariables, error) {
 	er, err := newEnvReader(proc, lang)
 	defer er.finish()
