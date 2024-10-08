@@ -6,11 +6,14 @@
 package assertions
 
 import (
+	"fmt"
+	"io/fs"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"io/fs"
 )
 
 const (
@@ -150,33 +153,31 @@ func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindow
 	return r
 }
 
-// HasNamedPipeRestrictedToAdmins checks if a named pipe exists on the remote host
-// and that its access is restricted to Administrators and LocalSystem.
-func (r *RemoteWindowsHostAssertions) HasNamedPipeRestrictedToAdmins(pipeName string) *RemoteWindowsHostAssertions {
+// HasNamedPipe checks if a named pipe exists on the remote host
+func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindowsNamedPipeAssertions {
 	r.suite.T().Helper()
 
-	expected := common.NewProtectedSecurityInfo(
-		common.GetIdentityForSID(common.AdministratorsSID),
-		common.GetIdentityForSID(common.LocalSystemSID),
-		[]common.AccessRule{
-			common.NewExplicitAccessRule(
-				common.GetIdentityForSID(common.LocalSystemSID),
-				common.FileFullControl,
-				common.AccessControlTypeAllow,
-			),
-			common.NewExplicitAccessRule(
-				common.GetIdentityForSID(common.AdministratorsSID),
-				common.FileFullControl,
-				common.AccessControlTypeAllow,
-			),
-		},
-	)
-	out, err := common.GetNamedPipeSecurityInfo(r.remoteHost, pipeName)
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
 	r.require.NoError(err)
-	common.AssertEqualAccessSecurity(r.suite.T(), pipeName, expected, out)
-	if r.suite.T().Failed() {
-		r.suite.T().FailNow()
+	out = strings.TrimSpace(out)
+	r.require.Equal("True", out)
+
+	return &RemoteWindowsNamedPipeAssertions{
+		RemoteWindowsHostAssertions: r,
+		pipename:                    pipeName,
 	}
+}
+
+// HasNamedPipe checks if a named pipe exists on the remote host
+func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
+	r.require.NoError(err)
+	out = strings.TrimSpace(out)
+	r.require.Equal("False", out)
 
 	return r
 }

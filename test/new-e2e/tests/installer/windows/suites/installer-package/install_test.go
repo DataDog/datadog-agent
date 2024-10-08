@@ -49,7 +49,25 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running").
-		HasNamedPipeRestrictedToAdmins(installerwindows.NamedPipe)
+		HasNamedPipe(installerwindows.NamedPipe).
+		WithSecurity(
+			// Only accessible to Administrators and LocalSystem
+			common.NewProtectedSecurityInfo(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.GetIdentityForSID(common.LocalSystemSID),
+				[]common.AccessRule{
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.LocalSystemSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.AdministratorsSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+				},
+			))
 }
 
 func (s *testInstallerSuite) uninstall() {
