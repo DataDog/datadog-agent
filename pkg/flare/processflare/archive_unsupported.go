@@ -10,6 +10,6 @@ package processflare
 import "errors"
 
 // GetSystemProbeTelemetry is not supported without the process agent
-func GetSystemProbeTelemetry(socketPath string) ([]byte, error) {
+func GetSystemProbeTelemetry(_socketPath string) ([]byte, error) {
 	return nil, errors.New("getSystemProbeTelemetry not supported on build without the process agent")
 }
