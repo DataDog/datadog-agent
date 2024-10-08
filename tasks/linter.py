@@ -798,16 +798,16 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
         modified_yml_files = get_file_modifications(ctx, added=True, modified=True, only_names=True)
         modified_yml_files = [path for path in modified_yml_files if path.endswith('.yml')]
 
+    if not modified_yml_files:
+        print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
+        return
+
     with open(path_codeowners) as f:
         parsed_owners = f.readlines()
 
     # Keep only gitlab related lines to avoid defaults
     parsed_owners = [line for line in parsed_owners if '/.gitlab/' in line]
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
-
-    if not modified_yml_files:
-        print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
-        return
 
     error_files = []
     for path in modified_yml_files:

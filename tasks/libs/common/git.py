@@ -46,7 +46,7 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
 
 
 def get_file_modifications(
-    ctx, base_branch=DEFAULT_BRANCH, added=False, modified=False, removed=False, only_names=False, no_renames=False
+    ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:
     """
     Get file status changes for the current branch compared to the base branch.
@@ -60,6 +60,10 @@ def get_file_modifications(
     - no_renames: Do not include renamed files
     - Returns a list of (status, filename)
     """
+
+    from tasks.libs.releasing.json import _get_release_json_value
+
+    base_branch = base_branch or _get_release_json_value('base_branch')
 
     last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout.strip()
 
