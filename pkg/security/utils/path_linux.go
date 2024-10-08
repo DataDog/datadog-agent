@@ -257,12 +257,16 @@ func replacePatterns(paths []string) []string {
 	for _, pattern := range paths {
 		strippedPattern := strings.Trim(pattern, `~" `)
 		initalLength := len(result)
+
 		for _, path := range paths {
 			strippedPath := strings.Trim(path, `~" `)
 			if pattern == path {
 				continue
 			}
-			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, PathPatternMatchOpts{WildcardLimit: 1, PrefixNodeRequired: 4})
+
+			pathPatternMatchOpts := determinePatternMatchOpts(strippedPath)
+
+			finalPath, ok := PathPatternBuilder(strippedPattern, strippedPath, pathPatternMatchOpts)
 			if ok {
 				finalPath = fmt.Sprintf("~\"%s\"", finalPath)
 				result = append(result, finalPath)
@@ -276,4 +280,28 @@ func replacePatterns(paths []string) []string {
 	slices.Sort(result)
 	result = slices.Compact(result)
 	return result
+}
+
+func determinePatternMatchOpts(path string) PathPatternMatchOpts {
+	pathPatternMatchOpts := PathPatternMatchOpts{
+		WildcardLimit:      1,
+		PrefixNodeRequired: 1,
+	}
+
+	if containsExceptions(path) {
+		pathPatternMatchOpts.PrefixNodeRequired = 3
+
+	}
+	return pathPatternMatchOpts
+}
+
+func containsExceptions(path string) bool {
+	exceptions := []string{"bin", "sbin"}
+
+	for _, ex := range exceptions {
+		if strings.Contains(path, ex) {
+			return true
+		}
+	}
+	return false
 }
