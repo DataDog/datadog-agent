@@ -149,3 +149,34 @@ func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindow
 	r.require.False(exists)
 	return r
 }
+
+// HasNamedPipeRestrictedToAdmins checks if a named pipe exists on the remote host
+// and that its access is restricted to Administrators and LocalSystem.
+func (r *RemoteWindowsHostAssertions) HasNamedPipeRestrictedToAdmins(pipeName string) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	expected := common.NewProtectedSecurityInfo(
+		common.GetIdentityForSID(common.AdministratorsSID),
+		common.GetIdentityForSID(common.LocalSystemSID),
+		[]common.AccessRule{
+			common.NewExplicitAccessRule(
+				common.GetIdentityForSID(common.LocalSystemSID),
+				common.FileFullControl,
+				common.AccessControlTypeAllow,
+			),
+			common.NewExplicitAccessRule(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.FileFullControl,
+				common.AccessControlTypeAllow,
+			),
+		},
+	)
+	out, err := common.GetNamedPipeSecurityInfo(r.remoteHost, pipeName)
+	r.require.NoError(err)
+	common.AssertEqualAccessSecurity(r.suite.T(), pipeName, expected, out)
+	if r.suite.T().Failed() {
+		r.suite.T().FailNow()
+	}
+
+	return r
+}

@@ -48,7 +48,8 @@ func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
-		WithStatus("Running")
+		WithStatus("Running").
+		HasNamedPipeRestrictedToAdmins(installerwindows.NamedPipe)
 }
 
 func (s *testInstallerSuite) uninstall() {
