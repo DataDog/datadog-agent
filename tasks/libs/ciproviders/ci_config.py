@@ -26,6 +26,7 @@ class CILintersConfig:
 
         self.needs_rules_stages: set[str] = set(config['needs-rules']['allowed-stages'])
         self.needs_rules_jobs: set[str] = set(config['needs-rules']['allowed-jobs'])
+        self.job_owners_jobs: set[str] = set(config['job-owners']['allowed-jobs'])
 
         if lint:
             self.lint_all(all_jobs, all_stages)
@@ -52,6 +53,7 @@ class CILintersConfig:
 
         self.lint_assert_subset(errors, self.needs_rules_jobs, all_jobs, "job")
         self.lint_assert_subset(errors, self.needs_rules_stages, all_stages, "stage")
+        self.lint_assert_subset(errors, self.job_owners_jobs, all_jobs, "job")
 
         if errors:
             errors = '\n'.join(f"{color_message('Error', Color.RED)}: {error}" for error in errors)
