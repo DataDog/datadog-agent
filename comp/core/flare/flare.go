@@ -13,8 +13,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -104,7 +106,18 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	//	return true, err
 	//}
 
-	f.log.Infof("[onAgentTaskEvent] caseID=%d, userHandle=%s", caseID, userHandle)
+	caseIdNum := 0
+	caseIdNum, _ = strconv.Atoi(caseID)
+
+	var role string
+
+	if caseIdNum > 0 { // primary
+		role = "primary"
+	} else { // secondary
+		role = "standby"
+	}
+	f.log.Infof("[onAgentTaskEvent] caseID=%s, caseIdNum=%d, userHandle=%s, role=%s", caseID, caseIdNum, userHandle, role)
+	haagent.SetRole(role)
 
 	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
 	return true, nil
