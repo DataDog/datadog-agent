@@ -557,7 +557,6 @@ generate-flakes-finder-pipeline:
     - qa_agent_ot
   tags: ["arch:amd64"]
   script:
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

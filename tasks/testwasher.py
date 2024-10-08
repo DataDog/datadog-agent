@@ -134,7 +134,7 @@ def generate_flake_finder_pipeline(ctx, n=3):
     """
 
     # Read gitlab config
-    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+    config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml", with_lint=False)
 
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
