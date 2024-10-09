@@ -424,7 +424,6 @@ func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
 api_key: ENC[api_key]
 log_level: debug
 
-secret_refresh_interval: 5
 secret_backend_command: %s
 secret_backend_arguments:
   - %s
