@@ -65,3 +65,8 @@ func tracerouteNS(k ...string) string {
 func discoveryNS(k ...string) string {
 	return nskey("discovery", k...)
 }
+
+// gpuNS adds `gpu_monitoring` namespace to config key
+func gpuNS(k ...string) string {
+	return nskey("gpu_monitoring", k...)
+}

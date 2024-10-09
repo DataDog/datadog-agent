@@ -12,7 +12,7 @@ type Model interface {
 	// ValidateField returns whether the value use against the field is valid, ex: for constant
 	ValidateField(field Field, value FieldValue) error
 	// GetIterator return an iterator
-	GetIterator(field Field) (Iterator, error)
+	//GetIterator(field Field) (Iterator, error)
 	// NewEvent returns a new event instance
 	NewEvent() Event
 	// GetFieldRestrictions returns the event type for which the field is available

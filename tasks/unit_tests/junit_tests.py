@@ -82,21 +82,15 @@ class TestGroupPerTag(unittest.TestCase):
 
 class TestSetTag(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1515"})
-    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
-    def test_default(self, mock_gitlab):
-        mock_instance = MagicMock()
-        mock_instance.pipelines.get.return_value = MagicMock()
-        mock_gitlab.return_value = mock_instance
+    @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "putsch"})
+    def test_default(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", {}, "")
         self.assertEqual(len(tags), 14)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
-    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
-    def test_flag(self, mock_gitlab):
-        mock_instance = MagicMock()
-        mock_instance.pipelines.get.return_value = MagicMock()
-        mock_gitlab.return_value = mock_instance
+    @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
+    def test_flag(self):
         tags = junit.set_tags(
             "agent-devx-infra",
             "base",
@@ -110,21 +104,15 @@ class TestSetTag(unittest.TestCase):
         self.assertNotIn("upload_option.os_version_from_name", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
-    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
-    def test_additional_tags(self, mock_gitlab):
-        mock_instance = MagicMock()
-        mock_instance.pipelines.get.return_value = MagicMock()
-        mock_gitlab.return_value = mock_instance
+    @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
+    def test_additional_tags(self):
         tags = junit.set_tags("agent-devx-infra", "base", "", ["--tags", "simple:basique"], "")
         self.assertEqual(len(tags), 16)
         self.assertIn("simple:basique", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
-    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
-    def test_additional_tags_from_method(self, mock_gitlab):
-        mock_instance = MagicMock()
-        mock_instance.pipelines.get.return_value = MagicMock()
-        mock_gitlab.return_value = mock_instance
+    @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "revolution"})
+    def test_additional_tags_from_method(self):
         tags = junit.set_tags(
             "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
@@ -133,15 +121,12 @@ class TestSetTag(unittest.TestCase):
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
-    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    @patch.dict("os.environ", {"CI_PIPELINE_SOURCE": "beer"})
     @patch("tasks.libs.common.junit_upload_core.Popen")
-    def test_e2e(self, mock_popen, mock_gitlab):
+    def test_e2e(self, mock_popen):
         mock_instance = MagicMock()
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
-        mock_project = MagicMock()
-        mock_project.pipelines.get.return_value = MagicMock()
-        mock_gitlab.return_value = mock_project
         junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 29)

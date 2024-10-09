@@ -55,6 +55,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/gpu/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -84,6 +85,8 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
+
+TEST_HELPER_CBINS = ["cudasample"]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -343,6 +346,19 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
+    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
+    gpu_programs_co_re_programs = ["gpu"]
+
+    for prog in gpu_programs_co_re_programs:
+        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+
+
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -497,6 +513,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/ebpf/c/lock_contention.h",
             ],
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
+            "pkg/gpu/ebpf/kprobe_types.go": [
+                "pkg/gpu/ebpf/c/types.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -574,6 +593,7 @@ def ninja_generate(
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -957,6 +977,12 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
+
+        for cbin in TEST_HELPER_CBINS:
+            source = Path(pkg) / "testdata" / f"{cbin}.c"
+            if not is_windows and source.is_file():
+                binary = Path(target_path) / cbin
+                ctx.run(f"clang -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
