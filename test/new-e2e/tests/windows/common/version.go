@@ -33,9 +33,9 @@ func GetFileVersion(host *components.RemoteHost, remoteFileName string) (string,
 //
 // for the remote file, it uses the powershell version information command
 func VerifyVersion(host *components.RemoteHost, remoteFileName, expectedVersion string) error {
-	
+
 	if expectedVersion == "" {
-		
+
 		// this needs to be executed locally
 		output, err := exec.Command("git", "describe", "--tags", "--candidates=50", "--match", "[0-9]*", "--abbrev=7").Output()
 		if err != nil {
@@ -53,7 +53,7 @@ func VerifyVersion(host *components.RemoteHost, remoteFileName, expectedVersion 
 	if len(expectedparts) != 3 {
 		return fmt.Errorf("expected version must be in the form M.m.p.b")
 	}
-	
+
 	remoteversion, err := GetFileVersion(host, remoteFileName)
 	if err != nil {
 		return fmt.Errorf("failed to get version: %w", err)
