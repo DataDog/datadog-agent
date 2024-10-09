@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package bootstraper provides the installer bootstraper component.
-package bootstraper
+// Package bootstrapper provides the installer bootstrapper component.
+package bootstrapper
 
 import (
 	"context"
