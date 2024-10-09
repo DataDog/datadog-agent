@@ -34,7 +34,6 @@ type CubinKernel struct {
 	ConstantMem uint64                          // Size of the constant memory used by the kernel
 }
 
-
 // nvInfoFormat defines the format (size) of a value of a .nv.info item
 type nvInfoFormat uint8
 
@@ -127,7 +126,7 @@ type nvInfoItem struct {
 	Attr   nvInfoAttr
 }
 
-type sectionParserFunc func(*elf.Section, io.ReadSeeker, string) error
+type sectionParserFunc func(*elf.Section, string) error
 
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
@@ -188,7 +187,7 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 				kernelName = strings.TrimPrefix(sect.Name, prefixWithDot)
 			}
 
-			err = parser(sect, sect.Open(), kernelName)
+			err = parser(sect, kernelName)
 			if err != nil {
 				return fmt.Errorf("failed to parse section %s: %w", sect.Name, err)
 			}
@@ -204,8 +203,9 @@ type nvInfoParsedItem struct {
 	value []byte
 }
 
-func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer io.ReadSeeker, kernelName string) error {
+func (cp *cubinParser) parseNvInfoSection(sect *elf.Section, kernelName string) error {
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
+	buffer := sect.Open()
 
 	for {
 		var item nvInfoItem
@@ -253,7 +253,7 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer io.ReadSeeker, 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elf.Section, _ io.ReadSeeker, kernelName string) error {
+func (cp *cubinParser) parseTextSection(sect *elf.Section, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -265,7 +265,7 @@ func (cp *cubinParser) parseTextSection(sect *elf.Section, _ io.ReadSeeker, kern
 	return nil
 }
 
-func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ io.ReadSeeker, kernelName string) error {
+func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -278,7 +278,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ io.ReadSeeker,
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ io.ReadSeeker, _ string) error {
+func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
