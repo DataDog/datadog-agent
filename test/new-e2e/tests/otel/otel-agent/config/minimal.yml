@@ -14,6 +14,8 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${DD_API_KEY}
+  debug:
+    verbosity: detailed
 processors:
   batch:
 connectors:
@@ -29,16 +31,16 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog/connector]
+      exporters: [datadog/connector, debug]
     traces/send:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog]
+      exporters: [datadog, debug]
     metrics:
       receivers: [otlp, datadog/connector]
       processors: [batch]
-      exporters: [datadog]
+      exporters: [datadog, debug]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog]
+      exporters: [datadog, debug]
