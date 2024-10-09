@@ -8,7 +8,7 @@ package common
 
 import (
 	"fmt"
-
+	"strings"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
@@ -19,6 +19,11 @@ import (
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process?view=powershell-7.4#example-7-specifying-arguments-to-the-process
 //   - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-7.4
 func MsiExec(host *components.RemoteHost, operation string, product string, args string, logPath string) error {
+	
+	if !strings.HasPrefix(operation, "/") {
+		return fmt.Errorf("unexpected operation: %s", operation)
+	}
+	
 	remoteLogPath, err := GetTemporaryFile(host)
 	if err != nil {
 		return err
@@ -48,8 +53,8 @@ func InstallMSI(host *components.RemoteHost, msiPath string, args string, logPat
 }
 
 // UninstallMSI uninstalls an MSI on the VM and collects the uninstall log
-func UninstallMSI(host *components.RemoteHost, msiPath string, logPath string) error {
-	err := MsiExec(host, "/x", msiPath, "", logPath)
+func UninstallMSI(host *components.RemoteHost, msiPath string, args string, logPath string) error {
+	err := MsiExec(host, "/x", msiPath, args, logPath)
 	if err != nil {
 		return fmt.Errorf("failed to uninstall MSI: %w", err)
 	}

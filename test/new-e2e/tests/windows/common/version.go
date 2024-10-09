@@ -12,6 +12,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
+
+// GetFileVersion gets the file version information from the versioninfo resource
+// of the specified file.  It returns as a single string
+func GetFileVersion(host *components.RemoteHost, remoteFileName string) (string, error) {
+	pscommand := fmt.Sprintf(`(Get-Item "%s").VersionInfo.FileVersion`, remoteFileName)
+	remoteversion, err := host.Execute(pscommand)
+	if err != nil {
+		return "", fmt.Errorf("failed to get version: %w", err)
+	}
+	return strings.TrimSpace(remoteversion), nil
+}
+
 // VerifyVersion takes a filename and an expected version and determines
 // if the file matches the expected version.
 //
@@ -33,19 +45,19 @@ func VerifyVersion(host *components.RemoteHost, remoteFileName, expectedVersion 
 		expectedVersion = string(output)
 		expectedVersion = expectedVersion[:strings.Index(expectedVersion, "-")]
 	}
-	versions := strings.Split(expectedVersion, ".")
-	fmt.Printf("Looking for version %v\n", versions)
-	if len(versions) != 3 {
+	expectedparts := strings.Split(expectedVersion, ".")
+	fmt.Printf("Looking for version %v\n", expectedparts)
+	if len(expectedparts) != 3 {
 		return fmt.Errorf("expected version must be in the form M.m.p.b")
 	}
-	pscommand := fmt.Sprintf(`(Get-Item "%s").VersionInfo.FileVersion`, remoteFileName)
-	remoteversion, err := host.Execute(pscommand)
+	
+	remoteversion, err := GetFileVersion(host, remoteFileName)
 	if err != nil {
 		return fmt.Errorf("failed to get version: %w", err)
 	}
 	remoteversionparts := strings.Split(strings.TrimSpace(remoteversion), ".")
 	fmt.Printf("Found version %v\n", remoteversionparts)
-	for idx, v := range versions {
+	for idx, v := range expectedparts {
 		if v != remoteversionparts[idx] {
 			return fmt.Errorf("expected version %v, got %v", expectedVersion, remoteversion)
 		}
