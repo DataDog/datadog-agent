@@ -44,8 +44,8 @@ from tasks.update_go import _update_go_mods, _update_references
 
 @task
 def python(ctx):
-    """
-    Lints Python files.
+    """Lints Python files.
+
     See 'setup.cfg' and 'pyproject.toml' file for configuration.
     If running locally, you probably want to use the pre-commit instead.
     """
@@ -70,11 +70,12 @@ def python(ctx):
 
 @task
 def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
+    """Checks that all Go files contain the appropriate copyright header.
+
+    If '--fix' is provided as an option, it will try to fix problems as it finds them.
+    If '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
-    Checks that all Go files contain the appropriate copyright header. If '--fix'
-    is provided as an option, it will try to fix problems as it finds them. If
-    '--dry_run' is provided when fixing, no changes to the files will be applied.
-    """
+
     files = None
 
     if only_staged_files:
@@ -90,9 +91,8 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
 
 @task
 def filenames(ctx):
-    """
-    Scan files to ensure there are no filenames too long or containing illegal characters
-    """
+    """Scans files to ensure there are no filenames too long or containing illegal characters."""
+
     files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
     failure = False
 
@@ -148,8 +148,7 @@ def go(
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
-    """
-    Run go linters on the given module and targets.
+    """Runs go linters on the given module and targets.
 
     A module should be provided as the path to one of the go modules in the repository.
 
@@ -158,12 +157,13 @@ def go(
 
     If no module or target is set the tests are run against all modules and targets.
 
-    --timeout is the number of minutes after which the linter should time out.
-    --headless-mode allows you to output the result in a single json file.
+    Args:
+        timeout: Number of minutes after which the linter should time out.
+        headless_mode: Allows you to output the result in a single json file.
 
     Example invokation:
-        inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
-        inv linter.go --module=.
+        $ inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        $ inv linter.go --module=.
     """
     if not check_tools_version(ctx, ['golangci-lint']):
         print(
@@ -274,9 +274,7 @@ def lint_flavor(
     headless_mode: bool = False,
     verbose: bool = False,
 ):
-    """
-    Runs linters for given flavor, build tags, and modules.
-    """
+    """Runs linters for given flavor, build tags, and modules."""
 
     execution_times = []
 
@@ -341,9 +339,8 @@ def list_parameters(_, type):
 
 @task
 def ssm_parameters(ctx, mode="all", folders=None):
-    """
-    Lint SSM parameters in the datadog-agent repository.
-    """
+    """Lints SSM parameters in the datadog-agent repository."""
+
     modes = ["env", "wrapper", "all"]
     if mode not in modes:
         raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
@@ -426,11 +423,14 @@ def list_get_parameter_calls(file):
 
 @task
 def gitlab_ci(ctx, test="all", custom_context=None):
-    """
-    Lint Gitlab CI files in the datadog-agent repository.
+    """Lints Gitlab CI files in the datadog-agent repository.
 
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
+
+    Args:
+        test: The context preset to test the gitlab ci file with containing environment variables.
+        custom_context: A custom context to test the gitlab ci file with.
     """
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
     configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
@@ -454,11 +454,11 @@ def gitlab_ci(ctx, test="all", custom_context=None):
 
 
 def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
-    """
-    Utility to get the jobs from full gitlab ci configuration file or from a diff file.
+    """Retrieves the jobs from full gitlab ci configuration file or from a diff file.
 
-    - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
-    - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
     """
 
     assert (
@@ -494,12 +494,17 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
 
 @task
 def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
-    """
-    Verifies that each added / modified job contains `needs` and also `rules`.
+    """Verifies that each added / modified job contains `needs` and also `rules`.
+
     It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
     All configurations are checked (even downstream ones).
 
-    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+
+    See:
+      https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
@@ -545,9 +550,8 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
 
 @task
 def releasenote(ctx):
-    """
-    Lint release notes with Reno
-    """
+    """Lints release notes with Reno."""
+
     branch = os.environ.get("BRANCH_NAME")
     pr_id = os.environ.get("PR_ID")
 
@@ -576,9 +580,7 @@ def update_go(_):
 
 @task(iterable=['job_files'])
 def job_change_path(ctx, job_files=None):
-    """
-    Verify that the jobs defined within job_files contain a change path rule.
-    """
+    """Verifies that the jobs defined within job_files contain a change path rule."""
 
     tests_without_change_path_allow_list = {
         'generate-flakes-finder-pipeline',
@@ -680,9 +682,8 @@ def job_change_path(ctx, job_files=None):
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
 
     def contains_valid_change_rule(rule):
-        """
-        Verifies that the job rule contains the required change path configuration.
-        """
+        """Verifies that the job rule contains the required change path configuration."""
+
         if 'changes' not in rule or 'paths' not in rule['changes']:
             return False
 
@@ -733,6 +734,8 @@ def job_change_path(ctx, job_files=None):
 
 @task
 def gitlab_change_paths(ctx):
+    """Verifies that rules: changes: paths match existing files in the repository."""
+
     # Read gitlab config
     config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
     error_paths = []
@@ -749,8 +752,12 @@ def gitlab_change_paths(ctx):
 
 @task
 def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
-    """
-    Verifies that each job is defined within JOBOWNERS files.
+    """Verifies that each job is defined within JOBOWNERS files.
+
+    Args:
+        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
+        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        path_jobowners: Path to the JOBOWNERS file
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
@@ -788,8 +795,10 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
 
 @task
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
-    """
-    Verifies that added / modified job files are defined within CODEOWNERS.
+    """Verifies that added / modified job files are defined within CODEOWNERS.
+
+    Args:
+        all_files: If True, lint all job files. If False, lint only added / modified job.
     """
 
     if all_files:
