@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/pkg/fleet/bootstraper"
+	"github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -138,11 +138,11 @@ func (i *installerCmd) stop(err error) {
 	}
 }
 
-type bootstraperCmd struct {
+type bootstrapperCmd struct {
 	*cmd
 }
 
-func newBootstraperCmd(operation string) *bootstraperCmd {
+func newBootstrapperCmd(operation string) *bootstrapperCmd {
 	cmd := newCmd(operation)
 	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
 	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
@@ -161,7 +161,7 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
-	return &bootstraperCmd{
+	return &bootstrapperCmd{
 		cmd: cmd,
 	}
 }
@@ -252,11 +252,11 @@ func bootstrapCommand() *cobra.Command {
 		Short:   "Bootstraps the package with the first version.",
 		GroupID: "bootstrap",
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			b := newBootstraperCmd("bootstrap")
+			b := newBootstrapperCmd("bootstrap")
 			defer func() { b.Stop(err) }()
 			ctx, cancel := context.WithTimeout(b.ctx, timeout)
 			defer cancel()
-			return bootstraper.Bootstrap(ctx, b.env)
+			return bootstrapper.Bootstrap(ctx, b.env)
 		},
 	}
 	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")

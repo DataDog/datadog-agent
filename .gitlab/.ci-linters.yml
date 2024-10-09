@@ -14,7 +14,6 @@ needs-rules:
     - build_clang_x64
     - build_dogstatsd_static-binary_x64
     - build_processed_btfhub_archive
-    - check_already_deployed_version_6
     - check_already_deployed_version_7
     - cleanup_kitchen_functional_test
     - deploy_containers-cws-instrumentation-final-versioned
@@ -23,7 +22,6 @@ needs-rules:
     - deploy_containers-cws-instrumentation-rc-versioned
     - dogstatsd_x64_size_test
     - go_mod_tidy_check
-    - kitchen_cleanup_azure-a6
     - kitchen_cleanup_azure-a7
     - lint_flavor_dogstatsd_linux-x64
     - lint_flavor_heroku_linux-x64
@@ -35,7 +33,6 @@ needs-rules:
     - periodic_kitchen_cleanup_ec2
     - periodic_kitchen_cleanup_s3
     - publish_winget_7_x64
-    - revert_latest_6
     - revert_latest_7
     - security_go_generate_check
     - setup_agent_version
@@ -45,3 +42,70 @@ needs-rules:
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
     - trigger_manual_prod_release
+
+# Lists jobs that are allowed to not be within JOBOWNERS
+job-owners:
+  allowed-jobs:
+    - benchmark
+    - bootstrapper_build
+    - build_dogstatsd-binary_arm64
+    - build_dogstatsd-binary_x64
+    - build_dogstatsd_static-binary_arm64
+    - build_dogstatsd_static-binary_x64
+    - build_fakeintake
+    - build_iot_agent-binary_arm64
+    - build_iot_agent-binary_x64
+    - build_otel_agent_binary_arm64
+    - build_otel_agent_binary_x64
+    - cancel-prev-pipelines
+    - check_pkg_size-amd64-a7
+    - check_pkg_size-arm64-a7
+    - close_failing_tests_stale_issues
+    - compute_gitlab_ci_config
+    - deploy_cluster_agent_cloudfoundry
+    - do-not-merge
+    - dogstatsd_x64_size_test
+    - generate-flakes-finder-pipeline
+    - github_rate_limit_info
+    - go_deps
+    - go_e2e_deps
+    - go_mod_tidy_check
+    - go_tools_deps
+    - installer-amd64
+    - installer-amd64-oci
+    - installer-arm64
+    - installer-arm64-oci
+    - integration_tests_otel
+    - invoke_unit_tests
+    - kitchen_cleanup_azure-a7
+    - kitchen_invoke_unit_tests
+    - new-e2e-cspm
+    - new-e2e-otel
+    - new-e2e-package-signing-debian-a7-x86_64
+    - new-e2e-package-signing-suse-a7-x86_64
+    - new-e2e-unit-tests
+    - ot_agent_deb-arm64-a7
+    - ot_agent_deb-x64-a7
+    - periodic_kitchen_cleanup_azure
+    - periodic_kitchen_cleanup_ec2
+    - periodic_kitchen_cleanup_s3
+    - publish_choco_7_x64
+    - publish_fakeintake
+    - publish_fakeintake_latest
+    - rc_kubernetes_deploy
+    - revert_latest_7
+    - send_pipeline_stats
+    - send_pkg_size
+    - setup_agent_version
+    - single-machine-performance-regression_detector
+    - single-machine-performance-regression_detector-pr-comment
+    - test_install_script
+    - trace-agent-v04-2cpus-normal_load-fixed_sps
+    - trace-agent-v04-2cpus-stress_load-fixed_sps
+    - trace-agent-v05-2cpus-normal_load-fixed_sps
+    - trace-agent-v05-2cpus-stress_load-fixed_sps
+    - trigger-flakes-finder
+    - unit_tests_arm64_junit_upload
+    - unit_tests_notify
+    - update_rc_build_links
+    - validate_modules
