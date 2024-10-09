@@ -190,10 +190,6 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				fmt.Println("andrewq", metrics[len(metrics)-1].GetTags())
-				fmt.Println("andrewq2", expectedTags)
-				fmt.Println("andrewq3", optionalTags)
-				fmt.Println("andrewq4", args.Expect.AcceptUnexpectedTags)
 				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
 			}
