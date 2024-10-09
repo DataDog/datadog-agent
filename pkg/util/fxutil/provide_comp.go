@@ -302,13 +302,12 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 }
 
 // FxAgentBase returns all of our adapters from compdef types to fx types
-func FxAgentBase(logFxEvents bool) fx.Option {
-	options := []fx.Option{fx.Provide(newFxLifecycleAdapter),
-		fx.Provide(newFxShutdownerAdapter)}
-	if logFxEvents {
-		options = append(options, logging.FxLoggingOption())
-	}
-	return fx.Options(options...)
+func FxAgentBase() fx.Option {
+	return fx.Options(
+		fx.Provide(newFxLifecycleAdapter),
+		fx.Provide(newFxShutdownerAdapter),
+		logging.DefaultFxLoggingOption(),
+	)
 }
 
 // Lifecycle is a compdef interface compatible with fx.Lifecycle, to provide start/stop hooks

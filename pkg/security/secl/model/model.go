@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"runtime"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -103,6 +102,11 @@ type NetworkContext struct {
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
 	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
+}
+
+// IsZero returns if there is a network context
+func (nc *NetworkContext) IsZero() bool {
+	return nc.Size == 0
 }
 
 // SpanContext describes a span context
@@ -483,20 +487,20 @@ type ProcessAncestorsIterator struct {
 }
 
 // Front returns the first element
-func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) *ProcessCacheEntry {
 	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
-		return unsafe.Pointer(front)
+		return front
 	}
 
 	return nil
 }
 
 // Next returns the next element
-func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
+func (it *ProcessAncestorsIterator) Next() *ProcessCacheEntry {
 	if next := it.prev.Ancestor; next != nil {
 		it.prev = next
-		return unsafe.Pointer(next)
+		return next
 	}
 
 	return nil

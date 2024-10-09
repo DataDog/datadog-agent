@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 package dynamicinstrumentation
 
@@ -18,8 +18,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-// startRingbufferConsumer opens the pinned bpf ringbuffer map
-func (goDI *GoDI) startRingbufferConsumer() (func(), error) {
+func (goDI *GoDI) startRingbufferConsumer(rate float64) (func(), error) {
 	r, err := ringbuf.NewReader(ditypes.EventsRingbuffer)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't set up reader for ringbuffer: %w", err)
@@ -36,7 +35,7 @@ func (goDI *GoDI) startRingbufferConsumer() (func(), error) {
 	}
 
 	// TODO: ensure rate limiters are removed once probes are removed
-	rateLimiters := ratelimiter.NewMultiProbeRateLimiter(1.0)
+	rateLimiters := ratelimiter.NewMultiProbeRateLimiter(rate)
 	rateLimiters.SetRate(ditypes.ConfigBPFProbeID, 0)
 
 	go func() {

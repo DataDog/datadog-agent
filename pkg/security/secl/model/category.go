@@ -43,7 +43,6 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 	case "exec", "signal", "exit", "fork", "syscalls":
 		return ProcessCategory
 	case "bpf", "selinux", "mmap", "mprotect", "ptrace", "load_module", "unload_module", "bind":
-		// TODO(will): "bind" is in this category because answering "NetworkCategory" would insert a network section in the serializer.
 		return KernelCategory
 	case "dns", "imds":
 		return NetworkCategory
