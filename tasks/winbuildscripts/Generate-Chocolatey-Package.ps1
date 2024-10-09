@@ -39,9 +39,10 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2]).msi"
 } elseif ($rawAgentVersion -match $develPattern) {
     if ($installMethod -eq "online") {
+        $url = "https://s3.amazonaws.com/test-windows/ddagent-cli-$($agentVersion).msi"
         # We don't publish online chocolatey packages for dev branches, error out
-        Write-Host "Chocolatey packages are not built for dev branches aborting"
-        exit 2
+        # Write-Host "Chocolatey packages are not built for dev branches aborting"
+        # exit 2
     }
     $agentVersionMatches = $rawAgentVersion | Select-String -Pattern $develPattern
     $agentVersion = "{0}-devel-{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2].Value
@@ -64,12 +65,10 @@ Write-Host "Generating Chocolatey $installMethod package version $agentVersion i
 Write-Host ("Downloading {0}" -f $url)
 $statusCode = -1
 try {
-    $tempMsi = "$(Get-Location)\ddagent.msi"
-    Remove-Item $tempMsi -ErrorAction Ignore
-    (New-Object net.webclient).Downloadfile($url, $tempMsi)
+    $tempMsi = "$(Get-Location)\temp\*.msi"
     $checksum = (Get-FileHash $tempMsi -Algorithm SHA256).Hash
     Remove-Item $tempMsi
-}
+} 
 catch {
     Write-Host "Could not generate checksum for package $($url): $($_)"
     exit 4
