@@ -17,8 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -69,7 +79,8 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
+	osDesc := os.DescriptorFromString(awsEnv.InfraOSDescriptor(), os.AmazonLinuxECSDefault)
+	host, err := ec2.NewVM(awsEnv, params.name, append([]ec2.VMOption{ec2.WithOS(osDesc)}, params.vmOptions...)...)
 	if err != nil {
 		return err
 	}
@@ -96,11 +107,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	if err != nil {
 		return err
 	}
-
+	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer(), fakeintake.WithMemory(2048)}
 		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
@@ -117,6 +128,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		env.FakeIntake = nil
 	}
 
+	workloadDeps := []pulumi.Resource{}
 	if params.agentOptions != nil {
 		kindClusterName := ctx.Stack()
 		helmValues := fmt.Sprintf(`
@@ -138,11 +150,53 @@ agents:
 		if err != nil {
 			return err
 		}
-
+		workloadDeps = append(workloadDeps, agent)
 	} else {
 		env.Agent = nil
 	}
+	// Deploy standalone dogstatsd
+	if params.deployDogstatsd {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", fakeIntake, false, ctx.Stack()); err != nil {
+			return err
+		}
+	}
 
+	// Deploy testing workload
+	if params.deployTestWorkload {
+		if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, utils.PulumiDependsOn(workloadDeps...)); err != nil {
+			return err
+		}
+
+		if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, utils.PulumiDependsOn(workloadDeps...)); err != nil {
+			return err
+		}
+
+		if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress", utils.PulumiDependsOn(workloadDeps...)); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the Agent
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket"); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the dogstatsd standalone deployment
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, kubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket); err != nil {
+			return err
+		}
+
+		if _, err := tracegen.K8sAppDefinition(&awsEnv, kubeProvider, "workload-tracegen"); err != nil {
+			return err
+		}
+
+		if _, err := prometheus.K8sAppDefinition(&awsEnv, kubeProvider, "workload-prometheus"); err != nil {
+			return err
+		}
+
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, kubeProvider, "workload-mutated", "workload-mutated-lib-injection"); err != nil {
+			return err
+		}
+	}
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {
