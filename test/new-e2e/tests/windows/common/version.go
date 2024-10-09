@@ -42,8 +42,11 @@ func VerifyVersion(host *components.RemoteHost, remoteFileName, expectedVersion 
 			return fmt.Errorf("failed to get git version: %w", err)
 		}
 		// we only want the M.m.p version number, so up to the first `-` if it exists
-		expectedVersion = string(output)
-		expectedVersion = expectedVersion[:strings.Index(expectedVersion, "-")]
+		expectedVersion = strings.TrimSpace(string(output))
+		dashindex := strings.Index(expectedVersion, "-")
+		if dashindex > 1 {
+			expectedVersion = expectedVersion[:dashindex]
+		}
 	}
 	expectedparts := strings.Split(expectedVersion, ".")
 	fmt.Printf("Looking for version %v\n", expectedparts)
