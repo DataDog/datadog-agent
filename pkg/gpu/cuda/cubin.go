@@ -105,10 +105,10 @@ const (
 	nviAttrIndirectBranchTargets
 	nviAttrSw2861232War
 	nviAttrSwWar
-	nviAttrCudaApiVersion
+	nviAttrCudaAPIVersion
 	nviAttrNumMbarriers
 	nviAttrMbarrierInstrOffsets
-	nviAttrCoroutineResumeIdOffsets
+	nviAttrCoroutineResumeIDOffsets
 	nviAttrSamRegionStackSize
 	nviAttrPerRegTargetPerfStats
 
