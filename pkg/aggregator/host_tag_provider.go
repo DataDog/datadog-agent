@@ -28,21 +28,19 @@ func NewHostTagProvider() *HostTagProvider {
 
 func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 	p := &HostTagProvider{
-		hostTags: []string{},
+		hostTags: nil,
 	}
 	duration := pkgconfigsetup.Datadog().GetDuration("expected_tags_duration")
 	fmt.Println("hehexd", duration)
-	p.hostTags = append(p.hostTags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
-	fmt.Println("hehexd2", p.hostTags)
 	if pkgconfigsetup.Datadog().GetDuration("expected_tags_duration") > 0 {
+		p.hostTags = append([]string{}, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System...)
+		fmt.Println("hehexd2", p.hostTags)
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()
 			defer p.Unlock()
 			p.hostTags = nil
 		})
-	} else {
-		p.hostTags = nil
 	}
 
 	return p
@@ -52,8 +50,5 @@ func (p *HostTagProvider) GetHostTags() []string {
 	p.RLock()
 	defer p.RUnlock()
 
-	if p.hostTags != nil && len(p.hostTags) > 0 {
-		return p.hostTags
-	}
-	return nil
+	return p.hostTags
 }
