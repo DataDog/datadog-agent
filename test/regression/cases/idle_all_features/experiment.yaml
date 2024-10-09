@@ -40,4 +40,9 @@ target:
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
 
-
+checks:
+  - name: memory_usage
+    description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
+    bounds:
+      series: total_rss_bytes
+      upper_bound: "785.0 MiB"
