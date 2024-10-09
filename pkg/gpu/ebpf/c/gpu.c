@@ -170,7 +170,7 @@ SEC("uprobe/cudaSetDevice")
 int BPF_UPROBE(uprobe__cudaSetDevice, int device) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    log_debug("cudaSetDevice: pid=%llu, device=%u", pid_tgid, device);
+    log_debug("cudaSetDevice: pid_tgid=%llu, device=%u", pid_tgid, device);
     bpf_map_update_elem(&cuda_set_device_cache, &pid_tgid, &device, BPF_ANY);
 
     return 0;
@@ -183,14 +183,14 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
     cuda_set_device_event_t event = { 0 };
     __u32 retval = PT_REGS_RC(ctx);
 
-    log_debug("cudaSetDevice[ret]: pid=%llx, retval=%d\n", pid_tgid, retval);
+    log_debug("cudaSetDevice[ret]: pid_tgid=%llu, retval=%d\n", pid_tgid, retval);
 
     if (retval != 0) {
         // Do not emit event if cudaSetDevice failed
         goto cleanup;
     }
 
-    device = bpf_map_lookup_elem(&cuda_sync_cache, &pid_tgid);
+    device = bpf_map_lookup_elem(&cuda_set_device_cache, &pid_tgid);
     if (!device) {
         log_debug("cudaSetDevice[ret]: failed to find cudaSetDevice request");
         return 0;
@@ -202,7 +202,7 @@ int BPF_URETPROBE(uretprobe__cudaSetDevice) {
     event.header.ktime_ns = bpf_ktime_get_ns();
     event.device = *device;
 
-    log_debug("cudaSetDevice: pid=%llu, device=%d", event.header.pid_tgid, *device);
+    log_debug("cudaSetDevice: EMIT pid_tgid=%llu, device=%d", event.header.pid_tgid, *device);
     bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
 
 cleanup:
