@@ -11,38 +11,113 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows/registry"
 )
 
+type probeState uint32
+
+const (
+	// Idle indicates that the probe is waiting for a request
+	Idle probeState = iota
+
+	// Busy indicates that the probe is currently processing a crash dump
+	Busy
+
+	// Completed indicates that the probe finished processing a crash dump.
+	Completed
+
+	// Failed indicates that the probe failed to process a crash dump.
+	Failed
+)
+
 // WinCrashProbe has no stored state.
 type WinCrashProbe struct {
+	state  probeState
+	status *WinCrashStatus
+	mu     sync.Mutex
 }
 
 // NewWinCrashProbe returns an initialized WinCrashProbe
 func NewWinCrashProbe(_ *sysconfigtypes.Config) (*WinCrashProbe, error) {
-	return &WinCrashProbe{}, nil
+	return &WinCrashProbe{
+		state:  Idle,
+		status: nil,
+	}, nil
+}
+
+// Handles crash dump parsing in a separate thread since this may take very long.
+func (p *WinCrashProbe) parseCrashDumpAsync() {
+	if p.status == nil {
+		p.state = Failed
+		return
+	}
+
+	parseCrashDump(p.status)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.state = Completed
 }
 
 // Get returns the current crash, if any
 func (p *WinCrashProbe) Get() *WinCrashStatus {
 	wcs := &WinCrashStatus{}
 
-	err := wcs.getCurrentCrashSettings()
-	if err != nil {
-		wcs.ErrString = err.Error()
-		wcs.Success = false
-		return wcs
-	}
+	// Nothing in this method should take long.
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if len(wcs.FileName) == 0 {
-		// no filename means no crash dump
-		wcs.Success = true // we succeeded
-		return wcs
+	switch p.state {
+	case Idle:
+		// This is a new request.
+		err := wcs.getCurrentCrashSettings()
+		if err != nil {
+			wcs.ErrString = err.Error()
+			wcs.StatusCode = WinCrashStatusCodeFailed
+		} else if len(wcs.FileName) == 0 {
+			// no filename means no crash dump
+			wcs.StatusCode = WinCrashStatusCodeSuccess
+		} else {
+			// Kick off the crash dump processing asynchronously.
+			// The crash dump may be very large and we should not block for a response.
+			p.state = Busy
+			wcs.StatusCode = WinCrashStatusCodeBusy
+
+			// Make a new copy of the wcs for async processing while returning "Busy"
+			// for the current response.
+			p.status = &WinCrashStatus{
+				FileName: wcs.FileName,
+				Type:     wcs.Type,
+			}
+			go p.parseCrashDumpAsync()
+		}
+
+	case Busy:
+		// The crash dump processing is not done yet. Reply busy.
+		if p.status != nil {
+			wcs.FileName = p.status.FileName
+			wcs.Type = p.status.Type
+		}
+		wcs.StatusCode = WinCrashStatusCodeBusy
+
+	case Failed:
+		fallthrough
+	case Completed:
+		// The crash dump processing was done, return the result.
+		if p.status != nil {
+			wcs = p.status
+			p.status = nil
+		} else {
+			wcs.StatusCode = WinCrashStatusCodeFailed
+		}
+
+		// Reset the probe.
+		p.state = Idle
 	}
-	parseCrashDump(wcs)
 
 	return wcs
 }

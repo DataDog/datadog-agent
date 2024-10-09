@@ -29,10 +29,17 @@ const (
 	DumpTypeAutomatic    = int(7) // automatic
 )
 
+const (
+	WinCrashStatusCodeUnknown = int(-1)
+	WinCrashStatusCodeSuccess = int(0) // success
+	WinCrashStatusCodeBusy    = int(1) // busy
+	WinCrashStatusCodeFailed  = int(2) // failed
+)
+
 // WinCrashStatus defines all of the information returned from the system
 // probe to the caller
 type WinCrashStatus struct {
-	Success    bool   `json:"success"`
+	StatusCode int    `json:"statuscode"`
 	ErrString  string `json:"errstring"`
 	FileName   string `json:"filename"`
 	Type       int    `json:"dumptype"`
