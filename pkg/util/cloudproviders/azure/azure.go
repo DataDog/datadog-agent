@@ -45,15 +45,18 @@ type metadata struct {
 }
 
 func (metadata metadata) GetFromStyle(style string) (string, error) {
+	// The resource group name can contain "_" characters, which is not a valid
+	// character for a hostname.
+	parsedResourceGroupName := strings.ReplaceAll(metadata.ResourceGroupName, "_", "-")
 	switch style {
 	case "vmid":
 		return metadata.VMID, nil
 	case "name":
 		return metadata.Name, nil
 	case "name_and_resource_group":
-		return fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName), nil
+		return fmt.Sprintf("%s.%s", metadata.Name, parsedResourceGroupName), nil
 	case "full":
-		return fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID), nil
+		return fmt.Sprintf("%s.%s.%s", metadata.Name, parsedResourceGroupName, metadata.SubscriptionID), nil
 	case "os_computer_name":
 		return strings.ToLower(metadata.OsProfile.ComputerName), nil
 	default:

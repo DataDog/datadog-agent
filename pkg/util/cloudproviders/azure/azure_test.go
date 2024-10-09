@@ -185,7 +185,7 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
 			"name": "vm-name",
-			"resourceGroupName": "my-resource-group",
+			"resourceGroupName": "MC_some-resource-group_some-cluster_westus2",
 			"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
 			"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d",
 			"osProfile": {"computerName":"node-name-A"},
@@ -202,8 +202,8 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 		{"os", "node-name-a", false}, // use osProfile.computerName when running in AKS
 		{"vmid", "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d", false},
 		{"name", "vm-name", false},
-		{"name_and_resource_group", "vm-name.my-resource-group", false},
-		{"full", "vm-name.my-resource-group.2370ac56-5683-45f8-a2d4-d1054292facb", false},
+		{"name_and_resource_group", "vm-name.MC-some-resource-group-some-cluster-westus2", false},
+		{"full", "vm-name.MC-some-resource-group-some-cluster-westus2.2370ac56-5683-45f8-a2d4-d1054292facb", false},
 		{"invalid", "", true},
 	}
 
