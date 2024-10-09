@@ -30,13 +30,17 @@ const (
 	statusRetainedActions = 5
 )
 
-// PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
+// PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
 	// namespace is the namespace of the PodAutoscaler
 	namespace string
 
 	// name is the name of the PodAutoscaler
 	name string
+
+	// creationTimestamp is the time when the kubernetes object was created
+	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
+	creationTimestamp time.Time
 
 	// generation is the received generation of the PodAutoscaler
 	generation int64
@@ -122,6 +126,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
@@ -271,6 +276,11 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 	}
 }
 
+// UpdateCreationTimestamp updates the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) UpdateCreationTimestamp(creationTimestamp time.Time) {
+	p.creationTimestamp = creationTimestamp
+}
+
 //
 // Getters
 //
@@ -303,6 +313,11 @@ func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
 // SettingsTimestamp returns the timestamp of the last settings update
 func (p *PodAutoscalerInternal) SettingsTimestamp() time.Time {
 	return p.settingsTimestamp
+}
+
+// CreationTimestamp returns the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) CreationTimestamp() time.Time {
+	return p.creationTimestamp
 }
 
 // ScalingValues returns the scaling values of the PodAutoscaler

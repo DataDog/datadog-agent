@@ -23,17 +23,6 @@ import (
 // to always require the math package
 var _ = math.MaxUint16
 
-func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
-	switch field {
-	{{range $Name, $Field := .Iterators}}
-	case "{{$Name}}":
-		return &{{$Field.ReturnType}}{}, nil
-	{{end}}
-	}
-
-	return nil, &eval.ErrIteratorNotSupported{Field: field}
-}
-
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
 		{{range $Name, $Exists := .EventTypes}}
@@ -95,10 +84,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value := iterator.Front(ctx)
 					for value != nil {
 						{{if $Field.Iterator.IsOrigTypePtr}}
-							element := (*{{$Field.Iterator.OrigType}})(value)
+							element := value
 						{{else}}
-							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
-							element := *elementPtr
+							element := *value
 						{{end}}
 
 						{{range $Check := $Checks}}
@@ -257,10 +245,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 
 			for ptr != nil {
 				{{if $Field.Iterator.IsOrigTypePtr}}
-					element := (*{{$Field.Iterator.OrigType}})(ptr)
+					element := ptr
 				{{else}}
-					elementPtr := (*{{$Field.Iterator.OrigType}})(ptr)
-					element := *elementPtr
+					element := *ptr
 				{{end}}
 
 				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}

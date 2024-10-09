@@ -81,9 +81,9 @@ func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testDaemon) GetRemoteConfigState() []*pbgo.PackageState {
+func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {
 	args := m.Called()
-	return args.Get(0).([]*pbgo.PackageState)
+	return args.Get(0).(*pbgo.ClientUpdater)
 }
 
 func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
@@ -133,7 +133,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return([]*pbgo.PackageState(nil))
+	api.i.On("GetRemoteConfigState").Return(&pbgo.ClientUpdater{}, nil)
 	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()

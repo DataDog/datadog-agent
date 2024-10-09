@@ -26,11 +26,11 @@ type EntityID interface {
 	String() string
 }
 
-// defaultEntityID implements EntityID as a plain string id
-type defaultEntityID string
+// DefaultEntityID implements EntityID as a plain string id
+type DefaultEntityID string
 
 // GetID implements EntityID#GetID
-func (de defaultEntityID) GetID() string {
+func (de DefaultEntityID) GetID() string {
 	separatorIndex := strings.Index(string(de), separator)
 
 	if separatorIndex == -1 {
@@ -41,7 +41,7 @@ func (de defaultEntityID) GetID() string {
 }
 
 // GetPrefix implements EntityID#GetPrefix
-func (de defaultEntityID) GetPrefix() EntityIDPrefix {
+func (de DefaultEntityID) GetPrefix() EntityIDPrefix {
 	separatorIndex := strings.Index(string(de), separator)
 
 	if separatorIndex == -1 {
@@ -52,12 +52,12 @@ func (de defaultEntityID) GetPrefix() EntityIDPrefix {
 }
 
 // String implements EntityID#String
-func (de defaultEntityID) String() string {
+func (de DefaultEntityID) String() string {
 	return string(de)
 }
 
-func newDefaultEntityID(id string) defaultEntityID {
-	return defaultEntityID(id)
+func newDefaultEntityID(id string) DefaultEntityID {
+	return DefaultEntityID(id)
 }
 
 // compositeEntityID implements EntityID as a struct of prefix and id
@@ -102,11 +102,14 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 // NewEntityIDFromString constructs EntityID from a plain string id
 func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 	if taggerutils.ShouldUseCompositeStore() {
-		if !strings.Contains(plainStringID, separator) {
+
+		prefix, id, found := strings.Cut(plainStringID, separator)
+
+		if !found {
 			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
 		}
-		parts := strings.Split(plainStringID, separator)
-		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
+
+		return newCompositeEntityID(EntityIDPrefix(prefix), id), nil
 	}
 	return newDefaultEntityID(plainStringID), nil
 }

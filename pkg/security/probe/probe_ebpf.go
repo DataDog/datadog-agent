@@ -201,7 +201,7 @@ func (p *EBPFProbe) sanityChecks() error {
 	}
 
 	if p.config.Probe.NetworkEnabled && p.kernelVersion.IsRH7Kernel() {
-		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting runtime_security_config.network.enabled to false")
+		seclog.Warnf("The network feature of CWS isn't supported on Centos7, setting event_monitoring_config.network.enabled to false")
 		p.config.Probe.NetworkEnabled = false
 	}
 
@@ -699,13 +699,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return utils.NetNSPathFromPid(event.PIDContext.Pid)
 	})
 
-	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
-		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode Network Context")
-		}
-		offset += read
-	}
-
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
@@ -931,11 +924,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		// resolve tracee process context
 		var pce *model.ProcessCacheEntry
-		if event.PTrace.PID > 0 { // pid can be 0 for a PTRACE_TRACEME request
+		if event.PTrace.PID == 0 { // pid can be 0 for a PTRACE_TRACEME request
+			pce = newPlaceholderProcessCacheEntryPTraceMe()
+		} else {
 			pce = p.Resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
-		}
-		if pce == nil {
-			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			if pce == nil {
+				pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			}
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -1001,6 +996,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+		}
+		offset += read
+
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
@@ -1013,6 +1013,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	case model.IMDSEventType:
+		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode Network Context")
+		}
+		offset += read
+
 		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
 			// it's very possible we can't parse the IMDS body, as such let's put it as debug for now
 			seclog.Debugf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1598,7 +1603,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
-	p.processKiller.Reset()
+	p.processKiller.Apply(rs)
 
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
@@ -2196,7 +2201,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
@@ -2223,3 +2228,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		}
 	}
 }
+
+// newPlaceholderProcessCacheEntryPTraceMe returns a new empty process cache entry for PTRACE_TRACEME calls,
+// it's similar to model.NewPlaceholderProcessCacheEntry with pid = tid = 0, and isKworker = false
+var newPlaceholderProcessCacheEntryPTraceMe = sync.OnceValue(func() *model.ProcessCacheEntry {
+	return model.NewPlaceholderProcessCacheEntry(0, 0, false)
+})

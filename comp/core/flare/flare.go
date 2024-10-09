@@ -188,14 +188,48 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		f.collectConfigFiles,
 	)
 
-	for _, p := range providers {
-		err = p(fb)
-		if err != nil {
-			f.log.Errorf("error calling '%s' for flare creation: %s",
-				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
-				err)
-		}
-	}
+	f.runProviders(fb, providers)
 
 	return fb.Save()
+}
+
+func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallback) {
+	flareStepTimeout := f.config.GetDuration("flare_provider_timeout") * time.Second
+	timer := time.NewTimer(flareStepTimeout)
+	defer timer.Stop()
+
+	for _, p := range providers {
+		providerName := runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name()
+		f.log.Infof("Running flare provider %s", providerName)
+		_ = fb.Logf("Running flare provider %s", providerName)
+
+		done := make(chan struct{})
+		go func() {
+			startTime := time.Now()
+			err := p(fb)
+			duration := time.Since(startTime)
+
+			if err == nil {
+				f.log.Debugf("flare provider '%s' completed in %s", providerName, duration)
+			} else {
+				errMsg := f.log.Errorf("flare provider '%s' failed after %s: %s", providerName, duration, err)
+				_ = fb.Logf("%s", errMsg.Error())
+			}
+
+			done <- struct{}{}
+		}()
+
+		select {
+		case <-done:
+			if !timer.Stop() {
+				<-timer.C
+			}
+		case <-timer.C:
+			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, flareStepTimeout)
+			_ = fb.Logf("%s", err.Error())
+		}
+		timer.Reset(flareStepTimeout)
+	}
+
+	f.log.Info("All flare providers have been run, creating archive...")
 }

@@ -29,6 +29,11 @@ func (suite *ConfigTestSuite) SetupTest() {
 	pkgconfigsetup.SetDatadog(datadog)
 }
 
+func TestNoURIsProvided(t *testing.T) {
+	_, err := NewConfigComponent(context.Background(), "", []string{})
+	assert.Error(t, err, "no URIs provided for configs")
+}
+
 func (suite *ConfigTestSuite) TestAgentConfig() {
 	t := suite.T()
 	fileName := "testdata/config.yaml"

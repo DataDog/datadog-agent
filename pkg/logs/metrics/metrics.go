@@ -58,6 +58,11 @@ var (
 	// TlmEncodedBytesSent is the total number of sent bytes after encoding if any
 	TlmEncodedBytesSent = telemetry.NewCounter("logs", "encoded_bytes_sent",
 		nil, "Total number of sent bytes after encoding if any")
+	// BytesMissed is the number of bytes lost before they could be consumed by the agent, such as after a log rotation
+	BytesMissed = expvar.Int{}
+	// TlmBytesMissed is the number of bytes lost before they could be consumed by the agent, such as after log rotation
+	TlmBytesMissed = telemetry.NewCounter("logs", "bytes_missed",
+		nil, "Total number of bytes lost before they could be consumed by the agent, such as after log rotation")
 	// SenderLatency the last reported latency value from the http sender (ms)
 	SenderLatency = expvar.Int{}
 	// TlmSenderLatency a histogram of http sender latency (ms)
@@ -89,6 +94,7 @@ func init() {
 	LogsExpvars.Set("RetryCount", &RetryCount)
 	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)
 	LogsExpvars.Set("EncodedBytesSent", &EncodedBytesSent)
+	LogsExpvars.Set("BytesMissed", &BytesMissed)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 }
