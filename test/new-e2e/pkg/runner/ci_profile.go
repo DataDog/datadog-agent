@@ -20,6 +20,7 @@ const (
 var defaultCIEnvironments = map[string]string{
 	"aws": "agent-qa",
 	"az":  "agent-qa",
+	"gcp": "agent-qa",
 }
 
 type ciProfile struct {

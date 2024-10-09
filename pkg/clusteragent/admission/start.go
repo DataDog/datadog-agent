@@ -11,11 +11,11 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,21 +38,21 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher, datadogConfig config.Component) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
-	if !pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
+	if !datadogConfig.GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
 		return webhooks, nil
 	}
 
 	certConfig := secret.NewCertConfig(
-		pkgconfigsetup.Datadog().GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
-		pkgconfigsetup.Datadog().GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
+		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
+		datadogConfig.GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
 	secretConfig := secret.NewConfig(
 		common.GetResourcesNamespace(),
-		pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name"),
-		pkgconfigsetup.Datadog().GetString("admission_controller.service_name"),
+		datadogConfig.GetString("admission_controller.certificate.secret_name"),
+		datadogConfig.GetString("admission_controller.service_name"),
 		certConfig)
 	secretController := secret.NewController(
 		ctx.Client,
@@ -83,6 +83,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		webhookConfig,
 		wmeta,
 		pa,
+		datadogConfig,
 	)
 
 	go secretController.Run(ctx.StopCh)

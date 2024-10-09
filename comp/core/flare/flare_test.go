@@ -58,11 +58,15 @@ func TestFlareCreation(t *testing.T) {
 		),
 	)
 
-	assert.Len(t, f.Comp.(*flare).providers, 1)
-	assert.NotNil(t, f.Comp.(*flare).providers[0])
+	assert.GreaterOrEqual(t, len(f.Comp.(*flare).providers), 1)
+	assert.NotContains(t, f.Comp.(*flare).providers, nil)
 }
 
 func TestRunProviders(t *testing.T) {
+	var firstRan atomic.Bool
+	var secondRan atomic.Bool
+	var secondDone atomic.Bool
+
 	deps := fxutil.Test[dependencies](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -79,29 +83,36 @@ func TestRunProviders(t *testing.T) {
 			func() types.FlareCallback { return nil },
 			fx.ResultTags(`group:"flare"`),
 		)),
+		fx.Provide(fx.Annotate(
+			func() types.FlareCallback {
+				return func(_ types.FlareBuilder) error {
+					firstRan.Store(true)
+					return nil
+				}
+			},
+			fx.ResultTags(`group:"flare"`),
+		)),
+		fx.Provide(fx.Annotate(
+			func() types.FlareCallback {
+				return func(_ types.FlareBuilder) error {
+					secondRan.Store(true)
+					time.Sleep(10 * time.Second)
+					secondDone.Store(true)
+					return nil
+				}
+			},
+			fx.ResultTags(`group:"flare"`),
+		)),
 	)
 	deps.Config.Set("flare_provider_timeout", 1, model.SourceAgentRuntime)
 	f := newFlare(deps)
 
-	var firstRan atomic.Bool
-	var secondRan atomic.Bool
-	var secondDone atomic.Bool
-	providers := []types.FlareCallback{
-		func(_ types.FlareBuilder) error {
-			firstRan.Store(true)
-			return nil
-		},
-		func(_ types.FlareBuilder) error {
-			secondRan.Store(true)
-			time.Sleep(10 * time.Second)
-			secondRan.Store(true)
-			return nil
-		},
-	}
-
 	fb, err := helpers.NewFlareBuilder(false)
 	require.NoError(t, err)
-	f.Comp.(*flare).runProviders(fb, providers)
+
+	flare := f.Comp.(*flare)
+	flare.runProviders(fb)
+
 	require.True(t, firstRan.Load())
 	require.True(t, secondRan.Load())
 	require.False(t, secondDone.Load())
