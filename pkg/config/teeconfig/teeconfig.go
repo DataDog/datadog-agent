@@ -228,16 +228,6 @@ func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.D
 	return t.baseline.UnmarshalKey(key, rawVal, opts...)
 }
 
-// Unmarshal wraps Viper for concurrent access
-func (t *teeConfig) Unmarshal(rawVal interface{}) error {
-	return t.baseline.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (t *teeConfig) UnmarshalExact(rawVal interface{}) error {
-	return t.baseline.UnmarshalExact(rawVal)
-}
-
 // ReadInConfig wraps Viper for concurrent access
 func (t *teeConfig) ReadInConfig() error {
 	err1 := t.baseline.ReadInConfig()

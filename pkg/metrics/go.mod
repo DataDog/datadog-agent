@@ -6,7 +6,12 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../config/structure
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry/
@@ -22,6 +27,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
@@ -36,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
@@ -46,7 +52,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/fsnotify/fsnotify v1.4.7 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -62,8 +68,8 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
-	github.com/spf13/afero v1.9.5 // indirect
-	github.com/spf13/cast v1.3.0 // indirect
+	github.com/spf13/afero v1.11.0 // indirect
+	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
