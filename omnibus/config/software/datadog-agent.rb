@@ -152,9 +152,9 @@ build do
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        command "invoke -e system-probe.build"
+        command "invoke -e system-probe.build", env: env
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle", env: env
       end
     end
 
