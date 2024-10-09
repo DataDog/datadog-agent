@@ -79,6 +79,19 @@ func newFlare(deps dependencies) provides {
 		diagnoseDeps: diagnoseDeps,
 	}
 
+	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
+	//
+	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
+	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
+	f.providers = append(
+		f.providers,
+		func(fb types.FlareBuilder) error {
+			return pkgFlare.CompleteFlare(fb, f.diagnoseDeps)
+		},
+		f.collectLogsFiles,
+		f.collectConfigFiles,
+	)
+
 	return provides{
 		Comp:       f,
 		Endpoint:   api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
@@ -175,30 +188,17 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 
-	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
-	//
-	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
-	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
-	providers := append(
-		f.providers,
-		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnoseDeps)
-		},
-		f.collectLogsFiles,
-		f.collectConfigFiles,
-	)
-
-	f.runProviders(fb, providers)
+	f.runProviders(fb)
 
 	return fb.Save()
 }
 
-func (f *flare) runProviders(fb types.FlareBuilder, providers []types.FlareCallback) {
+func (f *flare) runProviders(fb types.FlareBuilder) {
 	flareStepTimeout := f.config.GetDuration("flare_provider_timeout") * time.Second
 	timer := time.NewTimer(flareStepTimeout)
 	defer timer.Stop()
 
-	for _, p := range providers {
+	for _, p := range f.providers {
 		providerName := runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name()
 		f.log.Infof("Running flare provider %s", providerName)
 		_ = fb.Logf("Running flare provider %s", providerName)

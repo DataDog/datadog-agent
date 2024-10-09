@@ -1,7 +1,6 @@
 ---
 include:
-  - .gitlab/.pre/cancel-prev-pipelines.yml
-  - .gitlab/.pre/gitlab_configuration.yml
+  - .gitlab/.pre/include.yml
   - .gitlab/benchmarks/include.yml
   - .gitlab/binary_build/include.yml
   - .gitlab/check_deploy/check_deploy.yml
@@ -172,15 +171,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v45829119-a533257a
+  DATADOG_AGENT_BUILDIMAGES: v45979046-89a73a40
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v45829119-a533257a
+  DATADOG_AGENT_WINBUILDIMAGES: v45979046-89a73a40
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v45829119-a533257a
+  DATADOG_AGENT_ARMBUILDIMAGES: v45979046-89a73a40
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45829119-a533257a
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v45979046-89a73a40
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45829119-a533257a
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v45979046-89a73a40
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -1158,12 +1157,17 @@ workflow:
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 .on_gitlab_changes:
-  - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - .gitlab-ci.yml
-        - .gitlab/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  changes:
+    paths:
+      - .gitlab-ci.yml
+      - .gitlab/**/*
+      - .gitlab/**/.*
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_gitlab_changes_or_mergequeue_or_main:
+  - !reference [.on_gitlab_changes]
+  - !reference [.on_mergequeue]
+  - !reference [.on_main]
 
 .on_invoke_tasks_changes:
   - <<: *if_main_branch

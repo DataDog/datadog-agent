@@ -484,7 +484,7 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
 
     if not jobs:
         print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-        return
+        return [], {}
 
     if only_names:
         jobs = [job for job, _ in jobs]
@@ -503,6 +503,11 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -754,6 +759,11 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -788,9 +798,7 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
 
 @task
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
-    """
-    Verifies that added / modified job files are defined within CODEOWNERS.
-    """
+    """Verifies that added / modified job files are defined within CODEOWNERS."""
 
     if all_files:
         modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)

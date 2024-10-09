@@ -3,6 +3,7 @@ test_gitlab_configuration:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
+    - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
@@ -16,6 +17,7 @@ test_gitlab_compare_to:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
+    - !reference [.except_mergequeue]
     - !reference [.on_gitlab_changes]
   script:
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
@@ -58,14 +60,10 @@ lint_gitlab_ci:
   needs: [compute_gitlab_ci_config]
   rules:
     - !reference [.compute_gitlab_ci_config_rules]
-    - !reference [.on_gitlab_changes]
-    - changes:
-        paths:
-          - .gitlab/.ci-linters.yml
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    - !reference [.on_gitlab_changes_or_mergequeue_or_main]
   script:
-    - inv -e linter.gitlab-ci-jobs-needs-rules --diff-file artifacts/diff.gitlab-ci.yml
-    - inv -e linter.gitlab-ci-jobs-owners --diff-file artifacts/diff.gitlab-ci.yml
+    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml
+    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml
 
 lint_gitlab_ci_jobs_codeowners:
   stage: .pre
