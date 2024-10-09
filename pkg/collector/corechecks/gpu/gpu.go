@@ -34,9 +34,13 @@ type Check struct {
 	core.CheckBase
 	config         *CheckConfig
 	sysProbeUtil   *processnet.RemoteSysProbeUtil
-	lastCheckTime  time.Time
-	timeResolver   *sectime.Resolver
-	statProcessors map[uint32]*StatsProcessor
+	statProcessors map[statProcessorKey]*StatsProcessor
+	probeCtx       *probeContext
+}
+
+type statProcessorKey struct {
+	pid     uint32
+	gpuUUID string
 }
 
 // Factory creates a new check factory
@@ -48,7 +52,8 @@ func newCheck() check.Check {
 	return &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
 		config:         &CheckConfig{},
-		statProcessors: make(map[uint32]*StatsProcessor),
+		statProcessors: make(map[statProcessorKey]*StatsProcessor),
+		probeCtx:       &probeContext{},
 	}
 }
 
@@ -89,8 +94,8 @@ func (m *Check) ensureInitialized() error {
 		}
 	}
 
-	if m.timeResolver == nil {
-		m.timeResolver, err = sectime.NewResolver()
+	if m.probeCtx.timeResolver == nil {
+		m.probeCtx.timeResolver, err = sectime.NewResolver()
 		if err != nil {
 			return fmt.Errorf("cannot create time resolver: %s", err)
 		}
@@ -98,29 +103,29 @@ func (m *Check) ensureInitialized() error {
 	return nil
 }
 
+func streamKeyToStatProcessorKey(key *model.StreamKey) statProcessorKey {
+	return statProcessorKey{
+		pid:     key.Pid,
+		gpuUUID: key.GPUUUID,
+	}
+}
+
 // ensureProcessor ensures that there is a stats processor for the given key
-func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThreads int, checkDuration time.Duration, metadata *model.StreamMetadata) {
-	if _, ok := m.statProcessors[key.Pid]; !ok {
-		m.statProcessors[key.Pid] = &StatsProcessor{
-			key: key,
+func (m *Check) ensureProcessor(key *model.StreamKey, metadata *model.StreamMetadata) {
+	sKey := streamKeyToStatProcessorKey(key)
+
+	if _, ok := m.statProcessors[sKey]; !ok {
+		m.statProcessors[sKey] = &StatsProcessor{
+			key:      key,
+			probeCtx: m.probeCtx,
 		}
 	}
 
-	m.statProcessors[key.Pid].totalThreadSecondsUsed = 0
-	m.statProcessors[key.Pid].sender = snd
-	m.statProcessors[key.Pid].gpuMaxThreads = gpuThreads
-	m.statProcessors[key.Pid].measuredInterval = checkDuration
-	m.statProcessors[key.Pid].timeResolver = m.timeResolver
-	m.statProcessors[key.Pid].lastCheck = m.lastCheckTime
-	m.statProcessors[key.Pid].metadata = metadata
+	// Metadata can change, so we need to update it
+	m.statProcessors[sKey].metadata = metadata
 }
 
-// Run executes the check
-func (m *Check) Run() error {
-	if err := m.ensureInitialized(); err != nil {
-		return err
-	}
-
+func (m *Check) refreshContext(now time.Time) error {
 	gpuDevices, err := cuda.GetGPUDevices()
 	if err != nil {
 		return fmt.Errorf("get GPU devices: %s", err)
@@ -130,21 +135,44 @@ func (m *Check) Run() error {
 		return fmt.Errorf("no GPU devices found")
 	}
 
+	// GPU devices might change, so we need to update the context. It's not
+	// an expensive operation anyways.
+	for _, device := range gpuDevices {
+		uuid, ret := device.GetUUID()
+		if err := cuda.WrapNvmlError(ret); err != nil {
+			return fmt.Errorf("get GPU UUID: %s", err)
+		}
+
+		m.probeCtx.gpuDeviceMap[uuid] = device
+	}
+
+	if !m.probeCtx.lastCheck.IsZero() {
+		m.probeCtx.checkDuration = now.Sub(m.probeCtx.lastCheck)
+	}
+
+	m.probeCtx.sender, err = m.GetSender()
+	if err != nil {
+		return fmt.Errorf("get metric sender: %s", err)
+	}
+
+	return nil
+}
+
+// Run executes the check
+func (m *Check) Run() error {
+	if err := m.ensureInitialized(); err != nil {
+		return err
+	}
+
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
 		return fmt.Errorf("get gpu check: %s", err)
 	}
-	now := time.Now()
 
-	var checkDuration time.Duration
 	// mark the check duration as close to the actual check as possible
-	if !m.lastCheckTime.IsZero() {
-		checkDuration = now.Sub(m.lastCheckTime)
-	}
-
-	snd, err := m.GetSender()
-	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+	now := time.Now()
+	if err := m.refreshContext(now); err != nil {
+		return fmt.Errorf("cannot refresh context: %s", err)
 	}
 
 	stats, ok := data.(model.GPUStats)
@@ -152,38 +180,34 @@ func (m *Check) Run() error {
 		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
 	}
 
-	// TODO: Multiple GPUs are not supported yet
-	gpuThreads, err := gpuDevices[0].GetMaxThreads()
-	if err != nil {
-		return fmt.Errorf("get GPU device threads: %s", err)
-	}
-
-	usedProcessors := make(map[uint32]bool)
+	usedProcessors := make(map[statProcessorKey]bool)
 
 	for _, data := range stats.CurrentData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration, &data.Metadata)
-		m.statProcessors[data.Key.Pid].processCurrentData(data)
-		usedProcessors[data.Key.Pid] = true
+		skey := streamKeyToStatProcessorKey(&data.Key)
+		m.ensureProcessor(&data.Key, &data.Metadata)
+		m.statProcessors[skey].processCurrentData(data)
+		usedProcessors[skey] = true
 	}
 
 	for _, data := range stats.PastData {
-		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration, &data.Metadata)
-		m.statProcessors[data.Key.Pid].processPastData(data)
-		usedProcessors[data.Key.Pid] = true
+		skey := streamKeyToStatProcessorKey(&data.Key)
+		m.ensureProcessor(&data.Key, &data.Metadata)
+		m.statProcessors[skey].processPastData(data)
+		usedProcessors[skey] = true
 	}
 
 	// As we compute the utilization based on the number of threads launched by the kernel, we need to
 	// normalize the utlization if we get above 100%, as the GPU can enqueue threads.
 	totalGPUUtilization := 0.0
-	for _, processor := range m.statProcessors {
-		if usedProcessors[processor.key.Pid] {
+	for skey, processor := range m.statProcessors {
+		if usedProcessors[skey] {
 			totalGPUUtilization += processor.getGPUUtilization()
 		}
 	}
 	normFactor := max(1.0, totalGPUUtilization)
 
-	for _, processor := range m.statProcessors {
-		if usedProcessors[processor.key.Pid] {
+	for skey, processor := range m.statProcessors {
+		if usedProcessors[skey] {
 			processor.setGPUUtilizationNormalizationFactor(normFactor)
 			err := processor.markInterval()
 			if err != nil {
@@ -192,15 +216,15 @@ func (m *Check) Run() error {
 		} else {
 			err := processor.finish(now)
 			// delete even in an error case, as we don't want to keep the processor around
-			delete(m.statProcessors, processor.key.Pid)
+			delete(m.statProcessors, skey)
 			if err != nil {
 				return fmt.Errorf("finish processor: %s", err)
 			}
 		}
 	}
 
-	snd.Commit()
-	m.lastCheckTime = now
+	m.probeCtx.sender.Commit()
+	m.probeCtx.lastCheck = now
 
 	return nil
 }

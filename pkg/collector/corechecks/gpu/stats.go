@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 )
 
 const (
@@ -31,20 +29,8 @@ type StatsProcessor struct {
 	// totalThreadSecondsUsed is the total amount of thread-seconds used by the GPU in the current interval
 	totalThreadSecondsUsed float64
 
-	// sender is the sender to use to send metrics
-	sender sender.Sender
-
-	// gpuMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization computations
-	gpuMaxThreads int
-
-	// lastCheck is the last time the processor was checked
-	lastCheck time.Time
-
-	// measuredInterval is the interval between the last two checks
-	measuredInterval time.Duration
-
-	// timeResolver is the time resolver to use to resolve timestamps
-	timeResolver *sectime.Resolver
+	// probeCtx holds the global probe context, such as GPU devices or time resolvers
+	probeCtx *probeContext
 
 	// currentAllocs is the list of current memory allocations
 	currentAllocs []*model.MemoryAllocation
@@ -70,38 +56,68 @@ type StatsProcessor struct {
 
 	// Metadata associated to this stream
 	metadata *model.StreamMetadata
+
+	// gpuMaxThreads holds the maximum number of threads this GPU can run in parallel
+	gpuMaxThreads int
+}
+
+func (sp *StatsProcessor) getGpuMaxThreads() (int, error) {
+	if sp.gpuMaxThreads == 0 {
+		gpuDevice, ok := sp.probeCtx.gpuDeviceMap[sp.key.GPUUUID]
+		if !ok {
+			return 0, fmt.Errorf("cannot find GPU device with UUID %s", sp.key.GPUUUID)
+		}
+
+		var err error
+		sp.gpuMaxThreads, err = gpuDevice.GetMaxThreads()
+		if err != nil {
+			return 0, fmt.Errorf("getMaxThreads failed for %s: %w", sp.key.GPUUUID, err)
+		}
+	}
+
+	return sp.gpuMaxThreads, nil
 }
 
 // processKernelSpan processes a kernel span
-func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan) {
-	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
-	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
+func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan) error {
+	tsStart := sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
+	tsEnd := sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
 
 	if sp.firstKernelStart.IsZero() || tsStart.Before(sp.firstKernelStart) {
 		sp.firstKernelStart = tsStart
 	}
 
 	// we only want to consider data that was not already processed in the previous interval
-	if sp.lastCheck.After(tsStart) {
-		tsStart = sp.lastCheck
+	if sp.probeCtx.lastCheck.After(tsStart) {
+		tsStart = sp.probeCtx.lastCheck
 	}
 	duration := tsEnd.Sub(tsStart)
-	sp.totalThreadSecondsUsed += duration.Seconds() * float64(min(span.AvgThreadCount, uint64(sp.gpuMaxThreads))) // we can't use more threads than the GPU has
+
+	gpuMaxThreads, err := sp.getGpuMaxThreads()
+	if err != nil {
+		return fmt.Errorf("cannot get max threads for GPU %s: %w", sp.key.GPUUUID, err)
+	}
+
+	sp.totalThreadSecondsUsed += duration.Seconds() * float64(min(span.AvgThreadCount, uint64(gpuMaxThreads))) // we can't use more threads than the GPU has
 	if tsEnd.After(sp.lastKernelEnd) {
 		sp.lastKernelEnd = tsEnd
 	}
+
+	return nil
 }
 
-func (sp *StatsProcessor) processPastData(data *model.StreamData) {
+func (sp *StatsProcessor) processPastData(data *model.StreamData) error {
 	for _, span := range data.Spans {
-		sp.processKernelSpan(span)
+		if err := sp.processKernelSpan(span); err != nil {
+			return fmt.Errorf("cannot process kernel span: %w", err)
+		}
 	}
 
 	for _, span := range data.Allocations {
 		// Send events on memory leak
 		if span.IsLeaked {
-			start := sp.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
-			end := sp.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
+			start := sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(span.StartKtime)
+			end := sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(span.EndKtime)
 
 			ev := event.Event{
 				AlertType:      event.AlertTypeWarning,
@@ -113,19 +129,25 @@ func (sp *StatsProcessor) processPastData(data *model.StreamData) {
 				Ts:             end.Unix(),
 			}
 
-			sp.sender.Event(ev)
+			sp.probeCtx.sender.Event(ev)
 		}
 	}
 
 	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
+
+	return nil
 }
 
-func (sp *StatsProcessor) processCurrentData(data *model.StreamData) {
+func (sp *StatsProcessor) processCurrentData(data *model.StreamData) error {
 	for _, span := range data.Spans {
-		sp.processKernelSpan(span)
+		if err := sp.processKernelSpan(span); err != nil {
+			return err
+		}
 	}
 
 	sp.currentAllocs = data.Allocations
+
+	return nil
 }
 
 // getTags returns the tags to use for the metrics
@@ -136,32 +158,47 @@ func (sp *StatsProcessor) getTags() []string {
 	}
 }
 
-func (sp *StatsProcessor) getGPUUtilization() float64 {
-	intervalSecs := sp.measuredInterval.Seconds()
+func (sp *StatsProcessor) getGPUUtilization() (float64, error) {
+	intervalSecs := sp.probeCtx.checkDuration.Seconds()
 	if intervalSecs > 0 {
-		availableThreadSeconds := float64(sp.gpuMaxThreads) * intervalSecs
-		return sp.totalThreadSecondsUsed / availableThreadSeconds
+		gpuMaxThreads, err := sp.getGpuMaxThreads()
+		if err != nil {
+			return 0, fmt.Errorf("cannot get max threads for GPU %s: %w", sp.key.GPUUUID, err)
+		}
+
+		availableThreadSeconds := float64(gpuMaxThreads) * intervalSecs
+		return sp.totalThreadSecondsUsed / availableThreadSeconds, nil
 	}
 
-	return 0
+	return 0, nil
 }
 
 func (sp *StatsProcessor) setGPUUtilizationNormalizationFactor(factor float64) {
 	sp.utilizationNormFactor = factor
 }
 
+// resetForNextInterval resets any internal counters/accumulators so the next interval can start anew
+func (sp *StatsProcessor) resetForNextInterval() {
+	sp.totalThreadSecondsUsed = 0
+}
+
 func (sp *StatsProcessor) markInterval() error {
-	intervalSecs := sp.measuredInterval.Seconds()
+	intervalSecs := sp.probeCtx.checkDuration.Seconds()
 	if intervalSecs > 0 {
-		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor
+		utilization, err := sp.getGPUUtilization()
+		if err != nil {
+			return fmt.Errorf("cannot get GPU utilization: %w", err)
+		}
+
+		utilization /= sp.utilizationNormFactor
 
 		if sp.sentEvents == 0 {
-			err := sp.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
+			err := sp.probeCtx.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
 			if err != nil {
 				return fmt.Errorf("cannot send metric: %w", err)
 			}
 		}
-		err := sp.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
+		err = sp.probeCtx.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
 		if err != nil {
 			return fmt.Errorf("cannot send metric: %w", err)
 		}
@@ -180,16 +217,16 @@ func (sp *StatsProcessor) markInterval() error {
 	}
 
 	for _, alloc := range sp.currentAllocs {
-		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		startEpoch := uint64(sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
 		getBuilder(alloc.Type).AddEventStart(startEpoch, int64(alloc.Size))
 	}
 	for _, alloc := range sp.pastAllocs {
-		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
-		endEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
+		startEpoch := uint64(sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		endEpoch := uint64(sp.probeCtx.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
 		getBuilder(alloc.Type).AddEvent(startEpoch, endEpoch, int64(alloc.Size))
 	}
 
-	lastCheckEpoch := sp.lastCheck.Unix()
+	lastCheckEpoch := sp.probeCtx.lastCheck.Unix()
 
 	for allocType, builder := range builders {
 		tags := append(sp.getTags(), fmt.Sprintf("memory_type:%s", allocType))
@@ -200,7 +237,7 @@ func (sp *StatsProcessor) markInterval() error {
 			// Also do not send points that are 0, unless we have already sent some points, in which case
 			// we need them to close the series
 			if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
-				err := sp.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
+				err := sp.probeCtx.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
 				if err != nil {
 					return fmt.Errorf("cannot send metric: %w", err)
 				}
@@ -213,10 +250,11 @@ func (sp *StatsProcessor) markInterval() error {
 			sentPoints = true
 		}
 
-		sp.sender.Gauge(metricNameMaxMem, float64(maxMemory), "", tags)
+		sp.probeCtx.sender.Gauge(metricNameMaxMem, float64(maxMemory), "", tags)
 	}
 
 	sp.sentEvents++
+	sp.resetForNextInterval()
 
 	return nil
 }
@@ -230,15 +268,15 @@ func (sp *StatsProcessor) finish(now time.Time) error {
 		lastTs = sp.maxTimestampLastMetric.Add(time.Second)
 	}
 
-	err := sp.sender.GaugeWithTimestamp(metricNameMemory, 0, "", sp.getTags(), float64(lastTs.Unix()))
+	err := sp.probeCtx.sender.GaugeWithTimestamp(metricNameMemory, 0, "", sp.getTags(), float64(lastTs.Unix()))
 	if err != nil {
 		return fmt.Errorf("cannot send metric: %w", err)
 	}
-	err = sp.sender.GaugeWithTimestamp(metricNameMaxMem, 0, "", sp.getTags(), float64(lastTs.Unix()))
+	err = sp.probeCtx.sender.GaugeWithTimestamp(metricNameMaxMem, 0, "", sp.getTags(), float64(lastTs.Unix()))
 	if err != nil {
 		return fmt.Errorf("cannot send metric: %w", err)
 	}
-	err = sp.sender.GaugeWithTimestamp(metricNameUtil, 0, "", sp.getTags(), float64(lastTs.Unix()))
+	err = sp.probeCtx.sender.GaugeWithTimestamp(metricNameUtil, 0, "", sp.getTags(), float64(lastTs.Unix()))
 	if err != nil {
 		return fmt.Errorf("cannot send metric: %w", err)
 	}
