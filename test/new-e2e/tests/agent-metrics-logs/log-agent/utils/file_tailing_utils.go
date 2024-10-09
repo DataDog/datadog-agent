@@ -149,7 +149,7 @@ func FetchAndFilterLogs(t *testing.T, fakeIntake *components.FakeIntake, service
 	return logs, nil
 }
 
-// CheckLogsExpected verifies the presence of expected logs.
+// CheckLogsExpected verifies the presence of expected logs, and verifies that there are no duplicate tags.
 func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string, expectedTags ddtags) {
 	t.Helper()
 
@@ -160,6 +160,14 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
 				t.Logf("Logs from service: '%s' with content: '%s' collected", service, content)
 				log := logs[0]
+				// Use a map to check for duplicate tags
+				seenTags := make(map[string]struct{})
+				for _, tag := range log.Tags {
+					if _, exists := seenTags[tag]; exists {
+						t.Errorf("Duplicate tag found: %s", tag)
+					}
+					seenTags[tag] = struct{}{} // Mark the tag as seen
+				}
 				for _, expectedTag := range expectedTags {
 					assert.Contains(t, log.Tags, expectedTag)
 				}
