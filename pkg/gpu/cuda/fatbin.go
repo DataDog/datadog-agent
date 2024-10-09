@@ -6,6 +6,8 @@
 // This file contains a parser for the Cubin/Fatbin format.
 // References:
 // - https://github.com/VivekPanyam/cudaparsers
+// - https://pdfs.semanticscholar.org/5096/25785304410039297b741ad2007e7ce0636b.pdf
+// - https://github.com/cloudcores/CuAssembler/blob/master/CuAsm/CuNVInfo.py
 
 // Generate String() methods for fatbinDataKind enums so they can be printed in logs/error messages
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=fatbinDataKind -linecomment

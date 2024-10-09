@@ -213,8 +213,10 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer io.ReadSeeker, 
 				return fmt.Errorf("failed to parse value size: %w", err)
 			}
 			valueSize = int(nval)
+		case nviFmtNone:
+			valueSize = 2 // Doesn't really make sense as that data isn't used, but we need to skip it
 		default:
-			return fmt.Errorf("unsupported format %d", item.Format)
+			return fmt.Errorf("unsupported nvInfoFormat %d", item.Format)
 		}
 
 		parsedItem := nvInfoParsedItem{
