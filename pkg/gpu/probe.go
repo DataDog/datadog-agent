@@ -141,7 +141,12 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		attacher: attacher,
 	}
 
-	p.sysCtx, err = getSystemContext()
+	var sysCtxOpts []systemContextOpts
+	if cfg.DisableGpuDeviceQuery {
+		sysCtxOpts = append(sysCtxOpts, systemContextOptDisableGpuQuery)
+	}
+
+	p.sysCtx, err = getSystemContext(sysCtxOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting GPU system info: %w", err)
 	}

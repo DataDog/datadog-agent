@@ -19,7 +19,9 @@ import (
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := NewConfig()
-	consumer := NewCudaEventConsumer(handler, cfg)
+	ctx, err := getSystemContext(systemContextOptDisableGpuQuery)
+	require.NoError(t, err)
+	consumer := NewCudaEventConsumer(handler, cfg, ctx)
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
