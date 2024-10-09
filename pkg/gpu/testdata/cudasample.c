@@ -27,6 +27,10 @@ cudaError_t cudaStreamSynchronize(cudaStream_t stream) {
     return 0;
 }
 
+cudaError_t cudaSetDevice(int device) {
+    return 0;
+}
+
 int main(int argc, char **argv) {
     cudaStream_t stream = 30;
 
@@ -45,6 +49,7 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "Starting calls.\n");
 
+    cudaSetDevice(3);
     cudaLaunchKernel((void *)0x1234, (dim3){ 1, 2, 3 }, (dim3){ 4, 5, 6 }, NULL, 10, stream);
     void *ptr;
     cudaMalloc(&ptr, 100);
