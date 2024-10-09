@@ -51,5 +51,5 @@ typedef struct {
 
 typedef struct {
     cuda_event_header_t header;
-    __u32 device
+    int device;
 } cuda_set_device_event_t;
