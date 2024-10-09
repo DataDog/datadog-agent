@@ -107,31 +107,36 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
-		var argName string
+		var (
+			argName    string
+			captureDef *ditypes.Parameter
+			defPieces  []ditypes.Parameter
+		)
 		if idx < len(defs) {
 			argName = defs[idx].Name
+			captureDef = &defs[idx]
 		}
 		if argName == "" {
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
-
 		if reflect.Kind(capture.Kind) == reflect.Slice {
-			args[argName] = convertSlice(&defs[idx], capture)
+			args[argName] = convertSlice(captureDef, capture)
 			continue
 		}
-
 		if capture == nil {
 			continue
 		}
-
 		cv := &ditypes.CapturedValue{Type: capture.Type}
 		if capture.ValueStr != "" || capture.Type == "string" {
 			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
+		if idx < len(defs) {
+			defPieces = defs[idx].ParameterPieces
+		}
 		if capture.Fields != nil {
-			cv.Fields = convertArgs(defs[idx].ParameterPieces, capture.Fields)
+			cv.Fields = convertArgs(defPieces, capture.Fields)
 		}
 		args[argName] = cv
 	}
@@ -139,7 +144,7 @@ func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string
 }
 
 func convertSlice(def *ditypes.Parameter, capture *ditypes.Param) *ditypes.CapturedValue {
-	if len(def.ParameterPieces) != 2 {
+	if def == nil || len(def.ParameterPieces) != 2 {
 		// The definition should have two fields, for type, and for length
 		return nil
 	}

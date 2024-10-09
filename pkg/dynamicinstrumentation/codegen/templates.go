@@ -45,7 +45,7 @@ for (indexSlice{{.Parameter.ID}} = 0; indexSlice{{.Parameter.ID}} < MAX_SLICE_LE
 `
 
 var sliceLengthRegisterTemplateText = `
-bpf_probe_read(&param_size, sizeof(param_size), &ctx->DWARF_REGISTER({{.Location.Register}});
+bpf_probe_read(&param_size, sizeof(param_size), &ctx->DWARF_REGISTER({{.Location.Register}}));
 `
 
 // The length and type of slices aren't known until parsing, so they require
