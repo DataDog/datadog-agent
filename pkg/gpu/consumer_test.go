@@ -19,7 +19,7 @@ import (
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := NewConfig()
-	ctx, err := getSystemContext(systemContextOptDisableGpuQuery)
+	ctx, err := getSystemContext(cfg.ProcRoot, systemContextOptDisableGpuQuery)
 	require.NoError(t, err)
 	consumer := NewCudaEventConsumer(handler, cfg, ctx)
 
