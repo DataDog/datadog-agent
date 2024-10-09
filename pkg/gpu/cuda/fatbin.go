@@ -164,7 +164,7 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
-			for currOffset := getBufferOffset(buffer); currOffset-readStart < int64(fbHeader.FatSize); currOffset = getBufferOffset(buffer) {
+			for currOffset := getBufferOffset(buffer); uint64(currOffset-readStart) < fbHeader.FatSize; currOffset = getBufferOffset(buffer) {
 				if err := parseFatbinData(buffer, fatbin); err != nil {
 					if err == io.EOF {
 						break
@@ -181,8 +181,8 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 
 func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// Each data section starts with a data header, read it
-	var fatbinData fatbinData
-	err := binary.Read(buffer, binary.LittleEndian, &fatbinData)
+	var fbData fatbinData
+	err := binary.Read(buffer, binary.LittleEndian, &fbData)
 	if err != nil {
 		if err == io.EOF {
 			return err
@@ -192,23 +192,23 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	}
 
 	// Check that we have a valid header
-	if err := fatbinData.validate(); err != nil {
+	if err := fbData.validate(); err != nil {
 		return fmt.Errorf("invalid fatbin data: %w", err)
 	}
 
 	// The header size is the size of the struct, but the actual header in file might be larger
 	// If that's the case, we need to skip the rest of the header
-	fatbinDataSize := uint32(unsafe.Sizeof(fatbinData))
-	if fatbinData.HeaderSize > fatbinDataSize {
-		_, err = buffer.Seek(int64(fatbinData.HeaderSize-fatbinDataSize), io.SeekCurrent)
+	fatbinDataSize := uint32(unsafe.Sizeof(fbData))
+	if fbData.HeaderSize > fatbinDataSize {
+		_, err = buffer.Seek(int64(fbData.HeaderSize-fatbinDataSize), io.SeekCurrent)
 		if err != nil {
 			return fmt.Errorf("failed to skip rest of fatbin data header: %w", err)
 		}
 	}
 
-	if fatbinData.dataKind() != fatbinDataKindSm {
+	if fbData.dataKind() != fatbinDataKindSm {
 		// We only support SM data for now, skip this one
-		_, err := buffer.Seek(int64(fatbinData.PaddedPayloadSize), io.SeekCurrent)
+		_, err := buffer.Seek(int64(fbData.PaddedPayloadSize), io.SeekCurrent)
 		if err != nil {
 			return fmt.Errorf("failed to skip PTX fatbin data: %w", err)
 		}
@@ -216,25 +216,27 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 		return nil // Skip this data section
 	}
 
-	// Now read the payload. Fatbin format could have both compressed and uncompressed payloads
+	// Now read the payload. Fatbin format could have both compressed and uncompressed payloads. The way this is
+	// determined is by the UncompressedPayloadSize field. If it's non-zero, it indicates the size the payload will
+	// have once uncompressed. If it's zero, the payload is not compressed.
 	var payload []byte
-	if fatbinData.UncompressedPayloadSize != 0 {
-		compressedPayload := make([]byte, fatbinData.PaddedPayloadSize)
+	if fbData.UncompressedPayloadSize != 0 {
+		compressedPayload := make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, compressedPayload)
 		if err != nil {
 			return fmt.Errorf("failed to read fatbin compressed payload: %w", err)
 		}
 
 		// Keep only the actual payload, ignore the padding for the uncompression
-		compressedPayload = compressedPayload[:fatbinData.PayloadSize]
+		compressedPayload = compressedPayload[:fbData.PayloadSize]
 
-		payload = make([]byte, fatbinData.UncompressedPayloadSize)
+		payload = make([]byte, fbData.UncompressedPayloadSize)
 		_, err = lz4.UncompressBlock(compressedPayload, payload)
 		if err != nil {
 			return fmt.Errorf("failed to decompress fatbin payload: %w", err)
 		}
 	} else {
-		payload = make([]byte, fatbinData.PaddedPayloadSize)
+		payload = make([]byte, fbData.PaddedPayloadSize)
 		_, err := io.ReadFull(buffer, payload)
 		if err != nil {
 			return fmt.Errorf("failed to read fatbin payload: %w", err)
@@ -251,7 +253,7 @@ func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// Retrieve all the kernels found in the cubin parser and add them to the fatbin, including
 	// the SM version they were compiled for which is only available in the fatbin data
 	for _, kernel := range parser.kernels {
-		key := CubinKernelKey{Name: kernel.Name, SmVersion: fatbinData.SmVersion}
+		key := CubinKernelKey{Name: kernel.Name, SmVersion: fbData.SmVersion}
 		fatbin.Kernels[key] = kernel
 	}
 
