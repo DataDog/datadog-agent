@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from fnmatch import fnmatch
 from glob import glob
 
 import yaml
@@ -817,11 +818,13 @@ def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
     """Verifies that added / modified job files are defined within CODEOWNERS."""
 
+    target_files = '.gitlab/**/*.yml'
+
     if all_files:
-        modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)
+        modified_yml_files = glob(target_files, recursive=True)
     else:
         modified_yml_files = get_file_modifications(ctx, added=True, modified=True, only_names=True)
-        modified_yml_files = [path for path in modified_yml_files if path.endswith('.yml')]
+        modified_yml_files = [path for path in modified_yml_files if fnmatch(path, target_files)]
 
     if not modified_yml_files:
         print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
