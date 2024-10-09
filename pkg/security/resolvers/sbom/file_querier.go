@@ -44,7 +44,7 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 				SrcVersion: resultPkg.SrcVersion,
 			}
 			for _, file := range resultPkg.InstalledFiles {
-				seclog.Tracef("indexing %s as %+v", file, pkg)
+				seclog.Infof("indexing %s as %+v", file, pkg)
 				files = append(files, fqEntry{hash: murmur3.StringSum64(file), pkg: pkg})
 			}
 		}
