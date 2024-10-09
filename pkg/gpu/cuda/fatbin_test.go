@@ -19,7 +19,7 @@ import (
 )
 
 // The test data is a CUDA fatbin file compiled with the Makefile present in the same directory.
-func getCudaSample(t *testing.T) string {
+func getCudaSample(t testing.TB) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
@@ -66,5 +66,15 @@ func TestParseFatbinFromPath(t *testing.T) {
 	// Check that all the kernels are present in each version
 	for version, kernelNames := range seenSmVersionsAndKernels {
 		require.ElementsMatch(t, []string{kern1MangledName, kern2MangledName}, kernelNames, "missing kernels for version %d", version)
+	}
+}
+
+func BenchmarkParseFatbinFromPath(b *testing.B) {
+	path := getCudaSample(b)
+	for i := 0; i < b.N; i++ {
+		_, err := ParseFatbinFromELFFilePath(path)
+		if err != nil {
+			b.Fatalf("unexpected error: %v", err)
+		}
 	}
 }
