@@ -43,7 +43,9 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
-// We cannot use sync.Once as we need to reset the singleton
+// We cannot use sync.Once as we need to reset the singleton when the refcount reaches 0,
+// as we need to completely de-initialize the program (including the eBPF manager) in that case.
+// That way, any future calls to get the singleton will reinitialize the program completely.
 var progSingletonLock sync.Mutex
 var progSingleton *EbpfProgram
 
@@ -64,7 +66,7 @@ type EbpfProgram struct {
 	done           map[Libset]chan struct{}
 
 	// We need to protect the initialization variables with a mutex, as the program can be initialized
-	// from multiple goroutines
+	// from multiple goroutines at the same time
 	initMutex      sync.Mutex
 	enabledLibsets map[Libset]struct{}
 	isInitialized  bool
@@ -188,9 +190,11 @@ func (e *EbpfProgram) loadProgram() error {
 	return nil
 }
 
-// InitWithLibsets initializes the eBPF program. It is guaranteed to perform the initialization only if needed
-// For example, if the program is already initialized to listen for a certain libset, it will not reinitialize
-// the program to listen for the same libset. However, if the libsets are changed, it will reinitialize the program.
+// InitWithLibsets initializes the eBPF program and prepares it to listen to the
+// given libsets. It is guaranteed to perform the initialization only if needed
+// For example, if the program is already initialized to listen for a certain
+// libset, it will not reinitialize the program to listen for the same libset.
+// However, if the libsets are changed, it will reinitialize the program.
 func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 	// Ensure we have all valid libsets, we don't want cryptic errors later
 	for _, libset := range libsets {
@@ -211,7 +215,9 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		}
 
 		// If not, we need to reinitialize the eBPF program, so we stop it
-		// We use stopImpl to avoid changing the refcount
+		// We use stopImpl to avoid changing the refcount. This will stop perf handlers,
+		// but will retain callbacks and other state. This way, listeners will not
+		// actually notice any change (other than the lost events in the meantime).
 		e.stopImpl()
 	}
 
