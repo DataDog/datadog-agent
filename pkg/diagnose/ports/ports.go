@@ -41,14 +41,14 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 
 	var diagnoses []diagnosis.Diagnosis
 	for _, key := range pkgconfigsetup.Datadog().AllKeysLowercased() {
-		splitKey := strings.Split(key, ".")
-		keyName := splitKey[len(splitKey)-1]
-		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
+		// on windows, we skip the ports used by apm agent and process agent because the core agent does not have permissions to retrieve proc name
+		if runtime.GOOS == "windows" && (strings.HasPrefix(key, "apm_config") || strings.HasPrefix(key, "process_config")) {
 			continue
 		}
 
-		// on windows, we skip the ports used by apm agent and process agent because the core agent does not have permissions to retrieve proc name
-		if runtime.GOOS == "windows" && (strings.HasPrefix(keyName, "apm_config") || strings.HasPrefix(keyName, "process_config")) {
+		splitKey := strings.Split(key, ".")
+		keyName := splitKey[len(splitKey)-1]
+		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
 			continue
 		}
 
