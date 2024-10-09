@@ -754,6 +754,8 @@ func (p *WindowsProbe) Start() error {
 				return
 
 			case <-p.onError:
+				log.Errorf("error in underlying procmon")
+				continue
 				// in this case, we got some sort of error that the underlying
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 

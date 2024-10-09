@@ -381,26 +381,33 @@ class GitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=True, modified=True, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
         """
         Will iterate over all jobs in all files for the given states
 
-        Returns a tuple of (job_name, contents, state)
+        - only_leaves: If True, will return only leaf jobs
+        - Returns a tuple of (job_name, contents, state)
 
         Note that the contents of the job is the contents after modification if modified or before removal if removed
         """
 
         if added:
             for job in self.added:
-                yield job, self.after[job], 'added'
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'added'
 
         if modified:
             for job in self.modified:
-                yield job, self.after[job], 'modified'
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'modified'
 
         if removed:
             for job in self.removed:
-                yield job, self.before[job], 'removed'
+                contents = self.before[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'removed'
 
 
 class MultiGitlabCIDiff:
@@ -528,17 +535,20 @@ class MultiGitlabCIDiff:
 
         return '\n'.join(res)
 
-    def iter_jobs(self, added=True, modified=True, removed=False):
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
         """
         Will iterate over all jobs in all files for the given states
 
-        Returns a tuple of (entry_point, job_name, contents, state)
+        - only_leaves: If True, will return only leaf jobs
+        - Returns a tuple of (entry_point, job_name, contents, state)
 
         Note that the contents is the contents after modification or before removal
         """
 
         for diff in self.diffs:
-            for job, contents, state in diff.diff.iter_jobs(added=added, modified=modified, removed=removed):
+            for job, contents, state in diff.diff.iter_jobs(
+                added=added, modified=modified, removed=removed, only_leaves=only_leaves
+            ):
                 yield diff.entry_point, job, contents, state
 
 
@@ -610,6 +620,14 @@ def clean_gitlab_ci_configuration(yml):
     return flatten(yml)
 
 
+def is_leaf_job(job_name, job_contents):
+    """
+    A 'leaf' job is a job that will be executed by gitlab-ci, that is a job that is not meant to be only extended (usually jobs starting with '.') or special gitlab objects (variables, stages...)
+    """
+
+    return not job_name.startswith('.') and ('script' in job_contents or 'trigger' in job_contents)
+
+
 def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
     """
     Filters gitlab-ci configuration jobs
@@ -620,7 +638,7 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_speci
 
     def filter_yaml(key, value):
         # Not a job
-        if key.startswith('.') or 'script' not in value and 'trigger' not in value:
+        if not is_leaf_job(key, value):
             # Exception for special objects if this option is enabled
             if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
                 return None
@@ -1185,3 +1203,25 @@ def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 
     return before_config, after_config, diff
+
+
+def full_config_get_all_leaf_jobs(full_config: dict) -> set[str]:
+    """
+    Get all leaf jobs from a full gitlab-ci configuration
+    """
+    all_jobs = set()
+    for config in full_config.values():
+        all_jobs.update({job for job in config if is_leaf_job(job, config[job])})
+
+    return all_jobs
+
+
+def full_config_get_all_stages(full_config: dict) -> set[str]:
+    """
+    Get all stages from a full gitlab-ci configuration
+    """
+    all_stages = set()
+    for config in full_config.values():
+        all_stages.update(config.get("stages", []))
+
+    return all_stages

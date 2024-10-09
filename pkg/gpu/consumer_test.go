@@ -18,7 +18,8 @@ import (
 
 func TestConsumerCanStartAndStop(t *testing.T) {
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
-	consumer := NewCudaEventConsumer(handler, 30*time.Second)
+	cfg := NewConfig()
+	consumer := NewCudaEventConsumer(handler, cfg)
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
