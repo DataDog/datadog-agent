@@ -201,7 +201,11 @@ func (m *Check) Run() error {
 	totalGPUUtilization := 0.0
 	for skey, processor := range m.statProcessors {
 		if usedProcessors[skey] {
-			totalGPUUtilization += processor.getGPUUtilization()
+			gpuUtil, err := processor.getGPUUtilization()
+			if err != nil {
+				return fmt.Errorf("get GPU utilization: %s", err)
+			}
+			totalGPUUtilization += gpuUtil
 		}
 	}
 	normFactor := max(1.0, totalGPUUtilization)
