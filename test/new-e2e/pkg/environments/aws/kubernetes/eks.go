@@ -342,6 +342,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
+			if params.eksWindowsNodeGroup {
+				params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
+			}
 			kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", eksKubeProvider, params.agentOptions...)
 			if err != nil {
 				return err
