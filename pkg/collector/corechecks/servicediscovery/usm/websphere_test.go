@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestWebsphereFindDeployedApps(t *testing.T) {
@@ -113,7 +112,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 					&fstest.MapFile{Data: []byte(tt.deploymentXML)}
 			}
 
-			value, ok := newWebsphereExtractor(NewDetectionContext(tt.args, envs.NewEnvironmentVariables(nil, language.Java), fs)).findDeployedApps("base")
+			value, ok := newWebsphereExtractor(NewDetectionContext(tt.args, envs.NewEnvironmentVariables(nil), fs)).findDeployedApps("base")
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -121,7 +120,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 }
 
 func TestWebsphereDefaultContextRootFromFile(t *testing.T) {
-	value, ok := newWebsphereExtractor(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Java), nil)).defaultContextRootFromFile("myapp.war")
+	value, ok := newWebsphereExtractor(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil), nil)).defaultContextRootFromFile("myapp.war")
 	require.Equal(t, "myapp", value)
 	require.True(t, ok)
 }

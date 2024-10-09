@@ -18,7 +18,6 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -178,7 +177,7 @@ func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error
 }
 
 // newEnvReader returns a new [EnvReader] to read from path, it reads null terminated strings.
-func newEnvReader(proc *process.Process, lang language.Language) (*EnvReader, error) {
+func newEnvReader(proc *process.Process) (*EnvReader, error) {
 	envPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "environ")
 	file, err := os.Open(envPath)
 	if err != nil {
@@ -191,7 +190,7 @@ func newEnvReader(proc *process.Process, lang language.Language) (*EnvReader, er
 	return &EnvReader{
 		file:    file,
 		scanner: scanner,
-		envs:    envs.NewEnvironmentVariables(nil, lang),
+		envs:    envs.NewEnvironmentVariables(nil),
 	}, nil
 }
 
@@ -214,11 +213,11 @@ func (er *EnvReader) add() bool {
 }
 
 // getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
-func getTargetEnvs(proc *process.Process, lang language.Language) (envs.EnvironmentVariables, error) {
-	er, err := newEnvReader(proc, lang)
+func getTargetEnvs(proc *process.Process) (envs.EnvironmentVariables, error) {
+	er, err := newEnvReader(proc)
 	defer er.finish()
 	if err != nil {
-		return envs.NewEnvironmentVariables(nil, lang), err
+		return envs.NewEnvironmentVariables(nil), err
 	}
 
 	for er.scanner.Scan() {

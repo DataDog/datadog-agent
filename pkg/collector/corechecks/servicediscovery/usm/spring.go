@@ -318,7 +318,7 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	combined := &props.Combined{Sources: []props.PropertyGetter{
 		newArgumentSource(s.ctx.args, "--"),
 		newArgumentSource(s.ctx.args, "-D"),
-		newEnvironmentSource(s.ctx.envs.GetVars()),
+		newEnvironmentSource(s.getSpringEnvs()),
 	}}
 
 	// resolved properties referring to other properties (thanks to the Expander)
@@ -350,6 +350,23 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 		}
 	}
 	return conf.Get(appnamePropName)
+}
+
+var springEnvs = []string{
+	"SPRING_APPLICATION_NAME",
+	"SPRING_CONFIG_LOCATIONS",
+	"SPRING_CONFIG_NAME",
+	"SPRING_PROFILES_ACTIVE",
+}
+
+func (s springBootParser) getSpringEnvs() map[string]string {
+	envsMap := make(map[string]string)
+	for _, env := range springEnvs {
+		if val, ok := s.ctx.envs.Get(env); ok {
+			envsMap[env] = val
+		}
+	}
+	return envsMap
 }
 
 // isSpringBootArchive heuristically determines if a jar archive is a spring boot packaged jar

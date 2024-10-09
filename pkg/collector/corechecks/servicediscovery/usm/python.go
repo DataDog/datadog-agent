@@ -12,8 +12,10 @@ import (
 )
 
 const (
-	initPy     = "__init__.py"
-	allPyFiles = "*.py"
+	initPy             = "__init__.py"
+	allPyFiles         = "*.py"
+	gunicornEnvCmdArgs = "GUNICORN_CMD_ARGS"
+	wsgiAppEnv         = "WSGI_APP"
 )
 
 type pythonDetector struct {
@@ -112,13 +114,13 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 }
 
 func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
-	if fromEnv, ok := extractEnvVar(g.ctx.envs, "GUNICORN_CMD_ARGS"); ok {
+	if fromEnv, ok := extractEnvVar(g.ctx.envs, gunicornEnvCmdArgs); ok {
 		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
 		if ok {
 			return NewServiceMetadata(name), true
 		}
 	}
-	if wsgiApp, ok := extractEnvVar(g.ctx.envs, "WSGI_APP"); ok && len(wsgiApp) > 0 {
+	if wsgiApp, ok := extractEnvVar(g.ctx.envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
 		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
 	}
 

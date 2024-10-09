@@ -11,7 +11,6 @@ import (
 	"testing/fstest"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,7 +75,7 @@ func TestPythonDetect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := newPythonDetector(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil, language.Python), memFs)).detect(strings.Split(tt.cmd, " ")[1:])
+			value, ok := newPythonDetector(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil), memFs)).detect(strings.Split(tt.cmd, " ")[1:])
 			require.Equal(t, tt.expected, value.Name)
 			require.Equal(t, len(value.Name) > 0, ok)
 		})

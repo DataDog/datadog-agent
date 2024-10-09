@@ -18,7 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
 
 func TestInjectedEnvBasic(t *testing.T) {
@@ -116,9 +115,14 @@ func TestTargetEnvs(t *testing.T) {
 	expectedEnvs, expectedMap := envs.GetExpectedEnvs()
 	createEnvsMemfd(t, expectedEnvs)
 
-	vars, err := getTargetEnvs(proc, language.Unknown)
+	vars, err := getTargetEnvs(proc)
 	require.NoError(t, err)
 	require.Equal(t, vars.GetVars(), expectedMap)
+
+	// check unexpected env variables
+	require.NotContains(t, vars.GetVars(), "HOME")
+	require.NotContains(t, vars.GetVars(), "PATH")
+	require.NotContains(t, vars.GetVars(), "SHELL")
 }
 
 // BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
@@ -143,10 +147,11 @@ func BenchmarkGetEnvsTarget(b *testing.B) {
 	if err != nil {
 		return
 	}
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err = getTargetEnvs(proc, language.Unknown)
+		_, err = getTargetEnvs(proc)
 		if err != nil {
 			return
 		}
