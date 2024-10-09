@@ -17,15 +17,16 @@ import (
 )
 
 type fileQuerier struct {
-	files map[uint64]*Package
+	files []fqEntry
 }
 
-func newEmptyFileQuerier() fileQuerier {
-	return fileQuerier{files: make(map[uint64]*Package)}
+type fqEntry struct {
+	hash uint64
+	pkg  *Package
 }
 
 func newFileQuerier(report *trivy.Report) fileQuerier {
-	files := make(map[uint64]*Package)
+	files := make([]fqEntry, 0)
 	for _, result := range report.Results {
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
@@ -35,20 +36,29 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 			}
 			for _, file := range resultPkg.InstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
-				files[murmur3.StringSum64(file)] = pkg
+				files = append(files, fqEntry{hash: murmur3.StringSum64(file), pkg: pkg})
 			}
 		}
 	}
 	return fileQuerier{files: files}
 }
 
+func (fq *fileQuerier) queryHash(hash uint64) *Package {
+	for _, entry := range fq.files {
+		if entry.hash == hash {
+			return entry.pkg
+		}
+	}
+	return nil
+}
+
 func (fq *fileQuerier) queryFile(path string) *Package {
-	if pkg := fq.files[murmur3.StringSum64(path)]; pkg != nil {
+	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
 		return pkg
 	}
 
 	if strings.HasPrefix(path, "/usr") {
-		return fq.files[murmur3.StringSum64(path[4:])]
+		return fq.queryHash(murmur3.StringSum64(path[4:]))
 	}
 
 	return nil
