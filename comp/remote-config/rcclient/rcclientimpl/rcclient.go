@@ -247,6 +247,7 @@ func (rc rcClient) SubscribeAgentTask() {
 		pkglog.Errorf("No remote-config client")
 		return
 	}
+	pkglog.Debug("Subs agent task")
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
@@ -311,11 +312,11 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
 func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	rc.m.Lock()
-	defer rc.m.Unlock()
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
+
+	pkglog.Debugf("[agentTaskUpdateCallback] updates: %v", updates)
 
 	// Executes all AGENT_TASK in separate routines, so we don't block if one of them deadlock
 	for originalConfigPath, originalConfig := range updates {
@@ -331,6 +332,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 				})
 				return
 			}
+			rc.m.Lock()
 
 			// Check that the flare task wasn't already processed
 			if !rc.taskProcessed[task.Config.UUID] {
@@ -374,6 +376,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 					})
 				}
 			}
+			rc.m.Unlock()
 		}(originalConfigPath, originalConfig)
 	}
 

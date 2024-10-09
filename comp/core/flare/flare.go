@@ -13,8 +13,10 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/haagent"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
@@ -112,15 +114,33 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, nil)
-	if err != nil {
-		return true, err
+	//filePath, err := f.Create(nil, nil)
+	//if err != nil {
+	//	return true, err
+	//}
+
+	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
+
+	caseIdNum := 0
+	caseIdNum, _ = strconv.Atoi(caseID)
+
+	var role string
+
+	if caseIdNum > 0 { // primary
+		role = "primary"
+	} else { // secondary
+		role = "standby"
+	}
+	initialRole := haagent.GetInitialRole()
+	if initialRole == "auto" {
+		f.log.Infof("[onAgentTaskEvent] SetRole caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
+		haagent.SetRole(role)
+	} else {
+		f.log.Infof("[onAgentTaskEvent] Skip caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
 	}
 
-	f.log.Infof("Flare was created by remote-config at %s", filePath)
-
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
-	return true, err
+	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	return true, nil
 }
 
 func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
