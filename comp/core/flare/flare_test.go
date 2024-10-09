@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -104,14 +103,14 @@ func TestRunProviders(t *testing.T) {
 			fx.ResultTags(`group:"flare"`),
 		)),
 	)
-	deps.Config.Set("flare_provider_timeout", 1, model.SourceAgentRuntime)
+
+	cliProviderTimeoutSeconds := 1
 	f := newFlare(deps)
 
 	fb, err := helpers.NewFlareBuilder(false)
 	require.NoError(t, err)
 
-	flare := f.Comp.(*flare)
-	flare.runProviders(fb)
+	f.Comp.(*flare).runProviders(fb, cliProviderTimeoutSeconds)
 
 	require.True(t, firstRan.Load())
 	require.True(t, secondRan.Load())

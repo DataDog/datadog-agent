@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"time"
 
 	"go.uber.org/fx"
@@ -112,7 +113,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		return true, fmt.Errorf("User handle was not provided in the flare agent task")
 	}
 
-	filePath, err := f.Create(nil, nil)
+	filePath, err := f.Create(nil, 0, nil)
 	if err != nil {
 		return true, err
 	}
@@ -139,14 +140,19 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	queryProviderTimeout := r.URL.Query().Get("provider_timeout")
+	providerTimeoutSeconds, err := strconv.Atoi(queryProviderTimeout)
+	if err != nil || providerTimeoutSeconds <= 0 {
+		providerTimeoutSeconds = f.config.GetInt("flare_provider_timeout")
+	}
+
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
 	conn := apiutils.GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	var filePath string
-	var err error
 	f.log.Infof("Making a flare")
-	filePath, err = f.Create(profile, nil)
+	filePath, err = f.Create(profile, providerTimeoutSeconds, nil)
 
 	if err != nil || filePath == "" {
 		if err != nil {
@@ -167,7 +173,11 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 }
 
 // Create creates a new flare and returns the path to the final archive file.
-func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
+func (f *flare) Create(pdata ProfileData, providerTimeoutSeconds int, ipcError error) (string, error) {
+	if providerTimeoutSeconds <= 0 {
+		providerTimeoutSeconds = f.config.GetInt("flare_provider_timeout")
+	}
+
 	fb, err := helpers.NewFlareBuilder(f.params.local)
 	if err != nil {
 		return "", err
@@ -188,13 +198,13 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 
-	f.runProviders(fb)
+	f.runProviders(fb, providerTimeoutSeconds)
 
 	return fb.Save()
 }
 
-func (f *flare) runProviders(fb types.FlareBuilder) {
-	flareStepTimeout := f.config.GetDuration("flare_provider_timeout") * time.Second
+func (f *flare) runProviders(fb types.FlareBuilder, providerTimeoutSeconds int) {
+	flareStepTimeout := time.Duration(providerTimeoutSeconds) * time.Second
 	timer := time.NewTimer(flareStepTimeout)
 	defer timer.Stop()
 
