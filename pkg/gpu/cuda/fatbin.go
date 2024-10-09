@@ -147,8 +147,8 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 		//   fatbinDataHeader     (64 bytes minimum)
 		//   fatbinDataPayload    (variable size)
 		for {
-			var fatbinHeader fatbinHeader
-			err := binary.Read(buffer, binary.LittleEndian, &fatbinHeader)
+			var fbHeader fatbinHeader
+			err := binary.Read(buffer, binary.LittleEndian, &fbHeader)
 			if err != nil {
 				if err == io.EOF {
 					break
@@ -158,13 +158,13 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			}
 
 			// Check the header is valid
-			if err := fatbinHeader.validate(); err != nil {
+			if err := fbHeader.validate(); err != nil {
 				return nil, fmt.Errorf("invalid fatbin header: %w", err)
 			}
 
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
-			for currOffset := getBufferOffset(buffer); currOffset-readStart < int64(fatbinHeader.FatSize); currOffset = getBufferOffset(buffer) {
+			for currOffset := getBufferOffset(buffer); currOffset-readStart < int64(fbHeader.FatSize); currOffset = getBufferOffset(buffer) {
 				if err := parseFatbinData(buffer, fatbin); err != nil {
 					if err == io.EOF {
 						break
