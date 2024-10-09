@@ -13,6 +13,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
@@ -104,13 +106,8 @@ func (c *cudaEventConsumer) Start() {
 				}
 
 				header := (*gpuebpf.CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
-
-				pid := uint32(header.Pid_tgid >> 32)
-				key := streamKey{pid: pid, stream: header.Stream_id}
-
-				if _, ok := c.streamHandlers[key]; !ok {
-					c.streamHandlers[key] = newStreamHandler(key.pid, c.sysCtx)
-				}
+				key := c.getStreamKey(header)
+				streamHandler := c.getStreamHandler(key)
 
 				switch header.Type {
 				case gpuebpf.CudaEventTypeKernelLaunch:
@@ -134,6 +131,15 @@ func (c *cudaEventConsumer) Start() {
 					}
 					cs := (*gpuebpf.CudaSync)(unsafe.Pointer(&batchData.Data[0]))
 					c.streamHandlers[key].handleSync(cs)
+				case gpuebpf.CudaEventTypeSetDevice:
+					if dataLen != gpuebpf.SizeofCudaSetDeviceEvent {
+						log.Errorf("Not enough data to parse set device event, data size=%d, expecting %d", dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
+						continue
+					}
+					csde := (*gpuebpf.CudaSetDeviceEvent)(unsafe.Pointer(&batchData.Data[0]))
+
+					tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+					c.sysCtx.setDeviceSelection(int(key.pid), int(tid), csde.Device)
 				}
 
 				batchData.Done()
@@ -158,12 +164,36 @@ func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
 	}
 }
 
-func (c *cudaEventConsumer) getStreamHandler(streamKey *model.StreamKey) *StreamHandler {
-	if _, ok := c.streamHandlers[*streamKey]; !ok {
-		c.streamHandlers[*streamKey] = newStreamHandler(streamKey, c.sysCtx)
+func (c *cudaEventConsumer) getStreamKey(header *gpuebpf.CudaEventHeader) streamKey {
+	pid := uint32(header.Pid_tgid >> 32)
+	tid := uint32(header.Pid_tgid & 0xFFFFFFFF)
+
+	key := streamKey{
+		pid:     pid,
+		stream:  header.Stream_id,
+		gpuUUID: "N/A",
 	}
 
-	return c.streamHandlers[*streamKey]
+	gpuDevice, err := c.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid))
+	if err != nil {
+		log.Warnf("Error getting GPU device for process %d: %v", pid, err)
+	} else {
+		var ret nvml.Return
+		key.gpuUUID, ret = gpuDevice.GetUUID()
+		if ret != nvml.SUCCESS {
+			log.Warnf("Error getting GPU UUID for process %d: %v", pid, nvml.ErrorString(ret))
+		}
+	}
+
+	return key
+}
+
+func (c *cudaEventConsumer) getStreamHandler(key streamKey) *StreamHandler {
+	if _, ok := c.streamHandlers[key]; !ok {
+		c.streamHandlers[key] = newStreamHandler(key.pid, c.sysCtx)
+	}
+
+	return c.streamHandlers[key]
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {

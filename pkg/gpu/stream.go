@@ -43,8 +43,9 @@ type enrichedKernelLaunch struct {
 
 // streamKey is a unique identifier for a CUDA stream
 type streamKey struct {
-	pid    uint32
-	stream uint64
+	pid     uint32
+	stream  uint64
+	gpuUUID string
 }
 
 // streamData contains kernel spans and allocations for a stream
