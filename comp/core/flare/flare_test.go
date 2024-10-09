@@ -97,7 +97,7 @@ func TestRunProviders(t *testing.T) {
 				return func(_ types.FlareBuilder) error {
 					secondRan.Store(true)
 					time.Sleep(10 * time.Second)
-					secondRan.Store(true)
+					secondDone.Store(true)
 					return nil
 				}
 			},
