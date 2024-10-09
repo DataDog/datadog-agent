@@ -97,6 +97,8 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
+	// RawPacketEventType raw packet event
+	RawPacketEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -235,7 +237,8 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-
+	case RawPacketEventType:
+		return "packet"
 	case CustomLostReadEventType:
 		return "lost_events_read"
 	case CustomLostWriteEventType:

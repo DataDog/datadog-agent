@@ -31,6 +31,7 @@
       POLICY: pull
   retry: 2
 
+# HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
 go_deps:
   extends: .cache
   variables:
@@ -48,15 +49,16 @@ go_deps:
     paths:
       - $CI_PROJECT_DIR/modcache.tar.xz
   cache:
-    # The `cache:key:files` only accepts up to two path ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
+    # The `cache:key:files` only accepts up to two paths ([docs](https://docs.gitlab.com/ee/ci/yaml/#cachekeyfiles)).
     # Ideally, we should also include the https://github.com/DataDog/datadog-agent/blob/main/.custom-gcl.yml file to
     # avoid issues if a plugin is added in one PR and enabled in another. However, we decided to accept this limitation
     # because the probability for this to happen is very low and go mod files are modified frequently so the risk of
     # failing a job because of a network issue when building the custom binary is very low, but still exists.
+    # We should also include the file this job is defined in to invalicate the cache when this job is modified.
     - key:
         files:
-          - \**/go.mod
-          - .gitlab/deps_fetch/deps_fetch.yml
+          - go.mod
+          - ./**/go.mod
         prefix: "go_deps_modcache"
       paths:
         - modcache.tar.xz
