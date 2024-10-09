@@ -153,19 +153,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			Fargate:                      fargateProfile,
 			ClusterSecurityGroup:         clusterSG,
 			NodeAssociatePublicIpAddress: pulumi.BoolRef(false),
-			PrivateSubnetIds:             awsEnv.RandomSubnets(),
+			PrivateSubnetIds:             pulumi.ToStringArray(awsEnv.DefaultSubnets()),
 			VpcId:                        pulumi.StringPtr(awsEnv.DefaultVPCID()),
 			SkipDefaultNodeGroup:         pulumi.BoolRef(true),
-			// The content of the aws-auth map is the merge of `InstanceRoles` and `RoleMappings`.
-			// For managed node groups, we push the value in `InstanceRoles`.
-			// For unmanaged node groups, we push the value in `RoleMappings`
-			RoleMappings: eks.RoleMappingArray{
-				eks.RoleMappingArgs{
-					Groups:   pulumi.ToStringArray([]string{"system:bootstrappers", "system:nodes", "eks:kube-proxy-windows"}),
-					Username: pulumi.String("system:node:{{EC2PrivateDNSName}}"),
-					RoleArn:  windowsNodeRole.Arn,
-				},
-			},
 			InstanceRoles: awsIam.RoleArray{
 				linuxNodeRole,
 				windowsNodeRole,
@@ -290,16 +280,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 
 		// Create unmanaged node groups
 		if params.eksWindowsNodeGroup {
-			_, err := localEks.NewWindowsNodeGroup(awsEnv, cluster, windowsNodeRole)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Applying necessary Windows configuration if Windows nodes
-		// Custom networking is not available for Windows nodes, using normal subnets IPs
-		if params.eksWindowsNodeGroup {
-			_, err := corev1.NewConfigMapPatch(awsEnv.Ctx(), awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
+			// Applying necessary Windows configuration if Windows nodes
+			// Custom networking is not available for Windows nodes, using normal subnets IPs
+			winCNIPatch, err := corev1.NewConfigMapPatch(awsEnv.Ctx(), awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
 				Metadata: metav1.ObjectMetaPatchArgs{
 					Namespace: pulumi.String("kube-system"),
 					Name:      pulumi.String("amazon-vpc-cni"),
@@ -314,6 +297,11 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err != nil {
 				return err
 			}
+			ng, err := localEks.NewWindowsNodeGroup(awsEnv, cluster, windowsNodeRole, utils.PulumiDependsOn(winCNIPatch))
+			if err != nil {
+				return err
+			}
+			workloadDeps = append(workloadDeps, ng)
 		}
 
 		var fakeIntake *fakeintakeComp.Fakeintake
@@ -322,7 +310,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 				fakeintake.WithCPU(1024),
 				fakeintake.WithMemory(6144),
 			}
-			if awsEnv.GetCommonEnvironment().InfraShouldDeployFakeintakeWithLB() {
+			if awsEnv.InfraShouldDeployFakeintakeWithLB() {
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
 			}
 
@@ -339,16 +327,18 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		workloadWithCRDDeps := make([]pulumi.Resource, len(workloadDeps))
 		copy(workloadWithCRDDeps, workloadDeps)
 		// Deploy the agent
-		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(workloadDeps...)), kubernetesagentparams.WithFakeintake(fakeIntake))
+
 			if params.eksWindowsNodeGroup {
 				params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 			}
+
 			kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", eksKubeProvider, params.agentOptions...)
 			if err != nil {
 				return err
 			}
+
 			err = kubernetesAgent.Export(ctx, &env.Agent.KubernetesAgentOutput)
 			if err != nil {
 				return err
@@ -360,7 +350,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 
 		// Deploy standalone dogstatsd
 		if params.deployDogstatsd {
-			if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
+			if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, "", utils.PulumiDependsOn(workloadDeps...)); err != nil {
 				return err
 			}
 		}
