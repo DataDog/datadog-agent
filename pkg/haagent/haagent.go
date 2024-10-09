@@ -61,3 +61,11 @@ func ShouldRunForCheck(checkName string) bool {
 	}
 	return true
 }
+
+func IsDistributedCheck(checkName string) bool {
+	// TODO: handle check name generically
+	if IsEnabled() && checkName == "snmp" {
+		return true
+	}
+	return false
+}

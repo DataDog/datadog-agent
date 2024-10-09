@@ -13,8 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/haagent"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +47,7 @@ type FlowAggregator struct {
 	flowAcc                      *flowAccumulator
 	sender                       sender.Sender
 	epForwarder                  eventplatform.Forwarder
+	autodiscovery                autodiscovery.Component
 	stopChan                     chan struct{}
 	flushLoopDone                chan struct{}
 	runDone                      chan struct{}
@@ -81,7 +84,7 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 }
 
 // NewFlowAggregator returns a new FlowAggregator
-func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
+func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, autodiscovery autodiscovery.Component, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
@@ -92,6 +95,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		epForwarder:                  epForwarder,
+		autodiscovery:                autodiscovery,
 		stopChan:                     make(chan struct{}),
 		runDone:                      make(chan struct{}),
 		flushLoopDone:                make(chan struct{}),
@@ -199,6 +203,26 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		agg.logger.Warnf("Error getting the hostname: %v", err)
 	}
 
+	if agg.autodiscovery != nil {
+		checks := agg.autodiscovery.GetConfigCheck()
+		checksJson, _ := json.Marshal(checks)
+		agg.logger.Warnf("[HA AGENT] checks: %s", checksJson)
+	}
+	stats, _ := status.GetExpvarRunnerStats()
+
+	var checkIDs []string
+	for checkName, checks := range stats.Checks {
+		if !haagent.IsDistributedCheck(checkName) {
+			continue
+		}
+		for checkID := range checks {
+			checkIDs = append(checkIDs, checkID)
+		}
+	}
+	statsJson, _ := json.Marshal(stats.Checks)
+	agg.logger.Warnf("[HA AGENT] stats: %s", statsJson)
+	agg.logger.Warnf("[HA AGENT] checkIDs: %+v", checkIDs)
+
 	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
 	// TODO: USING NDM NETFLOW EXPORTER FOR POC
 	netflowExporters := []metadata.NetflowExporter{
@@ -210,6 +234,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			ClusterId:     clusterId,
 			AgentHostname: agentHostname,
 			AgentRole:     haagent.GetRole(),
+			CheckIDs:      checkIDs,
 		},
 	}
 	//for _, exporterID := range ids {

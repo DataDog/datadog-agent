@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/fx"
 
@@ -33,6 +34,7 @@ type dependencies struct {
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
 	RDNSQuerier   rdnsquerier.Component
+	Autodiscovery autodiscovery.Component
 }
 
 type provides struct {
@@ -63,7 +65,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, deps.Autodiscovery, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)
 
 	server := &Server{
 		config:  conf,

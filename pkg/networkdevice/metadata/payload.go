@@ -139,12 +139,13 @@ type TopologyLinkMetadata struct {
 
 // NetflowExporter contains netflow exporters info
 type NetflowExporter struct {
-	ID            string `json:"id"` // used by backend as unique id (e.g. in cache)
-	IPAddress     string `json:"ip_address"`
-	FlowType      string `json:"flow_type"`
-	ClusterId     string `json:"cluster_id"`
-	AgentHostname string `json:"agent_hostname"`
-	AgentRole     string `json:"agent_role"`
+	ID            string   `json:"id"` // used by backend as unique id (e.g. in cache)
+	IPAddress     string   `json:"ip_address"`
+	FlowType      string   `json:"flow_type"`
+	ClusterId     string   `json:"cluster_id"`
+	AgentHostname string   `json:"agent_hostname"`
+	AgentRole     string   `json:"agent_role"`
+	CheckIDs      []string `json:"check_ids"`
 }
 
 // Diagnosis contain data for a diagnosis
