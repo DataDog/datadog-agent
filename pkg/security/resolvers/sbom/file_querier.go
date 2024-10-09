@@ -28,7 +28,14 @@ type fqEntry struct {
 }
 
 func newFileQuerier(report *trivy.Report) fileQuerier {
-	files := make([]fqEntry, 0)
+	count := 0
+	for _, result := range report.Results {
+		for _, resultPkg := range result.Packages {
+			count += len(resultPkg.InstalledFiles)
+		}
+	}
+
+	files := make([]fqEntry, 0, count)
 	for _, result := range report.Results {
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
