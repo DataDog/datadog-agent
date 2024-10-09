@@ -69,8 +69,9 @@ type KernelSpan struct {
 
 // StreamKey is a unique identifier for a CUDA stream
 type StreamKey struct {
-	Pid    uint32 `json:"pid"`
-	Stream uint64 `json:"stream"`
+	Pid     uint32 `json:"pid"`
+	Stream  uint64 `json:"stream"`
+	GPUUUID string `json:"gpu_uuid"`
 }
 
 // StreamMetadata contains metadata for a stream, such as container ID

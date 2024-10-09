@@ -40,13 +40,19 @@ type systemContext struct {
 	// processCache is used to resolve process information
 	processCache *tracer.ProcessCache
 
-	// selectedDeviceByPID maps each process ID to the device index it has selected
-	// note that this is the device index as seen by the process itself, which might
+	// selectedDeviceByPIDAndTID maps each process ID to the map of thread IDs to selected device index.
+	// The reason to have a nested map is to allow easy cleanup of data when a process exits.
+	// The thread ID is important as the device selection in CUDA is per-thread.
+	// Note that this is the device index as seen by the process itself, which might
 	// be modified by the CUDA_VISIBLE_DEVICES environment variable later
-	selectedDeviceByPID map[int]int
+	selectedDeviceByPIDAndTID map[int]map[int]int32
 
 	// gpuDevices is the list of GPU devices on the system
 	gpuDevices []cuda.GpuDevice
+
+	// visibleDevicesCache is a cache of visible devices for each process, to avoid
+	// looking into the environment variables every time
+	visibleDevicesCache map[int][]cuda.GpuDevice
 }
 
 // fileData holds the symbol table and Fatbin data for a given file.
@@ -71,10 +77,10 @@ func getSystemContext(procRoot string, opts ...systemContextOpts) (*systemContex
 	var err error
 
 	ctx := &systemContext{
-		fileData:            make(map[string]*fileData),
-		pidMaps:             make(map[int]*kernel.ProcMapEntries),
-		selectedDeviceByPID: make(map[int]int),
-		procRoot:            procRoot,
+		fileData:                  make(map[string]*fileData),
+		pidMaps:                   make(map[int]*kernel.ProcMapEntries),
+		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
+		procRoot:                  procRoot,
 	}
 
 	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
@@ -185,20 +191,38 @@ func (ctx *systemContext) cleanupOldEntries() {
 	}
 }
 
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int) (*cuda.GpuDevice, error) {
-	visibleDevices, err := cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
-	if err != nil {
-		return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int) (*cuda.GpuDevice, error) {
+	visibleDevices, ok := ctx.visibleDevicesCache[pid]
+	if !ok {
+		visibleDevices, err := cuda.GetVisibleDevicesForProcess(ctx.gpuDevices, pid, ctx.procRoot)
+		if err != nil {
+			return nil, fmt.Errorf("error getting visible devices for process %d: %w", pid, err)
+		}
+
+		ctx.visibleDevicesCache[pid] = visibleDevices
 	}
 
 	if len(visibleDevices) == 0 {
 		return nil, fmt.Errorf("no GPU devices for process %d", pid)
 	}
 
-	selectedDeviceIndex := ctx.selectedDeviceByPID[pid] // Defaults to 0, which is the same as CUDA
-	if selectedDeviceIndex < 0 || selectedDeviceIndex >= len(visibleDevices) {
+	selectedDeviceIndex := int32(0)
+	pidMap, ok := ctx.selectedDeviceByPIDAndTID[pid]
+	if ok {
+		selectedDeviceIndex = pidMap[tid] // Defaults to 0, which is the same as CUDA
+	}
+
+	if selectedDeviceIndex < 0 || selectedDeviceIndex >= int32(len(visibleDevices)) {
 		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
 	}
 
 	return &visibleDevices[selectedDeviceIndex], nil
+}
+
+func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32) {
+	if _, ok := ctx.selectedDeviceByPIDAndTID[pid]; !ok {
+		ctx.selectedDeviceByPIDAndTID[pid] = make(map[int]int32)
+	}
+
+	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
 }
