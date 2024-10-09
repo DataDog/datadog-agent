@@ -152,9 +152,18 @@ func (sp *StatsProcessor) processCurrentData(data *model.StreamData) error {
 
 // getTags returns the tags to use for the metrics
 func (sp *StatsProcessor) getTags() []string {
+	var gpuName string
+
+	gpuDevice, ok := sp.probeCtx.gpuDeviceMap[sp.key.GPUUUID]
+	if ok {
+		gpuName, _ = gpuDevice.GetName()
+	}
+
 	return []string{
 		fmt.Sprintf("pid:%d", sp.key.Pid),
 		fmt.Sprintf("container_id:%s", sp.metadata.ContainerID),
+		fmt.Sprintf("gpu_name:%s", gpuName),
+		fmt.Sprintf("gpu_uuid:%s", sp.key.GPUUUID),
 	}
 }
 
