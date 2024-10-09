@@ -39,6 +39,7 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 			p.hostTags = nil
 		})
 	}
+
 	return p
 }
 
