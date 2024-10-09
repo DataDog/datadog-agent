@@ -11,10 +11,12 @@ package tests
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 
 	"github.com/docker/docker/libnetwork/resolvconf"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -42,11 +44,11 @@ func TestNetworkCIDR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	nameserversCIDR := resolvconf.GetNameserversAsCIDR(resolvFile.Content)
+	nameserversCIDR := resolvconf.GetNameserversAsPrefix(resolvFile.Content)
 
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite" && network.destination.ip in [%s]`, strings.Join(nameserversCIDR, ", ")),
+		Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite" && network.destination.ip in [%s]`, strings.Join(lo.Map(nameserversCIDR, func(p netip.Prefix, _ int) string { return p.String() }), ", ")),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})

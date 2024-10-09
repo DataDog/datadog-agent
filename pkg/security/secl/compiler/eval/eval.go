@@ -9,7 +9,6 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -76,7 +75,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident, state)
+	field, _, regID, err := extractField(*obj.Ident, state)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -85,61 +84,6 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	if opts.LegacyFields != nil {
 		if newField, ok := opts.LegacyFields[field]; ok {
 			field = newField
-		}
-		if newField, ok := opts.LegacyFields[field]; ok {
-			itField = newField
-		}
-	}
-
-	// extract iterator
-	var iterator Iterator
-	if itField != "" {
-		if iterator, err = state.model.GetIterator(itField); err != nil {
-			return nil, obj.Pos, err
-		}
-	} else {
-		// detect whether a iterator is along the path
-		var candidate string
-		for _, node := range strings.Split(field, ".") {
-			if candidate == "" {
-				candidate = node
-			} else {
-				candidate = candidate + "." + node
-			}
-
-			iterator, err = state.model.GetIterator(candidate)
-			if err == nil {
-				break
-			}
-		}
-	}
-
-	if iterator != nil {
-		// Force "_" register for now.
-		if regID != "" && regID != "_" {
-			return nil, obj.Pos, NewRegisterNameNotAllowed(obj.Pos, regID, errors.New("only `_` is supported"))
-		}
-
-		// regID not specified or `_` generate one
-		if regID == "" || regID == "_" {
-			regID = state.newAnonymousRegID()
-		}
-
-		if info, exists := state.registersInfo[regID]; exists {
-			if info.field != itField {
-				return nil, obj.Pos, NewRegisterMultipleFields(obj.Pos, regID, errors.New("used by multiple fields"))
-			}
-
-			info.subFields[field] = true
-		} else {
-			info = &registerInfo{
-				field:    itField,
-				iterator: iterator,
-				subFields: map[Field]bool{
-					field: true,
-				},
-			}
-			state.registersInfo[regID] = info
 		}
 	}
 
