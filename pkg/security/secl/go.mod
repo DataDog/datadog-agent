@@ -10,6 +10,7 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/go-cmp v0.6.0
+	github.com/google/gopacket v1.1.19
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jellydator/ttlcache/v3 v3.3.0

@@ -411,11 +411,13 @@ github.com/aws/smithy-go/endpoints
 github.com/aws/smithy-go/internal/sync/singleflight
 github.com/aws/smithy-go/io
 github.com/aws/smithy-go/logging
+github.com/aws/smithy-go/metrics
 github.com/aws/smithy-go/middleware
 github.com/aws/smithy-go/private/requestcompression
 github.com/aws/smithy-go/ptr
 github.com/aws/smithy-go/rand
 github.com/aws/smithy-go/time
+github.com/aws/smithy-go/tracing
 github.com/aws/smithy-go/transport/http
 github.com/aws/smithy-go/transport/http/internal/io
 github.com/benbjohnson/clock
