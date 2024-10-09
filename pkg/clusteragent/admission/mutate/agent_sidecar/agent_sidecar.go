@@ -53,7 +53,16 @@ type Webhook struct {
 	namespaceSelector *metav1.LabelSelector
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
-	datadogConfig     config.Component
+
+	profilesJSON                 string
+	provider                     string
+	imageName                    string
+	imageTag                     string
+	isLangDetectEnabled          bool
+	isLangDetectReportingEnabled bool
+	isClusterAgentEnabled        bool
+	clusterAgentCmdPort          int
+	clusterAgentServiceName      string
 }
 
 // NewWebhook returns a new Webhook
@@ -71,7 +80,16 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		namespaceSelector: nsSelector,
 		objectSelector:    objSelector,
 		containerRegistry: containerRegistry,
-		datadogConfig:     datadogConfig,
+
+		profilesJSON:                 datadogConfig.GetString("admission_controller.agent_sidecar.profiles"),
+		provider:                     datadogConfig.GetString("admission_controller.agent_sidecar.provider"),
+		imageName:                    datadogConfig.GetString("admission_controller.agent_sidecar.image_name"),
+		imageTag:                     datadogConfig.GetString("admission_controller.agent_sidecar.image_tag"),
+		clusterAgentServiceName:      datadogConfig.GetString("cluster_agent.kubernetes_service_name"),
+		clusterAgentCmdPort:          datadogConfig.GetInt("cluster_agent.cmd_port"),
+		isClusterAgentEnabled:        datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled"),
+		isLangDetectEnabled:          datadogConfig.GetBool("language_detection.enabled"),
+		isLangDetectReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
 	}
 }
 
@@ -132,12 +150,12 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	podUpdated := false
 
 	if !agentSidecarExists {
-		agentSidecarContainer := getDefaultSidecarTemplate(w.containerRegistry, w.datadogConfig)
+		agentSidecarContainer := w.getDefaultSidecarTemplate()
 		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
 		podUpdated = true
 	}
 
-	updated, err := applyProviderOverrides(pod, w.datadogConfig)
+	updated, err := applyProviderOverrides(pod, w.provider)
 	if err != nil {
 		log.Errorf("Failed to apply provider overrides: %v", err)
 		return podUpdated, errors.New(metrics.InvalidInput)
@@ -148,7 +166,7 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	// highest override-priority. They only apply to the agent sidecar container.
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
-			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.datadogConfig)
+			updated, err = applyProfileOverrides(&pod.Spec.Containers[i], w.profilesJSON)
 			if err != nil {
 				log.Errorf("Failed to apply profile overrides: %v", err)
 				return podUpdated, errors.New(metrics.InvalidInput)
@@ -161,14 +179,11 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 	return podUpdated, nil
 }
 
-func getDefaultSidecarTemplate(containerRegistry string, datadogConfig config.Component) *corev1.Container {
+func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 	ddSite := os.Getenv("DD_SITE")
 	if ddSite == "" {
 		ddSite = pkgconfigsetup.DefaultSite
 	}
-
-	imageName := datadogConfig.GetString("admission_controller.agent_sidecar.image_name")
-	imageTag := datadogConfig.GetString("admission_controller.agent_sidecar.image_tag")
 
 	agentContainer := &corev1.Container{
 		Env: []corev1.EnvVar{
@@ -202,10 +217,10 @@ func getDefaultSidecarTemplate(containerRegistry string, datadogConfig config.Co
 			},
 			{
 				Name:  "DD_LANGUAGE_DETECTION_ENABLED",
-				Value: strconv.FormatBool(datadogConfig.GetBool("language_detection.enabled") && datadogConfig.GetBool("language_detection.reporting.enabled")),
+				Value: strconv.FormatBool(w.isLangDetectEnabled && w.isLangDetectReportingEnabled),
 			},
 		},
-		Image:           fmt.Sprintf("%s/%s:%s", containerRegistry, imageName, imageTag),
+		Image:           fmt.Sprintf("%s/%s:%s", w.containerRegistry, w.imageName, w.imageTag),
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Name:            agentSidecarContainerName,
 		Resources: corev1.ResourceRequirements{
@@ -220,11 +235,7 @@ func getDefaultSidecarTemplate(containerRegistry string, datadogConfig config.Co
 		},
 	}
 
-	clusterAgentEnabled := datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled")
-
-	if clusterAgentEnabled {
-		clusterAgentCmdPort := datadogConfig.GetInt("cluster_agent.cmd_port")
-		clusterAgentServiceName := datadogConfig.GetString("cluster_agent.kubernetes_service_name")
+	if w.isClusterAgentEnabled {
 
 		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_ENABLED",
@@ -241,7 +252,7 @@ func getDefaultSidecarTemplate(containerRegistry string, datadogConfig config.Co
 			},
 		}, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_URL",
-			Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:%v", clusterAgentServiceName, apiCommon.GetMyNamespace(), clusterAgentCmdPort),
+			Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:%v", w.clusterAgentServiceName, apiCommon.GetMyNamespace(), w.clusterAgentCmdPort),
 		}, corev1.EnvVar{
 			Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 			Value: "true",
@@ -255,9 +266,10 @@ func getDefaultSidecarTemplate(containerRegistry string, datadogConfig config.Co
 func labelSelectors(datadogConfig config.Component) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	// Read and parse selectors
 	selectorsJSON := datadogConfig.GetString("admission_controller.agent_sidecar.selectors")
+	profilesJSON := datadogConfig.GetString("admission_controller.agent_sidecar.profiles")
 
 	// Get sidecar profiles
-	_, err := loadSidecarProfiles(datadogConfig)
+	_, err := loadSidecarProfiles(profilesJSON)
 	if err != nil {
 		log.Errorf("encountered issue when loading sidecar profiles: %s", err)
 		return nil, nil

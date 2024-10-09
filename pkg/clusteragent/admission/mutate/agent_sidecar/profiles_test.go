@@ -14,12 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestLoadSidecarProfiles(t *testing.T) {
-	mockConfig := configmock.New(t)
+	// mockConfig := configmock.New(t)
 
 	tests := []struct {
 		name             string
@@ -116,8 +114,8 @@ func TestLoadSidecarProfiles(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			profiles, err := loadSidecarProfiles(mockConfig)
+			// mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			profiles, err := loadSidecarProfiles(test.profilesJSON)
 
 			if test.expectError {
 				assert.Error(tt, err)
@@ -138,7 +136,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 }
 
 func TestApplyProfileOverrides(t *testing.T) {
-	mockConfig := configmock.New(t)
+	// mockConfig := configmock.New(t)
 
 	tests := []struct {
 		name              string
@@ -360,8 +358,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			mutated, err := applyProfileOverrides(test.baseContainer, mockConfig)
+			// mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
+			mutated, err := applyProfileOverrides(test.baseContainer, test.profilesJSON)
 
 			assert.Equal(tt, test.expectMutated, mutated)
 
