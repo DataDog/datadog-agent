@@ -8,6 +8,7 @@ package envs
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 )
@@ -22,6 +23,7 @@ const (
 	appEnv                               // application system settings env variable detected
 	ddInjected                           // agent injection env variable detected
 	ddService                            // agent service env variable detected
+	ddTags                               // agent tags env variable detected
 )
 
 type envLang struct {
@@ -31,11 +33,11 @@ type envLang struct {
 
 // targets is a collection of environment variables of interest.
 var targets = map[string]envLang{
-	"PWD":                      {pwdEnv, language.Unknown},
-	"DD_INJECTION_ENABLED":     {ddInjected, language.Unknown},
-	"DD_SERVICE":               {ddService, language.Unknown},
-	"DD_TAGS":                  {ddService, language.Unknown},
-	"DD_DISCOVERY_ENABLED":     {ddService, language.Unknown},
+	"PWD":                      {pwdEnv, language.Unknown},     // fetch it for any application
+	"DD_INJECTION_ENABLED":     {ddInjected, language.Unknown}, // fetch it for any application
+	"DD_SERVICE":               {ddService, language.Unknown},  // if found, then do not need DD_TAGS
+	"DD_TAGS":                  {ddTags, language.Unknown},     // check it for 'service:' value
+	"DD_DISCOVERY_ENABLED":     {empty, language.Unknown},      // optional and does not affect service detection
 	"GUNICORN_CMD_ARGS":        {appEnv, language.Python},
 	"WSGI_APP":                 {appEnv, language.Python},
 	"CORECLR_ENABLE_PROFILING": {appEnv, language.DotNet},
@@ -98,12 +100,17 @@ func (ev *EnvironmentVariables) Get(name string) (string, bool) {
 // returns true if the search should be stopped
 func (ev *EnvironmentVariables) Set(name string, val string) bool {
 	if env, ok := targets[name]; ok {
-		ev.pile |= env.kind
 		if ev.vars == nil {
 			ev.vars = make(map[string]string)
 		}
 		ev.vars[name] = val
-		if ev.pile == pwdEnv|appEnv|ddInjected|ddService {
+
+		if env.kind == ddTags && strings.Contains(val, "service:") {
+			ev.pile |= ddService
+		} else {
+			ev.pile |= env.kind
+		}
+		if ev.pile == pwdEnv|ddInjected|ddService|appEnv {
 			return true
 		}
 	}
