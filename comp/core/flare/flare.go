@@ -106,6 +106,8 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	//	return true, err
 	//}
 
+	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
+
 	caseIdNum := 0
 	caseIdNum, _ = strconv.Atoi(caseID)
 
