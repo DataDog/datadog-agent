@@ -51,7 +51,6 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	err := sh.tryAttachKernelData(enrichedLaunch)
 	if err != nil {
 		log.Warnf("Error attaching kernel data: %v", err)
-		return
 	}
 
 	sh.kernelLaunches = append(sh.kernelLaunches, *enrichedLaunch)
@@ -122,6 +121,7 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 
 func (sh *StreamHandler) markSynchronization(ts uint64) {
 	span := sh.getCurrentKernelSpan(ts)
+	fmt.Printf("Marking synchronization at %d, span=%v\n", ts, span)
 	if span == nil {
 		return
 	}
@@ -140,6 +140,7 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 
 func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 	// TODO: Worry about concurrent calls to this?
+	fmt.Println("Sync event")
 	sh.markSynchronization(event.Header.Ktime_ns)
 }
 
