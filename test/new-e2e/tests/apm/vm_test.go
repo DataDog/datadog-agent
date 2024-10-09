@@ -406,7 +406,6 @@ func (s *VMFakeintakeSuite) logJournal(force bool) {
 }
 
 func (s *VMFakeintakeSuite) TestAPIKeyRefresh() {
-	s.T().Skip("Skipping this flaking test while we investigate the cause")
 	apiKey1 := strings.Repeat("1", 32)
 	apiKey2 := strings.Repeat("2", 32)
 
