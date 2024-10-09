@@ -133,6 +133,9 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
 
     eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
 
+    http2_batch_flush(ctx);
+    terminated_http2_batch_flush(ctx);
+
     return 0;
 }
 
