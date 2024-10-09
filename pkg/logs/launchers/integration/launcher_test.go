@@ -68,7 +68,6 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 }
 
 func (suite *LauncherTestSuite) TestSendLog() {
-
 	mockConf := &integration.Config{}
 	mockConf.Provider = "container"
 	mockConf.LogsConfig = integration.Data(`[{"type": "integration", "source": "foo", "service": "bar"}]`)
@@ -97,6 +96,90 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
+}
+
+// TestNegativeCombinedUsageMax ensures errors in combinedUsageMax don't result
+// in panics from `deleteFile`
+func (suite *LauncherTestSuite) TestNegativeCombinedUsageMax() {
+	suite.s.combinedUsageMax = -1
+	err := suite.s.scanInitialFiles(suite.s.runPath)
+	assert.NotNil(suite.T(), err)
+}
+
+// TestZeroCombinedUsageMax ensures the launcher won't panic when
+// combinedUsageMax is zero. Realistically the launcher would never run receiveLogs since there is a check for
+func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileCreated() {
+	suite.s.combinedUsageMax = 0
+
+	filename := "sample_integration_123.log"
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
+	assert.Nil(suite.T(), err)
+
+	file.Close()
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+}
+
+func (suite *LauncherTestSuite) TestZeroCombinedUsageMaxFileNotCreated() {
+	suite.s.combinedUsageMax = 0
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+}
+
+func (suite *LauncherTestSuite) TestSmallCombinedUsageMax() {
+	suite.s.combinedUsageMax = 10
+
+	filename := "sample_integration_123.log"
+	filepath := filepath.Join(suite.s.runPath, filename)
+	file, err := os.Create(filepath)
+	assert.Nil(suite.T(), err)
+
+	file.Close()
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	// Launcher should write this log
+	writtenLog := "sample"
+	integrationLog := integrations.IntegrationLog{
+		Log:           writtenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(integrationLog)
+	fileStat, err := os.Stat(filepath)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
+
+	// Launcher should delete file for this log
+	unwrittenLog := "sample log two"
+	integrationLogTwo := integrations.IntegrationLog{
+		Log:           unwrittenLog,
+		IntegrationID: "sample_integration:123",
+	}
+	suite.s.receiveLogs(integrationLogTwo)
+
+	_, err = os.Stat(filepath)
+	assert.True(suite.T(), os.IsNotExist(err))
+
+	// Remake the file
+	suite.s.receiveLogs(integrationLog)
+	fileStat, err = os.Stat(filepath)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fileStat.Size(), int64(len(writtenLog)+1))
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
@@ -295,24 +378,20 @@ func (suite *LauncherTestSuite) TestCreateFileAfterScanInitialFile() {
 func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.combinedUsageMax = 3 * 1024 * 1024
 
+	// Given 3 files exist
 	filename1 := "sample_integration1_123.log"
 	filename2 := "sample_integration2_123.log"
 	filename3 := "sample_integration3_123.log"
+	files := [3]string{filename1, filename2, filename3}
 
-	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
-	assert.Nil(suite.T(), err)
-	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
-	file3, err := os.Create(filepath.Join(suite.s.runPath, filename3))
-	assert.Nil(suite.T(), err)
-
+	//  And I write 1Mb to each file in seq order
 	dataOneMB := make([]byte, 1*1024*1024)
-	file1.Write(dataOneMB)
-	file2.Write(dataOneMB)
-	file3.Write(dataOneMB)
-	file1.Close()
-	file2.Close()
-	file3.Close()
+	for _, filename := range files {
+		file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+		require.NoError(suite.T(), err)
+		_, _ = file.Write(dataOneMB)
+		_ = file.Close()
+	}
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -321,18 +400,21 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 		IntegrationID: "sample_integration1:123",
 	}
 
+	// When a log line is written to sample_integration1_123
 	suite.s.receiveLogs(integrationLog)
 
-	file1Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename1))
-	assert.Nil(suite.T(), err)
-	file2Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename2))
-	assert.Nil(suite.T(), err)
-	file3Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename3))
-	assert.Nil(suite.T(), err)
+	var actualSize int64
+	for _, filename := range files {
+		file, err := os.Stat(filepath.Join(suite.s.runPath, filename))
+		require.Nil(suite.T(), err)
+		actualSize += file.Size()
+	}
 
-	actualSize := file1Stat.Size() + file2Stat.Size() + file3Stat.Size()
-
+	// Then combined file size is greater than 0
+	assert.Greater(suite.T(), actualSize, int64(0), "Actual combined file size should be greater than zero")
 	assert.Equal(suite.T(), suite.s.combinedUsageSize, actualSize)
+	// And sample_integration2 should be the least recently modified file
+	// as sample_integration1_123 & sample_integration3_123 are most recently written files
 	assert.Equal(suite.T(), suite.s.integrationToFile["sample_integration2:123"], suite.s.getLeastRecentlyModifiedFile())
 }
 
@@ -457,4 +539,17 @@ func TestReadOnlyFileSystem(t *testing.T) {
 
 	// send a second log to make sure the launcher isn't blocking
 	integrationsComp.SendLog(logSample, id)
+}
+
+// TestCombinedDiskUsageFallback ensures the launcher falls back to the
+// logsTotalUsageSetting if there is an error in the logsUsageRatio
+func TestCombinedDiskUsageFallback(t *testing.T) {
+	totalUsage := 100
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_disk_ratio", -1)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.integrations_logs_total_usage", totalUsage)
+
+	integrationsComp := integrationsmock.Mock()
+	s := NewLauncher(sources.NewLogSources(), integrationsComp)
+
+	assert.Equal(t, s.combinedUsageMax, int64(totalUsage*1024*1024))
 }

@@ -12,18 +12,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
-)
-
-const (
-	socketName = "installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -63,27 +57,6 @@ type localAPIImpl struct {
 	daemon   Daemon
 	listener net.Listener
 	server   *http.Server
-}
-
-// NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon, runPath string) (LocalAPI, error) {
-	socketPath := filepath.Join(runPath, socketName)
-	err := os.RemoveAll(socketPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not remove socket: %w", err)
-	}
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(socketPath, 0700); err != nil {
-		return nil, fmt.Errorf("error setting socket permissions: %v", err)
-	}
-	return &localAPIImpl{
-		server:   &http.Server{},
-		listener: listener,
-		daemon:   daemon,
-	}, nil
 }
 
 // Start starts the LocalAPI.
@@ -139,7 +112,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 		Version:            version.AgentVersion,
 		Packages:           packages,
 		ApmInjectionStatus: apmStatus,
-		RemoteConfigState:  l.daemon.GetRemoteConfigState(),
+		RemoteConfigState:  l.daemon.GetRemoteConfigState().Packages,
 	}
 }
 
@@ -334,20 +307,6 @@ type LocalAPIClient interface {
 type localAPIClientImpl struct {
 	client *http.Client
 	addr   string
-}
-
-// NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient(runPath string) LocalAPIClient {
-	return &localAPIClientImpl{
-		addr: "daemon", // this has no meaning when using a unix socket
-		client: &http.Client{
-			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", filepath.Join(runPath, socketName))
-				},
-			},
-		},
-	}
 }
 
 // Status returns the status of the daemon.

@@ -4,5 +4,6 @@
 include:
   - .gitlab/lint/technical_linters.yml
   - .gitlab/lint/linux.yml
+  - .gitlab/lint/macos.yml
   - .gitlab/lint/windows.yml
 
