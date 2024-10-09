@@ -483,7 +483,7 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
 
     if not jobs:
         print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-        return
+        return [], {}
 
     if only_names:
         jobs = [job for job, _ in jobs]
