@@ -8,6 +8,7 @@
 // - https://github.com/VivekPanyam/cudaparsers
 // - https://pdfs.semanticscholar.org/5096/25785304410039297b741ad2007e7ce0636b.pdf
 // - https://github.com/cloudcores/CuAssembler/blob/master/CuAsm/CuNVInfo.py
+// - https://datadoghq.atlassian.net/wiki/spaces/EBPFTEAM/pages/4084204125/Fatbin+Cubin+binary+format
 
 // Generate String() methods for fatbinDataKind enums so they can be printed in logs/error messages
 //go:generate go run golang.org/x/tools/cmd/stringer@latest -output fatbin_string.go -type=fatbinDataKind -linecomment
@@ -134,6 +135,7 @@ func getBufferOffset(buf io.Seeker) int64 {
 }
 
 // ParseFatbinFromPath parses the fatbin sections of the given ELF file and returns the information found in it
+
 func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 	fatbin := &Fatbin{
 		Kernels: make(map[CubinKernelKey]*CubinKernel),
@@ -150,7 +152,17 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 
 		// The fatbin format will have a header, then a sequence of data headers + payloads.
 		// After the data corresponding to the first header, we might have more headers so
-		// we need to loop until we reach the end of the section data
+		// we need to loop until we reach the end of the section data.
+		// Illustration of the format
+		//
+		// fatbinHeader           (16 bytes)
+		//   fatbinDataHeader     (64 bytes minimum)
+		//   fatbinDataPayload    (variable size)
+		//   fatbinDataHeader     (64 bytes minimum)
+		//   fatbinDataPayload    (variable size)
+		// fatbinHeader           (16 bytes)
+		//   fatbinDataHeader     (64 bytes minimum)
+		//   fatbinDataPayload    (variable size)
 		for {
 			var fatbinHeader fatbinHeader
 			err := binary.Read(buffer, binary.LittleEndian, &fatbinHeader)
