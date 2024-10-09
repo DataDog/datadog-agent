@@ -115,6 +115,7 @@ test_job:
   script:
     - echo "Test job $CI_PIPELINE_SOURCE"
     - which vault
+    - setcap -r /usr/bin/vault
     - PASS=$(vault kv get -field=user kv/k8s/gitlab-runner/datadog-agent/atlassian-write)
     - echo "PASS is $PASS"
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
