@@ -110,10 +110,13 @@ stages:
 
 test_job:
   stage: setup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:08b9d8e048c1
   tags: ["arch:amd64"]
   script:
     - echo "Test job $CI_PIPELINE_SOURCE"
+    - which vault
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - echo "ATLASSIAN_USERNAME is $ATLASSIAN_USERNAME"
 variables:
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
