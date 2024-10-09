@@ -663,20 +663,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 // TODO(x): remove them gradually or fully in a future release.
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := pkgconfigsetup.Datadog()
-	if cfg.IsSet("apm_config.api_key") {
-		log.Warn("apm_config.api_key is deprecated. Use core api_key instead")
-		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
-	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
 		c.BucketInterval = d * time.Second
 	}
 	if cfg.IsSet("apm_config.receiver_timeout") {
 		c.ReceiverTimeout = cfg.GetInt("apm_config.receiver_timeout")
-	}
-	if cfg.IsSet("apm_config.watchdog_check_delay") {
-		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
-		c.WatchdogInterval = d * time.Second
 	}
 	if cfg.IsSet("apm_config.disable_rare_sampler") {
 		log.Warn("apm_config.disable_rare_sampler/DD_APM_DISABLE_RARE_SAMPLER is deprecated and the rare sampler is now disabled by default. To enable the rare sampler use apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER")

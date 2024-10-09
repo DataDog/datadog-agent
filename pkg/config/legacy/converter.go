@@ -179,7 +179,6 @@ func FromAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 
 func extractTraceAgentConfig(agentConfig Config, converter *ConfigConverter) error {
 	for iniKey, yamlKey := range map[string]string{
-		"trace.api.api_key":                      "apm_config.api_key",
 		"trace.api.endpoint":                     "apm_config.apm_dd_url",
 		"trace.config.env":                       "apm_config.env",
 		"trace.config.log_level":                 "apm_config.log_level",

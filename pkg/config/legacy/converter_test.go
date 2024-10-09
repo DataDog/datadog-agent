@@ -246,7 +246,6 @@ func TestConverter(t *testing.T) {
 	// string values
 	for k, v := range map[string]string{
 		"api_key":                      "",
-		"apm_config.api_key":           "1234",          // trace.api.api_key
 		"apm_config.apm_dd_url":        "http://ip.url", // trace.api.endpoint
 		"apm_config.env":               "staging",       // trace.config.env
 		"apm_config.log_level":         "warn",          // trace.config.log_level
