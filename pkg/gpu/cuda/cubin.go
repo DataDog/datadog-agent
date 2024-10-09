@@ -146,7 +146,7 @@ const elfVersionOffset = 20
 func (cp *cubinParser) parseCubinElf(data []byte) error {
 	// Hacks to be able to parse the ELF: the ELF version is not supported by the Go ELF parser, so we need to
 	// trick it into thinking it's the old version. Check for boundaries first
-	if len(data) < elfVersionOffset+1 {
+	if len(data) <= elfVersionOffset {
 		return fmt.Errorf("invalid cubin data, too short")
 	}
 	data[elfVersionOffset] = 1
