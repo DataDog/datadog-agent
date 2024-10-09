@@ -541,6 +541,7 @@ generate-flakes-finder-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_arm64
