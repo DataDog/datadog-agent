@@ -64,6 +64,7 @@ tests_macos:
         - $EXTERNAL_LINKS_PATH
 
 .upload_junit_source:
+  - export DD_ENV=prod
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
 .upload_coverage:
