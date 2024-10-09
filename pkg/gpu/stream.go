@@ -121,7 +121,6 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 
 func (sh *StreamHandler) markSynchronization(ts uint64) {
 	span := sh.getCurrentKernelSpan(ts)
-	fmt.Printf("Marking synchronization at %d, span=%v\n", ts, span)
 	if span == nil {
 		return
 	}
@@ -140,7 +139,6 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 
 func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 	// TODO: Worry about concurrent calls to this?
-	fmt.Println("Sync event")
 	sh.markSynchronization(event.Header.Ktime_ns)
 }
 
