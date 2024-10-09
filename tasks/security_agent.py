@@ -74,7 +74,9 @@ def build(
             go_mod=go_mod,
         )
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=major_version, python_runtimes='3', static=static, install_path=install_path
+    )
 
     main = "main."
     ld_vars = {
@@ -777,6 +779,7 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
+        [sync_secl_win_pkg],
     ]
     failing_tasks = []
 
@@ -797,7 +800,7 @@ def go_generate_check(ctx):
             print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
-            raise Exit(code=1)
+        raise Exit(code=1)
 
 
 @task

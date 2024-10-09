@@ -17,30 +17,25 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
-	agentPackage            = "datadog-agent"
-	pathOldAgent            = "/opt/datadog-agent"
-	agentSymlink            = "/usr/bin/datadog-agent"
-	agentUnit               = "datadog-agent.service"
-	traceAgentUnit          = "datadog-agent-trace.service"
-	processAgentUnit        = "datadog-agent-process.service"
-	systemProbeUnit         = "datadog-agent-sysprobe.service"
-	securityAgentUnit       = "datadog-agent-security.service"
-	agentExp                = "datadog-agent-exp.service"
-	traceAgentExp           = "datadog-agent-trace-exp.service"
-	processAgentExp         = "datadog-agent-process-exp.service"
-	systemProbeExp          = "datadog-agent-sysprobe-exp.service"
-	securityAgentExp        = "datadog-agent-security-exp.service"
-	configDatadogYAML       = "datadog.yaml"
-	configSecurityAgentYAML = "security-agent.yaml"
-	configSystemProbeYAML   = "system-probe.yaml"
+	agentPackage      = "datadog-agent"
+	pathOldAgent      = "/opt/datadog-agent"
+	agentSymlink      = "/usr/bin/datadog-agent"
+	agentUnit         = "datadog-agent.service"
+	traceAgentUnit    = "datadog-agent-trace.service"
+	processAgentUnit  = "datadog-agent-process.service"
+	systemProbeUnit   = "datadog-agent-sysprobe.service"
+	securityAgentUnit = "datadog-agent-security.service"
+	agentExp          = "datadog-agent-exp.service"
+	traceAgentExp     = "datadog-agent-trace-exp.service"
+	processAgentExp   = "datadog-agent-process-exp.service"
+	systemProbeExp    = "datadog-agent-sysprobe-exp.service"
+	securityAgentExp  = "datadog-agent-security-exp.service"
 )
 
 var (
@@ -75,7 +70,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
-			log.Errorf("Failed to setup agent: %s, reverting", err)
+			log.Errorf("Failed to setup agent, reverting: %s", err)
 			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
@@ -195,11 +190,6 @@ func stopOldAgentUnits(ctx context.Context) error {
 	defer span.Finish()
 	for _, unit := range stableUnits {
 		if err := stopUnit(ctx, unit); err != nil {
-			exitError, ok := err.(*exec.ExitError)
-			if ok && exitError.ExitCode() == 5 {
-				// exit code 5 means the unit is not loaded, we can continue
-				continue
-			}
 			return fmt.Errorf("failed to stop %s: %v", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
@@ -247,50 +237,4 @@ func StopAgentExperiment(ctx context.Context) error {
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	return StopAgentExperiment(ctx)
-}
-
-// ConfigureAgent configures the stable agent
-func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repositories) error {
-	config, err := cdn.Get(ctx)
-	if err != nil {
-		return fmt.Errorf("could not get cdn config: %w", err)
-	}
-	tmpDir, err := configs.MkdirTemp()
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
-	if err != nil {
-		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
-	}
-
-	if config.Datadog != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configDatadogYAML), []byte(config.Datadog), 0640)
-		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
-		}
-		err = os.Chown(filepath.Join(tmpDir, configDatadogYAML), ddAgentUID, ddAgentGID)
-		if err != nil {
-			return fmt.Errorf("could not chown datadog.yaml: %w", err)
-		}
-	}
-	if config.SecurityAgent != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configSecurityAgentYAML), []byte(config.SecurityAgent), 0600)
-		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
-		}
-	}
-	if config.SystemProbe != nil {
-		err = os.WriteFile(filepath.Join(tmpDir, configSystemProbeYAML), []byte(config.SystemProbe), 0600)
-		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
-		}
-	}
-
-	err = configs.Create(agentPackage, config.Version, tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not create repository: %w", err)
-	}
-	return nil
 }

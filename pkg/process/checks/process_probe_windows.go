@@ -6,12 +6,12 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newProcessProbe(config config.Reader, options ...procutil.Option) procutil.Probe {
+func newProcessProbe(config pkgconfigmodel.Reader, options ...procutil.Option) procutil.Probe {
 	if !config.GetBool("process_config.windows.use_perf_counters") {
 		log.Info("Using toolhelp API probe for process data collection")
 		return procutil.NewWindowsToolhelpProbe()

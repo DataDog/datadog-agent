@@ -312,41 +312,6 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return nil
 }
 
-func newSystemProbe(path string) *RemoteSysProbeUtil {
-	return &RemoteSysProbeUtil{
-		path: path,
-		httpClient: http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
-			},
-		},
-		pprofClient: http.Client{
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-			},
-		},
-		tracerouteClient: http.Client{
-			// no timeout set here, the expected usage of this client
-			// is that the caller will set a timeout on each request
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-			},
-		},
-	}
-}
-
 //nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
 	procs := make([]*languagepb.Process, len(pids))

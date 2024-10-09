@@ -1,6 +1,6 @@
 ---
 dist:
-  module: github.com/DataDog/comp/otelcol/collector-contrib
+  module: github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib
   name: otelcol-contrib
   description: valid manifest with minimum requirements and no version (should pass collector_tests.py)
   output_path: ./comp/otelcol/collector-contrib/impl

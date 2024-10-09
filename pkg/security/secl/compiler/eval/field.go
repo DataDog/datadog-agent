@@ -23,6 +23,7 @@ const (
 	BitmaskValueType  FieldValueType = 1 << 4
 	VariableValueType FieldValueType = 1 << 5
 	IPNetValueType    FieldValueType = 1 << 6
+	RangeValueType    FieldValueType = 1 << 7
 )
 
 // MarshalJSON returns the JSON encoding of the FieldValueType
@@ -51,6 +52,8 @@ func (t FieldValueType) String() string {
 		return "variable"
 	case IPNetValueType:
 		return "ip"
+	case RangeValueType:
+		return "range"
 	}
 
 	return ""

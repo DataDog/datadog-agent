@@ -17,7 +17,6 @@ oracle:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv oracle.test

@@ -45,6 +45,7 @@
 #include "network/net_device.h"
 #include "network/router.h"
 #include "network/tc.h"
+#include "network/raw.h"
 #endif
 
 #endif

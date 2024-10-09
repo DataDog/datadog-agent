@@ -12,8 +12,8 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -107,7 +107,7 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,
 // it just guarantees that the collector will be able to find the check.
 // If you want to add a check you MUST register it here.
-func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) []Check {
+func All(config, sysprobeYamlCfg pkgconfigmodel.ReaderWriter, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) []Check {
 	return []Check{
 		NewProcessCheck(config, sysprobeYamlCfg, wmeta),
 		NewContainerCheck(config, wmeta),
@@ -130,7 +130,7 @@ func RTName(checkName string) string {
 	}
 }
 
-func canEnableContainerChecks(config ddconfig.Reader, displayFeatureWarning bool) bool {
+func canEnableContainerChecks(config pkgconfigmodel.Reader, displayFeatureWarning bool) bool {
 	// The process and container checks are mutually exclusive
 	if config.GetBool("process_config.process_collection.enabled") {
 		return false

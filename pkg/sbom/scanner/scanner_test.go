@@ -21,7 +21,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -121,7 +120,7 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Type").Return(tt.st)
 
 			// Set up the configuration as the default one is too slow
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -186,7 +185,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration as the default one is too slow
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -251,7 +250,7 @@ func TestRetryChannelFull(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker

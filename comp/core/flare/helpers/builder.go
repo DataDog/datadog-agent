@@ -8,11 +8,13 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -106,6 +108,9 @@ func NewFlareBuilder(localFlare bool) (types.FlareBuilder, error) {
 
 // builder implements the FlareBuilder interface
 type builder struct {
+	sync.Mutex
+	isClosed bool
+
 	// tmpDir is the temp directory to store data before being archived
 	tmpDir string
 	// flareDir is the top directory to add file to. This is the equivalent to tmpDir/<hostname>
@@ -137,8 +142,17 @@ func getArchiveName() string {
 func (fb *builder) Save() (string, error) {
 	defer fb.clean()
 
-	_ = fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit)
+	_ = fb.AddFileFromFunc("permissions.log", func() ([]byte, error) {
+		fb.Lock()
+		defer fb.Unlock()
+		return fb.permsInfos.commit()
+	})
+
 	_ = fb.logFile.Close()
+
+	fb.Lock()
+	defer fb.Unlock()
+	fb.isClosed = true
 
 	archiveName := getArchiveName()
 	archiveTmpPath := filepath.Join(fb.tmpDir, archiveName)
@@ -175,6 +189,12 @@ func (fb *builder) logError(format string, params ...interface{}) error {
 }
 
 func (fb *builder) Logf(format string, params ...interface{}) error {
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.isClosed {
+		return nil
+	}
 	_, err := fb.logFile.WriteString(fmt.Sprintf(format, params...) + "\n")
 	if err != nil {
 		return fb.logError("error writing log: %v", err)
@@ -192,6 +212,10 @@ func (fb *builder) AddFileFromFunc(destFile string, cb func() ([]byte, error)) e
 }
 
 func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) error {
+	if fb.closed() {
+		return nil
+	}
+
 	if shouldScrub {
 		var err error
 
@@ -207,7 +231,14 @@ func (fb *builder) addFile(shouldScrub bool, destFile string, content []byte) er
 		}
 	}
 
-	f, err := fb.PrepareFilePath(destFile)
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.isClosed {
+		return nil
+	}
+
+	f, err := fb.prepareFilePath(destFile)
 	if err != nil {
 		return err
 	}
@@ -226,12 +257,15 @@ func (fb *builder) AddFileWithoutScrubbing(destFile string, content []byte) erro
 	return fb.addFile(false, destFile, content)
 }
 
-func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {
-	fb.permsInfos.add(srcFile)
+func (fb *builder) closed() bool {
+	fb.Lock()
+	defer fb.Unlock()
+	return fb.isClosed
+}
 
-	path, err := fb.PrepareFilePath(destFile)
-	if err != nil {
-		return err
+func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {
+	if fb.closed() {
+		return nil
 	}
 
 	content, err := os.ReadFile(srcFile)
@@ -251,6 +285,20 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 		if err != nil {
 			return fb.logError("error scrubbing content for file '%s': %s", destFile, err)
 		}
+	}
+
+	fb.Lock()
+	defer fb.Unlock()
+
+	if fb.isClosed {
+		return nil
+	}
+
+	fb.permsInfos.add(srcFile)
+
+	path, err := fb.prepareFilePath(destFile)
+	if err != nil {
+		return err
 	}
 
 	err = os.WriteFile(path, content, filePerm)
@@ -274,7 +322,7 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	if err != nil {
 		return fb.logError("error getting absolute path for '%s': %s", srcDir, err)
 	}
-	fb.permsInfos.add(srcDir)
+	fb.RegisterFilePerm(srcDir)
 
 	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
 		if f == nil {
@@ -307,6 +355,16 @@ func (fb *builder) CopyDirTo(srcDir string, destDir string, shouldInclude func(s
 }
 
 func (fb *builder) PrepareFilePath(path string) (string, error) {
+	fb.Lock()
+	defer fb.Unlock()
+	return fb.prepareFilePath(path)
+}
+
+func (fb *builder) prepareFilePath(path string) (string, error) {
+	if fb.isClosed {
+		return "", errors.New("flare builder is already closed")
+	}
+
 	p := filepath.Join(fb.flareDir, path)
 
 	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
@@ -317,13 +375,25 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 }
 
 func (fb *builder) RegisterFilePerm(path string) {
+	fb.Lock()
+	defer fb.Unlock()
+	if fb.isClosed {
+		return
+	}
+
 	fb.permsInfos.add(path)
 }
 
 func (fb *builder) RegisterDirPerm(path string) {
+	fb.Lock()
+	defer fb.Unlock()
+	if fb.isClosed {
+		return
+	}
+
 	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
 		if f != nil {
-			fb.RegisterFilePerm(src)
+			fb.permsInfos.add(src)
 		}
 		return nil
 	})

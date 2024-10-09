@@ -168,6 +168,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
+			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -519,7 +520,7 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
 	// don't eval event originating from myself
-	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext.Pid == e.pid {
+	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
 		return
 	}
 

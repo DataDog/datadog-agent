@@ -22,9 +22,14 @@ var (
 	ConfigsPath string
 	// LocksPath is the path to the locks directory.
 	LocksPath string
-
+	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
+	RootTmpDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
 	DefaultUserConfigsDir string
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath string
+	// RunPath is the default run path
+	RunPath string
 )
 
 func init() {
@@ -32,5 +37,9 @@ func init() {
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
 	LocksPath = filepath.Join(datadogInstallerData, "locks")
+	RootTmpDir = filepath.Join(datadogInstallerData, "tmp")
+	datadogInstallerPath := "C:\\Program Files\\Datadog\\Datadog Installer"
+	StableInstallerPath = filepath.Join(datadogInstallerPath, "datadog-installer.exe")
 	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	RunPath = filepath.Join(PackagesPath, "run")
 }
