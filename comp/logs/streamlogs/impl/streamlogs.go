@@ -14,11 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -26,6 +25,7 @@ import (
 type Requires struct {
 	compdef.In
 	LogsAgent   optional.Option[logsAgent.Component]
+	Logger      logger.Component
 	Config      config.Component
 	CoreSetting coresetting.Component
 }
@@ -40,6 +40,7 @@ type Provides struct {
 // streamlog is a type that contains information needed to insert into a flare from the streamlog process.
 type streamlogsimpl struct {
 	logsAgent   optional.Option[logsAgent.Component]
+	logger      logger.Component
 	config      config.Component
 	coresetting coresetting.Component
 }
@@ -57,6 +58,7 @@ type LogParams struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	sl := &streamlogsimpl{
 		logsAgent:   reqs.LogsAgent,
+		logger:      reqs.Logger,
 		config:      reqs.Config,
 		coresetting: reqs.CoreSetting,
 	}
@@ -68,21 +70,21 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 // exportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
-func exportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error {
+func exportStreamLogs(la logsAgent.Component, logger logger.Component, streamLogParams *LogParams) error {
 	if err := stream.EnsureDirExists(streamLogParams.FilePath); err != nil {
 		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
 	}
-
 	f, bufWriter, err := stream.OpenFileForWriting(streamLogParams.FilePath)
 	if err != nil {
 		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
 	}
 	defer func() {
 		if err = bufWriter.Flush(); err != nil {
-			log.Errorf("Error flushing buffer for log stream: %v", err)
+			logger.Errorf("Error flushing buffer for log stream: %v", err)
+
 		}
 		if err = f.Close(); err != nil {
-			log.Errorf("Error closing file for log stream: %v", err)
+			logger.Errorf("Error closing file for log stream: %v", err)
 		}
 	}()
 
@@ -93,11 +95,10 @@ func exportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 	}
 	defer messageReceiver.SetEnabled(false)
 
-	var filters diagnostic.Filters
 	done := make(chan struct{})
 	defer close(done)
 
-	logChan := messageReceiver.Filter(&filters, done)
+	logChan := messageReceiver.Filter(nil, done)
 
 	timer := time.NewTimer(streamLogParams.Duration)
 	defer timer.Stop()
@@ -128,7 +129,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 				FilePath: streamlogsLogFilePath,
 				Duration: 60 * time.Second, // Default duration is 60 seconds
 			}
-			if err := exportStreamLogs(logsAgent, &streamLogParams); err != nil {
+			if err := exportStreamLogs(logsAgent, sl.logger, &streamLogParams); err != nil {
 				return fmt.Errorf("failed to export stream logs: %w", err)
 			}
 		}
