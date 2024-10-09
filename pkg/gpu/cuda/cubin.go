@@ -132,7 +132,7 @@ func newCubinParser() *cubinParser {
 	return cp
 }
 
-func (cp *cubinParser) getKernel(name string) *CubinKernel {
+func (cp *cubinParser) getOrCreateKernel(name string) *CubinKernel {
 	if _, ok := cp.kernels[name]; !ok {
 		cp.kernels[name] = &CubinKernel{
 			Name: name,
@@ -228,7 +228,7 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer io.ReadSeeker, 
 	}
 
 	if kernelName != "" {
-		cp.getKernel(kernelName).attributes = items
+		cp.getOrCreateKernel(kernelName).attributes = items
 	}
 
 	return nil
@@ -239,7 +239,7 @@ func (cp *cubinParser) parseTextSection(sect *elf.Section, _ io.ReadSeeker, kern
 		return nil
 	}
 
-	kernel := cp.getKernel(kernelName)
+	kernel := cp.getOrCreateKernel(kernelName)
 	kernel.SymtabIndex = int(sect.Info & 0xff)
 	kernel.KernelSize = sect.Size
 
@@ -251,7 +251,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ io.ReadSeeker,
 		return nil
 	}
 
-	kernel := cp.getKernel(kernelName)
+	kernel := cp.getOrCreateKernel(kernelName)
 	kernel.SharedMem = sect.Size
 
 	return nil
@@ -270,7 +270,7 @@ func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ io.ReadSeeke
 	}
 
 	kernelName := match[1]
-	kernel := cp.getKernel(kernelName)
+	kernel := cp.getOrCreateKernel(kernelName)
 	kernel.ConstantMem += sect.Size
 
 	return nil
