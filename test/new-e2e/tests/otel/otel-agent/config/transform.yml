@@ -22,15 +22,15 @@ processors:
     metric_statements:
       - context: resource
         statements:
-          - set(attributes["processor.transform"], true)
+          - set(attributes["processor.transform"], "enabled")
     trace_statements:
       - context: resource
         statements:
-          - set(attributes["processor.transform"], true)
+          - set(attributes["processor.transform"], "enabled")
     log_statements:
       - context: resource
         statements:
-          - set(attributes["processor.transform"], true)
+          - set(attributes["processor.transform"], "enabled")
 service:
   pipelines:
     traces:

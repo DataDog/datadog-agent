@@ -625,7 +625,7 @@ func TestTracesTransform(s OTelTestSuite) {
 		assert.Equal(s.T(), calendarService, sp.Service)
 		assert.Equal(s.T(), env, sp.Meta["env"])
 		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), "true", sp.Meta["processor.transform"])
+		assert.Equal(s.T(), "enabled", sp.Meta["processor.transform"])
 	}
 }
 
@@ -650,7 +650,7 @@ func TestMetricsTransform(s OTelTestSuite) {
 		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
-		assert.Equal(s.T(), "true", tags["processor.transform"])
+		assert.Equal(s.T(), "enabled", tags["processor.transform"])
 	}
 }
 
@@ -684,6 +684,6 @@ func TestLogsTransform(s OTelTestSuite) {
 		assert.Equal(s.T(), calendarService, tags["service"])
 		assert.Equal(s.T(), env, tags["env"])
 		assert.Equal(s.T(), version, tags["version"])
-		assert.Equal(s.T(), "true", tags["processor.transform"])
+		assert.Equal(s.T(), "enabled", tags["processor.transform"])
 	}
 }
