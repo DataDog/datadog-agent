@@ -42,22 +42,6 @@ type Fatbin struct {
 	Kernels map[CubinKernelKey]*CubinKernel
 }
 
-// CubinKernelKey is the key to identify a kernel in a fatbin
-type CubinKernelKey struct {
-	Name      string
-	SmVersion uint32
-}
-
-// CubinKernel holds the information of a CUDA kernel
-type CubinKernel struct {
-	Name        string                          // Name of the kernel
-	attributes  map[nvInfoAttr]nvInfoParsedItem // Attributes of the kernel
-	SymtabIndex int                             // Index of this kernel in the ELF symbol table
-	KernelSize  uint64                          // Size of the kernel in bytes
-	SharedMem   uint64                          // Size of the shared memory used by the kernel
-	ConstantMem uint64                          // Size of the constant memory used by the kernel
-}
-
 // GetKernel returns the kernel with the given name and SM version from the fatbin
 func (fb *Fatbin) GetKernel(name string, smVersion uint32) *CubinKernel {
 	key := CubinKernelKey{Name: name, SmVersion: smVersion}
