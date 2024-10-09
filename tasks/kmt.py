@@ -56,6 +56,7 @@ from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
     NPM_TAG,
+    TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
     check_for_ninja,
     get_ebpf_build_dir,
@@ -550,6 +551,11 @@ def ninja_define_rules(nw: NinjaWriter):
         command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
     )
     nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
+
+    nw.rule(
+        name="cbin",
+        command="$cc $cflags -o $out $in $ldflags",
+    )
 
 
 def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str, arch: Arch):
@@ -1058,6 +1064,19 @@ def kmt_sysprobe_prepare(
                             "tags": "-tags=\"test\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
+                        },
+                    )
+
+            for cbin in TEST_HELPER_CBINS:
+                source = Path(pkg) / "testdata" / f"{cbin}.c"
+                if source.is_file():
+                    binary_path = os.path.join(target_path, "testdata", cbin)
+                    nw.build(
+                        inputs=[os.fspath(source)],
+                        outputs=[binary_path],
+                        rule="cbin",
+                        variables={
+                            "cc": "clang",
                         },
                     )
 
