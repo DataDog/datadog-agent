@@ -34,6 +34,7 @@ compute_gitlab_ci_config:
   needs: []
   tags: ["arch:arm64"]
   rules:
+  - !reference [.on_deploy_nightly_repo_branch]
   - !reference [.compute_gitlab_ci_config_rules]
   - when: on_success
   before_script:
