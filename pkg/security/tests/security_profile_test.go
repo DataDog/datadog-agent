@@ -10,6 +10,7 @@ package tests
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -1398,7 +1399,196 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	})
 }
 
-func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
+func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "syscalls"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	fakeManualResolver := NewFakeManualResolver()
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                         true,
+		activityDumpRateLimiter:                    200,
+		activityDumpTracedCgroupsCount:             10,
+		activityDumpDuration:                       testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:          outputDir,
+		activityDumpLocalStorageCompression:        false,
+		activityDumpLocalStorageFormats:            expectedFormats,
+		activityDumpTracedEventTypes:               testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                      true,
+		securityProfileDir:                         outputDir,
+		securityProfileWatchDir:                    true,
+		enableAnomalyDetection:                     true,
+		anomalyDetectionEventTypes:                 testActivityDumpTracedEventTypes,
+		anomalyDetectionMinimumStablePeriodExec:    10 * time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:     10 * time.Second,
+		anomalyDetectionDefaultMinimumStablePeriod: 10 * time.Second,
+		anomalyDetectionWarmupPeriod:               1 * time.Second,
+		tagsResolver:                               fakeManualResolver,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstanceV1, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstanceV1.stop()
+
+	cmd := dockerInstanceV1.Command(syscallTester, []string{"sleep", "1"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events be added to the dump
+
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(6 * time.Second) // a quick sleep to let the profile be loaded (5sec debounce + 1sec spare)
+
+	// HERE: V1 is learning
+
+	// Some syscall will be missing from the initial dump because they had no way to come back to user space
+	// (i.e. no new syscall to flush the dirty entry + no new exec + no new exit)
+	t.Run("life-cycle-v1-learning", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			// We shouldn't see anything: the profile is still learning
+			data, _ := event.MarshalJSON()
+			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			// we answer false on purpose: we might have 2 or more syscall anomaly events
+			return false
+		}, time.Second*2, model.SyscallsEventType)
+	})
+
+	time.Sleep(time.Second * 10) // waiting for the stable period
+
+	// HERE: V1 is stable
+
+	t.Run("life-cycle-v1-stable-no-anomaly", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV1.Command("sleep", []string{"1"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			// this time we shouldn't see anything new.
+			data, _ := event.MarshalJSON()
+			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			return false
+		}, time.Second*2, model.SyscallsEventType)
+	})
+
+	t.Run("life-cycle-v1-stable-anomaly", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			// this will generate new syscalls, and should therefore generate an anomaly
+			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+			return true
+		}, time.Second*3, model.SyscallsEventType)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
+	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
+		Image: selector.Image,
+		Tag:   selector.Tag + "+",
+	})
+	dockerInstanceV2, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstanceV2.stop()
+
+	// HERE: V1 is stable and V2 is learning
+
+	t.Run("life-cycle-v1-stable-v2-learning-anomaly", func(t *testing.T) {
+		var gotSyscallsEvent bool
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			// we should see an anomaly that will be inserted in the profile
+			assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+			gotSyscallsEvent = true
+			// there may be multiple syscalls events
+			return false
+		}, time.Second*3, model.SyscallsEventType)
+		if !gotSyscallsEvent {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("life-cycle-v1-stable-v2-learning-no-anomaly", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV2.Command("date", []string{}, []string{})
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			// this time we shouldn't see anything new.
+			data, _ := event.MarshalJSON()
+			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			return false
+		}, time.Second*2, model.SyscallsEventType)
+	})
+
+	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
+		Image: selector.Image,
+		Tag:   "*",
+	}, selector.Tag, model.UnstableEventType); err != nil {
+		t.Fatal(err)
+	}
+
+	// HERE: V1 is unstable and V2 is learning
+
+	t.Run("life-cycle-v1-unstable-v2-learning", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV1.Command("nslookup", []string{"google.com"}, []string{})
+			_, _ = cmd.CombinedOutput()
+			return nil
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			// We shouldn't see anything: the profile is unstable
+			data, _ := event.MarshalJSON()
+			t.Fatal(fmt.Errorf("syscall anomaly detected when it should have been ignored: %s", string(data)))
+			// we answer false on purpose: we might have 2 or more syscall anomaly events
+			return false
+		}, time.Second*2, model.SyscallsEventType)
+	})
+}
+
+func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -1579,7 +1769,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	})
 }
 
-func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
+func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -1760,7 +1950,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	})
 }
 
-func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
+func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
