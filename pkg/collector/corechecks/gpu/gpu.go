@@ -156,6 +156,9 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get GPU device threads: %s", err)
 	}
 
+	// Commit the metrics even in case of an error
+	defer snd.Commit()
+
 	usedProcessors := make(map[uint32]bool)
 
 	for _, data := range stats.CurrentData {
@@ -197,7 +200,6 @@ func (m *Check) Run() error {
 		}
 	}
 
-	snd.Commit()
 	m.lastCheckTime = now
 
 	return nil
