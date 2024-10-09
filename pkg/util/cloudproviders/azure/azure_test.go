@@ -199,7 +199,7 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 		style, value string
 		err          bool
 	}{
-		{"os", "node-name-a", false}, // use osProfile.computerName when running in AKS
+		{"os", "node-name-a-some-cluster", false}, // use osProfile.computerName + cluster name when running in AKS
 		{"vmid", "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d", false},
 		{"name", "vm-name", false},
 		{"name_and_resource_group", "vm-name.MC-some-resource-group-some-cluster-westus2", false},

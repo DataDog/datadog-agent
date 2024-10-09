@@ -58,6 +58,10 @@ func (metadata metadata) GetFromStyle(style string) (string, error) {
 	case "full":
 		return fmt.Sprintf("%s.%s.%s", metadata.Name, parsedResourceGroupName, metadata.SubscriptionID), nil
 	case "os_computer_name":
+		clusterName, err := clusterNameFromResourceGroupName(metadata.ResourceGroupName)
+		if err == nil {
+			return strings.ToLower(metadata.OsProfile.ComputerName + "-" + clusterName), nil
+		}
 		return strings.ToLower(metadata.OsProfile.ComputerName), nil
 	default:
 		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
@@ -117,16 +121,21 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 }
 
 // GetClusterName returns the name of the cluster containing the current VM by parsing the resource group name.
-// It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
 func GetClusterName(ctx context.Context) (string, error) {
 	all, err := resourceGroupNameFetcher.FetchString(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	splitAll := strings.Split(all, "_")
+	return clusterNameFromResourceGroupName(all)
+}
+
+// GetClusterNameFromResourceGroupName returns the name of the cluster by parsing the resource group name.
+// It expects the resource group name to have the format (MC|mc)_resource-group_cluster-name_zone
+func clusterNameFromResourceGroupName(resourceGroupName string) (string, error) {
+	splitAll := strings.Split(resourceGroupName, "_")
 	if len(splitAll) < 4 || strings.ToLower(splitAll[0]) != "mc" {
-		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", all)
+		return "", fmt.Errorf("cannot parse the clustername from resource group name: %s", resourceGroupName)
 	}
 
 	return splitAll[len(splitAll)-2], nil
