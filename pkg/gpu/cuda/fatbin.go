@@ -14,7 +14,6 @@
 package cuda
 
 import (
-	"bytes"
 	"debug/elf"
 	"encoding/binary"
 	"fmt"
@@ -144,19 +143,20 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 			continue
 		}
 
-		data, err := sect.Data()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read section %s: %w", sect.Name, err)
-		}
+		// Use the Open method to avoid reading everything into memory
+		buffer := sect.Open()
 
 		// The fatbin format will have a header, then a sequence of data headers + payloads.
 		// After the data corresponding to the first header, we might have more headers so
 		// we need to loop until we reach the end of the section data
-		buffer := bytes.NewReader(data)
-		for buffer.Len() > 0 {
+		for {
 			var fatbinHeader fatbinHeader
-			err = binary.Read(buffer, binary.LittleEndian, &fatbinHeader)
+			err := binary.Read(buffer, binary.LittleEndian, &fatbinHeader)
 			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
 				return nil, fmt.Errorf("failed to parse fatbin header: %w", err)
 			}
 
@@ -167,8 +167,12 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 
 			// We need to read only up to the size given to us by the header, not to the end of the section.
 			readStart := getBufferOffset(buffer)
-			for currOffset := getBufferOffset(buffer); buffer.Len() > 0 && currOffset-readStart < int64(fatbinHeader.FatSize); currOffset = getBufferOffset(buffer) {
+			for currOffset := getBufferOffset(buffer); currOffset-readStart < int64(fatbinHeader.FatSize); currOffset = getBufferOffset(buffer) {
 				if err := parseFatbinData(buffer, fatbin); err != nil {
+					if err == io.EOF {
+						break
+					}
+
 					return nil, fmt.Errorf("failed to parse fatbin data: %w", err)
 				}
 			}
@@ -178,11 +182,15 @@ func ParseFatbinFromELFFile(elfFile *elf.File) (*Fatbin, error) {
 	return fatbin, nil
 }
 
-func parseFatbinData(buffer *bytes.Reader, fatbin *Fatbin) error {
+func parseFatbinData(buffer io.ReadSeeker, fatbin *Fatbin) error {
 	// Each data section starts with a data header, read it
 	var fatbinData fatbinData
 	err := binary.Read(buffer, binary.LittleEndian, &fatbinData)
 	if err != nil {
+		if err == io.EOF {
+			return err
+		}
+
 		return fmt.Errorf("failed to parse fatbin data: %w", err)
 	}
 

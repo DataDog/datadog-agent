@@ -110,16 +110,18 @@ type nvInfoItem struct {
 	Attr   nvInfoAttr
 }
 
+type sectionParserFunc func(*elf.Section, io.ReadSeeker, string) error
+
 // cubinParser is a helper struct to parse the cubin ELF sections
 type cubinParser struct {
 	kernels            map[string]*CubinKernel
-	sectPrefixToParser map[string]func(*elf.Section, *bytes.Reader, string) error
+	sectPrefixToParser map[string]sectionParserFunc
 }
 
 func newCubinParser() *cubinParser {
 	cp := &cubinParser{
 		kernels:            make(map[string]*CubinKernel),
-		sectPrefixToParser: make(map[string]func(*elf.Section, *bytes.Reader, string) error),
+		sectPrefixToParser: make(map[string]sectionParserFunc),
 	}
 
 	cp.sectPrefixToParser[".nv.info"] = cp.parseNvInfoSection
@@ -164,22 +166,12 @@ func (cp *cubinParser) parseCubinElf(data []byte) error {
 				continue
 			}
 
-			var buffer *bytes.Reader
-			// do not provide a buffer for NOBITS sections, as they have no data
-			if sect.Type != elf.SHT_NOBITS {
-				sectData, err := sect.Data()
-				if err != nil {
-					return fmt.Errorf("failed to read section %s: %w", sect.Name, err)
-				}
-				buffer = bytes.NewReader(sectData)
-			}
-
 			var kernelName string
 			if strings.HasPrefix(sect.Name, prefixWithDot) {
 				kernelName = strings.TrimPrefix(sect.Name, prefixWithDot)
 			}
 
-			err = parser(sect, buffer, kernelName)
+			err = parser(sect, sect.Open(), kernelName)
 			if err != nil {
 				return fmt.Errorf("failed to parse section %s: %w", sect.Name, err)
 			}
@@ -195,12 +187,16 @@ type nvInfoParsedItem struct {
 	value []byte
 }
 
-func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer *bytes.Reader, kernelName string) error {
+func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer io.ReadSeeker, kernelName string) error {
 	items := make(map[nvInfoAttr]nvInfoParsedItem)
 
-	for buffer.Len() > 0 {
+	for {
 		var item nvInfoItem
 		if err := binary.Read(buffer, binary.LittleEndian, &item); err != nil {
+			if err == io.EOF {
+				break
+			}
+
 			return fmt.Errorf("failed to read item: %w", err)
 		}
 
@@ -238,7 +234,7 @@ func (cp *cubinParser) parseNvInfoSection(_ *elf.Section, buffer *bytes.Reader, 
 	return nil
 }
 
-func (cp *cubinParser) parseTextSection(sect *elf.Section, _ *bytes.Reader, kernelName string) error {
+func (cp *cubinParser) parseTextSection(sect *elf.Section, _ io.ReadSeeker, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -250,7 +246,7 @@ func (cp *cubinParser) parseTextSection(sect *elf.Section, _ *bytes.Reader, kern
 	return nil
 }
 
-func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ *bytes.Reader, kernelName string) error {
+func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ io.ReadSeeker, kernelName string) error {
 	if kernelName == "" {
 		return nil
 	}
@@ -263,7 +259,7 @@ func (cp *cubinParser) parseSharedMemSection(sect *elf.Section, _ *bytes.Reader,
 
 var constantSectNameRegex = regexp.MustCompile(`\.nv\.constant\d\.(.*)`)
 
-func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ *bytes.Reader, _ string) error {
+func (cp *cubinParser) parseConstantMemSection(sect *elf.Section, _ io.ReadSeeker, _ string) error {
 	// Constant memory sections are named .nv.constantX.Y where X is the constant memory index and Y is the name
 	// so we have to do some custom parsing
 	match := constantSectNameRegex.FindStringSubmatch(sect.Name)
