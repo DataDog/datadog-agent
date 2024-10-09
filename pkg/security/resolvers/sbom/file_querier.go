@@ -9,7 +9,6 @@
 package sbom
 
 import (
-	"math"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -21,8 +20,6 @@ type fileQuerier struct {
 	files []uint64
 	pkgs  []*Package
 }
-
-const hashSentinel uint64 = math.MaxUint64
 
 func newFileQuerier(report *trivy.Report) fileQuerier {
 	fileCount := 0
@@ -44,20 +41,14 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 				Version:    resultPkg.Version,
 				SrcVersion: resultPkg.SrcVersion,
 			}
-			pkgIndex := uint64(len(pkgs))
 			pkgs = append(pkgs, pkg)
 
-			files = append(files, hashSentinel, pkgIndex)
+			files = append(files, uint64(len(resultPkg.InstalledFiles)))
 
 			for _, file := range resultPkg.InstalledFiles {
 				seclog.Infof("indexing %s as %+v", file, pkg)
 
 				hash := murmur3.StringSum64(file)
-				if hash == hashSentinel {
-					seclog.Errorf("failed to hash %s", file)
-					continue
-				}
-
 				files = append(files, hash)
 			}
 		}
@@ -67,20 +58,18 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *Package {
-	var currentPkg *Package
-	for i, h := range fq.files {
-		if h == hashSentinel {
-			if i+1 < len(fq.files) {
-				currentPkg = fq.pkgs[fq.files[i+1]]
-			} else {
-				currentPkg = nil
+	var i, pkgIndex uint64
+	for i < uint64(len(fq.files)) {
+		partSize := fq.files[i]
+
+		for offset := uint64(0); offset < partSize; offset++ {
+			if fq.files[i+1+offset] == hash {
+				return fq.pkgs[pkgIndex]
 			}
-			continue
 		}
 
-		if h == hash {
-			return currentPkg
-		}
+		i += partSize + 1
+		pkgIndex++
 	}
 
 	return nil
