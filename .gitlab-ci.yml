@@ -110,12 +110,11 @@ stages:
 
 test_job:
   stage: setup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:08b9d8e048c1
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner-dev:25154763
   tags: ["arch:amd64"]
   script:
     - echo "Test job $CI_PIPELINE_SOURCE"
     - which vault
-    - setcap -r /usr/bin/vault
     - PASS=$(vault kv get -field=user kv/k8s/gitlab-runner/datadog-agent/atlassian-write)
     - echo "PASS is $PASS"
     - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
