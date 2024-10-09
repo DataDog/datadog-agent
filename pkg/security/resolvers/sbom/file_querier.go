@@ -9,8 +9,6 @@
 package sbom
 
 import (
-	"cmp"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -57,21 +55,16 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 		}
 	}
 
-	slices.SortFunc(files, func(a, b fqEntry) int {
-		return cmp.Compare(a.hash, b.hash)
-	})
-
 	return fileQuerier{files: files}
 }
 
 func (fq *fileQuerier) queryHash(hash uint64) *Package {
-	i, found := slices.BinarySearchFunc(fq.files, hash, func(entry fqEntry, hash uint64) int {
-		return cmp.Compare(entry.hash, hash)
-	})
-	if !found {
-		return nil
+	for f := range fq.files {
+		if fq.files[f].hash == hash {
+			return fq.pkgs[fq.files[f].pkgIndex]
+		}
 	}
-	return fq.pkgs[fq.files[i].pkgIndex]
+	return nil
 }
 
 func (fq *fileQuerier) queryFile(path string) *Package {
