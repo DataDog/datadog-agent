@@ -81,6 +81,7 @@ func getSystemContext(procRoot string, opts ...systemContextOpts) (*systemContex
 		pidMaps:                   make(map[int]*kernel.ProcMapEntries),
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
 		procRoot:                  procRoot,
+		visibleDevicesCache:       make(map[int][]cuda.GpuDevice),
 	}
 
 	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
