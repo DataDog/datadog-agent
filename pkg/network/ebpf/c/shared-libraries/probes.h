@@ -86,6 +86,7 @@ static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
     LOAD_CONSTANT("crypto_libset_enabled", crypto_libset_enabled);
 
     if (crypto_libset_enabled && (match6chars(0, 'l', 'i', 'b', 's', 's', 'l') || match6chars(0, 'c', 'r', 'y', 'p', 't', 'o') || match6chars(0, 'g', 'n', 'u', 't', 'l', 's'))) {
+        // Only get the CPU if we're going to use it.
         u32 cpu = bpf_get_smp_processor_id();
         bpf_perf_event_output((void *)args, &crypto_shared_libraries, cpu, path, sizeof(lib_path_t));
     }
