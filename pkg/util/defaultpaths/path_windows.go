@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package path
+package defaultpaths
 
 import (
 	"path/filepath"
@@ -24,32 +24,32 @@ var (
 )
 
 var (
-	// DefaultConfPath points to the folder containing datadog.yaml
-	DefaultConfPath = "c:\\programdata\\datadog"
-	// DefaultLogFile points to the log file that will be used if not configured
-	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
-	// DefaultDCALogFile points to the log file that will be used if not configured
-	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
-	//DefaultJmxLogFile points to the jmx fetch log file that will be used if not configured
-	DefaultJmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
-	// DefaultCheckFlareDirectory a flare friendly location for checks to be written
-	DefaultCheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
-	// DefaultJMXFlareDirectory a flare friendly location for jmx command logs to be written
-	DefaultJMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
-	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
-	DefaultDogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
-	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	// ConfPath points to the folder containing datadog.yaml
+	ConfPath = "c:\\programdata\\datadog"
+	// LogFile points to the log file that will be used if not configured
+	LogFile = "c:\\programdata\\datadog\\logs\\agent.log"
+	// DCALogFile points to the log file that will be used if not configured
+	DCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	//JmxLogFile points to the jmx fetch log file that will be used if not configured
+	JmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
+	// CheckFlareDirectory a flare friendly location for checks to be written
+	CheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
+	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
+	JMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
+	// DogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
+	DogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
+	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
+	StreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		DefaultConfPath = pd
-		DefaultLogFile = filepath.Join(pd, "logs", "agent.log")
-		DefaultDCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
-		DefaultDogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
-		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
+		ConfPath = pd
+		LogFile = filepath.Join(pd, "logs", "agent.log")
+		DCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+		DogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
+		StreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
 	}
 }
 

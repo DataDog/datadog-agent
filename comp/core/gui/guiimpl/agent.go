@@ -19,13 +19,12 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -111,7 +110,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = path.DefaultLogFile
+		logFile = defaultpaths.LogFile
 	}
 
 	logFileContents, e := os.ReadFile(logFile)
