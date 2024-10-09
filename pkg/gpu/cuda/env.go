@@ -64,7 +64,7 @@ func getVisibleDevices[T WithUUID](systemDevices []T, cudaVisibleDevices string)
 }
 
 func getCudaVisibleDevicesEnvVar(pid int, procfs string) (string, error) {
-	return kernel.GetProcessEnvVariable(pid, "CUDA_VISIBLE_DEVICES", procfs)
+	return kernel.GetProcessEnvVariable(pid, procfs, "CUDA_VISIBLE_DEVICES")
 }
 
 func GetVisibleDevicesForProcess[T WithUUID](systemDevices []T, pid int, procfs string) ([]T, error) {
