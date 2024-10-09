@@ -796,6 +796,23 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
         print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
 
 
+def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
+    error_files = []
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
+        if not teams:
+            error_files.append(path)
+
+    if error_files:
+        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+
+
 @task
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
     """Verifies that added / modified job files are defined within CODEOWNERS."""
@@ -817,17 +834,4 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     parsed_owners = [line for line in parsed_owners if '/.gitlab/' in line]
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
-    error_files = []
-    for path in modified_yml_files:
-        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
-        if not teams:
-            error_files.append(path)
-
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
-
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+    _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
