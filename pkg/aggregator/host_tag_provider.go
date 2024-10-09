@@ -41,6 +41,8 @@ func newHostTagProviderWithClock(clock clock.Clock) *HostTagProvider {
 			defer p.Unlock()
 			p.hostTags = nil
 		})
+	} else {
+		p.hostTags = nil
 	}
 
 	return p
