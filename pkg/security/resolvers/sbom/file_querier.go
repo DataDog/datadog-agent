@@ -20,22 +20,26 @@ import (
 
 type fileQuerier struct {
 	files []fqEntry
+	pkgs  []*Package
 }
 
 type fqEntry struct {
-	hash uint64
-	pkg  *Package
+	hash     uint64
+	pkgIndex uint64
 }
 
 func newFileQuerier(report *trivy.Report) fileQuerier {
-	count := 0
+	fileCount := 0
+	pkgCount := 0
 	for _, result := range report.Results {
 		for _, resultPkg := range result.Packages {
-			count += len(resultPkg.InstalledFiles)
+			fileCount += len(resultPkg.InstalledFiles)
+			pkgCount++
 		}
 	}
 
-	files := make([]fqEntry, 0, count)
+	files := make([]fqEntry, 0, fileCount)
+	pkgs := make([]*Package, 0, pkgCount)
 	for _, result := range report.Results {
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
@@ -43,9 +47,12 @@ func newFileQuerier(report *trivy.Report) fileQuerier {
 				Version:    resultPkg.Version,
 				SrcVersion: resultPkg.SrcVersion,
 			}
+			pkgIndex := uint64(len(pkgs))
+			pkgs = append(pkgs, pkg)
+
 			for _, file := range resultPkg.InstalledFiles {
 				seclog.Infof("indexing %s as %+v", file, pkg)
-				files = append(files, fqEntry{hash: murmur3.StringSum64(file), pkg: pkg})
+				files = append(files, fqEntry{hash: murmur3.StringSum64(file), pkgIndex: pkgIndex})
 			}
 		}
 	}
@@ -64,7 +71,7 @@ func (fq *fileQuerier) queryHash(hash uint64) *Package {
 	if !found {
 		return nil
 	}
-	return fq.files[i].pkg
+	return fq.pkgs[fq.files[i].pkgIndex]
 }
 
 func (fq *fileQuerier) queryFile(path string) *Package {
