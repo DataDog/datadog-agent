@@ -85,6 +85,30 @@
 /.gitlab/setup/*                                     @DataDog/agent-devx-infra
 /.gitlab/trigger_release/*                           @DataDog/agent-devx-infra
 
+/.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-security
+/.gitlab/binary_build/include.yml                    @DataDog/agent-devx-infra
+/.gitlab/binary_build/linux.yml                      @DataDog/agent-devx-infra @DataDog/agent-delivery
+/.gitlab/functional_test/include.yml                 @DataDog/agent-devx-infra
+/.gitlab/functional_test_cleanup/functional_test_cleanup.yml        @DataDog/agent-security
+/.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery
+/.gitlab/integration_test/dogstatsd.yml              @DataDog/agent-metrics-logs
+/.gitlab/integration_test/include.yml                @DataDog/agent-devx-infra
+/.gitlab/integration_test/linux.yml                  @DataDog/agent-devx-infra
+/.gitlab/integration_test/otel.yml                   @DataDog/agent-devx-infra @DataDog/opentelemetry
+/.gitlab/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
+/.gitlab/internal_kubernetes_deploy/include.yml                     @DataDog/agent-devx-infra
+/.gitlab/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
+/.gitlab/internal_kubernetes_deploy/rc_kubernetes_deploy.yml        @DataDog/agent-delivery
+/.gitlab/package_deps_build/package_deps_build.yml   @DataDog/agent-devx-infra @DataDog/ebpf-platform
+/.gitlab/powershell_script_signing/powershell_script_signing.yml    @DataDog/agent-delivery+ windows ?
+/.gitlab/source_test/golang_deps_diff.yml            @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+/.gitlab/source_test/include.yml                     @DataDog/agent-devx-infra
+/.gitlab/source_test/linux.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+/.gitlab/source_test/macos.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+/.gitlab/source_test/notify.yml                      @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+/.gitlab/source_test/slack.yml                       @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+/.gitlab/source_test/tooling_unit_tests.yml          @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx-loops
