@@ -1,0 +1,47 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    metrics:
+      resource_attributes_as_tags: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${DD_API_KEY}
+  debug:
+    verbosity: detailed
+processors:
+  batch:
+  transform:
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["processor.transform"], true)
+    trace_statements:
+      - context: resource
+        statements:
+          - set(attributes["processor.transform"], true)
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["processor.transform"], true)
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [transform, batch]
+      exporters: [datadog, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [transform, batch]
+      exporters: [datadog, debug]
+    logs:
+      receivers: [otlp]
+      processors: [transform, batch]
+      exporters: [datadog, debug]
