@@ -502,6 +502,11 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -753,6 +758,11 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
