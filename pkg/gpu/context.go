@@ -72,13 +72,18 @@ func getSystemContext(opts ...systemContextOpts) (*systemContext, error) {
 
 	ctx.timeResolver, err = sectime.NewResolver()
 	if err != nil {
-		return nil, fmt.Errorf("cannot create time resolver: %s", err)
+		return nil, fmt.Errorf("cannot create time resolver: %w", err)
 	}
 
 	ctx.processCache, err = tracer.NewProcessCache(32768)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create process cache: %s", err)
+		return nil, fmt.Errorf("cannot create process cache: %w", err)
 	}
+
+	if err = events.Init(); err != nil {
+		return nil, fmt.Errorf("cannot init events system: %w", err)
+	}
+
 	events.RegisterHandler(ctx.processCache)
 
 	return ctx, nil
