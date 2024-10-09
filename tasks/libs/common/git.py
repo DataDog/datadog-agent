@@ -48,17 +48,19 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
 def get_file_modifications(
     ctx, base_branch=None, added=False, modified=False, removed=False, only_names=False, no_renames=False
 ) -> list[tuple[str, str]]:
-    """
-    Get file status changes for the current branch compared to the base branch.
+    """Gets file status changes for the current branch compared to the base branch.
 
     If no filter is provided, will return all the files.
 
-    - added: Include added files
-    - modified: Include modified files
-    - removed: Include removed files
-    - only_names: Return only the file names without the status
-    - no_renames: Do not include renamed files
-    - Returns a list of (status, filename)
+    Args:
+        added: Include added files
+        modified: Include modified files
+        removed: Include removed files
+        only_names: Return only the file names without the status
+        no_renames: Do not include renamed files
+
+    Returns:
+        A list of (status, filename)
     """
 
     from tasks.libs.releasing.json import _get_release_json_value

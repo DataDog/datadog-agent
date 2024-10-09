@@ -7,6 +7,7 @@ skip-ci-check                        @DataDog/agent-devx-infra
 slack_teams_channels_check           @DataDog/agent-devx-infra
 lint*                                @DataDog/agent-devx-infra
 notify*                              @DataDog/agent-devx-infra
+create_release_qa_cards              @DataDog/agent-devx-infra
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform

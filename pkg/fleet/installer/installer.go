@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
@@ -39,14 +38,11 @@ const (
 	packageDatadogInstaller = "datadog-installer"
 )
 
-var (
-	fsDisk = filesystem.NewDisk()
-)
-
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
 
+	AvailableDiskSpace() (uint64, error)
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 	ConfigState(pkg string) (repository.State, error)
@@ -114,6 +110,11 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	}, nil
 }
 
+// AvailableDiskSpace returns the available disk space.
+func (i *installerImpl) AvailableDiskSpace() (uint64, error) {
+	return i.packages.AvailableDiskSpace()
+}
+
 // State returns the state of a package.
 func (i *installerImpl) State(pkg string) (repository.State, error) {
 	return i.packages.GetState(pkg)
@@ -176,7 +177,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
 		return nil
 	}
-	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -225,7 +226,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
-	err = checkAvailableDiskSpace(pkg, i.packagesDir)
+	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
@@ -585,23 +586,19 @@ const (
 // See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
 // On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
-func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
+func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.DownloadedPackage) error {
 	requiredDiskSpace := pkg.Size
 	if requiredDiskSpace == 0 {
 		requiredDiskSpace = packageUnknownSize
 	}
 	requiredDiskSpace += installerOverhead
 
-	_, err := os.Stat(path)
+	availableDiskSpace, err := repositories.AvailableDiskSpace()
 	if err != nil {
-		return fmt.Errorf("could not stat path %s: %w", path, err)
+		return fmt.Errorf("could not get available disk space: %w", err)
 	}
-	s, err := fsDisk.GetUsage(path)
-	if err != nil {
-		return err
-	}
-	if s.Available < uint64(requiredDiskSpace) {
-		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", path, s.Available, requiredDiskSpace)
+	if availableDiskSpace < uint64(requiredDiskSpace) {
+		return fmt.Errorf("not enough disk space at %s: %d bytes available, %d bytes required", repositories.RootPath(), availableDiskSpace, requiredDiskSpace)
 	}
 	return nil
 }

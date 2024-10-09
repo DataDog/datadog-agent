@@ -484,7 +484,7 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
 
     if not jobs:
         print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-        return
+        return [], {}
 
     if only_names:
         jobs = [job for job, _ in jobs]
@@ -508,6 +508,11 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -761,6 +766,11 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
     """
 
     jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
     ci_linters_config = CILintersConfig(
         lint=True,
         all_jobs=full_config_get_all_leaf_jobs(full_config),
@@ -793,6 +803,23 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
         print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
 
 
+def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
+    error_files = []
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
+        if not teams:
+            error_files.append(path)
+
+    if error_files:
+        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+
+
 @task
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
     """Verifies that added / modified job files are defined within CODEOWNERS.
@@ -818,17 +845,4 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     parsed_owners = [line for line in parsed_owners if '/.gitlab/' in line]
     gitlab_owners = CodeOwners('\n'.join(parsed_owners))
 
-    error_files = []
-    for path in modified_yml_files:
-        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
-        if not teams:
-            error_files.append(path)
-
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
-
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+    _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)
