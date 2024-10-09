@@ -8,6 +8,7 @@ package gpu
 import (
 	"debug/elf"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -37,13 +38,23 @@ func (fd *fileData) updateAccessTime() {
 	fd.lastAccessed = time.Now()
 }
 
-func getSystemContext() (*systemContext, error) {
+type systemContextOpts string
+
+const (
+	// systemContextOptDisableGpuQuery disables querying GPU devices, useful for tests where no GPU is available
+	systemContextOptDisableGpuQuery systemContextOpts = "disableGpuQuery"
+)
+
+func getSystemContext(opts ...systemContextOpts) (*systemContext, error) {
 	ctx := &systemContext{
 		fileData: make(map[string]*fileData),
 		pidMaps:  make(map[int]*kernel.ProcMapEntries),
 	}
-	if err := ctx.queryDevices(); err != nil {
-		return nil, fmt.Errorf("error querying devices: %w", err)
+
+	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
+		if err := ctx.queryDevices(); err != nil {
+			return nil, fmt.Errorf("error querying devices: %w", err)
+		}
 	}
 
 	return ctx, nil
