@@ -333,6 +333,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
 
+	// reset the probe process killer state once the new ruleset is loaded
+	e.probe.OnNewRuleSetLoaded(rs)
+
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 
