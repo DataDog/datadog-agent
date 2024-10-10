@@ -342,7 +342,7 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 			cached = append(cached, cachedFileFromMetadata(path.(string), metadata))
 		} else {
 			// Log the error but continue processing the rest of the configs
-			log.Warnf("Failed to convert metadata for %s", path)
+			log.Printf("Failed to convert metadata for %s", path)
 		}
 		return true
 	})
