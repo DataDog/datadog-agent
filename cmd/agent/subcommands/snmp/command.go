@@ -189,7 +189,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "trace", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
 				forwarder.Bundle(defaultforwarder.NewParams()),
@@ -232,7 +232,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
-	// snmpCmd.AddCommand(snmpScanCmd)
+	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
 }

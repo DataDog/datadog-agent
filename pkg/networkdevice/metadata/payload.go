@@ -75,11 +75,10 @@ type DeviceMetadata struct {
 
 // DeviceOID device scan oid data
 type DeviceOID struct {
-	DeviceID      string `json:"device_id"`
-	Oid           string `json:"oid"`
-	Type          string `json:"type"`
-	ValueAsString string `json:"value_as_string"`
-	ValueAsBase64 string `json:"value_as_base64"`
+	DeviceID string `json:"device_id"`
+	Oid      string `json:"oid"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
 }
 
 // InterfaceMetadata contains interface metadata

@@ -92,17 +92,15 @@ func appendToPayloads(namespace string, subnet string, collectTime time.Time, ba
 
 // DeviceOIDFromPDU packages a gosnmp PDU as a DeviceOID
 func DeviceOIDFromPDU(deviceID string, snmpPDU *gosnmp.SnmpPDU) (*DeviceOID, error) {
-	oid := strings.TrimLeft(snmpPDU.Name, ".")
-	stringType, stringValue, base64Value, err := GetTypeAndValueFromPDU(snmpPDU)
+	pdu, err := gosnmplib.PDUFromSNMP(snmpPDU)
 	if err != nil {
 		return nil, err
 	}
 	return &DeviceOID{
-		DeviceID:      deviceID,
-		Oid:           oid,
-		Type:          stringType,
-		ValueAsString: stringValue,
-		ValueAsBase64: base64Value,
+		DeviceID: deviceID,
+		Oid:      pdu.OID,
+		Type:     pdu.Type,
+		Value:    pdu.Value,
 	}, nil
 }
 

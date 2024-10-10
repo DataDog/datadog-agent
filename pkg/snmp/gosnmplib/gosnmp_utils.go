@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -83,6 +84,72 @@ func GetValueFromPDU(pduVariable gosnmp.SnmpPDU) (interface{}, error) {
 		return strings.TrimLeft(strValue, "."), nil
 	default:
 		return nil, fmt.Errorf("oid %s: invalid type: %s", pduVariable.Name, pduVariable.Type.String())
+	}
+}
+
+// GetStringValueFromPDU returns the pdu value as a string
+func GetStringValueFromPDU(pdu gosnmp.SnmpPDU) (string, error) {
+	switch pdu.Type {
+	case gosnmp.OctetString, gosnmp.BitString:
+		bytesValue, ok := pdu.Value.([]byte)
+		if !ok {
+			return "", fmt.Errorf("oid %s: OctetString should be []byte type but got type `%T` and value `%v`", pdu.Name, pdu.Value, pdu.Value)
+		}
+		if !IsStringPrintable(bytesValue) {
+			var strBytes []string
+			for _, bt := range bytesValue {
+				strBytes = append(strBytes, strings.ToUpper(hex.EncodeToString([]byte{bt})))
+			}
+			return strings.Join(strBytes, " "), nil
+		}
+		return string(bytesValue), nil
+	case gosnmp.Integer:
+		return strconv.Itoa(pdu.Value.(int)), nil
+	case gosnmp.Counter32, gosnmp.Gauge32:
+		return strconv.FormatUint(uint64(pdu.Value.(uint)), 10), nil
+	case gosnmp.TimeTicks:
+		return strconv.FormatFloat(float64(gosnmp.ToBigInt(pdu.Value).Int64()), 'f', -1, 64), nil
+	case gosnmp.Counter64:
+		return strconv.FormatUint(pdu.Value.(uint64), 10), nil
+	case gosnmp.Uinteger32:
+		return strconv.FormatUint(uint64(pdu.Value.(uint32)), 10), nil
+	case gosnmp.OpaqueFloat:
+		floatValue, ok := pdu.Value.(float32)
+		if !ok {
+			return "", fmt.Errorf("oid %s: OpaqueFloat should be float32 type but got type `%T` and value `%v`", pdu.Name, pdu.Value, pdu.Value)
+		}
+		return strconv.FormatFloat(float64(floatValue), 'f', -1, 32), nil
+	case gosnmp.OpaqueDouble:
+		floatValue, ok := pdu.Value.(float64)
+		if !ok {
+			return "", fmt.Errorf("oid %s: OpaqueDouble should be float64 type but got type `%T` and value `%v`", pdu.Name, pdu.Value, pdu.Value)
+		}
+		return strconv.FormatFloat(floatValue, 'f', -1, 64), nil
+	case gosnmp.IPAddress, gosnmp.ObjectIdentifier:
+		strValue, ok := pdu.Value.(string)
+		if !ok {
+			return "", fmt.Errorf("oid %s: %s should be string type but got type `%T` and value `%v`", pdu.Name, pdu.Type.String(), pdu.Value, pdu.Value)
+		}
+		if pdu.Type == gosnmp.ObjectIdentifier {
+			strValue = strings.TrimLeft(strValue, ".")
+		}
+		return strValue, nil
+	case gosnmp.Boolean:
+		boolValue, ok := pdu.Value.(bool)
+		if !ok {
+			return "", fmt.Errorf("oid %s: Boolean should be bool type but got type `%T` and value `%v`", pdu.Name, pdu.Value, pdu.Value)
+		}
+		return strconv.FormatBool(boolValue), nil
+	case gosnmp.Null:
+		return "Null", nil
+	case gosnmp.NoSuchObject:
+		return "NoSuchObject", nil
+	case gosnmp.NoSuchInstance:
+		return "NoSuchInstance", nil
+	case gosnmp.EndOfMibView:
+		return "EndOfMibView", nil
+	default:
+		return "", fmt.Errorf("oid %s: invalid type: %s", pdu.Name, pdu.Type.String())
 	}
 }
 
