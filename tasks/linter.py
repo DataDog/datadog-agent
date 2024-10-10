@@ -756,6 +756,31 @@ def gitlab_change_paths(ctx):
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
 
 
+def _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners):
+    error_jobs = []
+    n_ignored = 0
+    for job in jobs:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            if job in ci_linters_config.job_owners_jobs:
+                n_ignored += 1
+            else:
+                error_jobs.append(job)
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
+        )
+
+    if error_jobs:
+        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
+
+
 @task
 def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """Verifies that each job is defined within JOBOWNERS files.
@@ -780,28 +805,7 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
 
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
-    error_jobs = []
-    n_ignored = 0
-    for job in jobs:
-        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
-        if not owners:
-            if job in ci_linters_config.job_owners_jobs:
-                n_ignored += 1
-            else:
-                error_jobs.append(job)
-
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
-        )
-
-    if error_jobs:
-        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
+    _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners)
 
 
 def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
