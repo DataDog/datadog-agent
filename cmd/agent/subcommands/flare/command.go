@@ -78,7 +78,7 @@ type cliParams struct {
 	profileBlocking      bool
 	profileBlockingRate  int
 	withStreamLogs       time.Duration
-	providerTimeout      time.Duration
+	providerTimeoutSec   int
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -157,7 +157,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", 0*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
-	flareCmd.Flags().DurationVarP(&cliParams.providerTimeout, "provider-timeout", "t", 0*time.Second, "Sets the timeout used to run each flare provider. This is not a global timeout for the flare creation process.")
+	flareCmd.Flags().IntVarP(&cliParams.providerTimeoutSec, "provider-timeout", "t", 0, "Timeout to run each flare provider in seconds. This is not a global timeout for the flare creation process.")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -353,13 +353,11 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	cliProviderTimeoutSeconds := int(cliParams.providerTimeout / time.Second)
-
 	var filePath string
 	if cliParams.forceLocal {
-		filePath, err = createArchive(flareComp, profile, cliProviderTimeoutSeconds, nil)
+		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeoutSec, nil)
 	} else {
-		filePath, err = requestArchive(flareComp, profile, cliProviderTimeoutSeconds)
+		filePath, err = requestArchive(flareComp, profile, cliParams.providerTimeoutSec)
 	}
 
 	if err != nil {
