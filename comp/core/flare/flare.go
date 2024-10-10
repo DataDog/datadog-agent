@@ -85,9 +85,10 @@ func newFlare(deps dependencies) provides {
 	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
 	f.providers = append(
 		f.providers,
-		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnoseDeps)
-		},
+		pkgFlare.ExtraFlareProviders(f.diagnoseDeps)...,
+	)
+	f.providers = append(
+		f.providers,
 		f.collectLogsFiles,
 		f.collectConfigFiles,
 	)

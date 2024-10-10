@@ -71,7 +71,9 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 
 	var spanKindsStatsComputed []string
 	if r.conf.ComputeStatsBySpanKind {
-		spanKindsStatsComputed = stats.KindsComputed
+		for k := range stats.KindsComputed {
+			spanKindsStatsComputed = append(spanKindsStatsComputed, k)
+		}
 	}
 
 	txt, err := json.MarshalIndent(struct {
