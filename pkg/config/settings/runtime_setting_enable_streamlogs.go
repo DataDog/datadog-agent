@@ -21,7 +21,7 @@ const (
 	// StreamLogRunTimeSettingName is the name of the runtime setting.
 	StreamLogRunTimeSettingName = "enable_streamlogs"
 
-	// RuntimeDescription is the description of the runtime setting.
+	// StreamLogRuntimeDescription is the description of the runtime setting.
 	StreamLogRuntimeDescription = "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
 )
 
