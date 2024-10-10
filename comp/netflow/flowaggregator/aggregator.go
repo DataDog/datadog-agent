@@ -218,7 +218,6 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 				//agg.logger.Warnf("[HA AGENT] check config: %+v", c)
 				agg.logger.Warnf("[HA AGENT] check inst: `%s`", string(inst))
 				agg.logger.Warnf("[HA AGENT] check InitConfig: `%s`", string(c.InitConfig))
-				agg.logger.Warnf("[HA AGENT] check c.FastDigest(): `%s`", c.FastDigest())
 				checkId := string(checkid.BuildID(c.Name, c.FastDigest(), inst, c.InitConfig))
 				agg.logger.Warnf("[HA AGENT] check checkId: `%s`", checkId)
 				checkIDs = append(checkIDs, checkId)

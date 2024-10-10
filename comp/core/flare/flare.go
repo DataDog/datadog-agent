@@ -91,7 +91,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
-	caseID, found := task.Config.TaskArgs["case_id"]
+	_, found := task.Config.TaskArgs["case_id"]
 	if !found {
 		return true, fmt.Errorf("Case ID was not provided in the flare agent task")
 	}
