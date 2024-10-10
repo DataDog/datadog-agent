@@ -14,10 +14,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -35,7 +35,7 @@ func SetupConfigForTest(confFilePath string) (*model.Warnings, error) {
 			cfg.SetConfigFile(confFilePath)
 		}
 	}
-	cfg.AddConfigPath(path.DefaultConfPath)
+	cfg.AddConfigPath(defaultpaths.ConfPath)
 	// load the configuration
 	warnings, err := pkgconfigsetup.LoadDatadogCustom(cfg, origin, optional.NewNoneOption[secrets.Component](), nil)
 	if err != nil {
