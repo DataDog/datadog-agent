@@ -35,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
+	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -113,7 +113,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
-		zstdfx.Module(),
+		gzipfx.Module(),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
