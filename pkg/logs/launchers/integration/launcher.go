@@ -50,7 +50,7 @@ type Launcher struct {
 // fileInfo stores information about each file that is needed in order to keep
 // track of the combined and overall disk usage by the logs files
 type fileInfo struct {
-	filename     string
+	fileWithPath string
 	lastModified time.Time
 	size         int64
 }
@@ -149,7 +149,7 @@ func (s *Launcher) run() {
 						s.integrationToFile[cfg.IntegrationID] = logFile
 					}
 
-					filetypeSource := s.makeFileSource(source, logFile.filename)
+					filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
 					s.sources.AddSource(filetypeSource)
 				}
 			}
@@ -179,8 +179,17 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	// Ensure the individual file doesn't exceed integrations_logs_files_max_size
 	// Add 1 because we write the \n at the end as well
 	logSize := int64(len(log.Log)) + 1
+
+	if logSize > s.fileSizeMax {
+		ddLog.Warnf("Individual log size (%d bytes) is larger than maximum allowable file size (%d bytes), skipping writing to log file: %s", logSize, s.fileSizeMax, log.Log)
+		return
+	} else if logSize > s.combinedUsageMax {
+		ddLog.Warnf("Individual log size (%d bytes) is larger than maximum allowable file size (%d bytes), skipping writing to log file: %s", logSize, s.combinedUsageMax, log.Log)
+		return
+	}
+
 	if fileToUpdate.size+logSize > s.fileSizeMax {
-		file, err := os.Create(fileToUpdate.filename)
+		file, err := os.Create(fileToUpdate.fileWithPath)
 		if err != nil {
 			ddLog.Error("Failed to delete and remake oversize file:", err)
 			return
@@ -211,7 +220,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 			return
 		}
 
-		file, err := os.Create(leastRecentlyModifiedFile.filename)
+		file, err := os.Create(leastRecentlyModifiedFile.fileWithPath)
 		if err != nil {
 			ddLog.Error("Error creating log file:", err)
 			continue
@@ -223,7 +232,7 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 		}
 	}
 
-	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
+	err := s.writeLogToFileFunction(fileToUpdate.fileWithPath, log.Log)
 	if err != nil {
 		ddLog.Warn("Error writing log to file:", err)
 		return
@@ -236,12 +245,11 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 }
 
 func (s *Launcher) deleteFile(file *fileInfo) error {
-	filename := filepath.Join(s.runPath, file.filename)
-	err := os.Remove(filename)
+	err := os.Remove(file.fileWithPath)
 	if err != nil {
 		return err
 	}
-	ddLog.Info("Successfully deleted log file:", filename)
+	ddLog.Info("Successfully deleted log file:", file.fileWithPath)
 
 	s.combinedUsageSize -= file.size
 
@@ -321,7 +329,7 @@ func (s *Launcher) createFile(source string) (*fileInfo, error) {
 	}
 
 	fileInfo := &fileInfo{
-		filename:     filepath,
+		fileWithPath: filepath,
 		lastModified: time.Now(),
 		size:         0,
 	}
@@ -349,8 +357,8 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 	diskReserved := float64(usage.Total) * (1 - usageRatio)
 	diskAvailable := int64(usage.Available) - int64(math.Ceil(diskReserved))
 
-	if diskAvailable < 0 {
-		ddLog.Warn("Available disk calculated as less than 0: ", diskAvailable, ". Disk reserved:", diskReserved)
+	if diskAvailable <= 0 {
+		ddLog.Warnf("Available disk calculated as %d bytes, disk reserved is %d bytes. Check %s and make sure there is enough free space on disk", diskAvailable, diskReserved, "integrations_logs_disk_ratio")
 		diskAvailable = 0
 	}
 
@@ -370,12 +378,12 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 		}
 
 		fileInfo := &fileInfo{
-			filename:     info.Name(),
+			fileWithPath: filepath.Join(dir, info.Name()),
 			size:         info.Size(),
 			lastModified: info.ModTime(),
 		}
 
-		integrationID := fileNameToID(fileInfo.filename)
+		integrationID := fileNameToID(fileInfo.fileWithPath)
 
 		s.integrationToFile[integrationID] = fileInfo
 		s.combinedUsageSize += info.Size()
