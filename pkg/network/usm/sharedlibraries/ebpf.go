@@ -223,11 +223,6 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		e.stopImpl()
 	}
 
-	// Add the libsets to the enabled libsets
-	for _, libset := range libsets {
-		e.enabledLibsets[libset] = struct{}{}
-	}
-
 	e.setupManagerAndPerfHandlers()
 
 	if err := e.loadProgram(); err != nil {
@@ -238,6 +233,10 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
+	// Add the libsets to the enabled libsets
+	for _, libset := range libsets {
+		e.enabledLibsets[libset] = struct{}{}
+	}
 	e.isInitialized = true
 	return nil
 }
