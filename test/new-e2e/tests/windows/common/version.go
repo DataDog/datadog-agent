@@ -52,14 +52,13 @@ func GetExpectedVersion(expectedVersion string) ([]string, error) {
 	expectedparts := strings.Split(expectedVersion, ".")
 	fmt.Printf("Looking for version %v\n", expectedparts)
 	if len(expectedparts) != 3 {
-		return nil, fmt.Errorf("expected version must be in the form M.m.p.")
+		return nil, fmt.Errorf("expected version must be in the form (M.m.p), got %v", expectedparts)
 	}
 	return expectedparts, nil
 }
 
 // VerifyVersion takes a filename and an expected version and determines
 // if the file matches the expected version.
-
 func VerifyVersion(host *components.RemoteHost, remoteFileName, expectedVersion string) error {
 
 	expectedparts, err := GetExpectedVersion(expectedVersion)
