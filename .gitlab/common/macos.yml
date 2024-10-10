@@ -19,7 +19,7 @@
         echo "Python version $PYTHON_VERSION is different from $PYTHON_REPO_VERSION in .python-version. Cleaning the environment."
         pyenv uninstall -f datadog-agent
         echo "Installing Python $PYTHON_REPO_VERSION..."
-        pyenv virtualenv 3.11.8 datadog-agent
+        pyenv virtualenv 3.12.6 datadog-agent
         pyenv activate datadog-agent
       else
         echo "Python current version $PYTHON_VERSION is the same as .python-version. Keeping the existing environment."
