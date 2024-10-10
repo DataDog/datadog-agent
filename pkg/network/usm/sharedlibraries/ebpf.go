@@ -147,6 +147,8 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() {
 	e.Manager = ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{})
 }
 
+// areLibsetsAlreadyEnabled checks if the eBPF program is already enabled for the given libsets
+// Requires the initMutex to be locked
 func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	for _, libset := range libsets {
 		if _, ok := e.enabledLibsets[libset]; !ok {
