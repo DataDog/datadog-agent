@@ -9,6 +9,7 @@ toolchain go1.22.8
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/d:atadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/api/def => ../../comp/api/def
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
@@ -31,7 +32,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../pkg/util/hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
@@ -45,7 +45,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.122
+	github.com/DataDog/agent-payload/v5 v5.0.130
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.2
