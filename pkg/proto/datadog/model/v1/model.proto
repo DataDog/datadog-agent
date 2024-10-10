@@ -31,8 +31,10 @@ message CaptureTriggerResponse {
 
 message StreamTagsRequest {
     TagCardinality cardinality = 1;
-    Filter includeFilter = 2;
-    Filter excludeFilter = 3;
+    DeprecatedFilter includeFilter = 2;
+    DeprecatedFilter excludeFilter = 3;
+    repeated string prefixes = 4;
+    string streamingID = 5;
 }
 
 message StreamTagsResponse {
@@ -56,7 +58,7 @@ enum TagCardinality {
     HIGH = 2;
 }
 
-message Filter {
+message DeprecatedFilter {
     string kubeNamespace = 1;
     string image = 2;
     string containerName = 3;
