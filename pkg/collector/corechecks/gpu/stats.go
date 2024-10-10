@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	metricNameMemory = "gpu.memory"
-	metricNameUtil   = "gpu.utilization"
-	metricNameMaxMem = "gpu.max_memory"
+	gpuMetricsNs = "gpu."
+	metricNameMemory = gpuMetricsNs + "memory"
+	metricNameUtil   = gpuMetricsNs + "utilization"
+	metricNameMaxMem = gpuMetricsNs + "max_memory"
 )
 
 // StatsProcessor is responsible for processing the data from the GPU eBPF probe and generating metrics from it
