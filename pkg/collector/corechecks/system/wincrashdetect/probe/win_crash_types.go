@@ -30,10 +30,19 @@ const (
 )
 
 const (
+	// WinCrashStatusCodeUnknown indicates an invalid or corrupted code.
 	WinCrashStatusCodeUnknown = int(-1)
-	WinCrashStatusCodeSuccess = int(0) // success
-	WinCrashStatusCodeBusy    = int(1) // busy
-	WinCrashStatusCodeFailed  = int(2) // failed
+
+	// WinCrashStatusCodeSuccess indicates that crash dump processing succeeded
+	// or no crash dump was found.
+	WinCrashStatusCodeSuccess = int(0)
+
+	// WinCrashStatusCodeBusy indicates that crash dump processing is still busy
+	// and no result is yet available.
+	WinCrashStatusCodeBusy = int(1)
+
+	// WinCrashStatusCodeFailed indicates that crash dump processing failed or had an error.
+	WinCrashStatusCodeFailed = int(2)
 )
 
 // WinCrashStatus defines all of the information returned from the system
