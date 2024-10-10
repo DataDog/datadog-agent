@@ -15,9 +15,14 @@ import (
 )
 
 const (
-	StreamLogsConfigKey         = "logs_config.streaming.enable_streamlogs"
+	// StreamLogsConfigKey is the key for the rc stream logs config.
+	StreamLogsConfigKey = "logs_config.streaming.enable_streamlogs"
+
+	// StreamLogRunTimeSettingName is the name of the runtime setting.
 	StreamLogRunTimeSettingName = "enable_streamlogs"
-	RuntimeDescription          = "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
+
+	// RuntimeDescription is the description of the runtime setting.
+	StreamLogRuntimeDescription = "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
 )
 
 // EnableStreamLogsRuntimeSetting wraps operations to enable or disable remote config stream logs at runtime.
@@ -34,7 +39,7 @@ func NewEnableStreamLogsRuntimeSetting() *EnableStreamLogsRuntimeSetting {
 
 // Description returns the runtime setting's description.
 func (s *EnableStreamLogsRuntimeSetting) Description() string {
-	return RuntimeDescription
+	return StreamLogRuntimeDescription
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings

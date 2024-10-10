@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestEnableStreamLogsRuntimeSetting_Description(t *testing.T) {
-	expected := RuntimeDescription
+	expected := StreamLogRuntimeDescription
 	assert.Equal(t, expected, setting.Description())
 }
 
