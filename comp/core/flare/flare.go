@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/haagent"
@@ -112,29 +111,24 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	err := json.Unmarshal([]byte(userHandle), &payload)
 	if err != nil {
-		f.log.Infof("[onAgentTaskEvent] json decode failed: %v\n", err)
-	} else {
-		f.log.Infof("[onAgentTaskEvent] json decoded payload: %v\n", payload)
+		f.log.Errorf("[onAgentTaskEvent] json decode failed: %v", err)
+		return true, nil
+	}
+	f.log.Infof("[onAgentTaskEvent] json decoded payload: %v", payload)
 
-		haagent.SetChecks(payload.CheckIDs)
+	if payload.ExpirationTimestamp < time.Now().UnixMilli() {
+		f.log.Infof("[onAgentTaskEvent] skip, payload expired ExpirationTimestamp=%d", payload.ExpirationTimestamp)
+		return true, nil
 	}
 
-	caseIdNum := 0
-	caseIdNum, _ = strconv.Atoi(caseID)
+	haagent.SetChecks(payload.CheckIDs)
 
-	var role string
-
-	if caseIdNum > 0 { // primary
-		role = "primary"
-	} else { // secondary
-		role = "secondary"
-	}
 	initialRole := haagent.GetInitialRole()
 	if initialRole == "auto" {
-		f.log.Infof("[onAgentTaskEvent] SetRole caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
-		haagent.SetRole(role)
+		f.log.Infof("[onAgentTaskEvent] SetRole userHandle=%s, role=%s, initialRole=%s", userHandle, payload.Role, initialRole)
+		haagent.SetRole(payload.Role)
 	} else {
-		f.log.Infof("[onAgentTaskEvent] Skip caseID=%s, caseIdNum=%d, userHandle=%s, role=%s, initialRole=%s", caseID, caseIdNum, userHandle, role, initialRole)
+		f.log.Infof("[onAgentTaskEvent] Skip userHandle=%s, role=%s, initialRole=%s", userHandle, payload.Role, initialRole)
 	}
 
 	//_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
