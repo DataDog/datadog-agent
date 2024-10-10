@@ -10,71 +10,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-func TestDefaultEntityID_GetID(t *testing.T) {
-	tests := []struct {
-		name       string
-		entityID   EntityID
-		expectedID string
-	}{
-		{
-			name:       "invalid format, not containing `://`",
-			entityID:   newDefaultEntityID("invalid_entity_id"),
-			expectedID: "",
-		},
-		{
-			name:       "invalid format, multiple `://`",
-			entityID:   newDefaultEntityID("invalid://entity://id"),
-			expectedID: "entity://id",
-		},
-		{
-			name:       "conforming format, single `://`",
-			entityID:   newDefaultEntityID("good://format"),
-			expectedID: "format",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedID, test.entityID.GetID())
-		})
-	}
-}
-
-func TestDefaultEntityID_GetPrefix(t *testing.T) {
-	tests := []struct {
-		name           string
-		entityID       EntityID
-		expectedPrefix EntityIDPrefix
-	}{
-		{
-			name:           "invalid format, not containing `://`",
-			entityID:       newDefaultEntityID("invalid_entity_id"),
-			expectedPrefix: "",
-		},
-		{
-			name:           "invalid format, multiple `://`",
-			entityID:       newDefaultEntityID("invalid://entity://id"),
-			expectedPrefix: "invalid",
-		},
-		{
-			name:           "conforming format, single `://`",
-			entityID:       newDefaultEntityID("good://format"),
-			expectedPrefix: "good",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedPrefix, test.entityID.GetPrefix())
-		})
-	}
-}
 
 func TestNewDefaultEntityIDFromStr(t *testing.T) {
 	str := "container_id://1234"
-	entityID := NewDefaultEntityIDFromStr(str)
+	entityID, err := NewEntityIDFromString(str)
+	require.NoError(t, err)
 	assert.Equal(t, ContainerID, entityID.GetPrefix())
 	assert.Equal(t, "1234", entityID.GetID())
 }

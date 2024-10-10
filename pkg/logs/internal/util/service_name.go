@@ -8,12 +8,14 @@ package util
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServiceNameFromTags returns the standard tag 'service' corresponding to a container
 // It returns an empty string if tag not found
-func ServiceNameFromTags(ctrName, taggerEntity string, taggerFunc func(entity string) ([]string, error)) string {
+func ServiceNameFromTags(ctrName string, taggerEntity types.EntityID, taggerFunc func(entity taggertypes.EntityID) ([]string, error)) string {
 	standardTags, err := taggerFunc(taggerEntity)
 	if err != nil {
 		log.Debugf("Couldn't get standard tags for container '%s': %v", ctrName, err)

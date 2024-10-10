@@ -98,7 +98,6 @@ func (s *StoreTestSuite) TestLookup() {
 
 func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
-	entityIDStr := entityID.String()
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
 			Source:       "source1",
@@ -118,9 +117,9 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 		},
 	})
 
-	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.LowCardinality)
-	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.OrchestratorCardinality)
-	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityIDStr, types.HighCardinality)
+	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityID, types.LowCardinality)
+	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityID, types.OrchestratorCardinality)
+	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityID, types.HighCardinality)
 
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
 	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
