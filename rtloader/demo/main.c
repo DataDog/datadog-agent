@@ -28,7 +28,7 @@ char **get_tags(char *id, int highCard)
     return data;
 }
 
-void submitMetric(char *id, metric_type_t mt, char *name, double val, char **tags,  char *hostname, bool flush_first_val)
+void submitMetric(char *id, metric_type_t mt, char *name, double val, char **tags, char *hostname, bool flush_first_val)
 {
     printf("I'm extending Python providing aggregator.submit_metric:\n");
     printf("Check id: %s\n", id);
@@ -78,16 +78,8 @@ int main(int argc, char *argv[])
     }
 
     char *init_error = NULL;
-    // Embed Python2
-    if (strcmp(argv[1], "2") == 0) {
-        rtloader = make2(python_home, "", &init_error);
-        if (!rtloader) {
-            printf("Unable to init Python2: %s\n", init_error);
-            return 1;
-        }
-    }
     // Embed Python3
-    else if (strcmp(argv[1], "3") == 0) {
+    if (strcmp(argv[1], "3") == 0) {
         rtloader = make3(python_home, "", &init_error);
         if (!rtloader) {
             printf("Unable to init Python3: %s\n", init_error);
@@ -184,7 +176,8 @@ int main(int argc, char *argv[])
         // clean error
         get_error(rtloader);
 
-        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "", &check)) {
+        if (!get_check_deprecated(rtloader, py_class, "", "{directory: \"/\"}", "directoryID", "directory", "",
+                                  &check)) {
             if (has_error(rtloader)) {
                 printf("error loading check: %s\n", get_error(rtloader));
             }

@@ -25,7 +25,8 @@ static PyMethodDef methods[] = {
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks." },
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
-    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
+    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS,
+      "Submit event platform event." },
     { NULL, NULL } // guards
 };
 
@@ -48,7 +49,6 @@ static void add_constants(PyObject *m)
     PyModule_AddIntConstant(m, "HISTORATE", DATADOG_AGENT_RTLOADER_HISTORATE);
 }
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, AGGREGATOR_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_aggregator(void)
@@ -57,16 +57,6 @@ PyMODINIT_FUNC PyInit_aggregator(void)
     add_constants(m);
     return m;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// module object storage
-static PyObject *module;
-
-void Py2_init_aggregator()
-{
-    module = Py_InitModule(AGGREGATOR_MODULE_NAME, methods);
-    add_constants(module);
-}
-#endif
 
 void _set_submit_metric_cb(cb_submit_metric_t cb)
 {
@@ -92,7 +82,6 @@ void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
 {
     cb_submit_event_platform_event = cb;
 }
-
 
 /*! \fn py_tag_to_c(PyObject *py_tags)
     \brief A function to convert a list of python strings (tags) into an
@@ -200,8 +189,10 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     double value;
     bool flush_first_value = false;
 
-    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
+    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname,
+    // flush_first_value)
+    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname,
+                          &flush_first_value)) {
         goto error;
     }
 
@@ -291,7 +282,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *py_tags = NULL; // borrowed
     char *check_id = NULL;
     event_t *ev = NULL;
-    PyObject * retval = NULL;
+    PyObject *retval = NULL;
 
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
@@ -351,8 +342,8 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // send the event
     cb_submit_event(check_id, ev);
 
-    //Success
-    Py_INCREF(Py_None); //Increment, sice we are not using the macro Py_RETURN_NONE that does it for us
+    // Success
+    Py_INCREF(Py_None); // Increment, sice we are not using the macro Py_RETURN_NONE that does it for us
     retval = Py_None;
 
 ev_cleanup:
@@ -395,15 +386,18 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     char **tags = NULL;
     bool flush_first_value = false;
 
-    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OssLffisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
+    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic,
+    // hostname, tags, flush_first_value)
+    if (!PyArg_ParseTuple(args, "OssLffisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic,
+                          &hostname, &py_tags, &flush_first_value)) {
         goto error;
     }
 
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags,
+                               flush_first_value);
 
     free_tags(tags);
 

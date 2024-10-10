@@ -8,11 +8,10 @@
 #include "rtloader_types.h"
 #include "stringutils.h"
 
-
-PyObject * yload = NULL;
-PyObject * ydump = NULL;
-PyObject * loader = NULL;
-PyObject * dumper = NULL;
+PyObject *yload = NULL;
+PyObject *ydump = NULL;
+PyObject *loader = NULL;
+PyObject *dumper = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
@@ -31,21 +30,6 @@ char *as_string(PyObject *object)
 
     char *retval = NULL;
 
-// DATADOG_AGENT_THREE implementation is the default
-#ifdef DATADOG_AGENT_TWO
-    if (!PyString_Check(object) && !PyUnicode_Check(object)) {
-        return NULL;
-    }
-
-    char *tmp = PyString_AsString(object);
-    if (tmp == NULL) {
-        // PyString_AsString might raise an error when python can't encode a
-        // unicode string to byte
-        PyErr_Clear();
-        return NULL;
-    }
-    retval = strdupe(tmp);
-#else
     PyObject *temp_bytes = NULL;
 
     if (PyBytes_Check(object)) {
@@ -67,12 +51,12 @@ char *as_string(PyObject *object)
 
     retval = strdupe(PyBytes_AS_STRING(temp_bytes));
     Py_XDECREF(temp_bytes);
-#endif
 
     return retval;
 }
 
-int init_stringutils(void) {
+int init_stringutils(void)
+{
     PyObject *yaml = NULL;
     int ret = EXIT_FAILURE;
 
@@ -126,7 +110,8 @@ done:
     return ret;
 }
 
-PyObject *from_yaml(const char *data) {
+PyObject *from_yaml(const char *data)
+{
     PyObject *args = NULL;
     PyObject *kwargs = NULL;
     PyObject *retval = NULL;
@@ -154,7 +139,8 @@ done:
     return retval;
 }
 
-char *as_yaml(PyObject *object) {
+char *as_yaml(PyObject *object)
+{
     char *retval = NULL;
     PyObject *dumped = NULL;
 
@@ -168,7 +154,7 @@ char *as_yaml(PyObject *object) {
     retval = as_string(dumped);
 
 done:
-    //Py_XDECREF can accept (and ignore) NULL references
+    // Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(kwargs);
     Py_XDECREF(args);
