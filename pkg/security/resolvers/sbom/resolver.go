@@ -22,7 +22,6 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
-	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -51,7 +50,7 @@ type SBOM struct {
 	sync.RWMutex
 
 	report *trivy.Report
-	files  map[uint64]*Package
+	files  fileQuerier
 
 	Host        string
 	Source      string
@@ -77,23 +76,8 @@ func (s *SBOM) IsComputed() bool {
 
 // SetReport sets the SBOM report
 func (s *SBOM) SetReport(report *trivy.Report) {
-	// cleanup file cache
-	s.files = make(map[uint64]*Package)
-
 	// build file cache
-	for _, result := range report.Results {
-		for _, resultPkg := range result.Packages {
-			pkg := &Package{
-				Name:       resultPkg.Name,
-				Version:    resultPkg.Version,
-				SrcVersion: resultPkg.SrcVersion,
-			}
-			for _, file := range resultPkg.InstalledFiles {
-				seclog.Tracef("indexing %s as %+v", file, pkg)
-				s.files[murmur3.StringSum64(file)] = pkg
-			}
-		}
-	}
+	s.files = newFileQuerier(report)
 }
 
 // reset (thread unsafe) cleans up internal fields before a SBOM is inserted in cache, the goal is to save space and delete references
@@ -114,7 +98,7 @@ func (s *SBOM) reset() {
 // NewSBOM returns a new empty instance of SBOM
 func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEntry, workloadKey string) (*SBOM, error) {
 	sbom := &SBOM{
-		files:          make(map[uint64]*Package),
+		files:          fileQuerier{},
 		Host:           host,
 		Source:         source,
 		ContainerID:    id,
@@ -395,23 +379,8 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		return err
 	}
 
-	// cleanup file cache
-	sbom.files = make(map[uint64]*Package)
-
 	// build file cache
-	for _, result := range report.Results {
-		for _, resultPkg := range result.Packages {
-			pkg := &Package{
-				Name:       resultPkg.Name,
-				Version:    resultPkg.Version,
-				SrcVersion: resultPkg.SrcVersion,
-			}
-			for _, file := range resultPkg.InstalledFiles {
-				seclog.Tracef("indexing %s as %+v", file, pkg)
-				sbom.files[murmur3.StringSum64(file)] = pkg
-			}
-		}
-	}
+	sbom.files = newFileQuerier(report)
 
 	// we can get rid of the report now that we've generate the file mapping
 	sbom.report = nil
@@ -424,7 +393,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	r.sbomsCache.Add(sbom.workloadKey, sbom)
 	r.sbomsCacheLock.Unlock()
 
-	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
+	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, sbom.files.len())
 	return nil
 }
 
@@ -450,12 +419,7 @@ func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Pa
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	pkg := sbom.files[murmur3.StringSum64(file.PathnameStr)]
-	if pkg == nil && strings.HasPrefix(file.PathnameStr, "/usr") {
-		pkg = sbom.files[murmur3.StringSum64(file.PathnameStr[4:])]
-	}
-
-	return pkg
+	return sbom.files.queryFile(file.PathnameStr)
 }
 
 // newWorkloadEntry (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache
