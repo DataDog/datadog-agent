@@ -11,6 +11,7 @@ package dump
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -33,6 +34,9 @@ type ActivityDumpStorage interface {
 type ActivityDumpStorageManager struct {
 	statsdClient statsd.ClientInterface
 	storages     map[config.StorageType]ActivityDumpStorage
+
+	ilpiLock                 sync.Mutex
+	ignoreLocalPersistImages map[string]struct{}
 }
 
 // NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
@@ -127,6 +131,10 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 			continue
 		}
 
+		if request.Type == config.LocalStorage && !manager.shouldPersistADLocally(ad) {
+			continue
+		}
+
 		if err := storage.Persist(request, ad, raw); err != nil {
 			seclog.Errorf("couldn't persist [%s] in [%s] storage: %v", ad.GetSelectorStr(), request.Type, err)
 			continue
@@ -154,4 +162,20 @@ func (manager *ActivityDumpStorageManager) SendTelemetry() {
 	for _, storage := range manager.storages {
 		storage.SendTelemetry(manager.statsdClient)
 	}
+}
+
+// PushIgnoreLocalPersistImage adds an image to the list of images to ignore for local persist
+func (manager *ActivityDumpStorageManager) PushIgnoreLocalPersistImage(image string) {
+	manager.ilpiLock.Lock()
+	defer manager.ilpiLock.Unlock()
+	manager.ignoreLocalPersistImages[image] = struct{}{}
+}
+
+func (manager *ActivityDumpStorageManager) shouldPersistADLocally(ad *ActivityDump) bool {
+	ws := ad.GetWorkloadSelector()
+	manager.ilpiLock.Lock()
+	defer manager.ilpiLock.Unlock()
+
+	_, ok := manager.ignoreLocalPersistImages[ws.Image]
+	return !ok
 }
