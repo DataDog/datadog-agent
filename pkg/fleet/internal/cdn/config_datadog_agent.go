@@ -151,25 +151,37 @@ func (a *agentConfig) Write(dir string) error {
 	if a.datadog != nil {
 		err = os.WriteFile(filepath.Join(dir, configDatadogYAML), []byte(a.datadog), 0640)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configDatadogYAML, err)
 		}
 		if runtime.GOOS != "windows" {
 			err = os.Chown(filepath.Join(dir, configDatadogYAML), ddAgentUID, ddAgentGID)
 			if err != nil {
-				return fmt.Errorf("could not chown datadog.yaml: %w", err)
+				return fmt.Errorf("could not chown %s: %w", configDatadogYAML, err)
 			}
 		}
 	}
 	if a.securityAgent != nil {
-		err = os.WriteFile(filepath.Join(dir, configSecurityAgentYAML), []byte(a.securityAgent), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSecurityAgentYAML), []byte(a.securityAgent), 0440)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configSecurityAgentYAML, err)
+		}
+		if runtime.GOOS != "windows" {
+			err = os.Chown(filepath.Join(dir, configSecurityAgentYAML), 0, ddAgentGID) // root:dd-agent
+			if err != nil {
+				return fmt.Errorf("could not chown %s: %w", configSecurityAgentYAML, err)
+			}
 		}
 	}
 	if a.systemProbe != nil {
-		err = os.WriteFile(filepath.Join(dir, configSystemProbeYAML), []byte(a.systemProbe), 0600)
+		err = os.WriteFile(filepath.Join(dir, configSystemProbeYAML), []byte(a.systemProbe), 0440)
 		if err != nil {
-			return fmt.Errorf("could not write datadog.yaml: %w", err)
+			return fmt.Errorf("could not write %s: %w", configSecurityAgentYAML, err)
+		}
+		if runtime.GOOS != "windows" {
+			err = os.Chown(filepath.Join(dir, configSystemProbeYAML), 0, ddAgentGID) // root:dd-agent
+			if err != nil {
+				return fmt.Errorf("could not chown %s: %w", configSecurityAgentYAML, err)
+			}
 		}
 	}
 	return nil
