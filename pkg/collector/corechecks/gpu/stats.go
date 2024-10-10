@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	gpuMetricsNs = "gpu."
+	gpuMetricsNs     = "gpu."
 	metricNameMemory = gpuMetricsNs + "memory"
 	metricNameUtil   = gpuMetricsNs + "utilization"
 	metricNameMaxMem = gpuMetricsNs + "max_memory"
