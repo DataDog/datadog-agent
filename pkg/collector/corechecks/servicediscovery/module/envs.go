@@ -159,9 +159,9 @@ func getEnvs(proc *process.Process) (map[string]string, error) {
 
 // EnvReader reads the environment variables from /proc/<pid>/environ file.
 type EnvReader struct {
-	file    *os.File                  // open pointer to environment variables file
-	scanner *bufio.Scanner            // iterator to read strings from text file
-	envs    envs.EnvironmentVariables // collected environment variables
+	file    *os.File       // open pointer to environment variables file
+	scanner *bufio.Scanner // iterator to read strings from text file
+	envs    envs.Variables // collected environment variables
 }
 
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -190,7 +190,7 @@ func newEnvReader(proc *process.Process) (*EnvReader, error) {
 	return &EnvReader{
 		file:    file,
 		scanner: scanner,
-		envs:    envs.NewEnvironmentVariables(nil),
+		envs:    envs.NewVariables(nil),
 	}, nil
 }
 
@@ -213,11 +213,11 @@ func (er *EnvReader) add() bool {
 }
 
 // getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
-func getTargetEnvs(proc *process.Process) (envs.EnvironmentVariables, error) {
+func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 	er, err := newEnvReader(proc)
 	defer er.finish()
 	if err != nil {
-		return envs.NewEnvironmentVariables(nil), err
+		return envs.NewVariables(nil), err
 	}
 
 	for er.scanner.Scan() {

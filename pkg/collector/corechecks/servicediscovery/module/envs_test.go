@@ -112,17 +112,19 @@ func TestTargetEnvs(t *testing.T) {
 	proc, err := process.NewProcess(int32(curPid))
 	require.NoError(t, err)
 
-	expectedEnvs, expectedMap := envs.GetExpectedEnvs()
+	expectedEnvs := envs.GetExpectedEnvs()
 	createEnvsMemfd(t, expectedEnvs)
 
 	vars, err := getTargetEnvs(proc)
 	require.NoError(t, err)
-	require.Equal(t, vars.GetVars(), expectedMap)
+
+	expectedMap := envs.GetExpectedMap()
+	require.Equal(t, vars.Vars, expectedMap)
 
 	// check unexpected env variables
-	require.NotContains(t, vars.GetVars(), "HOME")
-	require.NotContains(t, vars.GetVars(), "PATH")
-	require.NotContains(t, vars.GetVars(), "SHELL")
+	require.NotContains(t, vars.Vars, "HOME")
+	require.NotContains(t, vars.Vars, "PATH")
+	require.NotContains(t, vars.Vars, "SHELL")
 }
 
 // BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.

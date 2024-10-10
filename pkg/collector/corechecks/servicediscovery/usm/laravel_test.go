@@ -99,7 +99,7 @@ func TestGetLaravelAppNameFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			name := newLaravelParser(NewDetectionContext(nil, envs.NewEnvironmentVariables(nil), tt.filesystem)).GetLaravelAppName("artisan")
+			name := newLaravelParser(NewDetectionContext(nil, envs.NewVariables(nil), tt.filesystem)).GetLaravelAppName("artisan")
 			require.Equal(t, tt.expected, name)
 		})
 	}

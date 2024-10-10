@@ -109,13 +109,13 @@ func newDotnetDetector(ctx DetectionContext) detector {
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
 	args       []string
-	envs       envs.EnvironmentVariables
+	envs       envs.Variables
 	fs         fs.SubFS
 	contextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(args []string, envs envs.EnvironmentVariables, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
 		args: args,
 		envs: envs,
@@ -124,11 +124,11 @@ func NewDetectionContext(args []string, envs envs.EnvironmentVariables, fs fs.Su
 }
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
-func workingDirFromEnvs(envs envs.EnvironmentVariables) (string, bool) {
+func workingDirFromEnvs(envs envs.Variables) (string, bool) {
 	return extractEnvVar(envs, "PWD")
 }
 
-func extractEnvVar(envs envs.EnvironmentVariables, name string) (string, bool) {
+func extractEnvVar(envs envs.Variables, name string) (string, bool) {
 	value, ok := envs.Get(name)
 	if !ok {
 		return "", false
@@ -185,7 +185,7 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"gunicorn": newGunicornDetector,
 }
 
-func serviceNameInjected(envs envs.EnvironmentVariables) bool {
+func serviceNameInjected(envs envs.Variables) bool {
 	if env, ok := envs.Get("DD_INJECTION_ENABLED"); ok {
 		values := strings.Split(env, ",")
 		for _, v := range values {
@@ -198,7 +198,7 @@ func serviceNameInjected(envs envs.EnvironmentVariables) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs envs.EnvironmentVariables, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
+func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
 	dc := DetectionContext{
 		args:       args,
 		envs:       envs,
@@ -331,7 +331,7 @@ func normalizeExeName(exe string) string {
 
 // chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs envs.EnvironmentVariables) (string, bool) {
+func chooseServiceNameFromEnvs(envs envs.Variables) (string, bool) {
 	if val, ok := envs.Get("DD_SERVICE"); ok {
 		return val, true
 	}

@@ -6,10 +6,6 @@
 // Package envs provides target environment variables of interest.
 package envs
 
-import (
-	"fmt"
-)
-
 // targets is a collection of environment variables of interest.
 var targets = map[string]struct{}{
 	"PWD":                      {},
@@ -32,55 +28,38 @@ var targets = map[string]struct{}{
 	"SPRING_PROFILES_ACTIVE":   {},
 }
 
-// GetExpectedEnvs - return list of expected env. variables for testing.
-func GetExpectedEnvs() ([]string, map[string]string) {
-	var expectedEnvs []string
-	var expectedMap = make(map[string]string)
+// Variables - collected of targeted environment variables.
+type Variables struct {
+	Vars map[string]string
+}
 
-	for env := range targets {
-		expectedEnvs = append(expectedEnvs, fmt.Sprintf("%s=true", env))
-		expectedMap[env] = "true"
+// NewVariables returns a new [Variables] to collect env. variables.
+func NewVariables(vars map[string]string) Variables {
+	return Variables{
+		Vars: vars,
 	}
-	return expectedEnvs, expectedMap
-}
-
-// EnvironmentVariables - collected of targeted environment variables.
-type EnvironmentVariables struct {
-	vars map[string]string
-}
-
-// NewEnvironmentVariables returns a new [EnvironmentVariables] to collect env. variables.
-func NewEnvironmentVariables(vars map[string]string) EnvironmentVariables {
-	return EnvironmentVariables{
-		vars: vars,
-	}
-}
-
-// GetVars returns the collected environment variables
-func (ev *EnvironmentVariables) GetVars() map[string]string {
-	return ev.vars
 }
 
 // Get returns an environment variable if it is present in the collection
-func (ev *EnvironmentVariables) Get(name string) (string, bool) {
+func (ev *Variables) Get(name string) (string, bool) {
 	if _, ok := targets[name]; !ok {
 		return "", false
 	}
 
-	val, ok := ev.vars[name]
+	val, ok := ev.Vars[name]
 	return val, ok
 }
 
 // Set saves the environment variable if it is targeted.
 // returns true if env variable matches the target
-func (ev *EnvironmentVariables) Set(name string, val string) bool {
+func (ev *Variables) Set(name string, val string) bool {
 	if _, ok := targets[name]; !ok {
 		return false
 	}
-	if ev.vars == nil {
-		ev.vars = make(map[string]string)
+	if ev.Vars == nil {
+		ev.Vars = make(map[string]string)
 	}
-	ev.vars[name] = val
+	ev.Vars[name] = val
 
 	return false
 }
