@@ -9,6 +9,9 @@ package transform
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
+	"strings"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -16,8 +19,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
-	"strconv"
-	"strings"
 )
 
 // OtelSpanToDDSpanMinimal otelSpanToDDSpan converts an OTel span to a DD span.
@@ -178,6 +179,20 @@ func OtelSpanToDDSpan(
 	return ddspan
 }
 
+// escapeJSONString writes a string s to the stringbuilder sb, ensuring quotation marks are escaped
+func escapeJSONString(s string, sb *strings.Builder) {
+	sb.WriteString(`"`)
+	for _, c := range s {
+		switch c {
+		case '"':
+			sb.WriteString(`\"`)
+		default:
+			sb.WriteRune(c)
+		}
+	}
+	sb.WriteString(`"`)
+}
+
 // MarshalEvents marshals events into JSON.
 func MarshalEvents(events ptrace.SpanEventSlice) string {
 	var str strings.Builder
@@ -198,9 +213,8 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			if wrote {
 				str.WriteString(",")
 			}
-			str.WriteString(`"name":"`)
-			str.WriteString(v)
-			str.WriteString(`"`)
+			str.WriteString(`"name":`)
+			escapeJSONString(v, &str)
 			wrote = true
 		}
 		if e.Attributes().Len() > 0 {
@@ -214,9 +228,9 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					str.WriteString(",")
 				}
 				str.WriteString(`"`)
-				str.WriteString(k)
+				escapeJSONString(k, &str)
 				str.WriteString(`":"`)
-				str.WriteString(v.AsString())
+				escapeJSONString(v.AsString(), &str)
 				str.WriteString(`"`)
 				j++
 				return true
