@@ -30,6 +30,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/flare/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -72,6 +73,7 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 		provideInstallInfo,
 		provideAuthTokenPerm,
 		provideDiagnoses(diagnoseDeps),
+		provideContainers(diagnoseDeps),
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
@@ -79,15 +81,10 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
-		"envvars.log":             getEnvVars,
-		"health.yaml":             getHealth,
-		"docker_ps.log":           getDockerPs,
-		"k8s/kubelet_config.yaml": getKubeletConfig,
-		"k8s/kubelet_pods.yaml":   getKubeletPods,
-		"ecs_metadata.json":       getECSMeta,
-		"go-routine-dump.log":     func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
-		"docker_inspect.log":      func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) },
-		"telemetry.log":           func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
+		"envvars.log":         getEnvVars,
+		"health.yaml":         getHealth,
+		"go-routine-dump.log": func() ([]byte, error) { return getHTTPCallContent(pprofURL) },
+		"telemetry.log":       func() ([]byte, error) { return getHTTPCallContent(telemetryURL) },
 	} {
 		providers = append(providers, func(fb flaretypes.FlareBuilder) error {
 			fb.AddFileFromFunc(filename, fromFunc) //nolint:errcheck
@@ -96,6 +93,18 @@ func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCal
 	}
 
 	return providers
+}
+
+func provideContainers(diagnoseDeps diagnose.SuitesDeps) func(fb flaretypes.FlareBuilder) error {
+	return func(fb flaretypes.FlareBuilder) error {
+		fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                          //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                           //nolint:errcheck
+		fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                               //nolint:errcheck
+		fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                       //nolint:errcheck
+		fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) }) //nolint:errcheck
+
+		return nil
+	}
 }
 
 func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
@@ -139,7 +148,8 @@ func provideSystemProbe(fb flaretypes.FlareBuilder) error {
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if pkgconfigsetup.SystemProbe().GetBool("system_probe_config.enabled") {
-		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats) //nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)                         //nolint:errcheck
+		fb.AddFileFromFunc(filepath.Join("system-probe", "system_probe_telemetry.log"), getSystemProbeTelemetry) // nolint:errcheck
 	}
 	return nil
 }
@@ -229,16 +239,24 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile(f, v)
 }
 
+func getSystemProbeSocketPath() string {
+	return pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+}
+
 func getSystemProbeStats() ([]byte, error) {
 	// TODO: (components) - Temporary until we can use the status component to extract the system probe status from it.
 	stats := map[string]interface{}{}
-	systemprobeStatus.GetStatus(stats, pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	systemprobeStatus.GetStatus(stats, getSystemProbeSocketPath())
 	sysProbeBuf, err := yaml.Marshal(stats["systemProbeStats"])
 	if err != nil {
 		return nil, err
 	}
 
 	return sysProbeBuf, nil
+}
+
+func getSystemProbeTelemetry() ([]byte, error) {
+	return sysprobe.GetSystemProbeTelemetry(getSystemProbeSocketPath())
 }
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
