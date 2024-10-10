@@ -9,7 +9,8 @@ typedef struct {
 typedef enum {
     cuda_kernel_launch,
     cuda_memory_event,
-    cuda_sync
+    cuda_sync,
+    cuda_set_device,
 } cuda_event_type_t;
 
 typedef struct {
@@ -47,3 +48,8 @@ typedef struct {
     __u64 size;
     void **devPtr;
 } cuda_alloc_request_args_t;
+
+typedef struct {
+    cuda_event_header_t header;
+    int device;
+} cuda_set_device_event_t;

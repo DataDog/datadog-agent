@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -71,8 +73,14 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 			}
 		}
 
-		return handlerStream != nil && handlerGlobal != nil
+		return handlerStream != nil && handlerGlobal != nil && len(handlerStream.kernelSpans) > 0 && len(handlerGlobal.allocations) > 0
 	}, 10*time.Second, 500*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+
+	// Check device assignments
+	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
+	tidMap := probe.consumer.sysCtx.selectedDeviceByPIDAndTID[cmd.Process.Pid]
+	require.Len(t, tidMap, 1)
+	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
 
 	require.Equal(t, 1, len(handlerStream.kernelSpans))
 	span := handlerStream.kernelSpans[0]

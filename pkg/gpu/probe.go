@@ -117,6 +117,8 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaStreamSynchronize"}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaStreamSynchronize"}},
 							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaFree"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaSetDevice"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaSetDevice"}},
 						},
 					},
 				},
@@ -146,7 +148,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		sysCtxOpts = append(sysCtxOpts, systemContextOptDisableGpuQuery)
 	}
 
-	p.sysCtx, err = getSystemContext(sysCtxOpts...)
+	p.sysCtx, err = getSystemContext(cfg.ProcRoot, sysCtxOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting GPU system info: %w", err)
 	}
