@@ -426,7 +426,7 @@ func scanDevice(connParams *snmpConnectionParams, args argsType, snmpScanner snm
 
 	err = snmpScanner.RunDeviceScan(snmp, namespace)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to perform device scan: %v\n", err)
+		return fmt.Errorf("Unable to perform device scan: %v\n", err)
 	}
 	return nil
 }
