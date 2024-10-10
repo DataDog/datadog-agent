@@ -65,7 +65,11 @@ lint_gitlab_ci:
     - status=0
     - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1; true
     - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1; true
-    - exit $status
+    - |
+      if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
 
 lint_gitlab_ci_jobs_codeowners:
   stage: .pre
