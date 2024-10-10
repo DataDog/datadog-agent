@@ -1878,8 +1878,6 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_TRACE_PIPE_NAME":                       {},
 		"DD_TRACE_TRANSPORT":                       {},
 		"DD_VERSION":                               {},
-		// this variable is used by CWS functional tests
-		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
 		// this variable is used by tracers
