@@ -8,6 +8,7 @@
 package sharedlibraries
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -18,7 +19,6 @@ import (
 	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/hashicorp/go-multierror"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -294,14 +294,14 @@ func (e *EbpfProgram) CheckLibsetsEnabled(libsets ...Libset) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 
-	var err error
+	var errs []error
 	for _, libset := range libsets {
 		if _, ok := e.enabledLibsets[libset]; !ok {
-			err = multierror.Append(err, fmt.Errorf("libset %s is not enabled", libset))
+			errs = append(errs, fmt.Errorf("libset %s is not enabled", libset))
 		}
 	}
 
-	return err
+	return errors.Join(errs...)
 }
 
 // Subscribe subscribes to the shared libraries events for the given libsets, returns the function
