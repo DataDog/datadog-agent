@@ -29,7 +29,7 @@ type tagStore struct {
 
 func newTagStore(cfg config.Component, telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:               genericstore.NewObjectStore[*types.Entity](cfg),
+		store:               genericstore.NewObjectStore[*types.Entity](),
 		telemetry:           make(map[string]float64),
 		cfg:                 cfg,
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
@@ -143,5 +143,5 @@ func (s *tagStore) reset() {
 
 	s.notifySubscribers(events)
 
-	s.store = genericstore.NewObjectStore[*types.Entity](s.cfg)
+	s.store = genericstore.NewObjectStore[*types.Entity]()
 }

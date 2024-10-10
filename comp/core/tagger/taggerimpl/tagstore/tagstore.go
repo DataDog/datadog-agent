@@ -57,7 +57,7 @@ func NewTagStore(cfg config.Component, telemetryStore *telemetry.Store) *TagStor
 func newTagStoreWithClock(cfg config.Component, clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
 		telemetry:           make(map[string]map[string]float64),
-		store:               genericstore.NewObjectStore[EntityTags](cfg),
+		store:               genericstore.NewObjectStore[EntityTags](),
 		subscriptionManager: subscriber.NewSubscriptionManager(telemetryStore),
 		clock:               clock,
 		cfg:                 cfg,
@@ -258,15 +258,15 @@ func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCa
 // This function is needed only for performance reasons. It functions like
 // LookupHashed, but accepts a string instead of an EntityID. This reduces the
 // allocations that occur when an EntityID is passed as a parameter.
-func (s *TagStore) LookupHashedWithEntityStr(entityID string, cardinality types.TagCardinality) tagset.HashedTags {
+func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
 	s.RLock()
 	defer s.RUnlock()
 
-	storedTags, present := s.store.GetWithEntityIDStr(entityID)
-
+	storedTags, present := s.store.Get(entityID)
 	if !present {
 		return tagset.HashedTags{}
 	}
+
 	return storedTags.getHashedTags(cardinality)
 }
 
