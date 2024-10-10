@@ -8,6 +8,7 @@ package listeners
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net"
 	"strconv"
@@ -22,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var snmpAutodiscoveryVar = expvar.NewMap("snmpAutodiscovery")
 
 const (
 	defaultWorkers           = 2
@@ -219,6 +222,10 @@ func (l *SNMPListener) checkDevices() {
 		go worker(l, jobs)
 	}
 
+	for _, subnet := range subnets {
+		snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return "scanning" }))
+	}
+
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
@@ -248,6 +255,8 @@ func (l *SNMPListener) checkDevices() {
 				default:
 				}
 			}
+			devicesFound := fmt.Sprintf("%d", len(subnet.devices))
+			snmpAutodiscoveryVar.Set(subnet.config.Network, expvar.Func(func() interface{} { return devicesFound }))
 		}
 
 		select {
