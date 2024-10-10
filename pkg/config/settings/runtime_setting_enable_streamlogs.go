@@ -14,6 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	StreamLogsConfigKey         = "logs_config.streaming.enable_streamlogs"
+	StreamLogRunTimeSettingName = "enable_streamlogs"
+	RuntimeDescription          = "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
+)
+
 // EnableStreamLogsRuntimeSetting wraps operations to enable or disable remote config stream logs at runtime.
 type EnableStreamLogsRuntimeSetting struct {
 	enabled bool
@@ -28,7 +34,7 @@ func NewEnableStreamLogsRuntimeSetting() *EnableStreamLogsRuntimeSetting {
 
 // Description returns the runtime setting's description.
 func (s *EnableStreamLogsRuntimeSetting) Description() string {
-	return "Enable/disable remote config streamlogs at runtime. Possible values: true, false"
+	return RuntimeDescription
 }
 
 // Hidden returns whether or not this setting is hidden from the list of runtime settings
@@ -38,12 +44,12 @@ func (s *EnableStreamLogsRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting.
 func (s *EnableStreamLogsRuntimeSetting) Name() string {
-	return "enable_streamlogs"
+	return StreamLogRunTimeSettingName
 }
 
 // Get returns the current value of the runtime setting.
 func (s *EnableStreamLogsRuntimeSetting) Get(config config.Component) (interface{}, error) {
-	return config.Get("logs_config.streaming.enable_streamlogs"), nil
+	return config.Get(StreamLogsConfigKey), nil
 }
 
 // Set changes the value of the runtime setting.
@@ -63,7 +69,7 @@ func (s *EnableStreamLogsRuntimeSetting) Set(config config.Component, v interfac
 		return fmt.Errorf("invalid value type: %T", v)
 	}
 
-	config.Set("logs_config.streaming.enable_streamlogs", enable, source)
-	log.Debugf("enable_streamlogs is set as: %v", enable)
+	config.Set(StreamLogsConfigKey, enable, source)
+	log.Debugf("enable_streamlogs is set as: %v from source: %s", enable, source)
 	return nil
 }

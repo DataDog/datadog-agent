@@ -39,7 +39,7 @@ type Provides struct {
 
 // streamlog is a type that contains information needed to insert into a flare from the streamlog process.
 type streamlogsimpl struct {
-	logsAgent   optional.Option[logsAgent.Component]
+	logsAgent   logsAgent.Component
 	logger      logger.Component
 	config      config.Component
 	coresetting coresetting.Component
@@ -56,8 +56,14 @@ type LogParams struct {
 
 // NewComponent creates a new streamlogs component for remote config flare component
 func NewComponent(reqs Requires) (Provides, error) {
+	la, ok := reqs.LogsAgent.Get()
+	if !ok {
+		reqs.Logger.Debug("logs agent is not enabled. unable to export stream logs in any flare")
+		return Provides{}, nil
+	}
+
 	sl := &streamlogsimpl{
-		logsAgent:   reqs.LogsAgent,
+		logsAgent:   la,
 		logger:      reqs.Logger,
 		config:      reqs.Config,
 		coresetting: reqs.CoreSetting,
@@ -140,12 +146,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	streamlogsLogFile := sl.config.GetString("logs_config.streaming.streamlogs_log_file")
 
-	la, ok := sl.logsAgent.Get()
-	if !ok {
-		return fmt.Errorf("log agent not found, unable to export stream logs")
-	}
-
-	if err := sl.exportStreamLogsIfEnabled(la, streamlogsLogFile); err != nil {
+	if err := sl.exportStreamLogsIfEnabled(sl.logsAgent, streamlogsLogFile); err != nil {
 		return err
 	}
 
