@@ -254,6 +254,12 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			CheckIDs:      checkIDs,
 		},
 	}
+
+	agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
+		"cluster_id:" + clusterId,
+		"host:" + agentHostname,
+		"role:" + haagent.GetRole(),
+	})
 	//for _, exporterID := range ids {
 	//	netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
 	//}
