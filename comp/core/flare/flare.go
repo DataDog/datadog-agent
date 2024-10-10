@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +14,6 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/haagent"
@@ -110,18 +108,15 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
 
-	//userHandle = "LMRHG3TNOA5GC3DFPAWWYYLQORXXAORRGI3S4MBOGAXDEORZMM4DIZTEG4YTINJRGI3DCNBQEIWCE43ONVYDUYLMMV4C23DBOB2G64B2GEZDOLRQFYYC4NJ2MJSWMMLBHFRDQZBYGVRTMZRWMQRF2@datadoghq.com"
+	payload := haagent.Payload{}
 
-	if strings.Contains(userHandle, "@") {
-		segments := strings.Split(userHandle, "@")
-		checkBase32 := segments[0]
-		decodedData, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(checkBase32)
-		if err != nil {
-			fmt.Printf("[onAgentTaskEvent] base32 decode failed: %v\n", err)
-		}
-		fmt.Printf("[onAgentTaskEvent] base32 decoded checks: %s\n", decodedData)
+	err := json.Unmarshal([]byte(userHandle), &payload)
+	if err != nil {
+		f.log.Infof("[onAgentTaskEvent] json decode failed: %v\n", err)
+	} else {
+		f.log.Infof("[onAgentTaskEvent] json decoded payload: %v\n", payload)
 
-		haagent.SetChecks(string(decodedData))
+		haagent.SetChecks(payload.CheckIDs)
 	}
 
 	caseIdNum := 0

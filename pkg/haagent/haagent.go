@@ -7,11 +7,12 @@
 package haagent
 
 import (
-	"encoding/json"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
 )
@@ -22,7 +23,8 @@ import (
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
 var runtimeRole = atomic.NewString("")
-var assignedDistributedChecks = atomic.NewString("")
+var assignedDistributedChecks []string
+var assignedDistributedChecksMutex = sync.Mutex{}
 
 func IsEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
@@ -51,12 +53,16 @@ func SetRole(role string) {
 	runtimeRole.Store(role)
 }
 
-func GetChecks() string {
-	return assignedDistributedChecks.Load()
+func GetChecks() []string {
+	assignedDistributedChecksMutex.Lock()
+	defer assignedDistributedChecksMutex.Unlock()
+	return assignedDistributedChecks
 }
 
-func SetChecks(checks string) {
-	assignedDistributedChecks.Store(checks)
+func SetChecks(checks []string) {
+	assignedDistributedChecksMutex.Lock()
+	defer assignedDistributedChecksMutex.Unlock()
+	assignedDistributedChecks = utils.CopyStrings(checks)
 }
 
 func ShouldRunForCheck(check check.Check) bool {
@@ -75,12 +81,7 @@ func ShouldRunForCheck(check check.Check) bool {
 		mode := pkgconfigsetup.Datadog().GetString("ha_agent.mode")
 
 		if mode == "distributed" {
-			jsonChecks := GetChecks()
-			var checkIDs []string
-			err := json.Unmarshal([]byte(jsonChecks), &checkIDs)
-			if err != nil {
-				log.Warnf("[ShouldRunForCheck] json unmarshal failed: %v", err)
-			}
+			checkIDs := GetChecks()
 			log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
 			for _, validCheckId := range checkIDs {
 				if !strings.Contains(validCheckId, checkName+":") {
