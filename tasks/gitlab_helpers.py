@@ -124,7 +124,13 @@ def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: 
 
 @task
 def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab pipelines in JSON and potentially query them with jq."""
+    """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
+
+    Usage:
+        $ inv gitlab.print-pipeline 1234
+        $ inv gitlab.print-pipeline 1234 -j .source
+        $ inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
+    """
 
     def get_pipeline(repo, id):
         return repo.pipelines.get(id)
@@ -134,7 +140,15 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
 
 @task
 def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab jobs in JSON and potentially query them with jq."""
+    """Prints one or more Gitlab jobs in JSON and potentially query them with jq.
+
+    Usage:
+        $ inv gitlab.print-job 1234
+        $ inv gitlab.print-job 1234 -j '.commit.id'
+        $ inv gitlab.print-job 1234 -j '.pipeline.id'
+        $ inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
+        $ inv gitlab.print-job 1234 -j '.artifacts | length'
+    """
 
     def get_job(repo, id):
         return repo.jobs.get(id)
