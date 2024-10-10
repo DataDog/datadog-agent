@@ -120,7 +120,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		hStopClosedLoopEvent: stopEvent,
 	}
 	if config.EnableProcessEventMonitoring {
-		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
+		if tr.processCache, err = NewProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		if telemetry != nil {

@@ -20,7 +20,7 @@ import (
 
 func TestProcessCacheProcessEvent(t *testing.T) {
 	testFunc := func(t *testing.T, _ string, entry *events.Process) {
-		pc, err := newProcessCache(10)
+		pc, err := NewProcessCache(10)
 		require.NoError(t, err)
 		t.Cleanup(pc.Stop)
 
@@ -75,7 +75,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 
 func TestProcessCacheAdd(t *testing.T) {
 	t.Run("fewer than maxProcessListSize", func(t *testing.T) {
-		pc, err := newProcessCache(5)
+		pc, err := NewProcessCache(5)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -93,7 +93,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("greater than maxProcessListSize", func(t *testing.T) {
-		pc, err := newProcessCache(10)
+		pc, err := NewProcessCache(10)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -119,7 +119,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process evicted, same pid", func(t *testing.T) {
-		pc, err := newProcessCache(2)
+		pc, err := NewProcessCache(2)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -170,7 +170,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process evicted, different pid", func(t *testing.T) {
-		pc, err := newProcessCache(1)
+		pc, err := NewProcessCache(1)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -197,7 +197,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process updated", func(t *testing.T) {
-		pc, err := newProcessCache(1)
+		pc, err := NewProcessCache(1)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -232,7 +232,7 @@ func TestProcessCacheAdd(t *testing.T) {
 }
 
 func TestProcessCacheGet(t *testing.T) {
-	pc, err := newProcessCache(10)
+	pc, err := NewProcessCache(10)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
 	t.Cleanup(pc.Stop)
