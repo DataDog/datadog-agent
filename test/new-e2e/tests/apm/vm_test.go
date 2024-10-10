@@ -429,6 +429,9 @@ secret_backend_arguments:
 secret_backend_remove_trailing_line_break: true
 secret_backend_command_allow_group_exec_perm: true
 
+agent_ipc:
+  port: 5004
+  config_refresh_interval: 5
 `, secretResolverPath, rootDir)
 
 	s.UpdateEnv(awshost.Provisioner(
