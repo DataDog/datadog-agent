@@ -458,7 +458,22 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 		for i := range mounts {
 			mounts[i].Source = strings.ReplaceAll(mounts[i].Source, "/var/lib", "/host/var/lib")
 			for j := range mounts[i].Options {
-				mounts[i].Options[j] = strings.ReplaceAll(mounts[i].Options[j], "/var/lib", "/host/var/lib")
+				for j, opt := range mounts[i].Options {
+					for _, prefix := range []string{"upperdir=", "lowerdir=", "workdir="} {
+						if strings.HasPrefix(opt, prefix) {
+							trimmedOpt := strings.TrimPrefix(opt, prefix)
+							dirs := strings.Split(trimmedOpt, ":")
+							for n, dir := range dirs {
+								if index := strings.Index(dir, "/var/lib"); index != -1 {
+									dirs[n] = "/host" + dir[index:]
+								}
+							}
+							mounts[i].Options[j] = prefix + strings.Join(dirs, ":")
+						}
+					}
+				}
+
+				log.Debugf("Sanitized overlayfs mount options to %s", strings.Join(mounts[i].Options, ","))
 			}
 		}
 	}
