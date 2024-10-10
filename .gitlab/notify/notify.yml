@@ -95,7 +95,6 @@ notify_gitlab_ci_changes:
   needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64"]
   rules:
-    - !reference [.compute_gitlab_ci_config_rules]
     - changes:
         paths:
           - .gitlab-ci.yml
