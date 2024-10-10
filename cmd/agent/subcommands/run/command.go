@@ -58,7 +58,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/agent"
@@ -114,8 +113,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
-	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -230,7 +227,6 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	logsAgent optional.Option[logsAgent.Component],
 	_ statsd.Component,
-	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
@@ -307,7 +303,6 @@ func run(log log.Component,
 		ac,
 		rcclient,
 		logsAgent,
-		processAgent,
 		forwarder,
 		sharedSerializer,
 		otelcollector,
@@ -370,7 +365,6 @@ func getSharedFxOption() fx.Option {
 			},
 		),
 		traceagentStatusImpl.Module(),
-		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
@@ -435,7 +429,6 @@ func getSharedFxOption() fx.Option {
 		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
-		process.Bundle(),
 		guiimpl.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -482,7 +475,6 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ optional.Option[logsAgent.Component],
-	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
 	_ otelcollector.Component,
