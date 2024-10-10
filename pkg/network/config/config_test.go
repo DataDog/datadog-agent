@@ -74,26 +74,6 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 }
 
-func TestEnableHTTPStatsByStatusCode(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("service_monitoring_config.enable_http_stats_by_status_code", true)
-		cfg := New()
-
-		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_STATS_BY_STATUS_CODE", "true")
-		cfg := New()
-		_, err := sysconfig.New("", "")
-		require.NoError(t, err)
-
-		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
-	})
-}
-
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)

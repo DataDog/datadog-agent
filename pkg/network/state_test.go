@@ -1673,15 +1673,6 @@ func TestDNSStatsWithMultipleClients(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStats(t, false)
-	})
-}
-
-func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1692,7 +1683,7 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/testpath"), true, http.MethodGet)
 
 	httpStats := make(map[http.Key]*http.RequestStats)
-	httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
+	httpStats[key] = http.NewRequestStats()
 
 	usmStats := make(map[protocols.ProtocolType]interface{})
 	usmStats[protocols.HTTP] = httpStats
@@ -1710,15 +1701,6 @@ func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTP2Stats(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2Stats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2Stats(t, false)
-	})
-}
-
-func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1730,7 +1712,7 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
 
 		http2Stats := make(map[http.Key]*http.RequestStats)
-		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
+		http2Stats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP2] = http2Stats
@@ -1751,15 +1733,6 @@ func testHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 }
 
 func TestHTTPStatsWithMultipleClients(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStatsWithMultipleClients(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStatsWithMultipleClients(t, false)
-	})
-}
-
-func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1770,7 +1743,7 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		httpStats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		httpStats[key] = http.NewRequestStats(aggregateByStatusCode)
+		httpStats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP] = httpStats
@@ -1823,15 +1796,6 @@ func testHTTPStatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) 
 }
 
 func TestHTTP2StatsWithMultipleClients(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2StatsWithMultipleClients(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2StatsWithMultipleClients(t, false)
-	})
-}
-
-func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool) {
 	c := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("0.0.0.0"),
@@ -1842,7 +1806,7 @@ func testHTTP2StatsWithMultipleClients(t *testing.T, aggregateByStatusCode bool)
 	getStats := func(path string) map[protocols.ProtocolType]interface{} {
 		http2Stats := make(map[http.Key]*http.RequestStats)
 		key := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte(path), true, http.MethodGet)
-		http2Stats[key] = http.NewRequestStats(aggregateByStatusCode)
+		http2Stats[key] = http.NewRequestStats()
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.HTTP2] = http2Stats

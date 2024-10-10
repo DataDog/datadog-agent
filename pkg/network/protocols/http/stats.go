@@ -138,25 +138,14 @@ func (r *RequestStat) initSketch() (err error) {
 
 // RequestStats stores HTTP request statistics.
 type RequestStats struct {
-	aggregateByStatusCode bool
-	Data                  map[uint16]*RequestStat
+	Data map[uint16]*RequestStat
 }
 
 // NewRequestStats creates a new RequestStats object.
-func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
+func NewRequestStats() *RequestStats {
 	return &RequestStats{
-		aggregateByStatusCode: aggregateByStatusCode,
-		Data:                  make(map[uint16]*RequestStat),
+		Data: make(map[uint16]*RequestStat),
 	}
-}
-
-// NormalizeStatusCode normalizes the status code into a status code family.
-func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
-	if r.aggregateByStatusCode {
-		return status
-	}
-	// Normalize into status code family.
-	return (status / 100) * 100
 }
 
 // isValid checks is the status code is in the range of valid HTTP responses.
@@ -212,8 +201,6 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 	if !r.isValid(statusCode) {
 		return
 	}
-
-	statusCode = r.NormalizeStatusCode(statusCode)
 
 	stats, exists := r.Data[statusCode]
 	if !exists {
