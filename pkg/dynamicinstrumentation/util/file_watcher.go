@@ -17,11 +17,15 @@ import (
 // FileWatcher is used to track updates to a particular filepath
 type FileWatcher struct {
 	filePath string
+	stop     chan bool
 }
 
 // NewFileWatcher creates a FileWatcher to track updates to a specified file
 func NewFileWatcher(filePath string) *FileWatcher {
-	return &FileWatcher{filePath: filePath}
+	return &FileWatcher{
+		filePath: filePath,
+		stop:     make(chan bool),
+	}
 }
 
 func (fw *FileWatcher) readFile() ([]byte, error) {
@@ -43,19 +47,29 @@ func (fw *FileWatcher) Watch() (<-chan []byte, error) {
 	prevContent := []byte{}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	go func() {
+		defer ticker.Stop()
 		defer close(updateChan)
-		for range ticker.C {
-			content, err := fw.readFile()
-			if err != nil {
-				log.Infof("Error reading file %s: %s", fw.filePath, err)
+		for {
+			select {
+			case <-ticker.C:
+				content, err := fw.readFile()
+				if err != nil {
+					log.Infof("Error reading file %s: %s", fw.filePath, err)
+					return
+				}
+				if len(content) > 0 && string(content) != string(prevContent) {
+					prevContent = content
+					updateChan <- content
+				}
+			case <-fw.stop:
 				return
 			}
-			if len(content) > 0 && string(content) != string(prevContent) {
-				prevContent = content
-				updateChan <- content
-			}
+
 		}
 	}()
-
 	return updateChan, nil
+}
+
+func (fw *FileWatcher) Stop() {
+	fw.stop <- true
 }

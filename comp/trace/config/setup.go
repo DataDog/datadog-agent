@@ -664,6 +664,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := pkgconfigsetup.Datadog()
 	if cfg.IsSet("apm_config.api_key") {
+		log.Warn("apm_config.api_key is deprecated. Use core api_key instead")
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {

@@ -250,16 +250,16 @@ func init() {
 	// - "tee":    Construct both viper and nodetreemodel. Write to both, only read from viper
 	// - other:    Use viper for the config
 	if found && envvar == "enable" {
-		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if found && envvar == "tee" {
-		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		var viperConfig = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))   // nolint: forbidigo // legit use case
+		var nodetreeConfig = nodetreemodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 		datadog = teeconfig.NewTeeConfig(viperConfig, nodetreeConfig)
 	} else {
-		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+		datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	}
 
-	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 
 	// Configuration defaults
 	initConfig()
@@ -267,7 +267,7 @@ func init() {
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
 // Initializing the config keys takes too much time for serverless, so we try to initialize only what is reachable.
-func initCommonWithServerless(config pkgconfigmodel.Config) {
+func initCommonWithServerless(config pkgconfigmodel.Setup) {
 	for _, f := range serverlessConfigComponents {
 		f(config)
 	}
@@ -275,7 +275,7 @@ func initCommonWithServerless(config pkgconfigmodel.Config) {
 
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
-func InitConfig(config pkgconfigmodel.Config) {
+func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
 	// Auto exit configuration
@@ -352,6 +352,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Yaml keys which values are stripped from flare
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
+
+	// flare configs
+	config.BindEnvAndSetDefault("flare_provider_timeout", 10)
 
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
@@ -722,6 +725,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.validation.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.mutation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
 	config.BindEnvAndSetDefault("admission_controller.container_registry", "gcr.io/datadoghq")
@@ -1246,9 +1251,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// The histogram buckets use to track the time in nanoseconds it takes for a DogStatsD listeners to push data to the server
 	config.BindEnvAndSetDefault("telemetry.dogstatsd.listeners_channel_latency_buckets", []string{})
 
-	// Agent Telemetry. It is experimental feature and is subject to change.
-	// It should not be enabled unless prompted by Datadog Support
-	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	// Agent Telemetry
+	config.BindEnvAndSetDefault("agent_telemetry.enabled", true)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
 	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
 
@@ -2330,7 +2334,7 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
+	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range

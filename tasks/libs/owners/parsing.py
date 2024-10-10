@@ -4,11 +4,27 @@ from collections import Counter
 from typing import Any
 
 
-def read_owners(owners_file: str) -> Any:
+def read_owners(owners_file: str, remove_default_pattern=False) -> Any:
+    """
+    - remove_default_pattern: If True, will remove the '*' entry
+    """
     from codeowners import CodeOwners
 
     with open(owners_file) as f:
-        return CodeOwners(f.read())
+        lines = f.readlines()
+
+        if remove_default_pattern:
+            try:
+                is_default_pattern = [bool(line.strip() and line.strip().split()[0] != '*' for line in lines)]
+                assert sum(is_default_pattern) == 1
+            except IndexError as e:
+                e.add_note("Exactly one default pattern '*' should be present in {owners_file}")
+                raise
+
+            index_default_pattern = is_default_pattern.index(True)
+            lines = lines[:index_default_pattern] + lines[index_default_pattern + 1 :]
+
+        return CodeOwners('\n'.join(lines))
 
 
 def search_owners(search: str, owners_file: str) -> list[str]:

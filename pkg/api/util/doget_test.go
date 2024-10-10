@@ -10,12 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func makeTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
@@ -77,7 +76,7 @@ func TestDoGet(t *testing.T) {
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
 
-		cfg := model.NewConfig("datadog", "test", strings.NewReplacer("_", "."))
+		cfg := configmock.New(t)
 		dir := t.TempDir()
 		authTokenPath := dir + "/auth_token"
 		err := os.WriteFile(authTokenPath, []byte("0123456789abcdef0123456789abcdef"), 0644)

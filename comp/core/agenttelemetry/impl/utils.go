@@ -3,50 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 package agenttelemetryimpl
 
 import (
 	"fmt"
 	"sort"
-	"strings"
 
-	"github.com/itchyny/gojq"
 	dto "github.com/prometheus/client_model/go"
 )
-
-type jBuilder struct {
-	jqSource    *gojq.Query
-	jpathTarget []string
-}
-
-// compileJBuilders compiles a map of JSON path and JQ query into a slice of jBuilder
-func compileJBuilders(params map[string]string) ([]jBuilder, error) {
-	var builders []jBuilder
-	for jpath, query := range params {
-		// Validate JSON/attribute path
-		jpaths := strings.Split(jpath, ".")
-		if len(jpaths) < 2 {
-			return nil, fmt.Errorf("jpath `%s` should contain at leat two elements", jpath)
-		}
-
-		// Compile JQ expression
-		q, err := gojq.Parse(query)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse jq query %s for jpath '%s': %s", query, jpath, err.Error())
-		}
-
-		builder := jBuilder{jqSource: q, jpathTarget: jpaths}
-		builders = append(builders, builder)
-	}
-
-	return builders, nil
-}
 
 // select only supported metric types
 func isSupportedMetricType(mt dto.MetricType) bool {

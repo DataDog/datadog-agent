@@ -6,7 +6,7 @@ import shutil
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
 from tasks.libs.types.arch import Arch
 
 try:
@@ -20,11 +20,10 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from invoke.runners import Result
 from invoke.tasks import task
 
 if TYPE_CHECKING:
@@ -689,13 +688,16 @@ def generate_complexity_summary_for_pr(
     if tabulate is None:
         raise Exit("tabulate is required to print the complexity summary")
 
+    if branch_name is None:
+        branch_name = os.getenv("CI_COMMIT_REF_NAME") or get_current_branch(ctx)
+        commit_sha = os.getenv("CI_COMMIT_SHA") or get_commit_sha(ctx)
+    else:
+        commit_sha = get_commit_sha(ctx, branch_name)
+
     pr_comment_head = 'eBPF complexity changes'
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     has_prs = len(prs) > 0
-
-    if branch_name is None:
-        branch_name = get_current_branch(ctx)
 
     if base_branch is None:
         if len(prs) == 0:
@@ -729,9 +731,7 @@ def generate_complexity_summary_for_pr(
         return
 
     # We have files, now get files for the main branch
-    common_ancestor = cast(
-        Result, ctx.run(f"git merge-base {branch_name} origin/{base_branch}", hide=True)
-    ).stdout.strip()
+    common_ancestor = get_common_ancestor(ctx, commit_sha, f"origin/{base_branch}")
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
     print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
     download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)

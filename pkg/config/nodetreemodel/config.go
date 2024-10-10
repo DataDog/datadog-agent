@@ -498,17 +498,17 @@ func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *ntmConfig) BindEnv(input ...string) {
+func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
 
 	// If one input is given, viper derives an env key from it; otherwise, all inputs after
 	// the first are literal env vars.
-	if len(input) == 1 {
-		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	if len(envvars) == 0 {
+		envKeys = []string{c.mergeWithEnvPrefix(key)}
 	} else {
-		envKeys = input[1:]
+		envKeys = envvars
 	}
 
 	for _, key := range envKeys {
@@ -703,9 +703,9 @@ func (c *ntmConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
+func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
 func (c *ntmConfig) Warnings() *model.Warnings {
