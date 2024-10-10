@@ -155,7 +155,7 @@ func (s *EbpfProgramSuite) TestSingleProgramReceivesMultipleLibsetEvents() {
 	require.Equal(t, commandCuda.Process.Pid, int(receivedEventCuda.Pid))
 }
 
-func (s *EbpfProgramSuite) TestMultpleProgramsReceiveMultipleLibsetEvents() {
+func (s *EbpfProgramSuite) TestMultipleProgramsReceiveMultipleLibsetEvents() {
 	t := s.T()
 	fooPathSsl, _ := createTempTestFile(t, "foo-libssl.so")
 	fooPathCuda, _ := createTempTestFile(t, "foo-libcudart.so")
