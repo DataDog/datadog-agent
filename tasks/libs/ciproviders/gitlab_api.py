@@ -1,3 +1,8 @@
+"""Gitlab API / CI related functions.
+
+Provides functions to interact with the API and also helpers to manipulate and resolve gitlab-ci configurations.
+"""
+
 from __future__ import annotations
 
 import json
@@ -494,6 +499,7 @@ class MultiGitlabCIDiff:
 
     def display(self, cli: bool = True, job_url: str = None, **kwargs) -> str:
         """Returns the displayable diff in cli or markdown."""
+
         if not self:
             return ''
 
@@ -695,6 +701,7 @@ def _get_combinated_variables(arg: dict[str, (str | list[str])]):
 
 def expand_matrix_jobs(yml: dict) -> dict:
     """Will expand matrix jobs into multiple jobs."""
+
     new_jobs = {}
     to_remove = set()
     for job in yml:

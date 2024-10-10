@@ -1,6 +1,4 @@
-"""
-Helper for generating links to CI Visibility for Gitlab CI jobs
-"""
+"""Helper tasks related to the gitlab CI (website, API, configuration etc.)."""
 
 from __future__ import annotations
 
@@ -38,6 +36,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     Usage:
         $ deva gitlab.generate-ci-visibility-links
     """
+
     ci_job_id = os.environ.get("CI_JOB_ID")
     if not ci_job_id:
         print(
@@ -106,6 +105,7 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
 
 def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
+
     repo = get_gitlab_repo(repo)
     ids = [i for i in ids.split(",") if i]
     for id in ids:
