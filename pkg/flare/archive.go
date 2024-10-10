@@ -50,8 +50,8 @@ func getProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 }
 
-// ExtraFlareProviders returns flare providers that are not given with fx.
-// This is aimed to be used by the flare component while we migrate to a component architecture.
+// ExtraFlareProviders returns flare providers that are not given via fx.
+// This function should only be called by the flare component.
 func ExtraFlareProviders(diagnoseDeps diagnose.SuitesDeps) []flaretypes.FlareCallback {
 	/** WARNING
 	 *
