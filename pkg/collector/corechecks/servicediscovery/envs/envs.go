@@ -50,6 +50,7 @@ func (ev *Variables) Get(name string) (string, bool) {
 	return val, ok
 }
 
+// GetDefault returns an environment variable or provided default.
 func (ev *Variables) GetDefault(name string, defVal string) string {
 	val, ok := ev.Get(name)
 	if !ok {
