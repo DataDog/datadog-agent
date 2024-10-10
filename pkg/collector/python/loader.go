@@ -59,6 +59,7 @@ const (
 )
 
 func init() {
+	fmt.Println("NewPythonCheckLoader coming!")
 	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (check.Loader, error) {
 		return NewPythonCheckLoader(senderManager, logReceiver)
 	}
