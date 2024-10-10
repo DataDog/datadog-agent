@@ -50,6 +50,15 @@ func (ev *Variables) Get(name string) (string, bool) {
 	return val, ok
 }
 
+func (ev *Variables) GetDefault(name string, defVal string) string {
+	val, ok := ev.Get(name)
+	if !ok {
+		return defVal
+	}
+
+	return val
+}
+
 // Set saves the environment variable if it is targeted.
 // returns true if env variable matches the target
 func (ev *Variables) Set(name, val string) bool {

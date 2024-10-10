@@ -17,6 +17,7 @@ import (
 	"github.com/rickar/props"
 	"github.com/vibrantbyte/go-antpath/antpath"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -82,8 +83,8 @@ func (y *environmentSource) Get(key string) (string, bool) {
 func (y *environmentSource) GetDefault(key string, defVal string) string {
 	return y.m.GetDefault(strings.Map(normalizeEnv, key), defVal)
 }
-func newEnvironmentSource(envs map[string]string) props.PropertyGetter {
-	return &environmentSource{m: &mapSource{m: envs}}
+func newEnvironmentSource(envs envs.Variables) props.PropertyGetter {
+	return &environmentSource{m: &envs}
 }
 
 // normalizeEnv converts a rune into a suitable replacement for an environment variable name.
@@ -318,7 +319,7 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	combined := &props.Combined{Sources: []props.PropertyGetter{
 		newArgumentSource(s.ctx.args, "--"),
 		newArgumentSource(s.ctx.args, "-D"),
-		newEnvironmentSource(s.getSpringEnvs()),
+		newEnvironmentSource(s.ctx.envs),
 	}}
 
 	// resolved properties referring to other properties (thanks to the Expander)
@@ -350,23 +351,6 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 		}
 	}
 	return conf.Get(appnamePropName)
-}
-
-var springEnvs = []string{
-	"SPRING_APPLICATION_NAME",
-	"SPRING_CONFIG_LOCATIONS",
-	"SPRING_CONFIG_NAME",
-	"SPRING_PROFILES_ACTIVE",
-}
-
-func (s springBootParser) getSpringEnvs() map[string]string {
-	envsMap := make(map[string]string, len(springEnvs))
-	for _, env := range springEnvs {
-		if val, ok := s.ctx.envs.Get(env); ok {
-			envsMap[env] = val
-		}
-	}
-	return envsMap
 }
 
 // isSpringBootArchive heuristically determines if a jar archive is a spring boot packaged jar

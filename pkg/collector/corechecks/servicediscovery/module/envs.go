@@ -202,29 +202,29 @@ func (er *EnvReader) close() {
 }
 
 // add adds env. variable to the map of environment variables,
-// returns true if reading should be stopped.
-func (er *EnvReader) add() bool {
+func (er *EnvReader) add() {
 	env := er.scanner.Text()
 	name, val, found := strings.Cut(env, "=")
 	if found {
-		return er.envs.Set(name, val)
+		er.envs.Set(name, val)
 	}
-	return false
 }
 
 // getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
 func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 	er, err := newEnvReader(proc)
-	defer er.close()
+	defer func() {
+		if er != nil {
+			er.close()
+		}
+	}()
+
 	if err != nil {
 		return envs.NewVariables(nil), err
 	}
 
 	for er.scanner.Scan() {
-		stop := er.add()
-		if stop {
-			break
-		}
+		er.add()
 	}
 
 	injectionMeta, ok := getInjectionMeta(proc)
