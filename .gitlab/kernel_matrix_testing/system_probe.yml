@@ -3,7 +3,9 @@ upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
   needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
@@ -13,7 +15,9 @@ upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
   needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
@@ -24,7 +28,9 @@ upload_dependencies_sysprobe_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   stage: kernel_matrix_testing_prepare
   script:
     # DockerHub login for build to limit rate limit when pulling base images
@@ -93,7 +99,9 @@ upload_minimized_btfs_sysprobe_x64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_x64"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
@@ -104,7 +112,9 @@ upload_minimized_btfs_sysprobe_arm64:
   extends:
     - .upload_minimized_btfs
   needs: ["generate_minimized_btfs_arm64"]
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
@@ -114,7 +124,9 @@ upload_minimized_btfs_sysprobe_arm64:
 kmt_setup_env_sysprobe_arm64:
   extends:
     - .kmt_setup_env
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     INSTANCE_TYPE: "m6gd.metal"
     INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
@@ -127,7 +139,9 @@ kmt_setup_env_sysprobe_arm64:
 kmt_setup_env_sysprobe_x64:
   extends:
     - .kmt_setup_env
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     INSTANCE_TYPE: "m5d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
@@ -139,7 +153,9 @@ kmt_setup_env_sysprobe_x64:
 
 .upload_sysprobe_tests:
   stage: kernel_matrix_testing_prepare
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
@@ -195,7 +211,9 @@ upload_sysprobe_tests_arm64:
 .kmt_run_sysprobe_tests:
   extends: .kmt_run_tests
   stage: kernel_matrix_testing_system_probe
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   timeout: 1h 30m
   variables:
     TEST_COMPONENT: system-probe
@@ -274,7 +292,9 @@ kmt_run_sysprobe_tests_arm64:
 .kmt_sysprobe_cleanup:
   extends:
     - .kmt_cleanup
-  rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TEST_COMPONENT: system-probe
 
