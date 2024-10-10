@@ -16,7 +16,6 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -282,8 +281,6 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
     codeowner = CODEOWNERS_ORG_PREFIX + owner
     slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
     jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
-    agent = get_gitlab_repo()
-    pipeline = agent.pipelines.get(os.environ["CI_PIPELINE_ID"])
     tags = [
         "--service",
         "datadog-agent",
@@ -296,7 +293,7 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         "--tags",
         f"jira_project:{jira_project}",
         "--tags",
-        f"gitlab.pipeline_source:{pipeline.source}",
+        f"gitlab.pipeline_source:{os.environ['CI_PIPELINE_SOURCE']}",
         "--xpath-tag",
         "test.agent_is_known_flaky=/testcase/@agent_is_known_flaky",
     ]
