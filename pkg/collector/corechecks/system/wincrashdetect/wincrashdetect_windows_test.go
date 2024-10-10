@@ -10,11 +10,8 @@ package wincrashdetect
 import (
 	"net"
 	"net/http"
-
-	//"strings"
 	"testing"
 
-	//"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -108,7 +105,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 		// set the return value handled in the check handler above
 		p = &probe.WinCrashStatus{
-			Success: true,
+			StatusCode: probe.WinCrashStatusCodeSuccess,
 		}
 
 		check := newCheck()
@@ -128,7 +125,7 @@ func TestWinCrashReporting(t *testing.T) {
 		testSetup(t)
 		defer testCleanup()
 		p = &probe.WinCrashStatus{
-			Success:    true,
+			StatusCode: probe.WinCrashStatusCodeSuccess,
 			FileName:   `c:\windows\memory.dmp`,
 			Type:       probe.DumpTypeAutomatic,
 			DateString: `Fri Jun 30 15:33:05.086 2023 (UTC - 7:00)`,
