@@ -10,13 +10,13 @@ $tmpfile = [System.IO.Path]::GetTempFileName()
 & "C:\mnt\tools\ci\fetch_secret.ps1" -parameterName "$Env:DOCKER_REGISTRY_LOGIN" -tempFile "$tmpfile"
 If ($lastExitCode -ne "0") {
     Write-Host "Previous command returned $lastExitCode"
-    exit $lastExitCode
+    exit "$lastExitCode"
 }
 $DOCKER_REGISTRY_LOGIN = $(cat "$tmpfile")
 & "C:\mnt\tools\ci\fetch_secret.ps1" -parameterName "$Env:DOCKER_REGISTRY_PWD" -tempFile "$tmpfile"
 If ($lastExitCode -ne "0") {
     Write-Host "Previous command returned $lastExitCode"
-    exit $lastExitCode
+    exit "$lastExitCode"
 }
 $DOCKER_REGISTRY_PWD = $(cat "$tmpfile")
 Remove-Item "$tmpfile"
