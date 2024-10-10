@@ -5,57 +5,58 @@
 
 //go:build linux_bpf
 
-// Package testutil provides utilities for testing the dynamic instrumentation sample service
-package testutil
+package diconfig
 
 import (
+	"debug/elf"
 	"fmt"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/kr/pretty"
 )
 
-var mux sync.Mutex
+func TestBinaryInspection(t *testing.T) {
 
-// BuildSampleService builds the external program which is used for testing
-// Go dynamic instrumentation
-func BuildSampleService(t *testing.T) string {
-	mux.Lock()
-	defer mux.Unlock()
+	testFunctions := []string{
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_single_string",
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_nonembedded_struct",
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_struct",
+		"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample.test_uint_slice",
+	}
 
 	curDir, err := pwd()
-	require.NoError(t, err)
-	serverBin, err := BuildGoBinaryWrapper(curDir, "sample/sample_service")
-	require.NoError(t, err)
-	return serverBin
-}
-
-// BuildGoBinaryWrapper builds a Go binary and returns the path to it.
-// If the binary is already built, it returns the path to the binary.
-func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
-	sampleServiceSource := path.Join(curDir, binaryDir)
-	sampleServiceBinaryPath := path.Join(sampleServiceSource, filepath.Base(binaryDir))
-
-	// If there is a compiled binary already, skip the compilation.
-	// Meant for the CI.
-	if _, err := os.Stat(sampleServiceBinaryPath); err == nil {
-		return sampleServiceBinaryPath, nil
-	}
-
-	c := exec.Command("go", "build", "-C", sampleServiceSource, "-o", sampleServiceBinaryPath)
-	out, err := c.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("could not build sample service test binary: %s\noutput: %s", err, string(out))
+		t.Error(err)
 	}
 
-	return sampleServiceBinaryPath, nil
+	binPath, err := testutil.BuildGoBinaryWrapper(curDir, "../testutil/sample/sample_service")
+	if err != nil {
+		t.Error(err)
+	}
+
+	f, err := elf.Open(binPath)
+	if err != nil {
+		t.Error(err)
+	}
+
+	result, err := bininspect.InspectWithDWARF(f, testFunctions, nil)
+	if err != nil {
+		t.Error(">", err)
+	}
+
+	for _, funcMetadata := range result.Functions {
+		for paramName, paramMeta := range funcMetadata.Parameters {
+			for _, piece := range paramMeta.Pieces {
+				pretty.Log(paramName, piece)
+			}
+		}
+	}
 }
 
 // pwd returns the current directory of the caller.
