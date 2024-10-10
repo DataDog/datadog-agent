@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sources list the known sources, following the order of hierarchy between them
+// sources lists the known sources, following the order of hierarchy between them
 var sources = []model.Source{
 	model.SourceDefault,
 	model.SourceUnknown,
@@ -77,7 +77,7 @@ type ntmConfig struct {
 	extraConfigFilePaths []string
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
+// OnUpdate adds a callback to the list rof eceivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
 func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
@@ -98,7 +98,7 @@ func (c *ntmConfig) setValueSource(key string, newValue interface{}, source mode
 	}
 }
 
-// Set wraps Viper for concurrent access
+// Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceDefault {
 		c.SetDefault(key, newValue)
@@ -122,12 +122,12 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 }
 
-// SetWithoutSource sets the given value using source Unknown
+// SetWithout assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Set(key, value, model.SourceUnknown)
 }
 
-// SetDefault wraps Viper for concurrent access
+// SetDefault assigns the value to the given key using source Default
 func (c *ntmConfig) SetDefault(key string, value interface{}) {
 	c.Set(key, value, model.SourceDefault)
 }
@@ -198,50 +198,49 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return ret
 }
 
-// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
+// ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
 func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
 	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
-// map[string]interface{}.
+// ParseEnvAsMapStringInterface registers a transform function to parse an environment variable as a map[string]interface{}
 func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
+// ParseEnvAsSliceMapString registers a transform function to parse an environment variable as a []map[string]string
 func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
 	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
+// ParseEnvAsSlice registers a transform function to parse an environment variable as a []interface
 func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// SetFs wraps Viper for concurrent access
+// SetFs assigns a filesystem
 func (c *ntmConfig) SetFs(fs afero.Fs) {
 	c.Lock()
 	defer c.Unlock()
 	c.noimpl.SetFs(fs)
 }
 
-// IsSet wraps Viper for concurrent access
+// IsSet checks if a key is set in the config
 func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.noimpl.IsSet(key)
 }
 
+// AllKeysLowercased returns all keys lower-cased
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -264,7 +263,7 @@ func (c *ntmConfig) leafAtPath(key string) LeafNode {
 	return &missingLeaf
 }
 
-// Get wraps Viper for concurrent access
+// Get returns a copy of the value at the given key
 func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -289,7 +288,7 @@ func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 	return vals
 }
 
-// GetString wraps Viper for concurrent access
+// GetString returns a string-typed value at the given key
 func (c *ntmConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
@@ -301,7 +300,7 @@ func (c *ntmConfig) GetString(key string) string {
 	return str
 }
 
-// GetBool wraps Viper for concurrent access
+// GetBool returns a bool-typed value at the given key
 func (c *ntmConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
@@ -313,7 +312,7 @@ func (c *ntmConfig) GetBool(key string) bool {
 	return b
 }
 
-// GetInt wraps Viper for concurrent access
+// GetInt returns an int-typed value at the given key
 func (c *ntmConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
@@ -325,7 +324,7 @@ func (c *ntmConfig) GetInt(key string) int {
 	return val
 }
 
-// GetInt32 wraps Viper for concurrent access
+// GetInt32 returns an int32-typed value at the given key
 func (c *ntmConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
@@ -337,7 +336,7 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 	return int32(val)
 }
 
-// GetInt64 wraps Viper for concurrent access
+// GetInt64 returns an int64-typed value at the given key
 func (c *ntmConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
@@ -349,7 +348,7 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 	return int64(val)
 }
 
-// GetFloat64 wraps Viper for concurrent access
+// GetFloat64 returns a float64-typed value at the given key
 func (c *ntmConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
@@ -361,7 +360,7 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetTime wraps Viper for concurrent access
+// GetTime returns a time-typed value at the given key
 func (c *ntmConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
@@ -373,7 +372,7 @@ func (c *ntmConfig) GetTime(key string) time.Time {
 	return val
 }
 
-// GetDuration wraps Viper for concurrent access
+// GetDuration returns a duration-typed value at the given key
 func (c *ntmConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
@@ -385,7 +384,7 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 	return val
 }
 
-// GetStringSlice wraps Viper for concurrent access
+// GetStringSlice returns a string slice value at the given key
 func (c *ntmConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -397,7 +396,7 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 	return slices.Clone(val)
 }
 
-// GetFloat64SliceE loads a key as a []float64
+// GetFloat64SliceE returns a float slice value at the given key, or an error
 func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	c.RLock()
 	defer c.RUnlock()
@@ -420,7 +419,7 @@ func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	return res, nil
 }
 
-// GetStringMap wraps Viper for concurrent access
+// GetStringMap returns a map[string]interface value at the given key
 func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -432,7 +431,7 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	return deepcopy.Copy(val).(map[string]interface{})
 }
 
-// GetStringMapString wraps Viper for concurrent access
+// GetStringMapString returns a map[string]string value at the given key
 func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
@@ -444,7 +443,7 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	return deepcopy.Copy(val).(map[string]string)
 }
 
-// GetStringMapStringSlice wraps Viper for concurrent access
+// GetStringMapStringSlice returns a map[string][]string value at the given key
 func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
@@ -456,7 +455,7 @@ func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	return deepcopy.Copy(val).(map[string][]string)
 }
 
-// GetSizeInBytes wraps Viper for concurrent access
+// GetSizeInBytes returns the size in bytes of the filename at the given key
 func (c *ntmConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
@@ -474,7 +473,7 @@ func (c *ntmConfig) logErrorNotImplemented(method string) error {
 	return err
 }
 
-// GetSource wraps Viper for concurrent access
+// GetSource returns the source of the given key
 func (c *ntmConfig) GetSource(key string) model.Source {
 	c.RLock()
 	defer c.RUnlock()
@@ -483,21 +482,19 @@ func (c *ntmConfig) GetSource(key string) model.Source {
 	return model.SourceUnknown
 }
 
-// SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
-// future reference
+// SetEnvPrefix sets the environment variable prefix to use
 func (c *ntmConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.envPrefix = in
 }
 
-// mergeWithEnvPrefix derives the environment variable that Viper will use for a given key.
-// mergeWithEnvPrefix must be called while holding the config log (read or write).
+// mergeWithEnvPrefix derives the environment variable to use for a given key.
 func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
 }
 
-// BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
+// BindEnv binds one or more environment variables to the given key
 func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
@@ -522,14 +519,14 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.logErrorNotImplemented("BindEnv")
 }
 
-// SetEnvKeyReplacer wraps Viper for concurrent access
+// SetEnvKeyReplacer binds a replacer function for keys
 func (c *ntmConfig) SetEnvKeyReplacer(_r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("SetEnvKeyReplacer")
 }
 
-// UnmarshalKey wraps Viper for concurrent access
+// UnmarshalKey unmarshals the data at the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
 	c.RLock()
@@ -538,21 +535,21 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 	return c.logErrorNotImplemented("UnmarshalKey")
 }
 
-// Unmarshal wraps Viper for concurrent access
+// Unmarshal unmarshals data from the root of the config
 func (c *ntmConfig) Unmarshal(_rawVal interface{}) error {
 	c.RLock()
 	defer c.RUnlock()
 	return c.logErrorNotImplemented("Unmarshal")
 }
 
-// UnmarshalExact wraps Viper for concurrent access
+// UnmarshalExact unmarshals data from the root of the config
 func (c *ntmConfig) UnmarshalExact(_rawVal interface{}) error {
 	c.RLock()
 	defer c.RUnlock()
 	return c.logErrorNotImplemented("UnmarshalExact")
 }
 
-// MergeConfig wraps Viper for concurrent access
+// MergeConfig merges in another config
 func (c *ntmConfig) MergeConfig(_in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
@@ -594,7 +591,7 @@ func (c *ntmConfig) MergeConfigMap(_cfg map[string]any) error {
 	return nil
 }
 
-// AllSettings wraps Viper for concurrent access
+// AllSettings returns all settings from the config
 func (c *ntmConfig) AllSettings() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -620,7 +617,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AddConfigPath wraps Viper for concurrent access
+// AddConfigPath adds another config at the given path
 func (c *ntmConfig) AddConfigPath(_in string) {
 	c.Lock()
 	defer c.Unlock()
@@ -656,7 +653,7 @@ func (c *ntmConfig) AddExtraConfigPaths(ins []string) error {
 	return err
 }
 
-// SetConfigName wraps Viper for concurrent access
+// SetConfigName sets the name of the config
 func (c *ntmConfig) SetConfigName(in string) {
 	c.Lock()
 	defer c.Unlock()
@@ -664,34 +661,35 @@ func (c *ntmConfig) SetConfigName(in string) {
 	c.configFile = ""
 }
 
-// SetConfigFile wraps Viper for concurrent access
+// SetConfigFile sets the config file
 func (c *ntmConfig) SetConfigFile(in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.configFile = in
 }
 
-// SetConfigType wraps Viper for concurrent access
+// SetConfigType sets the type of the config
 func (c *ntmConfig) SetConfigType(in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.configType = in
 }
 
-// ConfigFileUsed wraps Viper for concurrent access
+// ConfigFileUsed returns the config file
 func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.configFile
 }
 
+// SetTypeByDefaultValue enables typing using default values
 func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
 	c.Lock()
 	defer c.Unlock()
 	c.logErrorNotImplemented("SetTypeByDefaultValue")
 }
 
-// GetEnvVars implements the Config interface
+// GetEnvVars gets all environment variables
 func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -702,16 +700,18 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
-// BindEnvAndSetDefault implements the Config interface
+// BindEnvAndSetDefault binds an environment variable and sets a default for the given key
 func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
 	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
+// Warnings just returns nil
 func (c *ntmConfig) Warnings() *model.Warnings {
 	return nil
 }
 
+// Object returns the config as a Reader interface
 func (c *ntmConfig) Object() model.Reader {
 	return c
 }
@@ -776,6 +776,7 @@ func (c *ntmConfig) GetProxies() *model.Proxy {
 	return c.proxies
 }
 
+// ExtraConfigFilesUsed returns the additional config files used
 func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()
 	defer c.Unlock()
