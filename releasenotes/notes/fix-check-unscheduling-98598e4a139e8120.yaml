@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixing a bug introduced in 7.55 where in some specific scenarios, checks associated with a deleted container or POD would keep running until the Agent is restarted.

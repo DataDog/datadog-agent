@@ -80,7 +80,6 @@ func InitCheckScheduler(collector optional.Option[collector.Component], senderMa
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
-
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
@@ -99,8 +98,8 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	for _, config := range configs {
-		if !config.IsCheckConfig() || config.HasFilter(containers.MetricsFilter) {
-			// skip non check and excluded configs.
+		if !config.IsCheckConfig() {
+			// skip non check
 			continue
 		}
 		// unschedule all the possible checks corresponding to this config
