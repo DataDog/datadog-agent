@@ -242,6 +242,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 
 	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
 	// TODO: USING NDM NETFLOW EXPORTER FOR POC
+	role := haagent.GetRole()
 	netflowExporters := []metadata.NetflowExporter{
 		{
 			// UUID to avoid being cached in backend
@@ -250,16 +251,18 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 			FlowType:      "netflow9",
 			ClusterId:     clusterId,
 			AgentHostname: agentHostname,
-			AgentRole:     haagent.GetRole(),
+			AgentRole:     role,
 			CheckIDs:      checkIDs,
 		},
 	}
 
-	agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
-		"cluster_id:" + clusterId,
-		"host:" + agentHostname,
-		"role:" + haagent.GetRole(),
-	})
+	if role != "" {
+		agg.sender.Gauge("datadog.ha_agent.running", 1, "", []string{
+			"cluster_id:" + clusterId,
+			"host:" + agentHostname,
+			"role:" + haagent.GetRole(),
+		})
+	}
 	//for _, exporterID := range ids {
 	//	netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
 	//}
