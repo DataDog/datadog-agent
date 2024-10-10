@@ -10,6 +10,7 @@ package gpu
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -198,6 +199,32 @@ func getAssociatedAllocations(span *model.KernelSpan) []*model.MemoryAllocation 
 	return allocations
 }
 
+func (sh *StreamHandler) getDataMaxTimestamp() uint64 {
+	maxTs := uint64(0)
+
+	for _, span := range sh.kernelSpans {
+		maxTs = max(maxTs, span.EndKtime)
+	}
+
+	for _, alloc := range sh.allocations {
+		maxTs = max(maxTs, alloc.EndKtime)
+	}
+
+	return maxTs
+}
+
+func (sh *StreamHandler) buildMetadata(dataTimestamp time.Time) model.StreamMetadata {
+	proc, found := sh.sysCtx.processCache.Get(sh.key.Pid, dataTimestamp.UnixNano())
+	var containerID string
+	if found {
+		containerID = proc.ContainerID.Get().(string)
+	}
+
+	return model.StreamMetadata{
+		ContainerID: containerID,
+	}
+}
+
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
 // If flush is true, the data will be cleared from the handler
 func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
@@ -205,9 +232,12 @@ func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 		return nil
 	}
 
+	maxTs := sh.sysCtx.timeResolver.ResolveMonotonicTimestamp(sh.getDataMaxTimestamp())
+
 	data := &model.StreamData{
 		Spans:       sh.kernelSpans,
 		Allocations: sh.allocations,
+		Metadata:    sh.buildMetadata(maxTs),
 	}
 
 	if flush {
@@ -223,8 +253,11 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 		return nil
 	}
 
+	nowTs := sh.sysCtx.timeResolver.ResolveMonotonicTimestamp(now)
+
 	data := &model.StreamData{
-		Spans: []*model.KernelSpan{sh.getCurrentKernelSpan(now)},
+		Spans:    []*model.KernelSpan{sh.getCurrentKernelSpan(now)},
+		Metadata: sh.buildMetadata(nowTs),
 	}
 
 	for _, alloc := range sh.memAllocEvents {
