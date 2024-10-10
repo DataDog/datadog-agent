@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -216,7 +215,10 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	hostname := lookupHostnameWithRDNS(config.IPAddress)
+	hostname := ""
+	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
+		hostname, _ = rdnsquerier.GetHostnameSync(config.IPAddress)
+	}
 
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
@@ -244,33 +246,6 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		Integration:    common.SnmpIntegrationName,
 		RDNSHostname:   hostname,
 	}
-}
-
-func lookupHostnameWithRDNS(ip string) string {
-	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
-		var hostname string
-		var wg sync.WaitGroup
-
-		wg.Add(1)
-		err := rdnsquerier.GetHostname(
-			net.ParseIP(ip).To4(),
-			func(h string) {
-				hostname = h
-				wg.Done()
-			},
-			func(h string, err error) {
-				hostname = h
-				wg.Done()
-			},
-		)
-		if err != nil {
-			log.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, err)
-			wg.Done()
-		}
-		wg.Wait()
-		return hostname
-	}
-	return ""
 }
 
 func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
