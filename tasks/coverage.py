@@ -205,6 +205,7 @@ def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
     """
     with open(main_cov_file, encoding='utf-8') as main_cov:
         main_cov_lines = main_cov.readlines()
+        print(f"{main_cov_file} content:\n\n", main_cov_lines)
         main_mode_line = main_cov_lines.pop(0)
     with open(dev_cov_file, encoding='utf-8') as dev_cov:
         dev_cov_lines = dev_cov.readlines()
