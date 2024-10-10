@@ -109,4 +109,3 @@ job-owners:
     - unit_tests_notify
     - update_rc_build_links
     - validate_modules
-    - a
