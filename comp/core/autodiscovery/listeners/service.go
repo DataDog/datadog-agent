@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -90,6 +91,16 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
 	return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()).String(), tagger.ChecksCardinality())
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
+	checkCard, err := types.StringToTagCardinality(cardinality)
+	if err == nil {
+		return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()).String(), checkCard)
+	}
+	log.Warnf("error converting cardinality %s to TagCardinality: %v", cardinality, err)
+	return s.GetTags()
 }
 
 // GetPid returns the process ID of the service.
