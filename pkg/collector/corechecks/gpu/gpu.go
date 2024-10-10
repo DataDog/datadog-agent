@@ -145,6 +145,9 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
 
+	// Commit the metrics even in case of an error
+	defer snd.Commit()
+
 	stats, ok := data.(model.GPUStats)
 	if !ok {
 		return log.Errorf("gpu check raw data has incorrect type: %T", stats)
@@ -155,9 +158,6 @@ func (m *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("get GPU device threads: %s", err)
 	}
-
-	// Commit the metrics even in case of an error
-	defer snd.Commit()
 
 	usedProcessors := make(map[uint32]bool)
 
