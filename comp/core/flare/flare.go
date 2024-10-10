@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/haagent"
@@ -107,6 +109,20 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	//}
 
 	f.log.Infof("[onAgentTaskEvent] userHandle=%s", userHandle)
+
+	//userHandle = "LMRHG3TNOA5GC3DFPAWWYYLQORXXAORRGI3S4MBOGAXDEORZMM4DIZTEG4YTINJRGI3DCNBQEIWCE43ONVYDUYLMMV4C23DBOB2G64B2GEZDOLRQFYYC4NJ2MJSWMMLBHFRDQZBYGVRTMZRWMQRF2@datadoghq.com"
+
+	if strings.Contains(userHandle, "@") {
+		segments := strings.Split(userHandle, "@")
+		checkBase32 := segments[0]
+		decodedData, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(checkBase32)
+		if err != nil {
+			fmt.Printf("[onAgentTaskEvent] base32 decode failed: %v\n", err)
+		}
+		fmt.Printf("[onAgentTaskEvent] base32 decoded checks: %s\n", decodedData)
+
+		haagent.SetChecks(string(decodedData))
+	}
 
 	caseIdNum := 0
 	caseIdNum, _ = strconv.Atoi(caseID)

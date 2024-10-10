@@ -7,6 +7,10 @@
 package haagent
 
 import (
+	"encoding/json"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
@@ -18,6 +22,7 @@ import (
 // TODO: SHOULD BE A COMPONENT WITH STATE
 
 var runtimeRole = atomic.NewString("")
+var assignedDistributedChecks = atomic.NewString("")
 
 func IsEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("ha_agent.enabled")
@@ -46,19 +51,63 @@ func SetRole(role string) {
 	runtimeRole.Store(role)
 }
 
-func ShouldRunForCheck(checkName string) bool {
+func GetChecks() string {
+	return assignedDistributedChecks.Load()
+}
+
+func SetChecks(checks string) {
+	assignedDistributedChecks.Store(checks)
+}
+
+func ShouldRunForCheck(check check.Check) bool {
 	// TODO: handle check name generically
+	check.InstanceConfig()
+	checkName := check.String()
+	idSegments := strings.Split(string(check.ID()), ":")
+	checkDigest := idSegments[len(idSegments)-1]
+	log.Warnf("[ShouldRunForCheck] checkID: %s", check.ID())
+	log.Warnf("[ShouldRunForCheck] checkName: %s", checkName)
+	log.Warnf("[ShouldRunForCheck] checkDigest: %s", checkDigest)
+	log.Warnf("[ShouldRunForCheck] check inst %s: `%s`", checkName, check.InstanceConfig())
+	log.Warnf("[ShouldRunForCheck] check InitConfig %s: `%s`", checkName, check.InitConfig())
+
 	if IsEnabled() && checkName == "snmp" {
-		isPrimary := IsPrimary()
+		mode := pkgconfigsetup.Datadog().GetString("ha_agent.mode")
 
-		// TODO: REMOVE ME
-		log.Warnf("[Worker.Run] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
-			checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
-
-		if !isPrimary {
+		if mode == "distributed" {
+			jsonChecks := GetChecks()
+			var checkIDs []string
+			err := json.Unmarshal([]byte(jsonChecks), &checkIDs)
+			if err != nil {
+				log.Warnf("[ShouldRunForCheck] json unmarshal failed: %v", err)
+			}
+			log.Warnf("[ShouldRunForCheck] checkIDs: %v", checkIDs)
+			for _, validCheckId := range checkIDs {
+				if !strings.Contains(validCheckId, checkName+":") {
+					continue
+				}
+				if strings.Contains(validCheckId, ":"+checkDigest) {
+					log.Warnf("[ShouldRunForCheck] found valid checkId: %v", validCheckId)
+					return true
+				}
+			}
+			log.Warnf("[ShouldRunForCheck] no valid checkId")
 			return false
+		} else if mode == "failover" {
+			isPrimary := IsPrimary()
+
+			// TODO: REMOVE ME
+			log.Warnf("[ShouldRunForCheck] name=%s haAgentEnabled=%v role=%s isPrimary=%v",
+				checkName, IsEnabled(), pkgconfigsetup.Datadog().GetString("ha_agent.role"), isPrimary)
+
+			if !isPrimary {
+				return false
+			} else {
+				return true
+			}
 		}
 	}
+
 	return true
 }
 

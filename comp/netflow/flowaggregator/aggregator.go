@@ -10,13 +10,14 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/haagent"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -202,25 +203,41 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 	if err != nil {
 		agg.logger.Warnf("Error getting the hostname: %v", err)
 	}
-
-	if agg.autodiscovery != nil {
-		checks := agg.autodiscovery.GetConfigCheck()
-		checksJson, _ := json.Marshal(checks)
-		agg.logger.Warnf("[HA AGENT] checks: %s", checksJson)
-	}
-	stats, _ := status.GetExpvarRunnerStats()
-
 	var checkIDs []string
-	for checkName, checks := range stats.Checks {
-		if !haagent.IsDistributedCheck(checkName) {
-			continue
-		}
-		for checkID := range checks {
-			checkIDs = append(checkIDs, checkID)
+	if agg.autodiscovery != nil {
+		//configs := agg.autodiscovery.GetConfigCheck()
+		configs := agg.autodiscovery.LoadedConfigs()
+		checksJson, _ := json.Marshal(configs)
+		agg.logger.Warnf("[HA AGENT] checks: %s", checksJson)
+
+		for _, c := range configs {
+			if !haagent.IsDistributedCheck(c.Name) {
+				continue
+			}
+			for _, inst := range c.Instances {
+				//agg.logger.Warnf("[HA AGENT] check config: %+v", c)
+				agg.logger.Warnf("[HA AGENT] check inst: `%s`", string(inst))
+				agg.logger.Warnf("[HA AGENT] check InitConfig: `%s`", string(c.InitConfig))
+				agg.logger.Warnf("[HA AGENT] check c.FastDigest(): `%s`", c.FastDigest())
+				checkId := string(checkid.BuildID(c.Name, c.FastDigest(), inst, c.InitConfig))
+				agg.logger.Warnf("[HA AGENT] check checkId: `%s`", checkId)
+				checkIDs = append(checkIDs, checkId)
+			}
 		}
 	}
-	statsJson, _ := json.Marshal(stats.Checks)
-	agg.logger.Warnf("[HA AGENT] stats: %s", statsJson)
+	//stats, _ := status.GetExpvarRunnerStats()
+
+	//for checkName, checks := range stats.Checks {
+	//	if !haagent.IsDistributedCheck(checkName) {
+	//		continue
+	//	}
+	//	for checkID := range checks {
+	//		checkIDs = append(checkIDs, checkID)
+	//	}
+	//}
+	sort.Strings(checkIDs)
+	//statsJson, _ := json.Marshal(stats.Checks)
+	//agg.logger.Warnf("[HA AGENT] stats: %s", statsJson)
 	agg.logger.Warnf("[HA AGENT] checkIDs: %+v", checkIDs)
 
 	agg.logger.Warnf("[HA AGENT] send cluster_id: %s", clusterId)
