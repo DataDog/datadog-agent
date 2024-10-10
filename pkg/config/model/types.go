@@ -142,8 +142,6 @@ type Setup interface {
 // some misc functions, that should likely be split into another interface
 type Compound interface {
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
 
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
