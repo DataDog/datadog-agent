@@ -39,6 +39,8 @@ const (
 	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
 	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
+	// NamedPipe is the name of the named pipe used by the Datadog Installer
+	NamedPipe string = `\\.\pipe\dd_installer`
 )
 
 var (
@@ -131,6 +133,11 @@ func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
 // RemoveExperiment requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
+}
+
+// Status returns the status provided by the running daemon
+func (d *DatadogInstaller) Status() (string, error) {
+	return d.execute("status")
 }
 
 // Params contains the optional parameters for the Datadog Installer Install command

@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package path defines paths used by the agent on each platform
-package path
+// Package defaultpaths defines default paths used by the agent on each platform
+package defaultpaths

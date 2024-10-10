@@ -21,7 +21,7 @@ if($err -ne 0){
 
 & inv -e install-tools
 
-& inv -e linter.go
+& inv -e linter.go --debug
 $err = $LASTEXITCODE
 Write-Host Go linter result is $err
 if($err -ne 0){
