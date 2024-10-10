@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -22,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -38,6 +41,7 @@ type npCollectorImpl struct {
 	logger       log.Component
 	metricSender metricsender.MetricSender
 	statsdClient ddgostatsd.ClientInterface
+	rdnsquerier  rdnsquerier.Component
 
 	// Counters
 	receivedPathtestCount    *atomic.Uint64
@@ -74,7 +78,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component, rdnsquerier rdnsquerier.Component) *npCollectorImpl {
 	logger.Infof("New NpCollector (workers=%d timeout=%d max_ttl=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.timeout,
@@ -90,6 +94,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
+		rdnsquerier:      rdnsquerier,
 
 		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
@@ -231,6 +236,19 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
 
+	// Perform reverse DNS lookup on destination and hop IPs
+	rdnsHostname, err := s.reverseDNSLookup(path.Destination.IPAddress)
+	if err == nil {
+		path.Destination.ReverseDNSHostname = rdnsHostname
+	}
+
+	for i := range path.Hops {
+		rdnsHostname, err := s.reverseDNSLookup(path.Hops[i].IPAddress)
+		if err == nil {
+			path.Hops[i].Hostname = rdnsHostname
+		}
+	}
+
 	s.sendTelemetry(path, startTime, ptest)
 
 	payloadBytes, err := json.Marshal(path)
@@ -341,4 +359,41 @@ func (s *npCollectorImpl) startWorker(workerID int) {
 			s.processedTracerouteCount.Inc()
 		}
 	}
+}
+
+func (s *npCollectorImpl) reverseDNSLookup(ipString string) (string, error) {
+	var hostname string
+	var wg sync.WaitGroup
+	var callbackErr error
+
+	ip, err := netip.ParseAddr(ipString)
+	if err != nil {
+		return "", fmt.Errorf("invalid IP address: %s", err)
+	}
+
+	wg.Add(1)
+	err = s.rdnsquerier.GetHostname(
+		ip.AsSlice(),
+		func(h string) {
+			hostname = h
+			wg.Done()
+		},
+		func(h string, asyncErr error) {
+			hostname = h
+			callbackErr = asyncErr
+			wg.Done()
+		},
+	)
+	if err != nil {
+		s.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, err)
+		wg.Done()
+	}
+	wg.Wait()
+
+	if callbackErr != nil {
+		s.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, callbackErr)
+		return "", callbackErr
+	}
+
+	return hostname, err
 }

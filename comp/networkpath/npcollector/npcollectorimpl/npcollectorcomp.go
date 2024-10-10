@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,6 +26,7 @@ type dependencies struct {
 	Logger      log.Component
 	AgentConfig config.Component
 	Telemetry   telemetry.Component
+	rdnsquerier rdnsquerier.Component
 }
 
 type provides struct {
