@@ -214,10 +214,12 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 			return nil
 		}
 
-		// If not, we need to reinitialize the eBPF program, so we stop it
-		// We use stopImpl to avoid changing the refcount. This will stop perf handlers,
-		// but will retain callbacks and other state. This way, listeners will not
-		// actually notice any change (other than the lost events in the meantime).
+		// If not, we need to reinitialize the eBPF program to re-edit the
+		// constants (that step is done in Manager.InitWithOptions), so we stop
+		// it We use stopImpl to avoid changing the refcount. This will stop
+		// perf handlers, but will retain callbacks and other state. This way,
+		// listeners will not actually notice any change (other than the lost
+		// events in the meantime).
 		e.stopImpl()
 	}
 
