@@ -21,7 +21,7 @@ type PDU struct {
 	OID  string         `json:"oid"`
 	Type gosnmp.Asn1BER `json:"type"`
 	// Value is the stringified version of the value; if Type is OctetString or BitString, it is base64 encoded.
-	Value string `json:"value"`
+	Value string `json:"value_as_string"`
 }
 
 // PDUFromSNMP packages a gosnmp.SnmpPDU as a PDU

@@ -419,7 +419,7 @@ func scanDevice(connParams *connectionParams, args argsType, conf config.Compone
 	}
 
 	namespace := conf.GetString("network_devices.namespace")
-	deviceID := namespace + ":" + deviceAddr
+	deviceID := namespace + ":" + connParams.IPAddress
 	var deviceOids []*metadata.DeviceOID
 	for _, pdu := range pdus {
 		record, err := metadata.DeviceOIDFromPDU(deviceID, pdu)
