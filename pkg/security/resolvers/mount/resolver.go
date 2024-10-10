@@ -80,6 +80,11 @@ type ResolverOpts struct {
 	UseProcFS bool
 }
 
+type pidMountID struct {
+	pid     uint32
+	mountID uint32
+}
+
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
 	opts            ResolverOpts
@@ -87,7 +92,7 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
-	pidToMounts     map[uint32]map[uint32]*model.Mount
+	pidToMounts     map[pidMountID]*model.Mount
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
@@ -192,8 +197,10 @@ func (mr *Resolver) delete(mount *model.Mount) {
 			}
 		}
 
-		for _, mounts := range mr.pidToMounts {
-			delete(mounts, mount.MountID)
+		for pmid := range mr.pidToMounts {
+			if pmid.mountID == mount.MountID {
+				delete(mr.pidToMounts, pmid)
+			}
 		}
 	}
 }
@@ -248,12 +255,10 @@ func (mr *Resolver) updatePidMapping(m *model.Mount, pid uint32) {
 		return
 	}
 
-	mounts := mr.pidToMounts[pid]
-	if mounts == nil {
-		mounts = make(map[uint32]*model.Mount)
-		mr.pidToMounts[pid] = mounts
-	}
-	mounts[m.MountID] = m
+	mr.pidToMounts[pidMountID{
+		pid:     pid,
+		mountID: m.MountID,
+	}] = m
 }
 
 // DelPid removes the pid form the pid mapping
@@ -265,7 +270,11 @@ func (mr *Resolver) DelPid(pid uint32) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	delete(mr.pidToMounts, pid)
+	for pmid := range mr.pidToMounts {
+		if pmid.pid == pid {
+			delete(mr.pidToMounts, pmid)
+		}
+	}
 }
 
 func (mr *Resolver) insert(m *model.Mount, pid uint32) {
@@ -315,16 +324,20 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 	var result *model.Mount
 
-	mounts := mr.pidToMounts[pid]
-
-	for _, mount := range mounts {
-		if mount.Device == device {
-			// should be consistent across all the mounts
-			if result != nil && result.MountPointStr != mount.MountPointStr {
-				return nil
-			}
-			result = mount
+	for pidMountID, mount := range mr.pidToMounts {
+		if pidMountID.pid != pid {
+			continue
 		}
+
+		if mount.Device != device {
+			continue
+		}
+
+		// should be consistent across all the mounts
+		if result != nil && result.MountPointStr != mount.MountPointStr {
+			return nil
+		}
+		result = mount
 	}
 
 	return result
@@ -633,7 +646,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
 		mounts:          make(map[uint32]*model.Mount),
-		pidToMounts:     make(map[uint32]map[uint32]*model.Mount),
+		pidToMounts:     make(map[pidMountID]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
