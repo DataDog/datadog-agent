@@ -60,7 +60,7 @@ func StartInstallerExperiment(ctx context.Context) (err error) {
 	cmd, err := msiexec("experiment", datadogInstaller, "/i", nil)
 	if err == nil {
 		// Launch the msiexec process asynchronously.
-		err = cmd.Run()
+		err = cmd.Start()
 	}
 	return err
 }
