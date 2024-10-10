@@ -355,6 +355,7 @@ func (e *EbpfProgram) Stop() {
 func (e *EbpfProgram) stopImpl() {
 	if e.Manager != nil {
 		_ = e.Manager.Stop(manager.CleanAll)
+		ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	}
 
 	for _, perfHandler := range e.perfHandlers {
@@ -364,7 +365,6 @@ func (e *EbpfProgram) stopImpl() {
 		close(done)
 	}
 
-	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager = nil
 }
 

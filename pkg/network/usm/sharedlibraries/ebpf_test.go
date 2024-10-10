@@ -9,6 +9,7 @@ package sharedlibraries
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -168,8 +169,13 @@ func (s *EbpfProgramSuite) TestMultpleProgramsReceiveMultipleLibsetEvents() {
 
 	require.NoError(t, progSsl.InitWithLibsets(LibsetCrypto))
 
+	// To ensure that we're not having data races in the test code
+	var receivedEventMutex sync.Mutex
+
 	var receivedEventSsl *LibPath
 	cbSsl := func(path LibPath) {
+		receivedEventMutex.Lock()
+		defer receivedEventMutex.Unlock()
 		receivedEventSsl = &path
 	}
 
@@ -185,6 +191,8 @@ func (s *EbpfProgramSuite) TestMultpleProgramsReceiveMultipleLibsetEvents() {
 
 	var receivedEventCuda *LibPath
 	cbCuda := func(path LibPath) {
+		receivedEventMutex.Lock()
+		defer receivedEventMutex.Unlock()
 		receivedEventCuda = &path
 	}
 
@@ -211,6 +219,8 @@ func (s *EbpfProgramSuite) TestMultpleProgramsReceiveMultipleLibsetEvents() {
 	})
 
 	require.Eventually(t, func() bool {
+		receivedEventMutex.Lock()
+		defer receivedEventMutex.Unlock()
 		return receivedEventSsl != nil && receivedEventCuda != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
