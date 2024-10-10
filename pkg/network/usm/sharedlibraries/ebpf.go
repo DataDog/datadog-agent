@@ -246,7 +246,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 func (e *EbpfProgram) start() error {
 	err := e.Manager.Start()
 	if err != nil {
-		return fmt.Errorf("cannot init manager: %w", err)
+		return fmt.Errorf("cannot start manager: %w", err)
 	}
 
 	for libset, perfHandler := range e.perfHandlers {
