@@ -31,7 +31,7 @@ type testProc struct {
 }
 
 var (
-	bootTimeSeconds = uint64(time.Date(2000, 0o1, 0o1, 0, 0, 0, 0, time.UTC).Unix())
+	bootTimeSeconds = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).Unix())
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
 	procLaunchedSeconds = bootTimeSeconds + uint64((12 * time.Hour).Seconds())
