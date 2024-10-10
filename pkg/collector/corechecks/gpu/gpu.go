@@ -59,7 +59,7 @@ func (m *CheckConfig) Parse(data []byte) error {
 // Cancel cancels the check
 func (m *Check) Cancel() {
 	ret := nvml.Shutdown()
-	if ret != nvml.SUCCESS {
+	if ret != nvml.SUCCESS && ret != nvml.ERROR_UNINITIALIZED {
 		log.Warnf("Failed to shutdown NVML: %v", nvml.ErrorString(ret))
 	}
 }
@@ -70,7 +70,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {
-		return fmt.Errorf("ebpf check config: %s", err)
+		return fmt.Errorf("gpu check config: %s", err)
 	}
 
 	return nil
@@ -121,7 +121,7 @@ func (m *Check) Run() error {
 
 	gpuDevices, err := getGPUDevices()
 	if err != nil {
-		return fmt.Errorf("get GPU devices: %s", err)
+		return err
 	}
 
 	if len(gpuDevices) == 0 {
@@ -130,7 +130,7 @@ func (m *Check) Run() error {
 
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
-		return fmt.Errorf("get gpu check: %s", err)
+		return fmt.Errorf("cannot get data from system-probe: %s", err)
 	}
 	now := time.Now()
 
@@ -147,7 +147,7 @@ func (m *Check) Run() error {
 
 	stats, ok := data.(model.GPUStats)
 	if !ok {
-		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
+		return log.Errorf("gpu check raw data has incorrect type: %T", stats)
 	}
 
 	// TODO: Multiple GPUs are not supported yet
