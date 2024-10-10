@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,18 +28,20 @@ type linuxImpl struct {
 	getSysProbeClient func() (systemProbeClient, error)
 	time              timer
 
-	ignoreCfg map[string]bool
+	ignoreCfg         map[string]bool
+	containerProvider proccontainers.ContainerProvider
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
 }
 
-func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
+func newLinuxImpl(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error) {
 	return &linuxImpl{
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
+		containerProvider: containerProvider,
 		ignoreProcs:       make(map[int]bool),
 		aliveServices:     make(map[int]*serviceInfo),
 		potentialServices: make(map[int]*serviceInfo),
@@ -69,21 +72,9 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 
 	events := serviceEvents{}
-
 	now := li.time.Now()
 
-	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
-	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
-	for pid, svc := range li.potentialServices {
-		if service, ok := serviceMap[pid]; ok {
-			svc.LastHeartbeat = now
-			svc.service.RSS = service.RSS
-			svc.service.CPUCores = service.CPUCores
-			li.aliveServices[pid] = svc
-			events.start = append(events.start, *svc)
-		}
-	}
-	clear(li.potentialServices)
+	li.handlePotentialServices(&events, now, serviceMap)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
 	for _, service := range response.Services {
@@ -100,6 +91,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				li.ignoreProcs[pid] = true
 				continue
 			}
+
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
 			li.potentialServices[pid] = &svc
 		}
@@ -131,6 +123,42 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		runningServices: li.aliveServices,
 		events:          events,
 	}, nil
+}
+
+// handlePotentialServices checks cached potential services we have seen in the
+// previous call of the check. If they are still alive, start events are sent
+// for these services.
+func (li *linuxImpl) handlePotentialServices(events *serviceEvents, now time.Time, serviceMap map[int]*model.Service) {
+	if len(li.potentialServices) == 0 {
+		return
+	}
+
+	// Get container IDs to enrich the service info with it. The SD check is
+	// supposed to run once every minute, so we use this duration for cache
+	// validity.
+	// TODO: use/find a global constant for this delay, to keep in sync with
+	// the check delay if it were to change.
+	containers := li.containerProvider.GetPidToCid(1 * time.Minute)
+
+	// potentialServices contains processes that we scanned in the previous
+	// iteration and had open ports. We check if they are still alive in this
+	// iteration, and if so, we send a start-service telemetry event.
+	for pid, svc := range li.potentialServices {
+		if service, ok := serviceMap[pid]; ok {
+			svc.LastHeartbeat = now
+			svc.service.RSS = service.RSS
+			svc.service.CPUCores = service.CPUCores
+
+			if id, ok := containers[pid]; ok {
+				svc.service.ContainerID = id
+				log.Debugf("[pid: %d] add containerID to process: %s", pid, id)
+			}
+
+			li.aliveServices[pid] = svc
+			events.start = append(events.start, *svc)
+		}
+	}
+	clear(li.potentialServices)
 }
 
 func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {

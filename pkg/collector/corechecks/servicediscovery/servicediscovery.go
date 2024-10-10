@@ -15,11 +15,13 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -58,7 +60,7 @@ type osImpl interface {
 	DiscoverServices() (*discoveredServices, error)
 }
 
-var newOSImpl func(ignoreCfg map[string]bool) (osImpl, error)
+var newOSImpl func(ignoreCfg map[string]bool, containerProvider proccontainers.ContainerProvider) (osImpl, error)
 
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`
@@ -79,23 +81,28 @@ type Check struct {
 	os                    osImpl
 	sender                *telemetrySender
 	sentRepeatedEventPIDs map[int]bool
+	containerProvider     proccontainers.ContainerProvider
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
 	// where the check is not implemented. Instead of that, we return an empty check.
 	if newOSImpl == nil {
 		return optional.NewNoneOption[func() check.Check]()
 	}
-	return optional.NewOption(newCheck)
+	return optional.NewOption(func() check.Check {
+		return newCheck(proccontainers.GetSharedContainerProvider(store))
+	})
 }
 
-func newCheck() check.Check {
+// TODO: add metastore param
+func newCheck(containerProvider proccontainers.ContainerProvider) *Check {
 	return &Check{
 		CheckBase:             corechecks.NewCheckBase(CheckName),
 		cfg:                   &config{},
 		sentRepeatedEventPIDs: make(map[int]bool),
+		containerProvider:     containerProvider,
 	}
 }
 
@@ -122,7 +129,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	}
 	c.sender = newTelemetrySender(s)
 
-	c.os, err = newOSImpl(ignoreCfg)
+	c.os, err = newOSImpl(ignoreCfg, c.containerProvider)
 	if err != nil {
 		return err
 	}
