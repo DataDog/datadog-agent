@@ -97,7 +97,7 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 	)
 
 	if isEnabled {
-		pinnedLibraries = getPinnedLibraries(containerRegistry)
+		pinnedLibraries = getPinnedLibraries(containerRegistry, v)
 	}
 
 	return &Webhook{
@@ -289,7 +289,7 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 
 // getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
 // given a registry.
-func getPinnedLibraries(registry string) []libInfo {
+func getPinnedLibraries(registry string, instrumentationVersion version) []libInfo {
 	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified,
 	// inject only the libraries from the configuration
 	singleStepLibraryVersions := pkgconfigsetup.Datadog().
@@ -298,7 +298,7 @@ func getPinnedLibraries(registry string) []libInfo {
 	var res []libInfo
 	for lang, version := range singleStepLibraryVersions {
 		l := language(lang)
-		if !l.isSupported() {
+		if !l.isSupported(instrumentationVersion) {
 			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
 			continue
 		}
