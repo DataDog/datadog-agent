@@ -268,7 +268,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 }
 
 // Apply applies to ruleset to the process killer
-func (p *ProcessKiller) Apply(rs *rules.RuleSet) {
+func (p *ProcessKiller) Reset(rs *rules.RuleSet) {
 	if p.cfg.RuntimeSecurity.EnforcementEnabled {
 		var ruleSetHasKillAction bool
 		var rulesetHasKillDisarmer bool
