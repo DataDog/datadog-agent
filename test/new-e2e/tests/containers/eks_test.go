@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -23,10 +24,16 @@ import (
 
 type eksSuite struct {
 	k8sSuite
+	initOnly bool
 }
 
 func TestEKSSuite(t *testing.T) {
-	suite.Run(t, &eksSuite{})
+	var initOnly bool
+	initOnlyParam, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		initOnly = initOnlyParam
+	}
+	suite.Run(t, &eksSuite{initOnly: initOnly})
 }
 
 func (suite *eksSuite) SetupSuite() {
@@ -54,6 +61,10 @@ func (suite *eksSuite) SetupSuite() {
 			infra.GetStackManager().DeleteStack(ctx, "eks-cluster", nil)
 		}
 		suite.T().FailNow()
+	}
+
+	if suite.initOnly {
+		suite.T().Skip("E2E_INIT_ONLY is set, skipping tests")
 	}
 
 	fakeintake := &components.FakeIntake{}
@@ -84,6 +95,11 @@ func (suite *eksSuite) SetupSuite() {
 }
 
 func (suite *eksSuite) TearDownSuite() {
+	if suite.initOnly {
+		suite.T().Logf("E2E_INIT_ONLY is set, skipping deletion")
+		return
+	}
+
 	suite.k8sSuite.TearDownSuite()
 
 	ctx := context.Background()

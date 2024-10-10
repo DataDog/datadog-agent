@@ -35,6 +35,9 @@ const (
 	// InfraExtraResourcesTags pulumi config parameter name
 	InfraExtraResourcesTags = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
 
+	//InfraInitOnly pulumi config parameter name
+	InfraInitOnly = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraInitOnly
+
 	// AWSKeyPairName pulumi config parameter name
 	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
 	// AWSPublicKeyPath pulumi config parameter name
@@ -124,6 +127,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
 		parameters.PipelineID:         {AgentPipelineID},
 		parameters.CommitSHA:          {AgentCommitSHA},
+		parameters.InitOnly:           {InfraInitOnly},
 	}
 
 	for storeKey, configMapKeys := range params {
