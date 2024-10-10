@@ -23,6 +23,7 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_JIRA_MAP,
     GITHUB_SLACK_MAP,
 )
+from tasks.libs.testing.flakes import get_tests_family, is_known_flaky_test
 from tasks.modules import DEFAULT_MODULES
 
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
@@ -210,7 +211,11 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_tests):
         # Flag the test as known flaky if gotestsum already knew it
         for test_case in suite.iter("testcase"):
             test_name = "/".join([test_case.attrib["classname"], test_case.attrib["name"]])
-            test_case.attrib["agent_is_known_flaky"] = "true" if test_name in flaky_tests else "false"
+            if is_known_flaky_test(test_name, flaky_tests, get_tests_family(list(flaky_tests))):
+                test_case.attrib["agent_is_known_flaky"] = "true"
+                print("KNOWN FLAKY:", test_name)
+            else:
+                test_case.attrib["agent_is_known_flaky"] = "false"
 
         xml.getroot().append(suite)
 
