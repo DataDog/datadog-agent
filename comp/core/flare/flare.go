@@ -132,7 +132,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	if caseIdNum > 0 { // primary
 		role = "primary"
 	} else { // secondary
-		role = "standby"
+		role = "secondary"
 	}
 	initialRole := haagent.GetInitialRole()
 	if initialRole == "auto" {
