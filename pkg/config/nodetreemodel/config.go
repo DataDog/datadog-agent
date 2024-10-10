@@ -513,8 +513,9 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	_ = c.configSources[model.SourceEnvVar].BindEnv(append([]string{key}, envvars...)...)
-	_ = c.Viper.BindEnv(append([]string{key}, envvars...)...)
+	newKeys := append([]string{key}, envvars...)
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
