@@ -54,6 +54,9 @@ type Webhook struct {
 	objectSelector    *metav1.LabelSelector
 	containerRegistry string
 
+	// These fields store datadog agent config parameters
+	// to avoid calling the config resolution each time the webhook
+	// receives requests because the resolution is CPU expensive.
 	profilesJSON                 string
 	provider                     string
 	imageName                    string

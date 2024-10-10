@@ -21,7 +21,6 @@ import (
 )
 
 func TestProviderIsSupported(t *testing.T) {
-
 	tests := []struct {
 		name              string
 		provider          string
@@ -57,8 +56,6 @@ func TestProviderIsSupported(t *testing.T) {
 }
 
 func TestApplyProviderOverrides(t *testing.T) {
-	// mockConfig := configmock.New(t)
-
 	tests := []struct {
 		name                     string
 		provider                 string
@@ -414,7 +411,6 @@ func TestApplyProviderOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			// mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mutated, err := applyProviderOverrides(test.basePod, test.provider)
 
 			if test.expectError {

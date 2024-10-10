@@ -17,8 +17,6 @@ import (
 )
 
 func TestLoadSidecarProfiles(t *testing.T) {
-	// mockConfig := configmock.New(t)
-
 	tests := []struct {
 		name             string
 		profilesJSON     string
@@ -114,7 +112,6 @@ func TestLoadSidecarProfiles(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			// mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 			profiles, err := loadSidecarProfiles(test.profilesJSON)
 
 			if test.expectError {
@@ -136,8 +133,6 @@ func TestLoadSidecarProfiles(t *testing.T) {
 }
 
 func TestApplyProfileOverrides(t *testing.T) {
-	// mockConfig := configmock.New(t)
-
 	tests := []struct {
 		name              string
 		profilesJSON      string
@@ -358,7 +353,6 @@ func TestApplyProfileOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			// mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 			mutated, err := applyProfileOverrides(test.baseContainer, test.profilesJSON)
 
 			assert.Equal(tt, test.expectMutated, mutated)
