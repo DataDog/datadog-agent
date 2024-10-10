@@ -352,9 +352,6 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	var id containerutils.CGroupID
-	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
-	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
 	var fileStats unix.Statx_t
 
@@ -369,6 +366,21 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
 			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
+
+	if cgroupFileContent, err := os.ReadFile(taskPath); err == nil {
+		lines := strings.Split(string(cgroupFileContent), "\n")
+		for _, line := range lines {
+			parts := strings.SplitN(line, ":", 3)
+
+			// Skip potentially malformed lines
+			if len(parts) != 3 {
+				continue
+			}
+
+			entry.Process.CGroup.CGroupID = containerutils.CGroupID(parts[2])
+			break
 		}
 	}
 

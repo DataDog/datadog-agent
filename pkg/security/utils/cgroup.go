@@ -89,9 +89,9 @@ func GetProcContainerContext(tgid, pid uint32) (containerutils.ContainerID, cont
 	}
 
 	for _, cgroup := range cgroups {
-		if containerID, runtime := cgroup.GetContainerContext(); containerID != "" {
-			return containerID, runtime, nil
-		}
+		containerID, runtime := cgroup.GetContainerContext()
+		return containerID, runtime, nil
 	}
+
 	return "", 0, nil
 }
