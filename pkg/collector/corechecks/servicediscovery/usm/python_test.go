@@ -10,8 +10,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 func TestPythonDetect(t *testing.T) {

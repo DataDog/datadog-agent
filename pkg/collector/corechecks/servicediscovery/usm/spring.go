@@ -360,7 +360,7 @@ var springEnvs = []string{
 }
 
 func (s springBootParser) getSpringEnvs() map[string]string {
-	envsMap := make(map[string]string)
+	envsMap := make(map[string]string, len(springEnvs))
 	for _, env := range springEnvs {
 		if val, ok := s.ctx.envs.Get(env); ok {
 			envsMap[env] = val

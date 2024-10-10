@@ -52,7 +52,7 @@ func (ev *Variables) Get(name string) (string, bool) {
 
 // Set saves the environment variable if it is targeted.
 // returns true if env variable matches the target
-func (ev *Variables) Set(name string, val string) bool {
+func (ev *Variables) Set(name, val string) bool {
 	if _, ok := targets[name]; !ok {
 		return false
 	}
@@ -61,5 +61,5 @@ func (ev *Variables) Set(name string, val string) bool {
 	}
 	ev.Vars[name] = val
 
-	return false
+	return true
 }

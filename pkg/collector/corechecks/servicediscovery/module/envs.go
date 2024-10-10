@@ -194,8 +194,8 @@ func newEnvReader(proc *process.Process) (*EnvReader, error) {
 	}, nil
 }
 
-// finish closes an open file.
-func (er *EnvReader) finish() {
+// close closes an open file.
+func (er *EnvReader) close() {
 	if er.file != nil {
 		er.file.Close()
 	}
@@ -215,7 +215,7 @@ func (er *EnvReader) add() bool {
 // getTargetEnvs reads the environment variables of interest from the /proc/<pid>/environ file.
 func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 	er, err := newEnvReader(proc)
-	defer er.finish()
+	defer er.close()
 	if err != nil {
 		return envs.NewVariables(nil), err
 	}
