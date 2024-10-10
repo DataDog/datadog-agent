@@ -13,9 +13,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
 //go:embed fixtures
@@ -42,6 +44,9 @@ func TestStatus(t *testing.T) {
 
 	server := fakeStatusServer(t, 200, jsonBytes)
 	defer server.Close()
+
+	// This is used to register the test server as `core-expvar`
+	util.OverrideResolver(util.ProcessExpvar, server.Listener.Addr().String())
 
 	configComponent := config.NewMock(t)
 

@@ -271,30 +271,30 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis
 
 func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
-	c := util.GetClient(false)
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
-	}
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
+	// ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
+	// }
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
+	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v/agent/diagnose", util.CoreCmd)
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
-	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+	if _, err := json.Marshal(diagCfg); err != nil {
 		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
 	}
 
 	// Run diagnose code inside Agent process
 	var response []byte
-	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
+	response, err := util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if response != nil && string(response) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))

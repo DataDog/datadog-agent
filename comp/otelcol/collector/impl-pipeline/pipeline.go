@@ -133,7 +133,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if timeoutSeconds == 0 {
 		timeoutSeconds = defaultExtensionTimeout
 	}
-	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds)*time.Second, false)
+	client := apiutil.GetClient().WithTimeout(time.Duration(timeoutSeconds) * time.Second).WithNoVerify().Build()
 
 	collector := &collectorImpl{
 		authToken:      reqs.Authtoken,

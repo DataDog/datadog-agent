@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // SecurityAgentConfig fetch the configuration from the security-agent process by querying its HTTPS API
@@ -23,15 +22,10 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 		return "", err
 	}
 
-	port := config.GetInt("security_agent.cmd_port")
-	if port <= 0 {
-		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
-	}
-
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
+	apiConfigURL := fmt.Sprintf("https://%v/agent/config", util.SecurityCmd)
 	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
 }
@@ -43,15 +37,10 @@ func SecurityAgentConfigBySource(config config.Reader) (string, error) {
 		return "", err
 	}
 
-	port := config.GetInt("security_agent.cmd_port")
-	if port <= 0 {
-		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
-	}
-
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
+	apiConfigURL := fmt.Sprintf("https://%v/agent/config", util.SecurityCmd)
 	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfigBySource()
 }
@@ -63,15 +52,10 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 		return "", err
 	}
 
-	port := config.GetInt("apm_config.debug.port")
-	if port <= 0 {
-		return "", fmt.Errorf("invalid apm_config.debug.port -- %d", port)
-	}
-
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
-	ipcAddressWithPort := fmt.Sprintf("http://127.0.0.1:%d/config", port)
+	ipcAddressWithPort := fmt.Sprintf("http://%v/config", util.TraceCmd)
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "trace-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
@@ -84,22 +68,22 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 		return "", err
 	}
 
-	ipcAddress, err := setup.GetIPCAddress(config)
-	if err != nil {
-		return "", err
-	}
+	// ipcAddress, err := setup.GetIPCAddress(config)
+	// if err != nil {
+	// 	return "", err
+	// }
 
-	port := config.GetInt("process_config.cmd_port")
-	if port <= 0 {
-		return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
-	}
+	// port := config.GetInt("process_config.cmd_port")
+	// if port <= 0 {
+	// 	return "", fmt.Errorf("invalid process_config.cmd_port -- %d", port)
+	// }
 
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("http://%v/config", util.ProcessCmd)
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))

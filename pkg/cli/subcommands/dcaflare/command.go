@@ -107,10 +107,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func readProfileData(seconds int) (flare.ProfileData, error) {
 	pdata := flare.ProfileData{}
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
+	pprofURL := fmt.Sprintf("http://%v/debug/pprof", util.CoreExpvar)
 
 	for _, prof := range []struct{ name, URL string }{
 		{
@@ -155,8 +155,8 @@ func run(cliParams *cliParams, _ config.Component) error {
 		profile flare.ProfileData
 		e       error
 	)
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/flare", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://%v/flare", util.ClusterAgent)
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
@@ -235,11 +235,11 @@ func run(cliParams *cliParams, _ config.Component) error {
 }
 
 func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 
 	apiConfigURL := fmt.Sprintf(
-		"https://localhost:%v/config",
-		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
+		"https://%v/config",
+		util.ClusterAgent,
 	)
 
 	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

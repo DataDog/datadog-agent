@@ -67,7 +67,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	v := url.Values{}
 	if params.prettyPrintJSON || params.json {
@@ -78,7 +78,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 
 	url := url.URL{
 		Scheme:   "https",
-		Host:     fmt.Sprintf("localhost:%v", config.GetInt("security_agent.cmd_port")),
+		Host:     util.SecurityCmd,
 		Path:     "/agent/status",
 		RawQuery: v.Encode(),
 	}

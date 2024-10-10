@@ -9,9 +9,14 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -32,29 +37,159 @@ type ReqOptions struct {
 	Authtoken string
 }
 
+// WIP Desc
+type AddrResolver map[string]func() (string, error)
+
+// WIP Desc
+const (
+	CoreCmd    = "core-cmd"
+	CoreIPC    = "core-ipc"
+	CoreExpvar = "core-expvar"
+
+	TraceCmd    = "trace-cmd"
+	TraceExpvar = "trace-expvar"
+
+	SecurityCmd    = "security-cmd"
+	SecurityExpvar = "security-expvar"
+
+	ProcessCmd    = "process-agent"
+	ProcessExpvar = "process-expvar"
+
+	ClusterAgent = "cluster-agent"
+)
+
+type dialContext func(ctx context.Context, network string, addr string) (net.Conn, error)
+
+var db = AddrResolver{
+	CoreCmd: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("cmd_port")), nil
+	},
+	CoreIPC: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		port := config.GetInt("agent_ipc.port")
+		if port <= 0 {
+			return "", fmt.Errorf("agent_ipc.port cannot be <= 0")
+		}
+
+		return net.JoinHostPort(config.GetString("agent_ipc.host"), strconv.Itoa(port)), nil
+	},
+	CoreExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("expvar_port")), nil
+	},
+
+	TraceCmd: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("apm_config.debug.port")), nil
+	},
+	TraceExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("apm_config.debug.port")), nil
+	},
+
+	ProcessCmd: func() (string, error) {
+		return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	},
+	ProcessExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("process_config.expvar_port")), nil
+	},
+
+	SecurityCmd: func() (string, error) {
+		return pkgconfigsetup.GetSecurityAgentAPIAddressPort(pkgconfigsetup.Datadog())
+	},
+	SecurityExpvar: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("security_agent.expvar_port")), nil
+	},
+
+	ClusterAgent: func() (string, error) {
+		config := pkgconfigsetup.Datadog()
+		host, err := pkgconfigsetup.GetIPCAddress(config)
+
+		if err != nil {
+			return "", err
+		}
+		return net.JoinHostPort(host, config.GetString("cluster_agent.cmd_port")), nil
+	},
+}
+
+func OverrideResolver(src, target string) {
+	db[src] = func() (string, error) {
+		return target, nil
+	}
+}
+
+type ClientBuilder struct {
+	tr      *http.Transport
+	timeout time.Duration
+}
+
 // GetClient is a convenience function returning an http client
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
-func GetClient(verify bool) *http.Client {
-	return GetClientWithTimeout(0, verify)
+func GetClient() ClientBuilder {
+	return ClientBuilder{
+		tr: &http.Transport{},
+	}
 }
 
-// GetClientWithTimeout is a convenience function returning an http client
-// Arguments correspond to the request timeout duration, and a boolean to
-// verify the server TLS client (false should only be used on localhost
-// trusted endpoints).
-func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
-	if verify {
-		return &http.Client{
-			Timeout: to,
-		}
-	}
+// WIP Desc
+func (c ClientBuilder) WithNoVerify() ClientBuilder {
+	c.tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	return c
+}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
+// WIP Desc
+func (c ClientBuilder) WithTimeout(to time.Duration) ClientBuilder {
+	c.timeout = to
+	return c
+}
 
-	return &http.Client{Transport: tr}
+// WIP Desc
+func (c ClientBuilder) WithResolver() ClientBuilder {
+	c.tr.DialContext = newDialContext()
+
+	return c
+}
+
+// WIP Desc
+func (c ClientBuilder) Build() *http.Client {
+	return &http.Client{
+		Transport: c.tr,
+		Timeout:   c.timeout,
+	}
 }
 
 // DoGet is a wrapper around performing HTTP GET requests

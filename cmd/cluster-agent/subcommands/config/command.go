@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/spf13/cobra"
 )
@@ -36,11 +35,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func newSettingsClient() (settings.Client, error) {
-	c := util.GetClient(false)
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build()
 
 	apiConfigURL := fmt.Sprintf(
-		"https://localhost:%v/config",
-		pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"),
+		"https://%v/config",
+		util.ClusterAgent,
 	)
 
 	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

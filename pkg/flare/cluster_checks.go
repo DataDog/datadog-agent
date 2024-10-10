@@ -22,7 +22,7 @@ import (
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer, checkName string) error {
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://%v/api/v1/clusterchecks", util.ClusterAgent)
 
 	if w != color.Output {
 		color.NoColor = true
@@ -33,7 +33,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())
@@ -114,13 +114,13 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://%v/api/v1/endpointschecks/configs", util.ClusterAgent)
 
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient().WithNoVerify().WithTimeout(0).WithResolver().Build() // FIX: get certificates right then make this true
 
 	// Set session token
 	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
