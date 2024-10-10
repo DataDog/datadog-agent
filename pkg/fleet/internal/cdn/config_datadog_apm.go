@@ -13,50 +13,53 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 const (
-	configInjectorYAML = "apm-inject.yaml"
+	injectorConfigFilename = "injector.msgpack"
 )
 
-// injectorConfig represents the injector configuration from the CDN.
-type injectorConfig struct {
-	version string
-	config  []byte
+// apmConfig represents the injector configuration from the CDN.
+type apmConfig struct {
+	version        string
+	injectorConfig []byte
 }
 
-// injectorConfigLayer is a config layer that can be merged with other layers into a config.
-type injectorConfigLayer struct {
+// apmConfigLayer is a config layer that can be merged with other layers into a config.
+type apmConfigLayer struct {
 	ID             string                 `json:"name"`
-	InjectorConfig map[string]interface{} `json:"apm_inject"`
+	InjectorConfig map[string]interface{} `json:"apm_ssi_config"`
 }
 
 // Version returns the version (hash) of the agent configuration.
-func (i *injectorConfig) Version() string {
+func (i *apmConfig) Version() string {
 	return i.version
 }
 
-func newInjectorConfig(configOrder *orderConfig, rawLayers ...[]byte) (*injectorConfig, error) {
+func newAPMConfig(configOrder *orderConfig, rawLayers ...[]byte) (*apmConfig, error) {
 	if configOrder == nil {
 		return nil, fmt.Errorf("order config is nil")
 	}
 
 	// Unmarshal layers
-	layers := map[string]*injectorConfigLayer{}
+	layers := map[string]*apmConfigLayer{}
 	for _, rawLayer := range rawLayers {
-		layer := &injectorConfigLayer{}
+		layer := &apmConfigLayer{}
 		if err := json.Unmarshal(rawLayer, layer); err != nil {
 			log.Warnf("Failed to unmarshal layer: %v", err)
 			continue
 		}
+
 		if layer.InjectorConfig != nil {
-			// Only add layers that have at least one config that matches the agent
+			// Only add layers that have at least one config that matches
 			layers[layer.ID] = layer
 		}
 	}
 
 	// Compile ordered layers into a single config
-	compiledLayer := &injectorConfigLayer{
+	// TODO: maybe we don't want that and we should reject if there are more than one config?
+	compiledLayer := &apmConfigLayer{
 		InjectorConfig: map[string]interface{}{},
 	}
 	for i := len(configOrder.Order) - 1; i >= 0; i-- {
@@ -75,8 +78,8 @@ func newInjectorConfig(configOrder *orderConfig, rawLayers ...[]byte) (*injector
 		}
 	}
 
-	// Marshal into YAML configs
-	config, err := marshalAgentConfig(compiledLayer.InjectorConfig) // TODO: do we need to marshal in yaml?
+	// Marshal into msgpack configs
+	injectorConfig, err := msgpack.Marshal(compiledLayer.InjectorConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -88,16 +91,16 @@ func newInjectorConfig(configOrder *orderConfig, rawLayers ...[]byte) (*injector
 	}
 	hash.Write(version)
 
-	return &injectorConfig{
-		version: fmt.Sprintf("%x", hash.Sum(nil)),
-		config:  config,
+	return &apmConfig{
+		version:        fmt.Sprintf("%x", hash.Sum(nil)),
+		injectorConfig: injectorConfig,
 	}, nil
 }
 
 // Write writes the agent configuration to the given directory.
-func (i *injectorConfig) Write(dir string) error {
-	if i.config != nil {
-		err := os.WriteFile(filepath.Join(dir, configInjectorYAML), []byte(i.config), 0644) // Must be world readable
+func (i *apmConfig) Write(dir string) error {
+	if i.injectorConfig != nil {
+		err := os.WriteFile(filepath.Join(dir, injectorConfigFilename), []byte(i.injectorConfig), 0644) // Must be world readable
 		if err != nil {
 			return fmt.Errorf("could not write datadog.yaml: %w", err)
 		}

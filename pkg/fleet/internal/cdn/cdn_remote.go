@@ -58,7 +58,7 @@ func (c *cdnRemote) Get(ctx context.Context, pkg string) (cfg Config, err error)
 			return nil, err
 		}
 	case "datadog-apm-inject":
-		cfg, err = newInjectorConfig(orderConfig, layers...)
+		cfg, err = newAPMConfig(orderConfig, layers...)
 		if err != nil {
 			return nil, err
 		}

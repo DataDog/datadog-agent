@@ -301,6 +301,9 @@ func (s *cdnRemoteStore) getRCFile(path string) (io.ReadCloser, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		s.authnToken = "" // TODO: remove before merge or get it fixed in another PR
+	}
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, 0, client.ErrNotFound{File: path}
 	}
