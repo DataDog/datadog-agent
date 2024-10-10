@@ -17,6 +17,7 @@ from invoke.exceptions import Exit, ParseError
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -25,7 +26,6 @@ from tasks.libs.common.utils import (
     get_goenv,
     get_version,
     gitlab_section,
-    has_both_python,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -139,7 +139,7 @@ def build(
     python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -159,6 +159,14 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parametes from your scripts',
+                Color.ORANGE,
+            )
+        )
+
     if flavor.is_ot():
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
@@ -167,9 +175,7 @@ def build(
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
-            rtloader_make(
-                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
-            )
+            rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
@@ -180,7 +186,6 @@ def build(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     bundled_agents = ["agent"]
@@ -189,7 +194,7 @@ def build(
         env["CGO_ENABLED"] = "1"
 
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
@@ -266,7 +271,6 @@ def build(
             ctx,
             env=env,
             flavor=flavor,
-            python_runtimes=python_runtimes,
             skip_assets=skip_assets,
             build_tags=build_tags,
             development=development,
@@ -290,7 +294,7 @@ def create_launcher(ctx, agent, src, dst):
     ctx.run(cmd.format(**args))
 
 
-def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, development, windows_sysprobe):
+def render_config(ctx, env, flavor, skip_assets, build_tags, development, windows_sysprobe):
     # Remove cross-compiling bits to render config
     env.update({"GOOS": "", "GOARCH": ""})
 
@@ -298,8 +302,6 @@ def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, de
     build_type = "agent-py3"
     if flavor.is_iot():
         build_type = "iot-agent"
-    elif has_both_python(python_runtimes):
-        build_type = "agent-py2py3"
 
     generate_config(ctx, build_type=build_type, output_file="./cmd/agent/dist/datadog.yaml", env=env)
 

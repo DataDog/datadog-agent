@@ -24,7 +24,7 @@ from tasks.agent import build as agent_build
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -604,7 +604,7 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -618,6 +618,13 @@ def build(
     """
     Build the system-probe
     """
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parametes from your scripts',
+                Color.ORANGE,
+            )
+        )
     if not is_macos:
         build_object_files(
             ctx,
@@ -632,7 +639,6 @@ def build(
     build_sysprobe_binary(
         ctx,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         bundle_ebpf=bundle_ebpf,
         go_mod=go_mod,
         race=race,
@@ -659,7 +665,7 @@ def build_sysprobe_binary(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -668,12 +674,18 @@ def build_sysprobe_binary(
     strip_binary=False,
     bundle=True,
 ) -> None:
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parametes from your scripts',
+                Color.ORANGE,
+            )
+        )
     if bundle and not is_windows:
         return agent_build(
             ctx,
             race=race,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             go_mod=go_mod,
             bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
@@ -681,9 +693,7 @@ def build_sysprobe_binary(
 
     arch_obj = Arch.from_str(arch)
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, major_version=major_version, arch=arch_obj)
 
     build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:

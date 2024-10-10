@@ -7,6 +7,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.omnibus import (
     install_dir_for_project,
     omnibus_compute_cache_key,
@@ -85,7 +86,6 @@ def get_omnibus_env(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -125,7 +125,6 @@ def get_omnibus_env(
         ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
     )
     env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
 
     # Since omnibus and the invoke task won't run in the same folder
     # we need to input the absolute path of the pip config file
@@ -176,7 +175,7 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -192,6 +191,13 @@ def build(
     Build the Agent packages with Omnibus Installer.
     """
 
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parametes from your scripts',
+                Color.ORANGE,
+            )
+        )
     flavor = AgentFlavor[flavor]
     durations = {}
     if not skip_deps:
@@ -211,7 +217,6 @@ def build(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,
@@ -345,11 +350,18 @@ def manifest(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
 ):
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parametes from your scripts',
+                Color.ORANGE,
+            )
+        )
     flavor = AgentFlavor[flavor]
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
@@ -359,7 +371,6 @@ def manifest(
         skip_sign=skip_sign,
         release_version=release_version,
         major_version=major_version,
-        python_runtimes=python_runtimes,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         go_mod_cache=go_mod_cache,

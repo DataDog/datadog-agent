@@ -28,7 +28,7 @@ from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
@@ -246,7 +246,7 @@ def test(
     python_home_3=None,
     cpus=None,
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -276,6 +276,13 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parameter from your scripts',
+                Color.ORANGE,
+            )
+        )
     sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
@@ -294,7 +301,6 @@ def test(
         python_home_2=python_home_2,
         python_home_3=python_home_3,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # Use stdout if no profile is set

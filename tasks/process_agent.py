@@ -9,6 +9,7 @@ from invoke.exceptions import Exit
 from tasks.agent import build as agent_build
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.system_probe import copy_ebpf_and_related_files
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -27,13 +28,20 @@ def build(
     flavor=AgentFlavor.base.name,
     incremental_build=False,
     major_version='7',
-    python_runtimes='3',
+    python_runtimes=None,
     go_mod="mod",
     bundle=True,
 ):
     """
     Build the process agent
     """
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parameter from your scripts',
+                Color.ORANGE,
+            )
+        )
     if bundle and sys.platform != "win32":
         return agent_build(
             ctx,
@@ -42,7 +50,6 @@ def build(
             build_exclude=build_exclude,
             flavor=flavor,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             go_mod=go_mod,
         )
 
@@ -54,13 +61,12 @@ def build(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",

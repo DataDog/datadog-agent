@@ -18,6 +18,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
@@ -69,7 +70,7 @@ def trigger_macos(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
-    python_runtimes="3",
+    python_runtimes=None,
     destination=".",
     version_cache=None,
     retry_download=3,
@@ -78,6 +79,13 @@ def trigger_macos(
     test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    if python_runtimes:
+        print(
+            color_message(
+                '--python-runtimes is deprecated and will always be 3. Please remove this parameter from your scripts',
+                Color.ORANGE,
+            )
+        )
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated
@@ -91,7 +99,6 @@ def trigger_macos(
             # ... And provide the release version as a workflow input when needed
             release_version=release_version,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
@@ -107,7 +114,6 @@ def trigger_macos(
             retry_interval,
             workflow_name="test.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
             test_washer=test_washer,
@@ -118,7 +124,6 @@ def trigger_macos(
             release_version,
             workflow_name="lint.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
         )
     if conclusion != "success":
