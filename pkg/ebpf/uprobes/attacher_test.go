@@ -282,6 +282,14 @@ func TestAttachRuleValidatesLibsets(t *testing.T) {
 		}
 		require.Error(tt, rule.Validate(&attachCfg))
 	})
+
+	t.Run("NilLibraryNameRegex", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: nil,
+			Targets:          AttachToSharedLibraries,
+		}
+		require.Error(tt, rule.Validate(&attachCfg))
+	})
 }
 
 func TestMonitor(t *testing.T) {
