@@ -122,7 +122,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 			},
 		},
 		EbpfConfig:         cfg.Config,
-		PerformInitialScan: true,
+		PerformInitialScan: cfg.InitialProcessSync,
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher(gpuAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
@@ -210,6 +210,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = NewCudaEventConsumer(handler, p.cfg.ScanTerminatedProcessesInterval)
+	p.consumer = NewCudaEventConsumer(handler, p.cfg)
 	p.consumer.Start()
 }

@@ -19,6 +19,7 @@ const GPUConfigNS = "gpu_monitoring"
 type Config struct {
 	*ebpf.Config
 	ScanTerminatedProcessesInterval time.Duration
+	InitialProcessSync              bool
 }
 
 // NewConfig generates a new configuration for the GPU monitoring probe.
@@ -26,5 +27,6 @@ func NewConfig() *Config {
 	return &Config{
 		Config:                          ebpf.NewConfig(),
 		ScanTerminatedProcessesInterval: 5 * time.Second,
+		InitialProcessSync:              true,
 	}
 }
