@@ -26,7 +26,7 @@
     - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_SUBSCRIPTION_ID) || exit $?; export ARM_SUBSCRIPTION_ID
     # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
     # The service account is called `agent-e2e-tests`
-    - GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS) || exit $?; export GOOGLE_CREDENTIALS
+    - GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_GCP credentials_json) || exit $?; export GOOGLE_CREDENTIALS
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:

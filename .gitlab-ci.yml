@@ -262,6 +262,11 @@ variables:
   MACOS_GITHUB_APP_1: macos-github-app-one
   MACOS_GITHUB_APP_2: macos-github-app-two
   DOCKER_REGISTRY_RO: dockerhub-readonly
+  KITCHEN_AWS: kitchen-aws
+  KITCHEN_AZURE: kitchen-azure
+  E2E_AZURE: e2e-azure
+  E2E_GCP: e2e-gcp
+
 
   DD_PKG_VERSION: "latest"
 

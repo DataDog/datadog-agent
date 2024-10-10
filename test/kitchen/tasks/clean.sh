@@ -8,19 +8,19 @@ set -euo pipefail
 
 # These should not be printed out
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
-  AZURE_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_CLIENT_ID)
+  AZURE_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE client_id)
   export AZURE_CLIENT_ID
 fi
 if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-  AZURE_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_CLIENT_SECRET)
+  AZURE_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE token)
   export AZURE_CLIENT_SECRET
 fi
 if [ -z ${AZURE_TENANT_ID+x} ]; then
-  AZURE_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_TENANT_ID)
+  AZURE_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE tenant_id)
   export AZURE_TENANT_ID
 fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-  AZURE_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE_SUBSCRIPTION_ID)
+  AZURE_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $KITCHEN_AZURE subscription_id)
   export AZURE_SUBSCRIPTION_ID
 fi
 if [ -z ${DD_PIPELINE_ID+x} ]; then
