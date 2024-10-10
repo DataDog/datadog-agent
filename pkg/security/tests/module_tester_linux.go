@@ -71,8 +71,6 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  runtime_compilation:
-    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
