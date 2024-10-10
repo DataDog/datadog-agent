@@ -43,3 +43,8 @@ func (q *rdnsQuerierImplNone) GetHostnames(_ context.Context, _ []string) map[st
 	// noop
 	return nil
 }
+
+func (q *rdnsQuerierImplNone) GetHostnameSync(_ string) (string, error) {
+	// noop
+	return "", nil
+}
