@@ -166,6 +166,7 @@ def go(
         $ inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         $ inv linter.go --module=.
     """
+
     if not check_tools_version(ctx, ['golangci-lint']):
         print(
             color_message(
