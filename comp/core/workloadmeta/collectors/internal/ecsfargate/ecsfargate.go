@@ -133,26 +133,6 @@ func parseClusterName(value string) string {
 	return value
 }
 
-// parseRegion tries to parse the region out of a cluster ARN. returns empty if
-// it's a malformed ARN.
-func parseRegion(clusterARN string) string {
-	arnParts := strings.Split(clusterARN, ":")
-	if len(arnParts) < 4 {
-		return ""
-	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return ""
-	}
-	region := arnParts[3]
-
-	// Sanity check
-	if strings.Count(region, "-") < 2 {
-		return ""
-	}
-
-	return region
-}
-
 func parseStatus(status string) workloadmeta.ContainerStatus {
 	switch status {
 	case "RUNNING":
