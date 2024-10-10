@@ -29,3 +29,8 @@ func (q *rdnsQuerierImplNone) GetHostname(_ []byte, _ func(string), _ func(strin
 	// noop
 	return nil
 }
+
+func (q *rdnsQuerierImplNone) GetHostnameSync(_ string) (string, error) {
+	// noop
+	return "", nil
+}

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
@@ -214,6 +215,11 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
+	hostname := ""
+	if rdnsquerier, err := check.GetRDNSQuerierContext(); err == nil {
+		hostname, _ = rdnsquerier.GetHostnameSync(config.IPAddress)
+	}
+
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
 		IDTags:         idTags,
@@ -238,6 +244,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
+		RDNSHostname:   hostname,
 	}
 }
 
