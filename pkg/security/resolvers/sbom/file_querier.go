@@ -21,6 +21,16 @@ type fileQuerier struct {
 	pkgs  []*Package
 }
 
+/*
+files are stored in the following format:
+
+| partSize | hash1 | hash2 | ... | partSize | hash3 | hash4 | ... | partSize | hash5 | hash6 | ... |
+
+where partSize is the number of hashes in the part
+and each part group is at the index of the given package
+for example here hash5 would match pkgs[2]
+*/
+
 func newFileQuerier(report *trivy.Report) fileQuerier {
 	fileCount := 0
 	pkgCount := 0
