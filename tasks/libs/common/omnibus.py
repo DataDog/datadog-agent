@@ -141,7 +141,6 @@ def _get_environment_for_cache() -> dict:
             "PROCESS_S3_BUCKET",
             "PWD",
             "PROMPT",
-            "PYTHON_RUNTIMES",
             "RESTORE_CACHE_ATTEMPTS",
             "RUSTC_SHA256",
             "SIGN",
