@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from fnmatch import fnmatch
 from glob import glob
 
 import yaml
@@ -832,7 +833,7 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
         modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)
     else:
         modified_yml_files = get_file_modifications(ctx, added=True, modified=True, only_names=True)
-        modified_yml_files = [path for path in modified_yml_files if path.endswith('.yml')]
+        modified_yml_files = [path for path in modified_yml_files if fnmatch(path, '.gitlab/**.yml')]
 
     if not modified_yml_files:
         print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
