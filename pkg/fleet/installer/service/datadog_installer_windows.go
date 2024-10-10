@@ -77,7 +77,6 @@ func StopInstallerExperiment(ctx context.Context) (err error) {
 	cmd, err := msiexec("stable", datadogInstaller, "/i", nil)
 	if err == nil {
 		// Launch the msiexec process asynchronously.
-		// If we wait for `msiexec` to
 		err = cmd.Start()
 	}
 	return err
