@@ -358,7 +358,7 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 	diskAvailable := int64(usage.Available) - int64(math.Ceil(diskReserved))
 
 	if diskAvailable <= 0 {
-		ddLog.Warnf("Available disk calculated as %d bytes, disk reserved is %d bytes. Check %s and make sure there is enough free space on disk", diskAvailable, diskReserved, "integrations_logs_disk_ratio")
+		ddLog.Warnf("Available disk calculated as %d bytes, disk reserved is %f bytes. Check %s and make sure there is enough free space on disk", diskAvailable, diskReserved, "integrations_logs_disk_ratio")
 		diskAvailable = 0
 	}
 
