@@ -14,14 +14,14 @@ import (
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NeedsEBPF returns `true` if the network-tracer requires eBPF
 func NeedsEBPF() bool {
-	return !coreconfig.SystemProbe().GetBool("network_config.enable_ebpfless")
+	return !pkgconfigsetup.SystemProbe().GetBool("network_config.enable_ebpfless")
 }
 
 // IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality

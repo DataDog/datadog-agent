@@ -7,17 +7,3 @@ package eval
 
 // RegisterID identify a register ID
 type RegisterID = string
-
-// Registers defines all available registers
-type Registers map[RegisterID]struct{}
-
-// Clone returns a copy of the registers
-func (r Registers) Clone() Registers {
-	regs := make(Registers)
-
-	for k, v := range r {
-		regs[k] = v
-	}
-
-	return regs
-}

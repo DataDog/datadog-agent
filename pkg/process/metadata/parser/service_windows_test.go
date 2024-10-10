@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -90,7 +90,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 }
 
 func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
-	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.Reader) (*ServiceExtractor, *mockSCM) {
+	makeServiceExtractor := func(t *testing.T, sysprobeConfig pkgconfigmodel.Reader) (*ServiceExtractor, *mockSCM) {
 		enabled := sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
 		useWindowsServiceName := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 		useImprovedAlgorithm := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")

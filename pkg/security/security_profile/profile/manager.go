@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -180,15 +179,6 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		}
 		m.providers = append(m.providers, dirProvider)
 		m.onLocalStorageCleanup = dirProvider.OnLocalStorageCleanup
-	}
-
-	// instantiate remote-config provider
-	if config.RuntimeSecurity.RemoteConfigurationEnabled && config.RuntimeSecurity.SecurityProfileRCEnabled {
-		rcProvider, err := rconfig.NewRCProfileProvider()
-		if err != nil {
-			return nil, fmt.Errorf("couldn't instantiate a new security profile remote-config provider: %w", err)
-		}
-		m.providers = append(m.providers, rcProvider)
 	}
 
 	m.initMetricsMap()

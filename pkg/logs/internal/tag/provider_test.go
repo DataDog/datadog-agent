@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
@@ -24,11 +24,11 @@ func TestProviderExpectedTags(t *testing.T) {
 	clock := clock.NewMock()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	oldStartTime := coreConfig.StartTime
+	oldStartTime := pkgconfigsetup.StartTime
 	then := clock.Now()
-	coreConfig.StartTime = then
+	pkgconfigsetup.StartTime = then
 	defer func() {
-		coreConfig.StartTime = oldStartTime
+		pkgconfigsetup.StartTime = oldStartTime
 	}()
 
 	tags := []string{"tag1:value1", "tag2", "tag3"}

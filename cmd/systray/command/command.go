@@ -14,11 +14,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -33,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -93,18 +92,18 @@ func MakeCommand() *cobra.Command {
 			return fxutil.Run(
 				// core
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewParams(path.DefaultConfPath),
+					ConfigParams: config.NewParams(defaultpaths.ConfPath),
 					LogParams:    logParams,
 				}),
 				core.Bundle(),
 				// flare
 				flare.Module(flare.NewParams(
-					path.GetDistPath(),
-					path.PyChecksPath,
-					path.DefaultLogFile,
-					path.DefaultJmxLogFile,
-					path.DefaultDogstatsDLogFile,
-					path.DefaultStreamlogsLogFile,
+					defaultpaths.GetDistPath(),
+					defaultpaths.PyChecksPath,
+					defaultpaths.LogFile,
+					defaultpaths.JmxLogFile,
+					defaultpaths.DogstatsDLogFile,
+					defaultpaths.StreamlogsLogFile,
 				)),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),

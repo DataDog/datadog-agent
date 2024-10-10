@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -413,7 +413,7 @@ func init() {
 }
 
 func getEventSource(controllerName string, sourceComponent string) string {
-	if !ddConfig.Datadog().GetBool("kubernetes_events_source_detection.enabled") {
+	if !pkgconfigsetup.Datadog().GetBool("kubernetes_events_source_detection.enabled") {
 		return kubernetesEventSource
 	}
 

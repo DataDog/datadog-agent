@@ -11,22 +11,22 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH || exit $?
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
     # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
     # The app is called `agent-e2e-tests`
-    - export ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_ID)
-    - export ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_SECRET)
-    - export ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_TENANT_ID)
-    - export ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_SUBSCRIPTION_ID)
+    - ARM_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_ID) || exit $?; export ARM_CLIENT_ID
+    - ARM_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_CLIENT_SECRET) || exit $?; export ARM_CLIENT_SECRET
+    - ARM_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_TENANT_ID) || exit $?; export ARM_TENANT_ID
+    - ARM_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_AZURE_SUBSCRIPTION_ID) || exit $?; export ARM_SUBSCRIPTION_ID
     # Setup GCP credentials. https://www.pulumi.com/registry/packages/gcp/installation-configuration/
     # The service account is called `agent-e2e-tests`
-    - export GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS)
+    - GOOGLE_CREDENTIALS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_TESTS_GCP_CREDENTIALS) || exit $?; export GOOGLE_CREDENTIALS
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
@@ -169,7 +169,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
-      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows|LinuxAzure|LinuxGCP)HostnameSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
@@ -350,6 +350,7 @@ new-e2e-orchestrator:
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
+  timeout: 55m
 
 new-e2e-apm:
   extends: .new_e2e_template
@@ -386,7 +387,7 @@ new-e2e-installer:
     - qa_installer_oci
     - qa_agent_oci
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "install_script"
 
@@ -405,12 +406,12 @@ new-e2e-installer-windows:
     # Must run before new_e2e_template changes the aws profile
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
-    - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7)
+    - CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7) || exit $?; export CURRENT_AGENT_VERSION
     - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
     - !reference [.new_e2e_template, before_script]
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/windows
     TEAM: fleet
     FLEET_INSTALL_METHOD: "windows"
 
@@ -430,7 +431,7 @@ new-e2e-installer-ansible:
     - qa_installer_oci
     - qa_agent_oci
   variables:
-    TARGETS: ./tests/installer
+    TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
 
@@ -504,13 +505,6 @@ new-e2e-otel:
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
 
-new-e2e-package-signing-amazonlinux-a6-x86_64:
-  extends:
-    - .new_e2e_template
-    - .new-e2e_amazonlinux_a7_x86_64
-    - .new-e2e_package_signing
-  rules: !reference [.on_default_new_e2e_tests]
-
 new-e2e-package-signing-debian-a7-x86_64:
   extends:
     - .new_e2e_template
@@ -525,10 +519,27 @@ new-e2e-package-signing-suse-a7-x86_64:
     - .new-e2e_package_signing
   rules: !reference [.on_default_new_e2e_tests]
 
+new-e2e-cspm:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_cspm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/cspm
+    TEAM: cspm
+  timeout: 35m
+
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
-  rules: !reference [.on_deploy_nightly_repo_branch]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -543,9 +554,10 @@ generate-flakes-finder-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_ot
   tags: ["arch:amd64"]
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN)
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:
@@ -554,7 +566,10 @@ generate-flakes-finder-pipeline:
 trigger-flakes-finder:
   stage: e2e
   needs: [generate-flakes-finder-pipeline]
-  rules: !reference [.on_deploy_nightly_repo_branch]
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA

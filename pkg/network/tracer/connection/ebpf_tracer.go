@@ -46,42 +46,53 @@ const (
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
+var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
+
 var EbpfTracerTelemetry = struct {
 	connections       telemetry.Gauge
 	tcpFailedConnects *prometheus.Desc
-	TcpSentMiscounts *prometheus.Desc
+	TcpSentMiscounts  *prometheus.Desc
 	unbatchedTcpClose *prometheus.Desc
 	unbatchedUdpClose *prometheus.Desc
 	UdpSendsProcessed *prometheus.Desc
-	UdpSendsMissed *prometheus.Desc
-	UdpDroppedConns *prometheus.Desc
+	UdpSendsMissed    *prometheus.Desc
+	UdpDroppedConns   *prometheus.Desc
 	// doubleFlushAttemptsClose is a counter measuring the number of attempts to flush a closed connection twice from tcp_close
 	doubleFlushAttemptsClose *prometheus.Desc
 	// doubleFlushAttemptsDone is a counter measuring the number of attempts to flush a closed connection twice from tcp_done
 	doubleFlushAttemptsDone *prometheus.Desc
 	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
-	// tcpDonePidMismatch is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
-	tcpDonePidMismatch *prometheus.Desc
-	PidCollisions      *telemetry.StatCounterWrapper
-	iterationDups      telemetry.Counter
-	iterationAborts    telemetry.Counter
+	// tcpDoneMissingPid is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
+	tcpDoneMissingPid           *prometheus.Desc
+	tcpConnectFailedTuple       *prometheus.Desc
+	tcpDoneFailedTuple          *prometheus.Desc
+	tcpFinishConnectFailedTuple *prometheus.Desc
+	tcpCloseTargetFailures      *prometheus.Desc
+	ongoingConnectPidCleaned    telemetry.Counter
+	PidCollisions               *telemetry.StatCounterWrapper
+	iterationDups               telemetry.Counter
+	iterationAborts             telemetry.Counter
 
 	lastTcpFailedConnects *atomic.Int64
-	LastTcpSentMiscounts *atomic.Int64
+	LastTcpSentMiscounts  *atomic.Int64
 	lastUnbatchedTcpClose *atomic.Int64
 	lastUnbatchedUdpClose *atomic.Int64
 	lastUdpSendsProcessed *atomic.Int64
-	lastUdpSendsMissed *atomic.Int64
-	lastUdpDroppedConns *atomic.Int64
+	lastUdpSendsMissed    *atomic.Int64
+	lastUdpDroppedConns   *atomic.Int64
 	// lastDoubleFlushAttemptsClose is a counter measuring the diff between the last two values of doubleFlushAttemptsClose
 	lastDoubleFlushAttemptsClose *atomic.Int64
 	// lastDoubleFlushAttemptsDone is a counter measuring the diff between the last two values of doubleFlushAttemptsDone
 	lastDoubleFlushAttemptsDone *atomic.Int64
 	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
-	// lastTcpDonePidMismatch is a counter measuring the diff between the last two values of tcpDonePidMismatch
-	lastTcpDonePidMismatch *atomic.Int64
+	// lastTcpDoneMissingPid is a counter measuring the diff between the last two values of tcpDoneMissingPid
+	lastTcpDoneMissingPid           *atomic.Int64
+	lastTcpConnectFailedTuple       *atomic.Int64
+	lastTcpDoneFailedTuple          *atomic.Int64
+	lastTcpFinishConnectFailedTuple *atomic.Int64
+	lastTcpCloseTargetFailures      *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -94,10 +105,19 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_close", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_missing_pid", "Counter measuring the number of TCP connections with a missing PID in tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_connect_failed_tuple", "Counter measuring the number of failed TCP connections due to tuple collisions", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_failed_tuple", "Counter measuring the number of failed TCP connections due to tuple collisions", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_finish_connect_failed_tuple", "Counter measuring the number of failed TCP connections due to tuple collisions", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_close_target_failures", "Counter measuring the number of failed TCP connections in tcp_close", nil, nil),
+	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -123,6 +143,9 @@ type ebpfTracer struct {
 	closeConsumer *tcpCloseConsumer
 	// tcp failure events
 	failedConnConsumer *failure.TCPFailedConnConsumer
+
+	// periodically clean the ongoing connection pid map
+	ongoingConnectCleaner *ddebpf.MapCleaner[netebpf.SkpConn, netebpf.PidTs]
 
 	removeTuple *netebpf.ConnTuple
 
@@ -161,6 +184,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPOngoingConnectPid:              {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
@@ -243,6 +267,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		exitTelemetry:      make(chan struct{}),
 		ch:                 newCookieHasher(),
 	}
+
+	tr.setupMapCleaner(m)
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {
@@ -329,6 +355,7 @@ func (t *ebpfTracer) Stop() {
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		t.failedConnConsumer.Stop()
+		t.ongoingConnectCleaner.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -501,7 +528,11 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.doubleFlushAttemptsClose
 	ch <- EbpfTracerTelemetry.doubleFlushAttemptsDone
 	ch <- EbpfTracerTelemetry.unsupportedTcpFailures
-	ch <- EbpfTracerTelemetry.tcpDonePidMismatch
+	ch <- EbpfTracerTelemetry.tcpDoneMissingPid
+	ch <- EbpfTracerTelemetry.tcpConnectFailedTuple
+	ch <- EbpfTracerTelemetry.tcpDoneFailedTuple
+	ch <- EbpfTracerTelemetry.tcpFinishConnectFailedTuple
+	ch <- EbpfTracerTelemetry.tcpCloseTargetFailures
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -550,10 +581,25 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	EbpfTracerTelemetry.lastUnsupportedTcpFailures.Store(int64(ebpfTelemetry.Unsupported_tcp_failures))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.unsupportedTcpFailures, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Tcp_done_pid_mismatch) - EbpfTracerTelemetry.lastTcpDonePidMismatch.Load()
-	EbpfTracerTelemetry.lastTcpDonePidMismatch.Store(int64(ebpfTelemetry.Tcp_done_pid_mismatch))
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDonePidMismatch, prometheus.CounterValue, float64(delta))
+	delta = int64(ebpfTelemetry.Tcp_done_missing_pid) - EbpfTracerTelemetry.lastTcpDoneMissingPid.Load()
+	EbpfTracerTelemetry.lastTcpDoneMissingPid.Store(int64(ebpfTelemetry.Tcp_done_missing_pid))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneMissingPid, prometheus.CounterValue, float64(delta))
 
+	delta = int64(ebpfTelemetry.Tcp_connect_failed_tuple) - EbpfTracerTelemetry.lastTcpConnectFailedTuple.Load()
+	EbpfTracerTelemetry.lastTcpConnectFailedTuple.Store(int64(ebpfTelemetry.Tcp_connect_failed_tuple))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpConnectFailedTuple, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_done_failed_tuple) - EbpfTracerTelemetry.lastTcpDoneFailedTuple.Load()
+	EbpfTracerTelemetry.lastTcpDoneFailedTuple.Store(int64(ebpfTelemetry.Tcp_done_failed_tuple))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneFailedTuple, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_finish_connect_failed_tuple) - EbpfTracerTelemetry.lastTcpFinishConnectFailedTuple.Load()
+	EbpfTracerTelemetry.lastTcpFinishConnectFailedTuple.Store(int64(ebpfTelemetry.Tcp_finish_connect_failed_tuple))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpFinishConnectFailedTuple, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_close_target_failures) - EbpfTracerTelemetry.lastTcpCloseTargetFailures.Load()
+	EbpfTracerTelemetry.lastTcpCloseTargetFailures.Store(int64(ebpfTelemetry.Tcp_close_target_failures))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpCloseTargetFailures, prometheus.CounterValue, float64(delta))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
@@ -643,6 +689,31 @@ func (t *ebpfTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTup
 	}
 
 	return t.tcpStats.Lookup(tuple, stats) == nil
+}
+
+// setupMapCleaner sets up a map cleaner for the tcp_ongoing_connect_pid map
+func (t *ebpfTracer) setupMapCleaner(m *manager.Manager) {
+	tcpOngoingConnectPidMap, _, err := m.GetMap(probes.TCPOngoingConnectPid)
+	if err != nil {
+		log.Errorf("error getting %v map: %s", probes.TCPOngoingConnectPid, err)
+		return
+	}
+
+	tcpOngoingConnectPidCleaner, err := ddebpf.NewMapCleaner[netebpf.SkpConn, netebpf.PidTs](tcpOngoingConnectPidMap, 1024)
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+	tcpOngoingConnectPidCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _ netebpf.SkpConn, val netebpf.PidTs) bool {
+		ts := int64(val.Timestamp)
+		expired := ts > 0 && now-ts > tcpOngoingConnectMapTTL
+		if expired {
+			EbpfTracerTelemetry.ongoingConnectPidCleaned.Inc()
+		}
+		return expired
+	})
+
+	t.ongoingConnectCleaner = tcpOngoingConnectPidCleaner
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {

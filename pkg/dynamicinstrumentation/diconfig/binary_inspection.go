@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && arm64
 
 package diconfig
 
@@ -220,6 +220,7 @@ func correctStructLocations(structParam *ditypes.Parameter, fieldLocations map[b
 		offset, ok := fieldLocations[fieldID]
 		if !ok {
 			log.Infof("no field location available for %s.%s\n", fieldID.StructName, fieldID.FieldName)
+			structParam.ParameterPieces[i].NotCaptureReason = ditypes.NoFieldLocation
 			continue
 		}
 

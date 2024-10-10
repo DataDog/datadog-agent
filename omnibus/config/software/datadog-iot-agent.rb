@@ -37,6 +37,7 @@ build do
   else
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
+    env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
   end
 
   if linux_target?

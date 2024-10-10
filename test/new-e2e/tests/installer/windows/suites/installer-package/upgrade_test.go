@@ -28,7 +28,7 @@ func TestInstallerUpgrades(t *testing.T) {
 func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	// Arrange
 	s.Require().NoError(s.Installer().Install(
-		installerwindows.WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, s.StableInstallerVersion().PackageVersion())),
+		installerwindows.WithInstallerURLFromInstallersJSON(pipeline.StableURL, s.StableInstallerVersion().PackageVersion())),
 		installerwindows.WithMSILogFile("install.log"),
 	)
 	// sanity check: make sure we did indeed install the stable version
