@@ -2,8 +2,6 @@
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
 .macos_gitlab:
-  variables:
-    PYTHON_RUNTIMES: "3"
   before_script:
     # Selecting the current Go version
     - |
@@ -27,6 +25,6 @@
     # Installing the job dependencies
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
-    - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
+    - inv -e rtloader.make
     - inv -e rtloader.install
     - inv -e install-tools

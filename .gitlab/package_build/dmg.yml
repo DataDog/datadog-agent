@@ -9,7 +9,7 @@
     - $S3_CP_CMD $S3_ARTIFACTS_URI/agent-version.cache .
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
+    - inv -e github.trigger-macos --workflow-type "build" --datadog-agent-ref "$CI_COMMIT_SHA" --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --destination "$OMNIBUS_PACKAGE_DIR" --version-cache "$VERSION_CACHE_CONTENT" --integrations-core-ref "$INTEGRATIONS_CORE_VERSION"
     - !reference [.upload_sbom_artifacts]
   timeout: 3h # MacOS builds can take 1h~2h, increase the timeout to avoid timeout flakes
   artifacts:
@@ -31,7 +31,6 @@ agent_dmg-x64-a7:
   needs: ["go_mod_tidy_check"]
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
   timeout: 6h
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
