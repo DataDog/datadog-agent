@@ -41,7 +41,7 @@ func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
-func ToString(l *LibPath) string {
+func (l *LibPath) String() string {
 	return string(ToBytes(l))
 }
 

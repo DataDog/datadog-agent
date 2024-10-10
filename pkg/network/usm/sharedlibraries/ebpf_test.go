@@ -68,7 +68,7 @@ func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {
 
 	var receivedEvent *LibPath
 	cb := func(path LibPath) {
-		lp := ToString(&path)
+		lp := path.String()
 		if strings.Contains(lp, "foo-libssl.so") {
 			receivedEvent = &path
 		}
@@ -91,7 +91,7 @@ func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {
 		return receivedEvent != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
-	require.Equal(t, fooPath1, ToString(receivedEvent))
+	require.Equal(t, fooPath1, receivedEvent.String())
 	require.Equal(t, command1.Process.Pid, int(receivedEvent.Pid))
 }
 
@@ -147,10 +147,10 @@ func (s *EbpfProgramSuite) TestSingleProgramReceivesMultipleLibsetEvents() {
 		return receivedEventSsl != nil && receivedEventCuda != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
-	require.Equal(t, fooPathSsl, ToString(receivedEventSsl))
+	require.Equal(t, fooPathSsl, receivedEventSsl.String())
 	require.Equal(t, commandSsl.Process.Pid, int(receivedEventSsl.Pid))
 
-	require.Equal(t, fooPathCuda, ToString(receivedEventCuda))
+	require.Equal(t, fooPathCuda, receivedEventCuda.String())
 	require.Equal(t, commandCuda.Process.Pid, int(receivedEventCuda.Pid))
 }
 
@@ -214,9 +214,9 @@ func (s *EbpfProgramSuite) TestMultpleProgramsReceiveMultipleLibsetEvents() {
 		return receivedEventSsl != nil && receivedEventCuda != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
-	require.Equal(t, fooPathSsl, ToString(receivedEventSsl))
+	require.Equal(t, fooPathSsl, receivedEventSsl.String())
 	require.Equal(t, commandSsl.Process.Pid, int(receivedEventSsl.Pid))
 
-	require.Equal(t, fooPathCuda, ToString(receivedEventCuda))
+	require.Equal(t, fooPathCuda, receivedEventCuda.String())
 	require.Equal(t, commandCuda.Process.Pid, int(receivedEventCuda.Pid))
 }
