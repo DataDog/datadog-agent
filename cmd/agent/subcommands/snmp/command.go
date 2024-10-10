@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -139,16 +137,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				snmpscanfx.Module(),
-				demultiplexerimpl.Module(),
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
-				orchestratorimpl.Module(),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				compressionimpl.Module(),
 				eventplatformreceiverimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
-				),
 			)
 			if err != nil {
 				var ue configErr
@@ -193,7 +187,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(scanDevice,
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
-				compressionimpl.Module(),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
