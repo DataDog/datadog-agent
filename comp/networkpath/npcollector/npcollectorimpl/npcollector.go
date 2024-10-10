@@ -388,6 +388,11 @@ func (s *npCollectorImpl) reverseDNSLookup(ipString string) (string, error) {
 		s.logger.Tracef("Error resolving reverse DNS enrichment for source IP address: %v error: %v", ip, err)
 		wg.Done()
 	}
+	go func() {
+		// TODO: more reasonable timeout
+		time.Sleep(1 * time.Second)
+		wg.Done()
+	}()
 	wg.Wait()
 
 	if callbackErr != nil {
