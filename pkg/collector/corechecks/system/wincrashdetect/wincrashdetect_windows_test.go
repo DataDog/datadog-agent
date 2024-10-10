@@ -10,11 +10,8 @@ package wincrashdetect
 import (
 	"net"
 	"net/http"
-
-	//"strings"
 	"testing"
 
-	//"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"

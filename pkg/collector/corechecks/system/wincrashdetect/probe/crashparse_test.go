@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,7 +56,7 @@ func TestCrashParser(t *testing.T) {
 
 	parseCrashDump(wcs)
 
-	assert.Equal(t, wcs.StatusCode, probe.WinCrashStatusCodeSuccess)
+	assert.Equal(t, wcs.StatusCode, WinCrashStatusCodeSuccess)
 	assert.Empty(t, wcs.ErrString)
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")
@@ -77,7 +76,7 @@ func TestCrashParserWithLineSplits(t *testing.T) {
 
 	parseCrashDump(wcs)
 
-	assert.Equal(t, wcs.StatusCode, probe.WinCrashStatusSuccess)
+	assert.Equal(t, wcs.StatusCode, WinCrashStatusCodeSuccess)
 	assert.Empty(t, wcs.ErrString)
 	assert.Equal(t, "Mon Jun 26 20:44:49.742 2023 (UTC - 7:00)", wcs.DateString)
 	before, _, _ := strings.Cut(wcs.Offender, "+")
