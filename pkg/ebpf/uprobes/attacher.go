@@ -746,12 +746,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath, symbolsToRequest)
+	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
-	}
-	if !isAttachable {
-		return fmt.Errorf("incompatible binary %s", fpath.HostPath)
 	}
 
 	uid := getUID(fpath.ID)
