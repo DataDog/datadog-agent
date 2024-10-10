@@ -20,6 +20,10 @@ var (
 	errUnknownConversion = fmt.Errorf("no conversion found")
 )
 
+// asReflectionNode returns a node using reflection: should only show up in test code
+// The reason is that data produced by parsing json, yaml, etc should always made up
+// of "plain" go-lang types (maps, slices, scalars). Some unit tests assign structs directly
+// to the state of the config, which then require reflection to properly handle
 func asReflectionNode(v interface{}) (Node, error) {
 	if _, ok := v.(reflect.Value); ok {
 		return nil, errReflectValue
