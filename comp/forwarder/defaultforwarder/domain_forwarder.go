@@ -7,6 +7,7 @@ package defaultforwarder
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ type domainForwarder struct {
 	isRetrying                *atomic.Bool
 	domain                    string
 	isMRF                     bool
+	isLocal                   bool
 	numberOfWorkers           int
 	highPrio                  chan transaction.Transaction // use to receive new transactions
 	lowPrio                   chan transaction.Transaction // use to retry transactions
@@ -45,6 +47,7 @@ type domainForwarder struct {
 	transactionPrioritySorter retry.TransactionPrioritySorter
 	blockedList               *blockedEndpoints
 	pointCountTelemetry       *retry.PointCountTelemetry
+	headerOverrides           http.Header
 }
 
 func newDomainForwarder(
@@ -52,6 +55,7 @@ func newDomainForwarder(
 	log log.Component,
 	domain string,
 	mrf bool,
+	isLocal bool,
 	retryQueue *retry.TransactionRetryQueue,
 	numberOfWorkers int,
 	connectionResetInterval time.Duration,
@@ -62,6 +66,7 @@ func newDomainForwarder(
 		log:                       log,
 		isRetrying:                atomic.NewBool(false),
 		isMRF:                     mrf,
+		isLocal:                   isLocal,
 		domain:                    domain,
 		numberOfWorkers:           numberOfWorkers,
 		retryQueue:                retryQueue,
@@ -210,7 +215,7 @@ func (f *domainForwarder) Start() error {
 	f.init()
 
 	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry)
+		w := NewWorker(f.config, f.log, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.isLocal)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
