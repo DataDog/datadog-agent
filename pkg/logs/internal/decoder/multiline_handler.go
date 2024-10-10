@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -38,10 +38,11 @@ type MultiLineHandler struct {
 	linesCombinedInfo *status.CountInfo
 	telemetryEnabled  bool
 	linesCombined     int
+	multiLineTagValue string
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry) *MultiLineHandler {
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry, multiLineTagValue string) *MultiLineHandler {
 
 	i := status.NewMappedInfo("Multi-Line Pattern")
 	i.SetMessage("Pattern", newContentRe.String())
@@ -57,6 +58,7 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
 		telemetryEnabled:  telemetryEnabled,
 		linesCombined:     0,
+		multiLineTagValue: multiLineTagValue,
 	}
 	return h
 }
@@ -163,8 +165,11 @@ func (h *MultiLineHandler) sendBuffer() {
 		}
 		msg := message.NewRawMessage(content, h.status, h.linesLen, h.timestamp)
 		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
-		if h.isBufferTruncated && coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs") {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedReasonTag("multiline_regex"))
+		}
+		if h.isBufferTruncated && pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs") {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
 		}
 		h.outputFn(msg)
 	}

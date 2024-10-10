@@ -63,6 +63,7 @@ type RuleEngine struct {
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
 	AutoSuppression  autosuppression.AutoSuppression
+	pid              uint32
 }
 
 // APIServer defines the API server
@@ -85,6 +86,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:     rules.NewPolicyLoader(),
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
+		pid:              utils.Getpid(),
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
@@ -166,6 +168,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
+			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -516,6 +519,11 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	// don't eval event originating from myself
+	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
+		return
+	}
+
 	// event already marked with an error, skip it
 	if event.Error != nil {
 		return

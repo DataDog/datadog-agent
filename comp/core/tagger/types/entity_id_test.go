@@ -71,3 +71,10 @@ func TestDefaultEntityID_GetPrefix(t *testing.T) {
 		})
 	}
 }
+
+func TestNewDefaultEntityIDFromStr(t *testing.T) {
+	str := "container_id://1234"
+	entityID := NewDefaultEntityIDFromStr(str)
+	assert.Equal(t, ContainerID, entityID.GetPrefix())
+	assert.Equal(t, "1234", entityID.GetID())
+}

@@ -59,6 +59,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestOpen",
 			"~TestUnlink",
 			"~TestActionKill",
+			"~TestActionHash",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
@@ -101,7 +102,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoginUID/login-uid-open-test",
 			"TestLoginUID/login-uid-exec-test",
 			"TestActionKillExcludeBinary",
-			"TestActionKillDisarm",
+			"~TestActionKillDisarm",
 		}
 
 		if disableSeccomp {
@@ -145,7 +146,7 @@ func preTestsHook() {
 			Debug:           true,
 		}
 
-		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		_, err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

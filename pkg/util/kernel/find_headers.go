@@ -22,7 +22,6 @@ import (
 	"strings"
 	"sync"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
 	"golang.org/x/exp/maps"
@@ -41,6 +40,22 @@ const centosKernelModulesPath = "/usr/src/kernels/%s"
 var versionCodeRegexp = regexp.MustCompile(`^#define[\t ]+LINUX_VERSION_CODE[\t ]+(\d+)$`)
 
 var errReposDirInaccessible = errors.New("unable to access repos directory")
+
+// Copied from https://github.com/DataDog/agent-payload/blob/master/process/connections.pb.go
+// to avoid CGO dependency
+var kernelHeaderFetchResultName = map[int]string{
+	0:  "FetchNotAttempted",
+	1:  "CustomHeadersFound",
+	2:  "DefaultHeadersFound",
+	3:  "SysfsHeadersFound",
+	4:  "DownloadedHeadersFound",
+	5:  "DownloadSuccess",
+	6:  "HostVersionErr",
+	7:  "DownloadFailure",
+	8:  "ValidationFailure",
+	9:  "ReposDirAccessFailure",
+	10: "HeadersNotFoundDownloadDisabled",
+}
 
 type headerFetchResult int
 
@@ -461,7 +476,7 @@ func submitTelemetry(result headerFetchResult, client statsd.ClientInterface) {
 
 	khdTags := append(tags,
 		fmt.Sprintf("result:%s", resultTag),
-		fmt.Sprintf("reason:%s", model.KernelHeaderFetchResult(result).String()),
+		fmt.Sprintf("reason:%s", kernelHeaderFetchResultName[int(result)]),
 	)
 
 	if err := client.Count("datadog.system_probe.kernel_header_fetch.attempted", 1.0, khdTags, 1); err != nil && !errors.Is(err, statsd.ErrNoClient) {

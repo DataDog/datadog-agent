@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -191,15 +193,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
-				),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 			)
 			if err != nil {
 				var ue configErr

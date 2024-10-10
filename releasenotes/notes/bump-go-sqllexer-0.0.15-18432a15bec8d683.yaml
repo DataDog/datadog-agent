@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    DBM: Add configuration options to SQL obfuscator to customize the obfuscation of SQL statements:
+    - ``KeepJSONPath`` - option to control whether JSON paths following JSON operators in SQL statements should be obfuscated. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.

@@ -31,7 +31,8 @@ func Module() fxutil.Module {
 }
 
 func newTelemetry(deps dependencies) (telemetry.Component, error) {
-	telemetry, err := fleettelemetry.NewTelemetry(env.FromConfig(deps.Config), "datadog-installer")
+	env := env.FromConfig(deps.Config)
+	telemetry, err := fleettelemetry.NewTelemetry(env.APIKey, env.Site, "datadog-installer")
 	if err != nil {
 		return nil, err
 	}

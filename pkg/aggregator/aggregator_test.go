@@ -28,7 +28,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -575,8 +575,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfigsetup.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -586,9 +586,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfigsetup.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("AreSeriesEnabled").Return(true)
@@ -607,9 +607,9 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 
-	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
-	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
-	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+	djmEnabled := pkgconfigsetup.Datadog().GetBool("djm_config.enabled")
+	pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfigsetup.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
@@ -729,4 +729,25 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		TestDeps:      deps,
 		Demultiplexer: InitAndStartAgentDemultiplexerForTest(deps, opts, ""),
 	}
+}
+
+func TestStatsCopy(t *testing.T) {
+	// Flushes    [32]int64 // circular buffer of recent flushes stat
+	// FlushIndex int       // last flush position in circular buffer
+	// LastFlush  int64     // most recent flush stat, provided for convenience
+	// Name       string
+
+	stats := &Stats{
+		Flushes:    [32]int64{1, 2, 3},
+		FlushIndex: 2,
+		LastFlush:  1,
+		Name:       "name",
+	}
+	stats.Flushes[31] = 32
+
+	statsCopy := stats.copy()
+	assert.Equal(t, stats.Flushes, statsCopy.Flushes)
+	assert.Equal(t, stats.FlushIndex, statsCopy.FlushIndex)
+	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
+	assert.Equal(t, stats.Name, statsCopy.Name)
 }

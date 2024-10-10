@@ -31,6 +31,7 @@ const (
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
+	gpuMonitoringNS              = "gpu_monitoring"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -206,7 +207,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack_all_namespaces"), true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_protocol_classification"), true, "DD_ENABLE_PROTOCOL_CLASSIFICATION")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ringbuffers"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS")
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_tcp_failed_connections"), false, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS")
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_tcp_failed_connections"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNS")
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
@@ -400,9 +401,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
 
 	// Fleet policies
 	cfg.BindEnv("fleet_policies_dir")
+
+	// GPU monitoring
+	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

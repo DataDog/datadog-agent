@@ -28,7 +28,7 @@ namespace WixSetup.Datadog_Agent
             {
                 $@"{installerSource}\embedded3\python.exe",
                 $@"{installerSource}\embedded3\python3.dll",
-                $@"{installerSource}\embedded3\python311.dll",
+                $@"{installerSource}\embedded3\python312.dll",
                 $@"{installerSource}\embedded3\pythonw.exe"
             };
             PythonTwoBinaries = new[]

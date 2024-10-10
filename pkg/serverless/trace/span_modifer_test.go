@@ -51,6 +51,8 @@ func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
 }
 
+func (m *mockTraceWriter) UpdateAPIKey(_, _ string) {}
+
 func TestServerlessServiceRewrite(t *testing.T) {
 	cfg := config.New()
 	cfg.GlobalTags = map[string]string{

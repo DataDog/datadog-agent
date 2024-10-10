@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
-	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -83,7 +83,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+		pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}

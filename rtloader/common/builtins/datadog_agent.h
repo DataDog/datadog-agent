@@ -168,6 +168,7 @@ void _set_obfuscate_sql_cb(cb_obfuscate_sql_t);
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t);
 void _set_get_process_start_time_cb(cb_get_process_start_time_t);
 void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t);
+void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t);
 
 PyObject *_public_headers(PyObject *self, PyObject *args, PyObject *kwargs);
 

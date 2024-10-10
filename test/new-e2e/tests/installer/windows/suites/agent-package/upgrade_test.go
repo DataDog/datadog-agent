@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
 
@@ -36,6 +36,84 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 			s.Run("Stop experiment", s.stopExperiment)
 		})
 	})
+}
+
+// TestDowngradeAgentPackage tests that it's possible to downgrade the Datadog Agent using the Datadog installer.
+func (s *testAgentUpgradeSuite) TestDowngradeAgentPackage() {
+	// Arrange
+	_, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package")
+
+	// Act
+	_, err = s.Installer().InstallExperiment(installerwindows.AgentPackage,
+		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
+		installer.WithAuthentication(""),
+	)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to downgrade to stable Datadog Agent package")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		}).
+		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+}
+
+func (s *testAgentUpgradeSuite) TestExperimentFailure() {
+	// Arrange
+	s.Run("Install stable", func() {
+		s.installStableAgent()
+	})
+
+	// Act
+	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
+		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithVersion("unknown-version"),
+		installer.WithAuthentication(""),
+	)
+
+	// Assert
+	s.Require().Error(err, "expected an error when trying to start an experiment with an unknown version")
+	s.stopExperiment()
+	// TODO: is this the same test as TestStopWithoutExperiment?
+}
+
+func (s *testAgentUpgradeSuite) TestExperimentCurrentVersion() {
+	// Arrange
+	s.Run("Install stable", func() {
+		s.installStableAgent()
+	})
+
+	// Act
+	_, err := s.Installer().InstallExperiment(installerwindows.AgentPackage,
+		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
+		installer.WithAuthentication(""),
+	)
+
+	// Assert
+	s.Require().Error(err, "expected an error when trying to start an experiment with the same version as the current one")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, s.StableAgentVersion().Version())
+		}).
+		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
+}
+
+func (s *testAgentUpgradeSuite) TestStopWithoutExperiment() {
+	// Arrange
+	s.Run("Install stable", func() {
+		s.installStableAgent()
+	})
+
+	// Act
+
+	// Assert
+	s.stopExperiment()
+	// TODO: Currently uninstalls stable then reinstalls stable. functional but a waste.
 }
 
 func (s *testAgentUpgradeSuite) installStableAgent() {

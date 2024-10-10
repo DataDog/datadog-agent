@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestReportClusterQuotas(t *testing.T) {
@@ -29,9 +29,9 @@ func TestReportClusterQuotas(t *testing.T) {
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
 
-	prevClusterName := config.Datadog().GetString("cluster_name")
-	config.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
-	defer config.Datadog().SetWithoutSource("cluster_name", prevClusterName)
+	prevClusterName := pkgconfigsetup.Datadog().GetString("cluster_name")
+	pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
+	defer pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", prevClusterName)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
