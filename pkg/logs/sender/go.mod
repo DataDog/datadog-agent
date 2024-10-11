@@ -50,6 +50,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.0
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.56.0-rc.3

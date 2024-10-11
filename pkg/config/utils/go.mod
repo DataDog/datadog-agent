@@ -33,17 +33,16 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
@@ -51,6 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc.3 // indirect

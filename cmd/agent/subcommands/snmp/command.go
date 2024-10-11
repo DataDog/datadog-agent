@@ -11,13 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/spf13/cobra"
@@ -177,8 +176,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpCmd.AddCommand(snmpWalkCmd)
 
 	snmpScanCmd := &cobra.Command{
-		Use:   "scan <ipaddress>[:port]",
-		Short: "Scan a device for the profile editor.",
+		Hidden: true,
+		Use:    "scan <ipaddress>[:port]",
+		Short:  "Scan a device for the profile editor.",
 		Long: `Walk the SNMP tree for a device, collecting available OIDs.
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -229,7 +229,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
-	// snmpCmd.AddCommand(snmpScanCmd)
+	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf && arm64
+//go:build linux_bpf
 
 // Package eventparser is used for parsing raw bytes from bpf code into events
 package eventparser
@@ -76,6 +76,9 @@ func readParams(values []byte) []*ditypes.Param {
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
 		i += sizeOfTypeDefinition
 		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
+		if val == nil {
+			return outputParams
+		}
 		if reflect.Kind(val.Kind) == reflect.Slice {
 			// In BPF we read the slice by reading the maximum size of a slice
 			// that we allow, instead of just the size of the slice (which we
@@ -117,12 +120,18 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			break
 		}
 		if !isTypeWithHeader(paramDefinition.Kind) {
+			if i+int(paramDefinition.Size) >= len(buffer) {
+				break
+			}
 			// This is a regular value (no sub-fields).
 			// We parse the value of it from the buffer and push it to the value stack
 			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
 			i += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
+			if i+int(paramDefinition.Size) >= len(buffer) {
+				break
+			}
 			// Pointers are unique in that they have their own value, and sub-fields.
 			// We parse the value of it from the buffer, place it in the value for
 			// the pointer itself, then pop the next value and place it as a sub-field.

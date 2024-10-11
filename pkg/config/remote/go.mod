@@ -3,6 +3,9 @@ module github.com/DataDog/datadog-agent/pkg/config/remote
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
@@ -31,11 +34,13 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.0-rc.3
@@ -57,8 +62,22 @@ require (
 
 require (
 	github.com/DataDog/appsec-internal-go v1.7.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-go/v5 v5.5.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.3.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.15 // indirect
@@ -69,6 +88,8 @@ require (
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/google/uuid v1.5.0 // indirect
+	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
