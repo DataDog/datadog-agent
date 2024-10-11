@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import date
 from time import sleep
 
@@ -26,6 +27,7 @@ from tasks.libs.common.constants import (
 from tasks.libs.common.git import (
     check_base_branch,
     check_clean_branch_state,
+    check_uncommitted_changes,
     clone,
     get_current_branch,
     get_last_commit,
@@ -77,6 +79,52 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+
+
+@contextmanager
+def agent_context(ctx, version: str):
+    """If the version is 6.XX.X, will checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
+
+    Args:
+        version: Agent full version ('6.53.0', '7.42.2-rc.1', etc.)
+
+    Example:
+        > with agent_context(ctx, "6.53.0"):
+        >     ctx.run("git status")  # 6.53.x branch
+    """
+
+    assert len(version.split('.')) == 3, f"Invalid version {version}, should be M.XX.P(-rc.R)?"
+
+    if version.startswith('6.'):
+        branch = os.getenv('AGENT_6_BRANCH', version[:4] + '.x')
+
+        # Ensure this branch exists
+        assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
+
+        base_branch = get_current_branch(ctx)
+        should_stash = check_uncommitted_changes(ctx)
+
+        # Save + change branch
+        if should_stash:
+            print(color_message("Stashing uncommitted changes", "bold"))
+            print(f'{color_message("Agent6", "bold")}: Stashing uncommitted changes')
+            ctx.run("git stash -u", hide=True)
+        print(f'{color_message("Agent6", "bold")}: Checking out to {branch}')
+        ctx.run(f"git checkout {branch}", hide=True)
+
+        try:
+            yield
+        finally:
+            # Go back + restore
+            print(f'{color_message("Agent6", "bold")}: Going back to {base_branch}')
+            ctx.run(f"git checkout {base_branch}", hide=True)
+
+            if should_stash:
+                print(f'{color_message("Agent6", "bold")}: Unstashing uncommitted changes')
+                ctx.run("git stash pop", hide=True)
+    else:
+        # Nothing to do
+        yield
 
 
 @task
