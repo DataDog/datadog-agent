@@ -7,7 +7,6 @@ package snmpscanimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -18,11 +17,6 @@ import (
 )
 
 func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string) error {
-	forwarder, err := s.demux.GetEventPlatformForwarder()
-	if err != nil {
-		return fmt.Errorf("unable to get sender: %w", err)
-	}
-
 	pdus, err := gatherPDUs(snmpConnection)
 	if err != nil {
 		return err
@@ -49,7 +43,7 @@ func (s snmpScannerImpl) RunDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 		s.log.Debugf("Device OID metadata payload is %d bytes", len(payloadBytes))
 		s.log.Tracef("Device OID metadata payload: %s", string(payloadBytes))
-		if err := forwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
+		if err := s.epforwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata); err != nil {
 			return err
 		}
 	}
