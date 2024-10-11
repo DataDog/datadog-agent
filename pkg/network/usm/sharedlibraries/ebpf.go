@@ -278,8 +278,6 @@ func (e *EbpfProgram) start() error {
 }
 
 func (e *EbpfProgram) handleEvent(event *ebpf.DataEvent, libset Libset) {
-	log.Infof("shared libraries event: %v, %v", event, libset)
-
 	e.callbacksMutex.RLock()
 	defer func() {
 		event.Done()
@@ -386,7 +384,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, li
 	}
 
 	var enabledMsgs []string
-	for libset, _ := range LibsetToLibSuffixes {
+	for libset := range LibsetToLibSuffixes {
 		value := uint64(0)
 		if slices.Contains(libsets, libset) {
 			value = uint64(1)
