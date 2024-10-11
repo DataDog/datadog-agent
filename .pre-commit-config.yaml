@@ -110,7 +110,7 @@ repos:
     - id: gitlab-configuration
       name: gitlab-configuration
       description: test the gitlab configuration on main
-      entry: 'inv linter.gitlab-ci -t main'
+      entry: 'inv pre-commit.gitlab-config-prepush'
       language: system
       require_serial: true
       files: .*gitlab.*\.yml$

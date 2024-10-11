@@ -1,10 +1,14 @@
 import os
 import re
 import sys
+import traceback
 
+import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import linter
+from tasks.libs.ciproviders.gitlab_api import get_all_gitlab_ci_configurations
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_staged_files
 
@@ -70,3 +74,40 @@ def check_set_x(ctx):
             print(error, file=sys.stderr)
         print(color_message('error:', 'red'), 'No shell script should use "set -x"', file=sys.stderr)
         raise Exit(code=1)
+
+
+@task
+def gitlab_config_prepush(ctx, write_config: str | None = None, fail_fast=False, with_lint=True):
+    print(f'{color_message("Info", "blue")}: Getting full configuration')
+    full_config = get_all_gitlab_ci_configurations(ctx, with_lint=with_lint)
+
+    if write_config:
+        with open(write_config, 'w') as f:
+            yaml.safe_dump(full_config, f)
+
+        print('Written full config to', write_config)
+
+    print(f'{color_message("Info", "blue")}: Running linters...')
+    tasks = [
+        ('linter.gitlab-ci-jobs-needs-rules', lambda: linter.gitlab_ci_jobs_needs_rules(ctx, full_config=full_config)),
+        ('linter.gitlab-ci-jobs-owners', lambda: linter.gitlab_ci_jobs_owners(ctx, full_config=full_config)),
+        ('linter.gitlab-ci', lambda: linter.gitlab_ci(ctx, test='main')),
+    ]
+
+    error = False
+    for task_name, task_function in tasks:
+        print(f'{color_message("Info", "blue")}: Running {task_name}')
+        try:
+            task_function()
+        except Exception:
+            error = True
+            if fail_fast:
+                raise
+            else:
+                traceback.print_exc()
+                print(f'{color_message("Error", "red")}: {task_name} failed')
+
+    if error:
+        raise Exit(code=1)
+    else:
+        print(f'{color_message("Success", "green")}: Gitlab CI configuration is valid')
