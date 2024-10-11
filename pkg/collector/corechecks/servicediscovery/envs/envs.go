@@ -51,7 +51,7 @@ func (ev *Variables) Get(name string) (string, bool) {
 }
 
 // GetDefault returns an environment variable or provided default.
-func (ev *Variables) GetDefault(name string, defVal string) string {
+func (ev *Variables) GetDefault(name, defVal string) string {
 	val, ok := ev.Get(name)
 	if !ok {
 		return defVal
