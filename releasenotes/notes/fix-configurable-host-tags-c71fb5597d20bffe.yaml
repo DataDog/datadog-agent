@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    Fixes the host tags with configurable duration to ensure a metric's context hash does not change so that the aggregator does not
-    mistake the same metric as a new one.
+    Fixes host tags with a configurable duration so the metric's context hash doesn't change, preventing the aggregator from mistaking it as a new metric.
