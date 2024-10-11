@@ -9,10 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,11 +19,7 @@ import (
 // endpoints are configured.
 // Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
-	conf := mock.New(t)
-	conf.SetConfigFile("./tests/datadog_secrets.yaml")
-	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(conf, "datadog_secrets.yaml", optional.NewNoneOption[secrets.Component](), nil)
-	assert.NoError(t, err)
+	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
 	expectedKeysPerDomain := map[string][]string{
 		"https://app.datadoghq.com": {"someapikey", "someotherapikey"},

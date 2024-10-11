@@ -111,3 +111,8 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
+}

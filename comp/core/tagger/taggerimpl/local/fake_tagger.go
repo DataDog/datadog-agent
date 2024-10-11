@@ -57,7 +57,7 @@ func (f *FakeTagger) SetTags(entityID string, source string, low, orch, high, st
 
 // SetGlobalTags allows to set tags in store for the global entity
 func (f *FakeTagger) SetGlobalTags(low, orch, high, std []string) {
-	f.SetTags(common.GetGlobalEntityID().String(), "static", low, orch, high, std)
+	f.SetTags(common.GetGlobalEntityIDString(), "static", low, orch, high, std)
 }
 
 // SetTagsFromInfo allows to set tags from list of TagInfo
@@ -112,7 +112,7 @@ func (f *FakeTagger) Tag(entityID string, cardinality types.TagCardinality) ([]s
 
 // GlobalTags fake implementation
 func (f *FakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return f.Tag(common.GetGlobalEntityID().String(), cardinality)
+	return f.Tag(common.GetGlobalEntityIDString(), cardinality)
 }
 
 // AccumulateTagsFor fake implementation
@@ -150,13 +150,8 @@ func (f *FakeTagger) List() types.TaggerListResponse {
 }
 
 // Subscribe fake implementation
-func (f *FakeTagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return f.store.Subscribe(cardinality)
-}
-
-// Unsubscribe fake implementation
-func (f *FakeTagger) Unsubscribe(ch chan []types.EntityEvent) {
-	f.store.Unsubscribe(ch)
+func (f *FakeTagger) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return f.store.Subscribe(subscriptionID, filter)
 }
 
 // Fake internals

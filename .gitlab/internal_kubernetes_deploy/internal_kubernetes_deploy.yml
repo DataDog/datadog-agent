@@ -68,4 +68,4 @@ notify-slack:
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - python3 -m pip install -r tasks/requirements.txt
-    - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}
+    - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA} || exit $?

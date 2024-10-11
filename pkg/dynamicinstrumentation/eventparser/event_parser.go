@@ -16,10 +16,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MaxBufferSize is the maximum size of the output buffer from bpf which is read by this package
@@ -41,10 +40,10 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	baseEvent := *(*ditypes.BaseEvent)(unsafe.Pointer(&record[0]))
 	event.ProbeID = unix.ByteSliceToString(baseEvent.Probe_id[:])
 
-	allowed, _, _ := ratelimiters.AllowOneEvent(event.ProbeID)
+	allowed, droppedEvents, successfulEvents := ratelimiters.AllowOneEvent(event.ProbeID)
 	if !allowed {
-		// log.Infof("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
-		// 	event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
+		log.Tracef("event dropped by rate limit. Probe %s\t(%d dropped events out of %d)\n",
+			event.ProbeID, droppedEvents, droppedEvents+successfulEvents)
 		return nil
 	}
 
@@ -77,6 +76,9 @@ func readParams(values []byte) []*ditypes.Param {
 		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
 		i += sizeOfTypeDefinition
 		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
+		if val == nil {
+			return outputParams
+		}
 		if reflect.Kind(val.Kind) == reflect.Slice {
 			// In BPF we read the slice by reading the maximum size of a slice
 			// that we allow, instead of just the size of the slice (which we
@@ -118,12 +120,18 @@ func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, 
 			break
 		}
 		if !isTypeWithHeader(paramDefinition.Kind) {
+			if i+int(paramDefinition.Size) >= len(buffer) {
+				break
+			}
 			// This is a regular value (no sub-fields).
 			// We parse the value of it from the buffer and push it to the value stack
 			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
 			i += int(paramDefinition.Size)
 			valueStack.push(paramDefinition)
 		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
+			if i+int(paramDefinition.Size) >= len(buffer) {
+				break
+			}
 			// Pointers are unique in that they have their own value, and sub-fields.
 			// We parse the value of it from the buffer, place it in the value for
 			// the pointer itself, then pop the next value and place it as a sub-field.

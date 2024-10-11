@@ -262,6 +262,8 @@ type FileRegistry interface {
 // AttachCallback is a callback that is called whenever a probe is attached successfully
 type AttachCallback func(*manager.Probe, *utils.FilePath)
 
+var NopOnAttachCallback AttachCallback = nil
+
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
 	// name contains the name of this attacher for identification
@@ -744,12 +746,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath, symbolsToRequest)
+	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
-	}
-	if !isAttachable {
-		return fmt.Errorf("incompatible binary %s", fpath.HostPath)
 	}
 
 	uid := getUID(fpath.ID)
