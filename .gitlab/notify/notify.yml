@@ -59,8 +59,8 @@ send_pipeline_stats:
 
 notify_github:
   stage: notify
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
@@ -78,42 +78,33 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
-    - !reference [.install_pr_commenter]
+    - !reference [.setup_agent_github_app]
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
     - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
-    - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
+    - inv -e github.pr-commenter --title "Test changes on VM" --body "$(cat "$messagefile")" --echo
     - rm "$messagefile"
 
 notify_gitlab_ci_changes:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
-  needs: []
+  needs: [compute_gitlab_ci_config]
   tags: ["arch:amd64"]
   rules:
-    - if: $CI_PIPELINE_SOURCE != "push"
-      when: never
+    - !reference [.compute_gitlab_ci_config_rules]
     - changes:
         paths:
           - .gitlab-ci.yml
           - .gitlab/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  before_script:
-    # Get main history
-    - git fetch origin main
-    - git checkout main
-    - git checkout -
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - |
-      GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_APP_KEY | base64) || exit $?; export GITHUB_KEY_B64
-      GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID) || exit $?; export GITHUB_APP_ID
-      GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID) || exit $?; export GITHUB_INSTALLATION_ID
-      GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_FULL_API_TOKEN) || exit $?; export GITLAB_TOKEN
-    - inv -e notify.gitlab-ci-diff --pr-comment
+    - !reference [.setup_agent_github_app]
+    - inv -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
 
 .failure_summary_job:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -163,3 +154,28 @@ notify_failure_summary_daily:
         echo 'Sending weekly summary'
         inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
+
+close_failing_tests_stale_issues:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  rules:
+    # Daily
+    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_deploy_nightly_repo_branch_always]
+  needs: []
+  tags: ["arch:arm64"]
+  script:
+    - weekday="$(date --utc '+%A')"
+    # Weekly on Friday
+    - |
+      if [ "$weekday" != "Friday" ]; then
+        echo "This script is run weekly on Fridays"
+        exit
+      fi
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $APP_KEY_ORG2) || exit $?; export DD_APP_KEY
+    - ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE token) || exit $?; export ATLASSIAN_PASSWORD
+    - ATLASSIAN_USERNAME=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $ATLASSIAN_WRITE user) || exit $?; export ATLASSIAN_USERNAME
+    - python3 -m pip install -r requirements.txt -r tasks/requirements_release_tasks.txt # For Atlassian / Jira dependencies
+    - inv -e notify.close-failing-tests-stale-issues

@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"sync"
 	"testing"
@@ -369,6 +370,38 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 42, 15, true, tw.compressor)
 	})
+}
+
+func TestTraceWriterUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+	}
+
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+	defer tw.Stop()
+
+	url, err := url.Parse(srv.URL + pathTraces)
+	assert.NoError(err)
+
+	assert.Len(tw.senders, 1)
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("invalid", "foo")
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("123", "foo")
+	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
 }
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.

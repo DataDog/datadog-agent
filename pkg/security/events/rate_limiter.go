@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -24,11 +24,14 @@ import (
 )
 
 const (
-	// Arbitrary default limit to prevent flooding.
-	defaultLimit = rate.Limit(10)
+	// Arbitrary default interval between two events to prevent flooding.
+	defaultEvery = 100 * time.Millisecond
 	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
 	// flooding.
 	defaultBurst = 40
+
+	// maxUniqueToken maximum unique token for the token based rate limiter
+	maxUniqueToken = 500
 )
 
 var (
@@ -47,74 +50,6 @@ var (
 type Limiter interface {
 	Allow(event Event) bool
 	SwapStats() []utils.LimiterStat
-}
-
-// StdLimiter describes an object that applies limits on
-// the rate of triggering of a rule to ensure we don't overflow
-// with too permissive rules
-type StdLimiter struct {
-	rateLimiter *rate.Limiter
-
-	// stats
-	dropped *atomic.Uint64
-	allowed *atomic.Uint64
-}
-
-// NewStdLimiter returns a new rule limiter
-func NewStdLimiter(limit rate.Limit, burst int) *StdLimiter {
-	return &StdLimiter{
-		rateLimiter: rate.NewLimiter(limit, burst),
-		dropped:     atomic.NewUint64(0),
-		allowed:     atomic.NewUint64(0),
-	}
-}
-
-// Allow returns whether the event is allowed
-func (l *StdLimiter) Allow(_ Event) bool {
-	if l.rateLimiter.Allow() {
-		l.allowed.Inc()
-		return true
-	}
-	l.dropped.Inc()
-
-	return false
-}
-
-// SwapStats returns the dropped and allowed stats, and zeros the stats
-func (l *StdLimiter) SwapStats() []utils.LimiterStat {
-	return []utils.LimiterStat{
-		{
-			Dropped: l.dropped.Swap(0),
-			Allowed: l.allowed.Swap(0),
-		},
-	}
-}
-
-// AnomalyDetectionLimiter limiter specific to anomaly detection
-type AnomalyDetectionLimiter struct {
-	limiter *utils.Limiter[string]
-}
-
-// Allow returns whether the event is allowed
-func (al *AnomalyDetectionLimiter) Allow(event Event) bool {
-	return al.limiter.Allow(event.GetWorkloadID())
-}
-
-// SwapStats return dropped and allowed stats
-func (al *AnomalyDetectionLimiter) SwapStats() []utils.LimiterStat {
-	return al.limiter.SwapStats()
-}
-
-// NewAnomalyDetectionLimiter returns a new rate limiter which is bucketed by workload ID
-func NewAnomalyDetectionLimiter(numWorkloads int, numEventsAllowedPerPeriod int, period time.Duration) (*AnomalyDetectionLimiter, error) {
-	limiter, err := utils.NewLimiter[string](numWorkloads, numEventsAllowedPerPeriod, period)
-	if err != nil {
-		return nil, err
-	}
-
-	return &AnomalyDetectionLimiter{
-		limiter: limiter,
-	}, nil
 }
 
 // RateLimiter describes a set of rule rate limiters
@@ -158,17 +93,28 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	newLimiters := make(map[string]Limiter)
 
 	for _, id := range customRuleIDs {
-		newLimiters[id] = NewStdLimiter(defaultLimit, defaultBurst)
+		newLimiters[id] = NewStdLimiter(rate.Every(defaultEvery), defaultBurst)
 	}
 
 	// override if there is more specific defs
 	rl.applyBaseLimitersFromDefault(newLimiters)
 
+	var err error
 	for id, rule := range ruleSet.GetRules() {
+		every, burst := defaultEvery, defaultBurst
+
 		if rule.Def.Every != 0 {
-			newLimiters[id] = NewStdLimiter(rate.Every(rule.Def.Every), 1)
+			every, burst = rule.Def.Every, 1
+		}
+
+		if len(rule.Def.RateLimiterToken) > 0 {
+			newLimiters[id], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
+			if err != nil {
+				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
+				newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+			}
 		} else {
-			newLimiters[id] = NewStdLimiter(defaultLimit, defaultBurst)
+			newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		}
 	}
 

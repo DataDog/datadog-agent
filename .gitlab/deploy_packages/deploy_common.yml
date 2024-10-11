@@ -110,3 +110,15 @@
   variables:
     ARTIFACTS_PREFIX: suse_
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+
+deploy_installer_boostrapper:
+  rules:
+    !reference [.on_deploy_installer]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: deploy_packages
+  needs: ["bootstrapper_build"]
+  tags: ["arch:amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD --recursive --exclude "*" --include "bootstrapper-*" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/bootstrapper/"

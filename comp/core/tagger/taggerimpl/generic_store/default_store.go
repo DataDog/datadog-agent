@@ -7,7 +7,7 @@ package genericstore
 
 import "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
-type defaulObjectStore[T any] map[types.EntityID]T
+type defaulObjectStore[T any] map[types.DefaultEntityID]T
 
 func newDefaultObjectStore[T any]() types.ObjectStore[T] {
 	return make(defaulObjectStore[T])
@@ -15,18 +15,24 @@ func newDefaultObjectStore[T any]() types.ObjectStore[T] {
 
 // Get implements ObjectStore#Get
 func (os defaulObjectStore[T]) Get(entityID types.EntityID) (object T, found bool) {
-	obj, found := os[entityID]
+	obj, found := os[entityID.(types.DefaultEntityID)]
+	return obj, found
+}
+
+// GetWithEntityIDStr implements ObjectStore#GetWithEntityIDStr
+func (os defaulObjectStore[T]) GetWithEntityIDStr(id string) (object T, found bool) {
+	obj, found := os[types.DefaultEntityID(id)]
 	return obj, found
 }
 
 // Set implements ObjectStore#Set
 func (os defaulObjectStore[T]) Set(entityID types.EntityID, object T) {
-	os[entityID] = object
+	os[entityID.(types.DefaultEntityID)] = object
 }
 
 // Unset implements ObjectStore#Unset
 func (os defaulObjectStore[T]) Unset(entityID types.EntityID) {
-	delete(os, entityID)
+	delete(os, entityID.(types.DefaultEntityID))
 }
 
 // Size implements ObjectStore#Size
