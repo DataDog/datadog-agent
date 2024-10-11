@@ -821,8 +821,10 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 		func() bool {
 			return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 		},
-		func() {
-			if cmd != nil && cmd.Process != nil {
+		func(testSuccess bool) {
+			// Only kill the process if the test failed, if it succeeded we want to kill it later
+			// to check if the Unregister call was done correctly
+			if !testSuccess && cmd != nil && cmd.Process != nil {
 				cmd.Process.Kill()
 			}
 		},
