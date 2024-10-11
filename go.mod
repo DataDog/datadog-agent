@@ -67,6 +67,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
+	github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/loadstore => ./pkg/clusteragent/autoscaling/loadstore
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/mock => ./pkg/config/mock/
@@ -651,6 +652,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.56.2
+	github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/loadstore v0.0.1
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
