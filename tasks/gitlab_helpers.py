@@ -34,7 +34,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     """Generates links to CI Visibility for the current job.
 
     Usage:
-        $ deva gitlab.generate-ci-visibility-links
+        $ inv gitlab.generate-ci-visibility-links
     """
 
     ci_job_id = os.environ.get("CI_JOB_ID")
