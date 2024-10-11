@@ -626,6 +626,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 			return true, true
 		}
 		if traceContainsError(pt.TraceChunk.Spans) {
+			cleanUpExceptionSpanEventTag(pt.TraceChunk.Spans)
 			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 		}
 		return false, true
@@ -663,6 +664,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	}
 
 	if traceContainsError(pt.TraceChunk.Spans) {
+		cleanUpExceptionSpanEventTag(pt.TraceChunk.Spans)
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
 	}
 
@@ -671,11 +673,28 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 
 func traceContainsError(trace pb.Trace) bool {
 	for _, span := range trace {
-		if span.Error != 0 {
+		if spanIsError(span) {
 			return true
 		}
 	}
 	return false
+}
+
+func spanIsError(span *pb.Span) bool {
+	return span.Error != 0 || spanContainsExceptionSpanEvent(span)
+}
+
+func spanContainsExceptionSpanEvent(span *pb.Span) bool {
+	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
+		return true
+	}
+	return false
+}
+
+func cleanUpExceptionSpanEventTag(trace pb.Trace) {
+	for _, span := range trace {
+		delete(span.Meta, "_dd.span_events.has_exception")
+	}
 }
 
 func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {

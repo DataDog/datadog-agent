@@ -541,6 +541,12 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
+	for i := range in.Events().Len() {
+		if in.Events().At(i).Name() == "exception" {
+			span.Meta["_dd.span_events.has_exception"] = "true"
+			break
+		}
+	}
 	if in.Links().Len() > 0 {
 		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
 	}
