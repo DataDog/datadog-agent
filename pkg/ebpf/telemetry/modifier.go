@@ -81,20 +81,20 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 		mapNames = append(mapNames, names.NewMapNameFromManagerMap(mp))
 	}
 
-	mapErrMap, _, err := m.GetMapSpec(mapErrTelemetryMapName)
+	mapErrMap, _, err := m.GetMap(mapErrTelemetryMapName)
 	if err != nil {
 		return fmt.Errorf("failed to find map %s: %w", mapErrTelemetryMapName, err)
 	}
-	genericMapErrMap, err := maps.NewGenericMap[uint64, mapErrTelemetry](mapErrMap)
+	genericMapErrMap, err := maps.Map[uint64, mapErrTelemetry](mapErrMap)
 	if err != nil {
 		return fmt.Errorf("failed to create generic map from map spec for %s: %w", mapErrTelemetryMapName, err)
 	}
 
-	helperErrMap, _, err := m.GetMapSpec(helperErrTelemetryMapName)
+	helperErrMap, _, err := m.GetMap(helperErrTelemetryMapName)
 	if err != nil {
 		return fmt.Errorf("failed to find map %s: %w", helperErrTelemetryMapName, err)
 	}
-	genericHelperErrMap, err := maps.NewGenericMap[uint64, helperErrTelemetry](helperErrMap)
+	genericHelperErrMap, err := maps.Map[uint64, helperErrTelemetry](helperErrMap)
 	if err != nil {
 		return fmt.Errorf("failed to create generic map from map spec for %s: %w", helperErrTelemetryMapName, err)
 	}
