@@ -80,7 +80,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
-		}})
+		}}, "gpu")
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)

@@ -113,7 +113,7 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 		mgr.PerfMaps = append(mgr.PerfMaps, pm)
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		err := helperCallRemover.BeforeInit(mgr.Manager, mgr.Name, nil)
 		if err != nil {
 			log.Error("Failed to remove helper calls from eBPF programs: ", err)
 		}

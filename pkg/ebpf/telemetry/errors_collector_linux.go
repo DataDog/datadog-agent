@@ -51,7 +51,7 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 				Name:      "_errors",
 				Help:      "Failures of map operations for a specific ebpf map reported per error",
 			},
-			[]string{"map_name", "error"},
+			[]string{"map_name", "error", "module"},
 		),
 		helperErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -59,7 +59,7 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 				Name:      "_errors",
 				Help:      "Failures of bpf helper operations reported per helper per error for each probe",
 			},
-			[]string{"helper", "probe_name", "error"},
+			[]string{"helper", "probe_name", "error", "module"},
 		),
 		lastValues: make(map[metricKey]uint64),
 	}
@@ -80,17 +80,17 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 		return // no telemetry to collect
 	}
 
-	e.t.forEachMapEntry(func(index telemetryIndex, val mapErrTelemetry) bool {
+	e.t.forEachMapErrorEntryInMaps(func(tKey telemetryKey, eBPFKey uint64, val mapErrTelemetry) bool {
 		if count := getErrCount(val.Count[:]); len(count) > 0 {
 			for errStr, errCount := range count {
 				key := metricKey{
-					hash: index.key,
+					hash: eBPFKey,
 					id:   mapErr,
 					err:  errStr,
 				}
 				delta := float64(errCount - e.lastValues[key])
 				if delta > 0 {
-					e.mapOpsErrors.WithLabelValues(index.name, errStr).Add(delta)
+					e.mapOpsErrors.WithLabelValues(tKey.resourceName.String(), errStr, tKey.moduleName.String()).Add(delta)
 				}
 				e.lastValues[key] = errCount
 			}
@@ -98,19 +98,19 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 		return true
 	})
 
-	e.t.forEachHelperEntry(func(index telemetryIndex, val helperErrTelemetry) bool {
+	e.t.forEachHelperErrorEntryInMaps(func(tKey telemetryKey, eBPFKey uint64, val helperErrTelemetry) bool {
 		for i, helperName := range helperNames {
 			base := maxErrno * i
 			if count := getErrCount(val.Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
 					key := metricKey{
-						hash: index.key,
+						hash: eBPFKey,
 						id:   i,
 						err:  errStr,
 					}
 					delta := float64(errCount - e.lastValues[key])
 					if delta > 0 {
-						e.helperErrors.WithLabelValues(helperName, index.name, errStr).Add(delta)
+						e.helperErrors.WithLabelValues(helperName, tKey.resourceName.String(), errStr, tKey.moduleName.String()).Add(delta)
 					}
 					e.lastValues[key] = errCount
 				}
