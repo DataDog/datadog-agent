@@ -492,17 +492,17 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) {
+func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
 
 	// If one input is given, viper derives an env key from it; otherwise, all inputs after
 	// the first are literal env vars.
-	if len(input) == 1 {
-		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	if len(envvars) == 0 {
+		envKeys = []string{c.mergeWithEnvPrefix(key)}
 	} else {
-		envKeys = input[1:]
+		envKeys = envvars
 	}
 
 	for _, key := range envKeys {
@@ -513,8 +513,9 @@ func (c *safeConfig) BindEnv(input ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	_ = c.configSources[model.SourceEnvVar].BindEnv(input...)
-	_ = c.Viper.BindEnv(input...)
+	newKeys := append([]string{key}, envvars...)
+	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -534,24 +535,11 @@ func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 
-// Unmarshal wraps Viper for concurrent access
-func (c *safeConfig) Unmarshal(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.Unmarshal(rawVal)
-}
-
-// UnmarshalExact wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.Viper.UnmarshalExact(rawVal)
-}
-
 // ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
+
 	// ReadInConfig reset configuration with the main config file
 	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[model.SourceFile].ReadInConfig())
 	if err != nil {
@@ -781,9 +769,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {

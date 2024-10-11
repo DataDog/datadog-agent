@@ -62,8 +62,14 @@ lint_gitlab_ci:
     - !reference [.compute_gitlab_ci_config_rules]
     - !reference [.on_gitlab_changes_or_mergequeue_or_main]
   script:
-    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml
-    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml
+    - status=0
+    - inv -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
+    - inv -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
+    - |
+      if [ $status != 0 ]; then
+        echo "At least one linter failed, exiting..." >& 2
+        exit $status
+      fi
 
 lint_gitlab_ci_jobs_codeowners:
   stage: .pre
@@ -73,4 +79,4 @@ lint_gitlab_ci_jobs_codeowners:
   rules:
     - !reference [.on_gitlab_changes]
   script:
-    - inv -e linter.gitlab-ci-jobs-codeowners
+    - inv -e linter.gitlab-ci-jobs-codeowners --all-files

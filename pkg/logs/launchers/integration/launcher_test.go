@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -379,19 +380,28 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.combinedUsageMax = 3 * 1024 * 1024
 
 	// Given 3 files exist
-	filename1 := "sample_integration1_123.log"
-	filename2 := "sample_integration2_123.log"
-	filename3 := "sample_integration3_123.log"
-	files := [3]string{filename1, filename2, filename3}
+	fileWithPath1 := filepath.Join(suite.s.runPath, "sample_integration1_123.log")
+	fileWithPath2 := filepath.Join(suite.s.runPath, "sample_integration2_123.log")
+	fileWithPath3 := filepath.Join(suite.s.runPath, "sample_integration3_123.log")
+	fileNames := [3]string{fileWithPath1, fileWithPath2, fileWithPath3}
 
 	//  And I write 1Mb to each file in seq order
 	dataOneMB := make([]byte, 1*1024*1024)
-	for _, filename := range files {
-		file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	for _, fileWithPath := range fileNames {
+		file, err := os.Create(fileWithPath)
 		require.NoError(suite.T(), err)
 		_, _ = file.Write(dataOneMB)
 		_ = file.Close()
 	}
+
+	// If the files have the same timestamp, scanInitialFiles will detect them in
+	// random order. Setting their modified time manually allows the
+	// scanInitialFiles function to detect them in a deterministic manner
+	modTime := time.Now()
+	accessTime := time.Now()
+	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
+	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
+	os.Chtimes(fileWithPath3, accessTime, modTime)
 
 	suite.s.Start(nil, nil, nil, nil)
 
@@ -404,8 +414,8 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	suite.s.receiveLogs(integrationLog)
 
 	var actualSize int64
-	for _, filename := range files {
-		file, err := os.Stat(filepath.Join(suite.s.runPath, filename))
+	for _, fileWithPath := range fileNames {
+		file, err := os.Stat(fileWithPath)
 		require.Nil(suite.T(), err)
 		actualSize += file.Size()
 	}

@@ -108,7 +108,7 @@ type Setup interface {
 	SetFs(fs afero.Fs)
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string)
+	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
@@ -142,8 +142,6 @@ type Setup interface {
 // some misc functions, that should likely be split into another interface
 type Compound interface {
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
 
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
