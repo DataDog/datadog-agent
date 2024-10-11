@@ -23,7 +23,6 @@ func runtimeAfterFork()
 //go:linkname runtimeAfterForkInChild syscall.runtime_AfterForkInChild
 func runtimeAfterForkInChild()
 
-//nolint:unused
 //go:norace
 //go:nosplit
 func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *syscall.SockFprog) (int, error) {
@@ -118,7 +117,6 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 	return 0, err
 }
 
-//nolint:unused
 func exit(errno syscall.Errno) {
 	for {
 		_, _, _ = syscall.RawSyscall(syscall.SYS_EXIT, uintptr(errno), 0, 0)
