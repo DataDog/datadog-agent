@@ -173,6 +173,7 @@ func readProcessMemMapsFromBuffer(buffer io.Reader) (ProcMapEntries, error) {
 	return entries, nil
 }
 
+// ReadProcessMemMaps reads the content of a /proc/PID/maps file and returns all the entries found in it
 func ReadProcessMemMaps(pid int, procRoot string) (ProcMapEntries, error) {
 	mapsPath := filepath.Join(procRoot, strconv.Itoa(pid), "maps")
 	mapsFile, err := os.Open(mapsPath)

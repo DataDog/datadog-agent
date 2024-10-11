@@ -17,10 +17,12 @@ import (
 
 var initOnce sync.Once
 
+// GpuDevice wraps the nvml.Device struct to provide additional functionality.
 type GpuDevice struct {
 	nvml.Device
 }
 
+// WrapNvmlError wraps an nvml.Return value in a Go error
 func WrapNvmlError(ret nvml.Return) error {
 	if ret == nvml.SUCCESS {
 		return nil
@@ -38,6 +40,7 @@ func ensureNvmlInit() error {
 	return err
 }
 
+// GetGPUDevices returns a list of GPU devices on the system.
 func GetGPUDevices() ([]GpuDevice, error) {
 	err := ensureNvmlInit()
 	if err != nil {
@@ -63,6 +66,7 @@ func GetGPUDevices() ([]GpuDevice, error) {
 	return devices, nil
 }
 
+// GetNumMultiprocessors returns the number of multiprocessors on the GPU.
 func (d *GpuDevice) GetNumMultiprocessors() (int, error) {
 	devProps, ret := d.GetAttributes()
 	if err := WrapNvmlError(ret); err != nil {
@@ -72,6 +76,7 @@ func (d *GpuDevice) GetNumMultiprocessors() (int, error) {
 	return int(devProps.MultiprocessorCount), nil
 }
 
+// GetMaxThreads returns the maximum number of threads that can run concurrently on the GPU.
 func (d *GpuDevice) GetMaxThreads() (int, error) {
 	cores, ret := d.GetNumGpuCores()
 	if err := WrapNvmlError(ret); err != nil {
