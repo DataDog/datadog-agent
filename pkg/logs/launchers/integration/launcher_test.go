@@ -399,8 +399,9 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 	// scanInitialFiles function to detect them in a deterministic manner
 	modTime := time.Now()
 	accessTime := time.Now()
-	os.Chtimes(fileWithPath2, accessTime, modTime)
-	os.Chtimes(fileWithPath3, accessTime, modTime.Add(1*time.Minute))
+	os.Chtimes(fileWithPath1, accessTime, modTime.Add(-2*time.Minute))
+	os.Chtimes(fileWithPath2, accessTime, modTime.Add(-1*time.Minute))
+	os.Chtimes(fileWithPath3, accessTime, modTime)
 
 	suite.s.Start(nil, nil, nil, nil)
 
