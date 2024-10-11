@@ -9,14 +9,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.59.0-rc.3
 	github.com/DataDog/viper v1.13.5
 	github.com/spf13/afero v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.59.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.59.0-rc.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
