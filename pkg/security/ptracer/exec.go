@@ -118,7 +118,5 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 }
 
 func exit(errno syscall.Errno) {
-	for {
-		_, _, _ = syscall.RawSyscall(syscall.SYS_EXIT, uintptr(errno), 0, 0)
-	}
+	_, _, _ = syscall.RawSyscall(syscall.SYS_EXIT, uintptr(errno), 0, 0)
 }
