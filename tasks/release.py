@@ -83,11 +83,41 @@ GITLAB_FILES_TO_UPDATE = [
 
 BACKPORT_LABEL_COLOR = "5319e7"
 
+is_agent6_context = False
+
+
+def read_default_modules(contents):
+    """Extracts the modules from contents which is the content of tasks/modules.py."""
+
+    # Used dynamically
+    from tasks.modules import GoModule  # noqa
+
+    # Extract the DEFAULT_MODULES dict
+    match = re.search(r"DEFAULT_MODULES = ({.*?})", contents, re.DOTALL | re.MULTILINE)
+
+    assert match, 'Cannot extract "DEFAULT_MODULES" from tasks/modules.py'
+
+    modules = eval(match.group(1))
+
+    return modules
+
 
 def get_default_modules(ctx):
-    from tasks.modules import DEFAULT_MODULES
+    """Returns DEFAULT_MODULES either from the current file if current agent context or from the agent6 branch.
 
-    return DEFAULT_MODULES
+    Will read the file of the current branch and parse it if agent6 context.
+    """
+
+    if is_agent6_context:
+        # Read default modules directly from the file
+        with open("tasks/modules.py") as f:
+            modules_file = f.read()
+
+        return read_default_modules(modules_file)
+    else:
+        from tasks.modules import DEFAULT_MODULES
+
+        return DEFAULT_MODULES
 
 
 @contextmanager
@@ -101,6 +131,8 @@ def agent_context(ctx, version: str):
         > with agent_context(ctx, "6.53.0"):
         >     ctx.run("git status")  # 6.53.x branch
     """
+
+    global is_agent6_context
 
     assert len(version.split('.')) == 3, f"Invalid version {version}, should be M.XX.P(-rc.R)?"
 
@@ -128,8 +160,13 @@ def agent_context(ctx, version: str):
         ctx.run(f"git checkout {branch}", hide=True)
 
         try:
+            was_agent6_context = is_agent6_context
+            is_agent6_context = True
+
             yield
         finally:
+            is_agent6_context = was_agent6_context
+
             # Go back + restore
             print(f'{color_message("Agent6", "bold")}: Going back to {base_branch}')
             ctx.run(f"git checkout {base_branch}", hide=True)
@@ -145,6 +182,7 @@ def agent_context(ctx, version: str):
 @task
 def t(ctx, v='6.53.0'):
     with agent_context(ctx, v):
+        print(get_default_modules(ctx))
         print(len(get_default_modules(ctx)))
 
 
