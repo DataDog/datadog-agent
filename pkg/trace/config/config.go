@@ -309,6 +309,9 @@ type AgentConfig struct {
 	ProbabilisticSamplerHashSeed           uint32
 	ProbabilisticSamplerSamplingPercentage float32
 
+	// Error Tracking Standalone
+	ErrorTrackingStandalone bool
+
 	// Receiver
 	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
@@ -486,6 +489,8 @@ func New() *AgentConfig {
 		RareSamplerTPS:            5,
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
+
+		ErrorTrackingStandalone: false,
 
 		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",

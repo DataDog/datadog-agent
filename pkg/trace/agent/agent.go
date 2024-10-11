@@ -546,8 +546,15 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-// sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
+// sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
+// and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
+	// If the agent is set for Error Tracking Standalone only the ErrorSampler is run (bypasses all other samplers).
+	// Trace chunks that don't contain errors are dropped.
+	if a.conf.ErrorTrackingStandalone {
+		return a.errorSampling(now, ts, pt)
+	}
+
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
 	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
 	// where a trace might be marked as DroppedTrace true, but we still sent analytics events in that ProcessedTrace.
@@ -588,6 +595,33 @@ func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 		return false
 	}
 	return dm == manualSampling
+}
+
+// errorSampling reports trace chunks with errors and tags spans as Error Tracking Backend Standalone.
+// Also sets "DroppedTrace" on the chunk.
+func (a *Agent) errorSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
+	sampled := a.runErrorSampler(now, *pt)
+	numEvents = len(a.getAnalyzedEvents(pt, ts))
+	if sampled {
+		for _, span := range pt.TraceChunk.Spans {
+			if spanIsError(span) {
+				span.Meta["_dd.error_tracking_backend_standalone.error"] = "true"
+				delete(span.Meta, "_dd.span_events.has_exception")
+			} else {
+				span.Meta["_dd.error_tracking_backend_standalone.error"] = "false"
+			}
+		}
+	}
+	pt.TraceChunk.DroppedTrace = !sampled
+	return sampled, numEvents
+}
+
+// runErrorSampler runs the agent's configured ErrorSampler if pt contains errors and returns the sampling decision.
+func (a *Agent) runErrorSampler(now time.Time, pt traceutil.ProcessedTrace) (keep bool) {
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	}
+	return false
 }
 
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
