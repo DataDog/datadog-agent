@@ -1899,6 +1899,7 @@ api_key:
 
 # ping:
   ## @param enabled - boolean - optional - default: false
+  ## @env DD_PING_ENABLED - boolean - optional - default: false
   ## Set to true to enable the Ping Module of the System Probe
   #
   # enabled: false
