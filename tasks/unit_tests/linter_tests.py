@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+from codeowners import CodeOwners
 from invoke import Exit, MockContext
 
 import tasks.linter as linter
@@ -123,3 +124,42 @@ class TestGitlabCIJobsNeedsRules(unittest.TestCase):
         ):
             with self.assertRaises(Exit):
                 linter.gitlab_ci_jobs_needs_rules(MockContext())
+
+
+class TestGitlabCIJobsCodeowners(unittest.TestCase):
+    def test_no_file(self):
+        codeowners = """
+        /somefile       @DataDog/the-best-team
+        /.*             @DataDog/another-best-team
+        """
+
+        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', [], CodeOwners(codeowners))
+
+    def test_one_file(self):
+        codeowners = """
+        /somefile       @DataDog/the-best-team
+        /.*             @DataDog/another-best-team
+        """
+
+        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', ['somefile'], CodeOwners(codeowners))
+
+    def test_multiple_files(self):
+        codeowners = """
+        /somefile       @DataDog/the-best-team
+        /.*             @DataDog/another-best-team
+        """
+
+        linter._gitlab_ci_jobs_codeowners_lint(
+            '/path/to/codeowners', ['somefile', '.gitlab-ci.yml'], CodeOwners(codeowners)
+        )
+
+    def test_error(self):
+        codeowners = """
+        /somefile       @DataDog/the-best-team
+        /.*             @DataDog/another-best-team
+        """
+
+        with self.assertRaises(Exit):
+            linter._gitlab_ci_jobs_codeowners_lint(
+                '/path/to/codeowners', ['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners)
+            )

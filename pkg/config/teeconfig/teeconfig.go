@@ -212,9 +212,9 @@ func (t *teeConfig) SetEnvPrefix(in string) {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (t *teeConfig) BindEnv(input ...string) {
-	t.baseline.BindEnv(input...)
-	t.compare.BindEnv(input...)
+func (t *teeConfig) BindEnv(key string, envvars ...string) {
+	t.baseline.BindEnv(key, envvars...)
+	t.compare.BindEnv(key, envvars...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
