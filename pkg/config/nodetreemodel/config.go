@@ -527,20 +527,6 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper
 	return c.logErrorNotImplemented("UnmarshalKey")
 }
 
-// Unmarshal unmarshals data from the root of the config
-func (c *ntmConfig) Unmarshal(_rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.logErrorNotImplemented("Unmarshal")
-}
-
-// UnmarshalExact unmarshals data from the root of the config
-func (c *ntmConfig) UnmarshalExact(_rawVal interface{}) error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.logErrorNotImplemented("UnmarshalExact")
-}
-
 // MergeConfig merges in another config
 func (c *ntmConfig) MergeConfig(_in io.Reader) error {
 	c.Lock()

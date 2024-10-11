@@ -29,11 +29,6 @@ func (c *ntmConfig) ReadInConfig() error {
 		return err
 	}
 
-	//type extraConf struct {
-	//	path    string
-	//	content []byte
-	//}
-
 	// Read extra config files
 	// TODO: handle c.extraConfigFilePaths, read and merge files
 	return nil
