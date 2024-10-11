@@ -267,7 +267,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 	return true
 }
 
-// Apply applies to ruleset to the process killer
+// Reset the state and statistics of the process killer
 func (p *ProcessKiller) Reset(rs *rules.RuleSet) {
 	if p.cfg.RuntimeSecurity.EnforcementEnabled {
 		var ruleSetHasKillAction bool

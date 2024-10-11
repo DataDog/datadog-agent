@@ -580,7 +580,7 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
