@@ -62,3 +62,8 @@ func (p *MessageBuffer) IsEmpty() bool {
 func (p *MessageBuffer) ContentSizeLimit() int {
 	return p.contentSizeLimit
 }
+
+// Size returns the current content size.
+func (p *MessageBuffer) Size() int64 {
+	return int64(p.contentSize)
+}

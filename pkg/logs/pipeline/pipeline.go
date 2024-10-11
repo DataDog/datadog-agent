@@ -9,6 +9,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
@@ -56,8 +58,8 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, senderDoneChan, status, cfg)
 
-	strategyInput := make(chan *message.Message, config.ChanSize)
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+	strategyMonitor := metrics.NewCompMonitor[*message.Message](config.ChanSize, "strategy", strconv.Itoa(pipelineID))
+	senderMonitor := metrics.NewCompMonitor[*message.Payload](1, "sender", strconv.Itoa(pipelineID)) // Only buffer 1 message since payloads can be large
 	flushChan := make(chan struct{})
 
 	var logsSender *sender.Sender
@@ -73,16 +75,15 @@ func NewPipeline(outputChan chan *message.Payload,
 		encoder = processor.RawEncoder
 	}
 
-	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushWg, pipelineID)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
+	strategy := getStrategy(strategyMonitor, senderMonitor.GetInputChan(), flushChan, endpoints, serverless, flushWg, pipelineID)
+	logsSender = sender.NewSender(cfg, senderMonitor, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
-	inputChan := make(chan *message.Message, config.ChanSize)
-
-	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+	processorMonitor := metrics.NewCompMonitor[*message.Message](config.ChanSize, "processor", strconv.Itoa(pipelineID))
+	processor := processor.New(cfg, processorMonitor, strategyMonitor.GetInputChan(), processingRules,
 		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &Pipeline{
-		InputChan:  inputChan,
+		InputChan:  processorMonitor.GetInputChan(),
 		flushChan:  flushChan,
 		processor:  processor,
 		strategy:   strategy,
@@ -151,13 +152,13 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
+func getStrategy(strategyMonitor *metrics.CompMonitor[*message.Message], outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, flushWg *sync.WaitGroup, _ int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {
 			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
 		}
-		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
+		return sender.NewBatchStrategy(strategyMonitor, outputChan, flushChan, serverless, flushWg, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
+	return sender.NewStreamStrategy(strategyMonitor, outputChan, sender.IdentityContentType)
 }

@@ -59,11 +59,12 @@ func (d *Destination) Target() string {
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+func (d *Destination) Start(input *metrics.CompMonitor[*message.Payload], output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})
 	go func() {
-		for payload := range input {
+		for payload := range input.RecvChan() {
 			d.sendAndRetry(payload, output, isRetrying)
+			input.ReportEgress(payload)
 		}
 		d.updateRetryState(nil, isRetrying)
 		stop <- struct{}{}

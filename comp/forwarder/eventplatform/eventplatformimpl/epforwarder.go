@@ -9,6 +9,7 @@ package eventplatformimpl
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -404,8 +406,8 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfigsetup.Datadog()))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
-	inputChan := make(chan *message.Message, endpoints.InputChanSize)
-	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
+	strategyMonitor := metrics.NewCompMonitor[*message.Message](endpoints.InputChanSize, "strategy", strconv.Itoa(pipelineID))
+	senderMonitor := metrics.NewCompMonitor[*message.Payload](1, "sender", strconv.Itoa(pipelineID)) // Only buffer 1 message since payloads can be large
 
 	encoder := sender.IdentityContentType
 	if endpoints.Main.UseCompression {
@@ -414,10 +416,10 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 
 	var strategy sender.Strategy
 	if desc.contentType == logshttp.ProtobufContentType {
-		strategy = sender.NewStreamStrategy(inputChan, senderInput, encoder)
+		strategy = sender.NewStreamStrategy(strategyMonitor, senderMonitor.GetInputChan(), encoder)
 	} else {
-		strategy = sender.NewBatchStrategy(inputChan,
-			senderInput,
+		strategy = sender.NewBatchStrategy(strategyMonitor,
+			senderMonitor.GetInputChan(),
 			make(chan struct{}),
 			false,
 			nil,
@@ -433,9 +435,9 @@ func newHTTPPassthroughPipeline(coreConfig model.Reader, eventPlatformReceiver e
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil),
+		sender:                sender.NewSender(coreConfig, senderMonitor, a.Channel(), destinations, 10, nil, nil),
 		strategy:              strategy,
-		in:                    inputChan,
+		in:                    strategyMonitor.GetInputChan(),
 		auditor:               a,
 		eventPlatformReceiver: eventPlatformReceiver,
 	}, nil

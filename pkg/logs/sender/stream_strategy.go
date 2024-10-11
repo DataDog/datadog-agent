@@ -7,6 +7,7 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -14,16 +15,16 @@ import (
 // that Message's Content. This is used for TCP destinations, which stream the output
 // without batching multiple messages together.
 type streamStrategy struct {
-	inputChan       chan *message.Message
+	strategyMonitor *metrics.CompMonitor[*message.Message]
 	outputChan      chan *message.Payload
 	contentEncoding ContentEncoding
 	done            chan struct{}
 }
 
 // NewStreamStrategy creates a new stream strategy
-func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
+func NewStreamStrategy(strategyMonitor *metrics.CompMonitor[*message.Message], outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
 	return &streamStrategy{
-		inputChan:       inputChan,
+		strategyMonitor: strategyMonitor,
 		outputChan:      outputChan,
 		contentEncoding: contentEncoding,
 		done:            make(chan struct{}),
@@ -33,7 +34,7 @@ func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
 func (s *streamStrategy) Start() {
 	go func() {
-		for msg := range s.inputChan {
+		for msg := range s.strategyMonitor.RecvChan() {
 			if msg.Origin != nil {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
@@ -50,6 +51,7 @@ func (s *streamStrategy) Start() {
 				Encoding:      s.contentEncoding.name(),
 				UnencodedSize: len(msg.GetContent()),
 			}
+			s.strategyMonitor.ReportEgress(msg)
 		}
 		s.done <- struct{}{}
 	}()
@@ -57,6 +59,6 @@ func (s *streamStrategy) Start() {
 
 // Stop stops the strategy
 func (s *streamStrategy) Stop() {
-	close(s.inputChan)
+	s.strategyMonitor.Close()
 	<-s.done
 }

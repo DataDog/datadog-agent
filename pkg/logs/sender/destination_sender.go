@@ -6,11 +6,13 @@
 package sender
 
 import (
+	"strconv"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,14 +33,14 @@ type DestinationSender struct {
 
 // NewDestinationSender creates a new DestinationSender
 func NewDestinationSender(config pkgconfigmodel.Reader, destination client.Destination, output chan *message.Payload, bufferSize int) *DestinationSender {
-	inputChan := make(chan *message.Payload, bufferSize)
+	destinationMonitor := metrics.NewCompMonitor[*message.Payload](bufferSize, "destination", strconv.Itoa(1))
 	retryReader := make(chan bool, 1)
-	stopChan := destination.Start(inputChan, output, retryReader)
+	stopChan := destination.Start(destinationMonitor, output, retryReader)
 
 	d := &DestinationSender{
 		config:            config,
 		sendEnabled:       true,
-		input:             inputChan,
+		input:             destinationMonitor.GetInputChan(),
 		destination:       destination,
 		retryReader:       retryReader,
 		stopChan:          stopChan,

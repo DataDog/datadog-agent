@@ -50,22 +50,23 @@ func (d *SyncDestination) Target() string {
 }
 
 // Start starts reading the input channel
-func (d *SyncDestination) Start(input chan *message.Payload, output chan *message.Payload, _ chan bool) (stopChan <-chan struct{}) {
+func (d *SyncDestination) Start(input *metrics.CompMonitor[*message.Payload], output chan *message.Payload, _ chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})
 	go d.run(input, output, stop)
 	return stop
 }
 
-func (d *SyncDestination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}) {
+func (d *SyncDestination) run(input *metrics.CompMonitor[*message.Payload], output chan *message.Payload, stopChan chan struct{}) {
 	var startIdle = time.Now()
 
-	for p := range input {
+	for p := range input.RecvChan() {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.destination.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.destination.telemetryName)
 		var startInUse = time.Now()
 
 		err := d.destination.unconditionalSend(p)
+		input.ReportEgress(p)
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()

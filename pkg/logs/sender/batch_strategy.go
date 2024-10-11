@@ -13,6 +13,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,12 +24,12 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
-	outputChan chan *message.Payload
-	flushChan  chan struct{}
-	serverless bool
-	flushWg    *sync.WaitGroup
-	buffer     *MessageBuffer
+	strategyMonitor *metrics.CompMonitor[*message.Message]
+	outputChan      chan *message.Payload
+	flushChan       chan struct{}
+	serverless      bool
+	flushWg         *sync.WaitGroup
+	buffer          *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName    string
 	serializer      Serializer
@@ -39,7 +40,7 @@ type batchStrategy struct {
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-func NewBatchStrategy(inputChan chan *message.Message,
+func NewBatchStrategy(strategyMonitor *metrics.CompMonitor[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serverless bool,
@@ -50,10 +51,10 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(strategyMonitor, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
-func newBatchStrategyWithClock(inputChan chan *message.Message,
+func newBatchStrategyWithClock(strategyMonitor *metrics.CompMonitor[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serverless bool,
@@ -67,7 +68,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	contentEncoding ContentEncoding) Strategy {
 
 	return &batchStrategy{
-		inputChan:       inputChan,
+		strategyMonitor: strategyMonitor,
 		outputChan:      outputChan,
 		flushChan:       flushChan,
 		serverless:      serverless,
@@ -84,7 +85,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 
 // Stop flushes the buffer and stops the strategy
 func (s *batchStrategy) Stop() {
-	close(s.inputChan)
+	s.strategyMonitor.Close()
 	<-s.stopChan
 }
 
@@ -102,7 +103,7 @@ func (s *batchStrategy) Start() {
 		}()
 		for {
 			select {
-			case m, isOpen := <-s.inputChan:
+			case m, isOpen := <-s.strategyMonitor.RecvChan():
 
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected
@@ -145,6 +146,10 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 		return
 	}
 	messages := s.buffer.GetMessages()
+
+	defer func() {
+		s.strategyMonitor.ReportEgress(s.buffer)
+	}()
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
 	// pipelineName comes from epforwarder.passthroughPipelineDescs.eventType, and these names are constants in the epforwarder package.

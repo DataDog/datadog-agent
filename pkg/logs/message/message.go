@@ -43,6 +43,11 @@ type Payload struct {
 	UnencodedSize int
 }
 
+// Size returns the size of the message.
+func (m *Payload) Size() int64 {
+	return int64(m.UnencodedSize)
+}
+
 // Message represents a log line sent to datadog, with its metadata
 type Message struct {
 	MessageContent
@@ -353,6 +358,11 @@ func (m *Message) Tags() []string {
 // Message returns all tags that this message is attached with, as a string.
 func (m *Message) TagsToString() string {
 	return m.Origin.TagsToString(m.ProcessingTags)
+}
+
+// Size returns the size of the message.
+func (m *Message) Size() int64 {
+	return int64(len(m.GetContent()))
 }
 
 // TruncatedReasonTag returns a tag with the reason for truncation.

@@ -176,22 +176,23 @@ func (d *Destination) Target() string {
 }
 
 // Start starts reading the input channel
-func (d *Destination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+func (d *Destination) Start(input *metrics.CompMonitor[*message.Payload], output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})
 	go d.run(input, output, stop, isRetrying)
 	return stop
 }
 
-func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
+func (d *Destination) run(input *metrics.CompMonitor[*message.Payload], output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
 	var startIdle = time.Now()
 
-	for p := range input {
+	for p := range input.RecvChan() {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.telemetryName)
 		var startInUse = time.Now()
 
 		d.sendConcurrent(p, output, isRetrying)
+		input.ReportEgress(p)
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		d.expVars.AddFloat(expVarInUseMsMapKey, inUse)

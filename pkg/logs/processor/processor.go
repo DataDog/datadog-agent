@@ -26,9 +26,9 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
-	pipelineID int
-	inputChan  chan *message.Message
-	outputChan chan *message.Message // strategy input
+	pipelineID       int
+	processorMonitor *metrics.CompMonitor[*message.Message]
+	outputChan       chan *message.Message // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
 	// the processing rules of the SDS Scanner.
 	ReconfigChan              chan sds.ReconfigureOrder
@@ -56,7 +56,7 @@ type sdsProcessor struct {
 }
 
 // New returns an initialized Processor.
-func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
+func New(cfg pkgconfigmodel.Reader, processorMonitor *metrics.CompMonitor[*message.Message], outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineID int) *Processor {
 
@@ -65,7 +65,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 
 	return &Processor{
 		pipelineID:                pipelineID,
-		inputChan:                 inputChan,
+		processorMonitor:          processorMonitor,
 		outputChan:                outputChan, // strategy input
 		ReconfigChan:              make(chan sds.ReconfigureOrder),
 		processingRules:           processingRules,
@@ -91,7 +91,7 @@ func (p *Processor) Start() {
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
-	close(p.inputChan)
+	p.processorMonitor.Close()
 	<-p.done
 	// once the processor mainloop is not running, it's safe
 	// to delete the sds scanner instance.
@@ -106,15 +106,16 @@ func (p *Processor) Stop() {
 func (p *Processor) Flush(ctx context.Context) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	recvChan := p.processorMonitor.RecvChan()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			if len(p.inputChan) == 0 {
+			if len(recvChan) == 0 {
 				return
 			}
-			msg := <-p.inputChan
+			msg := <-recvChan
 			p.processMessage(msg)
 		}
 	}
@@ -125,13 +126,14 @@ func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
+	outputChan := p.processorMonitor.RecvChan()
 
 	for {
 		select {
 		// Processing, usual main loop
 		// ---------------------------
 
-		case msg, ok := <-p.inputChan:
+		case msg, ok := <-outputChan:
 			if !ok { // channel has been closed
 				return
 			}
@@ -242,6 +244,9 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		p.outputChan <- msg
+
+		// TODO (brian): This doesn't handle transforms
+		p.processorMonitor.ReportEgress(msg)
 	}
 }
 
