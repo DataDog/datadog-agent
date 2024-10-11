@@ -7,12 +7,10 @@
 package nodetreemodel
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sources list the known sources, following the order of hierarchy between them
+// sources lists the known sources, following the order of hierarchy between them
 var sources = []model.Source{
 	model.SourceDefault,
 	model.SourceUnknown,
@@ -43,13 +41,15 @@ var sources = []model.Source{
 	model.SourceCLI,
 }
 
-// safeConfig implements Config:
-// - wraps viper with a safety lock
-// - implements the additional DDHelpers
-type safeConfig struct {
-	*viper.Viper
-	configSources map[model.Source]*viper.Viper
+// ntmConfig implements Config
+// - wraps a tree of node that represent config data
+// - uses a lock to synchronize all methods
+// - contains metadata about known keys, env var support
+type ntmConfig struct {
 	sync.RWMutex
+	root   Node
+	noimpl notImplementedMethods
+
 	envPrefix      string
 	envKeyReplacer *strings.Replacer
 
@@ -58,10 +58,17 @@ type safeConfig struct {
 	// Proxy settings
 	proxies *model.Proxy
 
+	configName string
+	configFile string
+	configType string
+
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
 
+	// known keys are all the keys that meet at least one of these criteria:
+	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
+	knownKeys map[string]struct{}
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
@@ -70,17 +77,29 @@ type safeConfig struct {
 	extraConfigFilePaths []string
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
+// OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
-func (c *safeConfig) OnUpdate(callback model.NotificationReceiver) {
+func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
 	c.notificationReceivers = append(c.notificationReceivers, callback)
 }
 
-// Set wraps Viper for concurrent access
-func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) {
+// getValue gets a value, should only be called within a locked mutex
+func (c *ntmConfig) getValue(key string) (interface{}, error) {
+	return c.leafAtPath(key).GetAny()
+}
+
+func (c *ntmConfig) setValueSource(key string, newValue interface{}, source model.Source) {
+	err := c.leafAtPath(key).SetWithSource(newValue, source)
+	if err != nil {
+		log.Errorf("%s", err)
+	}
+}
+
+// Set assigns the newValue to the given key and marks it as originating from the given source
+func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceDefault {
 		c.SetDefault(key, newValue)
 		return
@@ -89,9 +108,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	// modify the config then release the lock to avoid deadlocks while notifying
 	var receivers []model.NotificationReceiver
 	c.Lock()
-	previousValue := c.Viper.Get(key)
-	c.configSources[source].Set(key, newValue)
-	c.mergeViperInstances(key)
+	previousValue, _ := c.getValue(key)
+	c.setValueSource(key, newValue, source)
 	if !reflect.DeepEqual(previousValue, newValue) {
 		// if the value has not changed, do not duplicate the slice so that no callback is called
 		receivers = slices.Clone(c.notificationReceivers)
@@ -104,66 +122,38 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 }
 
-// SetWithoutSource sets the given value using source Unknown
-func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
+// SetWithoutSource assigns the value to the given key using source Unknown
+func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Set(key, value, model.SourceUnknown)
 }
 
-// SetDefault wraps Viper for concurrent access
-func (c *safeConfig) SetDefault(key string, value interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.configSources[model.SourceDefault].Set(key, value)
-	c.Viper.SetDefault(key, value)
+// SetDefault assigns the value to the given key using source Default
+func (c *ntmConfig) SetDefault(key string, value interface{}) {
+	c.Set(key, value, model.SourceDefault)
 }
 
 // UnsetForSource unsets a config entry for a given source
-func (c *safeConfig) UnsetForSource(key string, source model.Source) {
-	// modify the config then release the lock to avoid deadlocks while notifying
-	var receivers []model.NotificationReceiver
+func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
 	c.Lock()
-	previousValue := c.Viper.Get(key)
-	c.configSources[source].Set(key, nil)
-	c.mergeViperInstances(key)
-	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
-	if previousValue != nil {
-		// if the value has not changed, do not duplicate the slice so that no callback is called
-		receivers = slices.Clone(c.notificationReceivers)
-	}
+	c.logErrorNotImplemented("UnsetForSource")
 	c.Unlock()
-
-	// notifying all receiver about the updated setting
-	for _, receiver := range receivers {
-		receiver(key, previousValue, newValue)
-	}
-}
-
-// mergeViperInstances is called after a change in an instance of Viper
-// to recompute the state of the main Viper
-// (it must be used with a lock to prevent concurrent access to Viper)
-func (c *safeConfig) mergeViperInstances(key string) {
-	var val interface{}
-	for _, source := range sources {
-		if currVal := c.configSources[source].Get(key); currVal != nil {
-			val = currVal
-		}
-	}
-	c.Viper.Set(key, val)
 }
 
 // SetKnown adds a key to the set of known valid config keys
-func (c *safeConfig) SetKnown(key string) {
+func (c *ntmConfig) SetKnown(key string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetKnown(key)
+	key = strings.ToLower(key)
+	c.knownKeys[key] = struct{}{}
 }
 
 // IsKnown returns whether a key is known
-func (c *safeConfig) IsKnown(key string) bool {
+func (c *ntmConfig) IsKnown(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
-
-	return c.Viper.IsKnown(key)
+	key = strings.ToLower(key)
+	_, found := c.knownKeys[key]
+	return found
 }
 
 // checkKnownKey checks if a key is known, and if not logs a warning
@@ -171,8 +161,8 @@ func (c *safeConfig) IsKnown(key string) bool {
 //
 // Must be called with the lock read-locked.
 // The lock can be released and re-locked.
-func (c *safeConfig) checkKnownKey(key string) {
-	if c.Viper.IsKnown(key) {
+func (c *ntmConfig) checkKnownKey(key string) {
+	if c.IsKnown(key) {
 		return
 	}
 
@@ -180,224 +170,232 @@ func (c *safeConfig) checkKnownKey(key string) {
 		return
 	}
 
-	// need to write-lock to add the key to the unknownKeys map
-	c.RUnlock()
-	// but we need to have the lock in the same state (RLocked) at the end of the function
-	defer c.RLock()
-
-	c.Lock()
 	c.unknownKeys[key] = struct{}{}
-	c.Unlock()
-
-	// log without holding the lock
 	log.Warnf("config key %v is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
 // Note that it returns the keys lowercased.
-func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
+func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
-	return c.Viper.GetKnownKeys()
+	ret := make(map[string]interface{})
+	for key, value := range c.knownKeys {
+		ret[key] = value
+	}
+	return ret
 }
 
-// ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
-func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
+// ParseEnvAsStringSlice registers a transform function to parse an environment variable as a []string.
+func (c *ntmConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsMapStringInterface registers a transformer function to parse an an environment variables as a
-// map[string]interface{}.
-func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
+// ParseEnvAsMapStringInterface registers a transform function to parse an environment variable as a map[string]interface{}
+func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map[string]interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+// ParseEnvAsSliceMapString registers a transform function to parse an environment variable as a []map[string]string
+func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
+// ParseEnvAsSlice registers a transform function to parse an environment variable as a []interface
+func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// SetFs wraps Viper for concurrent access
-func (c *safeConfig) SetFs(fs afero.Fs) {
+// SetFs assigns a filesystem to the config
+func (c *ntmConfig) SetFs(fs afero.Fs) {
 	c.Lock()
 	defer c.Unlock()
-	c.Viper.SetFs(fs)
+	c.noimpl.SetFs(fs)
 }
 
-// IsSet wraps Viper for concurrent access
-func (c *safeConfig) IsSet(key string) bool {
+// IsSet checks if a key is set in the config
+func (c *ntmConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.IsSet(key)
+	return c.noimpl.IsSet(key)
 }
 
-func (c *safeConfig) AllKeysLowercased() []string {
+// AllKeysLowercased returns all keys lower-cased
+func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllKeys()
+	return c.noimpl.AllKeys()
 }
 
-// Get wraps Viper for concurrent access
-func (c *safeConfig) Get(key string) interface{} {
+func (c *ntmConfig) leafAtPath(key string) LeafNode {
+	pathParts := strings.Split(key, ".")
+	curr := c.root
+	for _, part := range pathParts {
+		next, err := curr.GetChild(part)
+		if err != nil {
+			return &missingLeaf
+		}
+		curr = next
+	}
+	if leaf, ok := curr.(LeafNode); ok {
+		return leaf
+	}
+	return &missingLeaf
+}
+
+// Get returns a copy of the value for the given key
+func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetE(key)
+	val, err := c.getValue(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
+	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
+	// and we shouldn't ever return complex types like maps and slices that could be modified
+	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
 	return deepcopy.Copy(val)
 }
 
 // GetAllSources returns the value of a key for each source
-func (c *safeConfig) GetAllSources(key string) []model.ValueWithSource {
+func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 	vals := make([]model.ValueWithSource, len(sources))
-	for i, source := range sources {
-		vals[i] = model.ValueWithSource{
-			Source: source,
-			Value:  deepcopy.Copy(c.configSources[source].Get(key)),
-		}
-	}
+	c.logErrorNotImplemented("GetAllSources")
 	return vals
 }
 
-// GetString wraps Viper for concurrent access
-func (c *safeConfig) GetString(key string) string {
+// GetString returns a string-typed value for the given key
+func (c *ntmConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetStringE(key)
+	str, err := c.leafAtPath(key).GetString()
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return str
+}
+
+// GetBool returns a bool-typed value for the given key
+func (c *ntmConfig) GetBool(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	c.checkKnownKey(key)
+	b, err := c.leafAtPath(key).GetBool()
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return b
+}
+
+// GetInt returns an int-typed value for the given key
+func (c *ntmConfig) GetInt(key string) int {
+	c.RLock()
+	defer c.RUnlock()
+	c.checkKnownKey(key)
+	val, err := c.leafAtPath(key).GetInt()
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
 }
 
-// GetBool wraps Viper for concurrent access
-func (c *safeConfig) GetBool(key string) bool {
+// GetInt32 returns an int32-typed value for the given key
+func (c *ntmConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetBoolE(key)
+	val, err := c.leafAtPath(key).GetInt()
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return int32(val)
+}
+
+// GetInt64 returns an int64-typed value for the given key
+func (c *ntmConfig) GetInt64(key string) int64 {
+	c.RLock()
+	defer c.RUnlock()
+	c.checkKnownKey(key)
+	val, err := c.leafAtPath(key).GetInt()
+	if err != nil {
+		log.Warnf("failed to get configuration value for key %q: %s", key, err)
+	}
+	return int64(val)
+}
+
+// GetFloat64 returns a float64-typed value for the given key
+func (c *ntmConfig) GetFloat64(key string) float64 {
+	c.RLock()
+	defer c.RUnlock()
+	c.checkKnownKey(key)
+	val, err := c.leafAtPath(key).GetFloat()
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
 }
 
-// GetInt wraps Viper for concurrent access
-func (c *safeConfig) GetInt(key string) int {
+// GetTime returns a time-typed value for the given key
+func (c *ntmConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetIntE(key)
+	val, err := c.leafAtPath(key).GetTime()
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
 }
 
-// GetInt32 wraps Viper for concurrent access
-func (c *safeConfig) GetInt32(key string) int32 {
+// GetDuration returns a duration-typed value for the given key
+func (c *ntmConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetInt32E(key)
+	val, err := c.leafAtPath(key).GetDuration()
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
 }
 
-// GetInt64 wraps Viper for concurrent access
-func (c *safeConfig) GetInt64(key string) int64 {
+// GetStringSlice returns a string slice value for the given key
+func (c *ntmConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetInt64E(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetFloat64 wraps Viper for concurrent access
-func (c *safeConfig) GetFloat64(key string) float64 {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetFloat64E(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetTime wraps Viper for concurrent access
-func (c *safeConfig) GetTime(key string) time.Time {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetTimeE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetDuration wraps Viper for concurrent access
-func (c *safeConfig) GetDuration(key string) time.Duration {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetDurationE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
-// GetStringSlice wraps Viper for concurrent access
-func (c *safeConfig) GetStringSlice(key string) []string {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	val, err := c.Viper.GetStringSliceE(key)
+	val, err := c.noimpl.GetStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return slices.Clone(val)
 }
 
-// GetFloat64SliceE loads a key as a []float64
-func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
+// GetFloat64SliceE returns a float slice value for the given key, or an error
+func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
 	// We're using GetStringSlice because viper can only parse list of string from env variables
-	list, err := c.Viper.GetStringSliceE(key)
+	list, err := c.noimpl.GetStringSliceE(key)
 	if err != nil {
 		return nil, fmt.Errorf("'%v' is not a list", key)
 	}
@@ -413,86 +411,83 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	return res, nil
 }
 
-// GetStringMap wraps Viper for concurrent access
-func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
+// GetStringMap returns a map[string]interface value for the given key
+func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetStringMapE(key)
+	val, err := c.noimpl.GetStringMapE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return deepcopy.Copy(val).(map[string]interface{})
 }
 
-// GetStringMapString wraps Viper for concurrent access
-func (c *safeConfig) GetStringMapString(key string) map[string]string {
+// GetStringMapString returns a map[string]string value for the given key
+func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetStringMapStringE(key)
+	val, err := c.noimpl.GetStringMapStringE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return deepcopy.Copy(val).(map[string]string)
 }
 
-// GetStringMapStringSlice wraps Viper for concurrent access
-func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
+// GetStringMapStringSlice returns a map[string][]string value for the given key
+func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetStringMapStringSliceE(key)
+	val, err := c.noimpl.GetStringMapStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return deepcopy.Copy(val).(map[string][]string)
 }
 
-// GetSizeInBytes wraps Viper for concurrent access
-func (c *safeConfig) GetSizeInBytes(key string) uint {
+// GetSizeInBytes returns the size in bytes of the filename for the given key
+func (c *ntmConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	val, err := c.Viper.GetSizeInBytesE(key)
+	val, err := c.noimpl.GetSizeInBytesE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
 }
 
-// GetSource wraps Viper for concurrent access
-func (c *safeConfig) GetSource(key string) model.Source {
+func (c *ntmConfig) logErrorNotImplemented(method string) error {
+	err := fmt.Errorf("not implemented: %s", method)
+	log.Error(err)
+	return err
+}
+
+// GetSource returns the source of the given key
+func (c *ntmConfig) GetSource(key string) model.Source {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	var source model.Source
-	for _, s := range sources {
-		if c.configSources[s].Get(key) != nil {
-			source = s
-		}
-	}
-	return source
+	c.logErrorNotImplemented("GetSource")
+	return model.SourceUnknown
 }
 
-// SetEnvPrefix wraps Viper for concurrent access, and keeps the envPrefix for
-// future reference
-func (c *safeConfig) SetEnvPrefix(in string) {
+// SetEnvPrefix sets the environment variable prefix to use
+func (c *ntmConfig) SetEnvPrefix(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceEnvVar].SetEnvPrefix(in)
-	c.Viper.SetEnvPrefix(in)
 	c.envPrefix = in
 }
 
-// mergeWithEnvPrefix derives the environment variable that Viper will use for a given key.
-// mergeWithEnvPrefix must be called while holding the config log (read or write).
-func (c *safeConfig) mergeWithEnvPrefix(key string) string {
+// mergeWithEnvPrefix derives the environment variable to use for a given key.
+func (c *ntmConfig) mergeWithEnvPrefix(key string) string {
 	return strings.Join([]string{c.envPrefix, strings.ToUpper(key)}, "_")
 }
 
-// BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(key string, envvars ...string) {
+// BindEnv binds one or more environment variables to the given key
+func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
@@ -513,85 +508,30 @@ func (c *safeConfig) BindEnv(key string, envvars ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	newKeys := append([]string{key}, envvars...)
-	_ = c.configSources[model.SourceEnvVar].BindEnv(newKeys...)
-	_ = c.Viper.BindEnv(newKeys...)
+	c.logErrorNotImplemented("BindEnv")
 }
 
-// SetEnvKeyReplacer wraps Viper for concurrent access
-func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
+// SetEnvKeyReplacer binds a replacer function for keys
+func (c *ntmConfig) SetEnvKeyReplacer(_r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
-	c.Viper.SetEnvKeyReplacer(r)
-	c.envKeyReplacer = r
+	c.logErrorNotImplemented("SetEnvKeyReplacer")
 }
 
-// UnmarshalKey wraps Viper for concurrent access
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
+// UnmarshalKey unmarshals the data for the given key
+// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
+func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.Viper.UnmarshalKey(key, rawVal, opts...)
+	return c.logErrorNotImplemented("UnmarshalKey")
 }
 
-// ReadInConfig wraps Viper for concurrent access
-func (c *safeConfig) ReadInConfig() error {
+// MergeConfig merges in another config
+func (c *ntmConfig) MergeConfig(_in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
-
-	// ReadInConfig reset configuration with the main config file
-	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[model.SourceFile].ReadInConfig())
-	if err != nil {
-		return err
-	}
-
-	type extraConf struct {
-		path    string
-		content []byte
-	}
-
-	// Read extra config files
-	extraConfContents := []extraConf{}
-	for _, path := range c.extraConfigFilePaths {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("could not read extra config file '%s': %w", path, err)
-		}
-		extraConfContents = append(extraConfContents, extraConf{path: path, content: b})
-	}
-
-	// Merge with base config and 'file' config
-	for _, confFile := range extraConfContents {
-		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[model.SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
-		if err != nil {
-			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
-		}
-		log.Infof("extra configuration file %s was loaded successfully", confFile.path)
-	}
-	return nil
-}
-
-// ReadConfig wraps Viper for concurrent access
-func (c *safeConfig) ReadConfig(in io.Reader) error {
-	c.Lock()
-	defer c.Unlock()
-	b, err := io.ReadAll(in)
-	if err != nil {
-		return err
-	}
-	err = c.Viper.ReadConfig(bytes.NewReader(b))
-	if err != nil {
-		return err
-	}
-	return c.configSources[model.SourceFile].ReadConfig(bytes.NewReader(b))
-}
-
-// MergeConfig wraps Viper for concurrent access
-func (c *safeConfig) MergeConfig(in io.Reader) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.MergeConfig(in)
+	return c.logErrorNotImplemented("MergeConfig")
 }
 
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
@@ -599,7 +539,7 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 // according to sources priority order.
 //
 // Note: this should only be called at startup, as notifiers won't receive a notification when this loads
-func (c *safeConfig) MergeFleetPolicy(configPath string) error {
+func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -616,83 +556,57 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	}
 	defer in.Close()
 
-	c.configSources[model.SourceFleetPolicies].SetConfigType("yaml")
-	err = c.configSources[model.SourceFleetPolicies].MergeConfigOverride(in)
-	if err != nil {
-		return err
-	}
-	for _, key := range c.configSources[model.SourceFleetPolicies].AllKeys() {
-		c.mergeViperInstances(key)
-	}
-	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
-	return nil
+	// TODO: Implement merging, merge in the policy that was read
+	return c.logErrorNotImplemented("MergeFleetPolicy")
 }
 
 // MergeConfigMap merges the configuration from the map given with an existing config.
 // Note that the map given may be modified.
-func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
+func (c *ntmConfig) MergeConfigMap(_cfg map[string]any) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Viper.MergeConfigMap(cfg)
+	c.logErrorNotImplemented("AllSettings")
+	return nil
 }
 
-// AllSettings wraps Viper for concurrent access
-func (c *safeConfig) AllSettings() map[string]interface{} {
+// AllSettings returns all settings from the config
+func (c *ntmConfig) AllSettings() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-
-	// AllSettings returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.Viper.AllSettings()
+	c.logErrorNotImplemented("AllSettings")
+	return nil
 }
 
 // AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
-func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
+func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
-
-	// AllSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.Viper.AllSettingsWithoutDefault()
+	c.logErrorNotImplemented("AllSettingsWithoutDefault")
+	return nil
 }
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
-func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
+func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	sources := []model.Source{
-		model.SourceDefault,
-		model.SourceUnknown,
-		model.SourceFile,
-		model.SourceEnvVar,
-		model.SourceFleetPolicies,
-		model.SourceAgentRuntime,
-		model.SourceRC,
-		model.SourceCLI,
-		model.SourceLocalConfigProcess,
-	}
 	res := map[model.Source]interface{}{}
-	for _, source := range sources {
-		res[source] = c.configSources[source].AllSettingsWithoutDefault()
-	}
-	res[model.SourceProvided] = c.Viper.AllSettingsWithoutDefault()
+	c.logErrorNotImplemented("AllSettingsBySource")
 	return res
 }
 
-// AddConfigPath wraps Viper for concurrent access
-func (c *safeConfig) AddConfigPath(in string) {
+// AddConfigPath adds another config for the given path
+func (c *ntmConfig) AddConfigPath(_in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceFile].AddConfigPath(in)
-	c.Viper.AddConfigPath(in)
+	c.logErrorNotImplemented("AddConfigPath")
 }
 
 // AddExtraConfigPaths allows adding additional configuration files
 // which will be merged into the main configuration during the ReadInConfig call.
 // Configuration files are merged sequentially. If a key already exists and the foreign value type matches the existing one, the foreign value overrides it.
 // If both the existing value and the new value are nested configurations, they are merged recursively following the same principles.
-func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
+func (c *ntmConfig) AddExtraConfigPaths(ins []string) error {
 	if len(ins) == 0 {
 		return nil
 	}
@@ -717,48 +631,44 @@ func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
 	return err
 }
 
-// SetConfigName wraps Viper for concurrent access
-func (c *safeConfig) SetConfigName(in string) {
+// SetConfigName sets the name of the config
+func (c *ntmConfig) SetConfigName(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceFile].SetConfigName(in)
-	c.Viper.SetConfigName(in)
+	c.configName = in
+	c.configFile = ""
 }
 
-// SetConfigFile wraps Viper for concurrent access
-func (c *safeConfig) SetConfigFile(in string) {
+// SetConfigFile sets the config file
+func (c *ntmConfig) SetConfigFile(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceFile].SetConfigFile(in)
-	c.Viper.SetConfigFile(in)
+	c.configFile = in
 }
 
-// SetConfigType wraps Viper for concurrent access
-func (c *safeConfig) SetConfigType(in string) {
+// SetConfigType sets the type of the config
+func (c *ntmConfig) SetConfigType(in string) {
 	c.Lock()
 	defer c.Unlock()
-	c.configSources[model.SourceFile].SetConfigType(in)
-	c.Viper.SetConfigType(in)
+	c.configType = in
 }
 
-// ConfigFileUsed wraps Viper for concurrent access
-func (c *safeConfig) ConfigFileUsed() string {
+// ConfigFileUsed returns the config file
+func (c *ntmConfig) ConfigFileUsed() string {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.ConfigFileUsed()
+	return c.configFile
 }
 
-func (c *safeConfig) SetTypeByDefaultValue(in bool) {
+// SetTypeByDefaultValue enables typing using default values
+func (c *ntmConfig) SetTypeByDefaultValue(_in bool) {
 	c.Lock()
 	defer c.Unlock()
-	for _, source := range sources {
-		c.configSources[source].SetTypeByDefaultValue(in)
-	}
-	c.Viper.SetTypeByDefaultValue(in)
+	c.logErrorNotImplemented("SetTypeByDefaultValue")
 }
 
-// GetEnvVars implements the Config interface
-func (c *safeConfig) GetEnvVars() []string {
+// GetEnvVars gets all environment variables
+func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
 	vars := make([]string, 0, len(c.configEnvVars))
@@ -768,32 +678,29 @@ func (c *safeConfig) GetEnvVars() []string {
 	return vars
 }
 
-// BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
+// BindEnvAndSetDefault binds an environment variable and sets a default for the given key
+func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
 	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
-func (c *safeConfig) Warnings() *model.Warnings {
+// Warnings just returns nil
+func (c *ntmConfig) Warnings() *model.Warnings {
 	return nil
 }
 
-func (c *safeConfig) Object() model.Reader {
+// Object returns the config as a Reader interface
+func (c *ntmConfig) Object() model.Reader {
 	return c
 }
 
 // NewConfig returns a new Config object.
 func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) model.Config {
-	config := safeConfig{
-		Viper:         viper.New(),
-		configSources: map[model.Source]*viper.Viper{},
+	config := ntmConfig{
+		noimpl:        &notImplMethodsImpl{},
 		configEnvVars: map[string]struct{}{},
+		knownKeys:     map[string]struct{}{},
 		unknownKeys:   map[string]struct{}{},
-	}
-
-	// load one Viper instance per source of setting change
-	for _, source := range sources {
-		config.configSources[source] = viper.New()
 	}
 
 	config.SetTypeByDefaultValue(true)
@@ -806,13 +713,13 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 
 // CopyConfig copies the given config to the receiver config. This should only be used in tests as replacing
 // the global config reference is unsafe.
-func (c *safeConfig) CopyConfig(cfg model.Config) {
+func (c *ntmConfig) CopyConfig(cfg model.Config) {
 	c.Lock()
 	defer c.Unlock()
-
-	if cfg, ok := cfg.(*safeConfig); ok {
-		c.Viper = cfg.Viper
-		c.configSources = cfg.configSources
+	c.logErrorNotImplemented("CopyConfig")
+	if cfg, ok := cfg.(*ntmConfig); ok {
+		// TODO: Probably a bug, should be a deep copy, add a test and verify
+		c.root = cfg.root
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
 		c.proxies = cfg.proxies
@@ -821,33 +728,34 @@ func (c *safeConfig) CopyConfig(cfg model.Config) {
 		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
-	panic("Replacement config must be an instance of safeConfig")
+	panic("Replacement config must be an instance of ntmConfig")
 }
 
 // GetProxies returns the proxy settings from the configuration
-func (c *safeConfig) GetProxies() *model.Proxy {
+func (c *ntmConfig) GetProxies() *model.Proxy {
 	c.Lock()
-	defer c.Unlock()
-	if c.proxies != nil {
-		return c.proxies
+	hasProxies := c.proxies
+	c.Unlock()
+	if hasProxies != nil {
+		return hasProxies
 	}
-	if c.Viper.GetBool("fips.enabled") {
+	if c.GetBool("fips.enabled") {
 		return nil
 	}
-	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+	if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
 		return nil
 	}
 	p := &model.Proxy{
-		HTTP:    c.Viper.GetString("proxy.http"),
-		HTTPS:   c.Viper.GetString("proxy.https"),
-		NoProxy: c.Viper.GetStringSlice("proxy.no_proxy"),
+		HTTP:    c.GetString("proxy.http"),
+		HTTPS:   c.GetString("proxy.https"),
+		NoProxy: c.GetStringSlice("proxy.no_proxy"),
 	}
-
 	c.proxies = p
 	return c.proxies
 }
 
-func (c *safeConfig) ExtraConfigFilesUsed() []string {
+// ExtraConfigFilesUsed returns the additional config files used
+func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()
 	defer c.Unlock()
 	res := make([]string, len(c.extraConfigFilePaths))
