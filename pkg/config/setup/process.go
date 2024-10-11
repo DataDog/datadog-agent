@@ -90,7 +90,7 @@ var processesAddOverrideOnce sync.Once
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
+func procBindEnvAndSetDefault(config pkgconfigmodel.Setup, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
@@ -102,14 +102,14 @@ func procBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val inte
 
 // procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
 // We need this helper function because the standard BindEnv can only generate one prefix from a key.
-func procBindEnv(config pkgconfigmodel.Config, key string) {
+func procBindEnv(config pkgconfigmodel.Setup, key string) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	config.BindEnv(key, processConfigKey, processAgentKey)
 }
 
-func setupProcesses(config pkgconfigmodel.Config) {
+func setupProcesses(config pkgconfigmodel.Setup) {
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")

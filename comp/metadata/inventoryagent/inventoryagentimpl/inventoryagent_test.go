@@ -24,8 +24,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
+	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -274,7 +274,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -457,7 +457,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	}
 
 	defer func() {
-		fetchSystemProbeConfig = configFetcher.SystemProbeConfig
+		fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 	}()
 	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader) (string, error) {
 		// test that the system-probe config was passed and not the agent config

@@ -14,14 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 func initStatus() {
-	InitStatus(pkgConfig.Datadog(), testutils.CreateSources([]*sources.LogSource{
+	InitStatus(pkgconfigsetup.Datadog(), testutils.CreateSources([]*sources.LogSource{
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
@@ -96,13 +96,13 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": ""}`
+	var expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": ""}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
 	initStatus()
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalError("bar", "I am an error")
-	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
+	expected = `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 }
 

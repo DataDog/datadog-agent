@@ -34,9 +34,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -57,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,8 +71,6 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  runtime_compilation:
-    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
@@ -206,61 +200,6 @@ runtime_security_config:
         enabled: {{.EnforcementDisarmerExecutableEnabled}}
         max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
         period: {{.EnforcementDisarmerExecutablePeriod}}
-`
-
-const testPolicy = `---
-version: 1.2.3
-
-hooks:
-{{range $OnDemandProbe := .OnDemandProbes}}
-  - name: {{$OnDemandProbe.Name}}
-    syscall: {{$OnDemandProbe.IsSyscall}}
-    args:
-{{range $Arg := $OnDemandProbe.Args}}
-      - n: {{$Arg.N}}
-        kind: {{$Arg.Kind}}
-{{end}}
-{{end}}
-
-macros:
-{{range $Macro := .Macros}}
-  - id: {{$Macro.ID}}
-    expression: >-
-      {{$Macro.Expression}}
-{{end}}
-
-rules:
-{{range $Rule := .Rules}}
-  - id: {{$Rule.ID}}
-    version: {{$Rule.Version}}
-    expression: >-
-      {{$Rule.Expression}}
-    disabled: {{$Rule.Disabled}}
-    tags:
-{{- range $Tag, $Val := .Tags}}
-      {{$Tag}}: {{$Val}}
-{{- end}}
-    actions:
-{{- range $Action := .Actions}}
-{{- if $Action.Set}}
-      - set:
-          name: {{$Action.Set.Name}}
-		  {{- if $Action.Set.Value}}
-          value: {{$Action.Set.Value}}
-          {{- else if $Action.Set.Field}}
-          field: {{$Action.Set.Field}}
-          {{- end}}
-          scope: {{$Action.Set.Scope}}
-          append: {{$Action.Set.Append}}
-{{- end}}
-{{- if $Action.Kill}}
-      - kill:
-          {{- if $Action.Kill.Signal}}
-          signal: {{$Action.Kill.Signal}}
-          {{- end}}
-{{- end}}
-{{- end}}
-{{end}}
 `
 
 const (
@@ -713,7 +652,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu", "")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -807,12 +746,11 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
 
-	fxDeps := fxutil.Test[testModuleFxDeps](
-		t,
-		core.MockBundle(),
-		wmmock.MockModule(workloadmeta.NewParams()),
-	)
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, fxDeps.WMeta, fxDeps.Telemetry)
+	if opts.staticOpts.discardRuntime {
+		emopts.ProbeOpts.DontDiscardRuntime = false
+	}
+
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -822,10 +760,13 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, fxDeps.WMeta, module.Opts{EventSender: testMod, MsgSender: msgSender})
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
+		// disable containers telemetry
+		cws.PrepareForFunctionalTests()
+
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
@@ -848,17 +789,6 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 
 	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
-	}
-
-	kv, _ := kernel.NewKernelVersion()
-
-	var isRuntimeCompiled bool
-	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
-		isRuntimeCompiled = p.IsRuntimeCompiled()
-	}
-
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !isRuntimeCompiled && !kv.IsSuseKernel() {
-		return nil, errors.New("failed to runtime compile module")
 	}
 
 	if opts.staticOpts.preStartCallback != nil {
@@ -1312,7 +1242,7 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
-	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine")
+	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}

@@ -67,12 +67,12 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 	path.Namespace = c.config.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
 
 	// Add tags to path
-	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = commonTags
+	path.Tags = c.config.Tags
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
@@ -80,7 +80,8 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	c.submitTelemetry(metricSender, path, commonTags, startTime)
+	metricTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	c.submitTelemetry(metricSender, path, metricTags, startTime)
 
 	senderInstance.Commit()
 	return nil

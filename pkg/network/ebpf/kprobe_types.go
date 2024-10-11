@@ -21,6 +21,8 @@ type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
 type FailedConn C.conn_failed_t
+type SkpConn C.skp_conn_tuple_t
+type PidTs C.pid_ts_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
 type PortBinding C.port_binding_t

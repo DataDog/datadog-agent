@@ -25,7 +25,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
@@ -158,7 +158,7 @@ func (c *ProcessAgentCheck) run() error {
 func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// only log whether process check is enabled or not but don't return early, because we still need to initialize "binPath", "source" and
 	// start up process-agent. Ultimately it's up to process-agent to decide whether to run or not based on the config
-	if enabled := config.Datadog().GetBool("process_config.process_collection.enabled"); !enabled {
+	if enabled := pkgconfigsetup.Datadog().GetBool("process_config.process_collection.enabled"); !enabled {
 		log.Info("live process monitoring is disabled through main configuration file")
 	}
 
@@ -185,14 +185,14 @@ func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint
 	}
 
 	// be explicit about the config file location
-	configFile := config.Datadog().ConfigFileUsed()
+	configFile := pkgconfigsetup.Datadog().ConfigFileUsed()
 	c.commandOpts = []string{}
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
 		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent", config.Datadog())
+	c.telemetry = utils.IsCheckTelemetryEnabled("process_agent", pkgconfigsetup.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

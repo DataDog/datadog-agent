@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,7 +72,7 @@ type dependencies struct {
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
 func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +90,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
-		config.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
+		pkgconfigsetup.GetIPCPort(),
+		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -99,11 +99,11 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	var clientMRF *client.Client
-	if config.Datadog().GetBool("multi_region_failover.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
 		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
-			config.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
+			pkgconfigsetup.GetIPCPort(),
+			func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
 			optsWithDefault...,
 		)
 		if err != nil {
@@ -120,7 +120,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		settingsComponent: deps.SettingsComponent,
 	}
 
-	if config.IsRemoteConfigEnabled(config.Datadog()) {
+	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				rc.start()
@@ -161,19 +161,19 @@ func (rc rcClient) start() {
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
 	if len(updates) == 0 {
-		mrfFailoverMetricsSource := config.Datadog().GetSource("multi_region_failover.failover_metrics")
-		mrfFailoverLogsSource := config.Datadog().GetSource("multi_region_failover.failover_logs")
+		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_metrics")
+		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_logs")
 
 		// Unset the RC-sourced failover values regardless of what they are
-		config.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
-		config.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
+		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
 
 		// If either of the values were previously set via RC, log the current values now that we've unset them
 		if mrfFailoverMetricsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", config.Datadog().GetBool("multi_region_failover.failover_metrics"))
+			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_metrics"))
 		}
 		if mrfFailoverLogsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", config.Datadog().GetBool("multi_region_failover.failover_logs"))
+			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_logs"))
 		}
 		return
 	}
@@ -263,7 +263,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	var errs error
 	// Checks who (the source) is responsible for the last logLevel change
-	source := config.Datadog().GetSource("log_level")
+	source := pkgconfigsetup.Datadog().GetSource("log_level")
 
 	switch source {
 	case model.SourceRC:
@@ -271,8 +271,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog().Get("log_level"))
-			config.Datadog().UnsetForSource("log_level", model.SourceRC)
+			pkgconfigsetup.Datadog().UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", pkgconfigsetup.Datadog().Get("log_level"))
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
@@ -327,9 +327,6 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
 func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	rc.m.Lock()
-	defer rc.m.Unlock()
-
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
 
@@ -348,9 +345,11 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 				return
 			}
 
+			rc.m.Lock()
 			// Check that the flare task wasn't already processed
 			if !rc.taskProcessed[task.Config.UUID] {
 				rc.taskProcessed[task.Config.UUID] = true
+				rc.m.Unlock()
 
 				// Mark it as unack first
 				applyStateCallback(configPath, state.ApplyStatus{
@@ -389,6 +388,8 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 						State: state.ApplyStateUnknown,
 					})
 				}
+			} else {
+				rc.m.Unlock()
 			}
 		}(originalConfigPath, originalConfig)
 	}

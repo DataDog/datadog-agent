@@ -8,6 +8,8 @@ package stats
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -78,7 +80,11 @@ func TestNewStats(t *testing.T) {
 }
 
 func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.checks", "*")
 

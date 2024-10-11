@@ -52,13 +52,14 @@ import (
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -184,7 +185,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
-		fxutil.FxAgentBase(true),
+		fxutil.FxAgentBase(),
+		logging.EnableFxLoggingOnDebug[logcomp.Component](),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -315,7 +317,7 @@ func initMisc(deps miscDeps) error {
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
 // This can happen when the checks are running on the core agent but a process agent container is
 // still brought up. The process-agent is kept alive to prevent crash loops.
-func shouldStayAlive(cfg ddconfig.Reader) bool {
+func shouldStayAlive(cfg model.Reader) bool {
 	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true

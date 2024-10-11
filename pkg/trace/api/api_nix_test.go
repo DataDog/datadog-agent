@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -26,6 +28,9 @@ import (
 )
 
 func TestUDS(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestUDS is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	sockPath := filepath.Join(t.TempDir(), "apm.sock")
 	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
 	client := http.Client{
@@ -82,6 +87,21 @@ func TestUDS(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}
+	})
+
+	t.Run("uds_permission_err", func(t *testing.T) {
+		dir := t.TempDir()
+		err := os.Chmod(dir, 0444) // read-only
+		assert.NoError(t, err)
+
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverSocket = filepath.Join(dir, "apm.socket")
+
+		r := newTestReceiverFromConfig(conf)
+		// should not crash
+		r.Start()
+		r.Stop()
 	})
 }
 

@@ -9,7 +9,7 @@ package packets
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // PacketManager gathers everything required to create and assemble packets.
@@ -20,7 +20,7 @@ type PacketManager struct {
 }
 
 // NewPacketManagerFromConfig creates a PacketManager from the relevant config settings.
-func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager[Packet], cfg config.Reader, telemetryStore *TelemetryStore) *PacketManager {
+func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager[Packet], cfg model.Reader, telemetryStore *TelemetryStore) *PacketManager {
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	packetsBufferSize := cfg.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")

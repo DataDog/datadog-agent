@@ -9,7 +9,6 @@ package providers
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,7 +25,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -271,7 +270,7 @@ func TestParseKubeServiceAnnotationsForEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := configmock.New(t)
 			if tc.hybrid {
 				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}

@@ -13,7 +13,8 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +23,7 @@ type serviceInitFunc func() (err error)
 // Servicedef defines a service
 type Servicedef struct {
 	name       string
-	configKeys map[string]config.Config
+	configKeys map[string]model.Config
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -31,40 +32,40 @@ type Servicedef struct {
 var subservices = []Servicedef{
 	{
 		name: "apm",
-		configKeys: map[string]config.Config{
-			"apm_config.enabled": config.Datadog(),
+		configKeys: map[string]model.Config{
+			"apm_config.enabled": pkgconfigsetup.Datadog(),
 		},
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
 	},
 	{
 		name: "process",
-		configKeys: map[string]config.Config{
-			"process_config.enabled":                      config.Datadog(),
-			"process_config.process_collection.enabled":   config.Datadog(),
-			"process_config.container_collection.enabled": config.Datadog(),
-			"process_config.process_discovery.enabled":    config.Datadog(),
-			"network_config.enabled":                      config.SystemProbe(),
-			"system_probe_config.enabled":                 config.SystemProbe(),
+		configKeys: map[string]model.Config{
+			"process_config.enabled":                      pkgconfigsetup.Datadog(),
+			"process_config.process_collection.enabled":   pkgconfigsetup.Datadog(),
+			"process_config.container_collection.enabled": pkgconfigsetup.Datadog(),
+			"process_config.process_discovery.enabled":    pkgconfigsetup.Datadog(),
+			"network_config.enabled":                      pkgconfigsetup.SystemProbe(),
+			"system_probe_config.enabled":                 pkgconfigsetup.SystemProbe(),
 		},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	},
 	{
 		name: "sysprobe",
-		configKeys: map[string]config.Config{
-			"network_config.enabled":          config.SystemProbe(),
-			"system_probe_config.enabled":     config.SystemProbe(),
-			"windows_crash_detection.enabled": config.SystemProbe(),
-			"runtime_security_config.enabled": config.SystemProbe(),
+		configKeys: map[string]model.Config{
+			"network_config.enabled":          pkgconfigsetup.SystemProbe(),
+			"system_probe_config.enabled":     pkgconfigsetup.SystemProbe(),
+			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
+			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
 		},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
 	},
 	{
 		name: "cws",
-		configKeys: map[string]config.Config{
-			"runtime_security_config.enabled": config.SystemProbe(),
+		configKeys: map[string]model.Config{
+			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
 		},
 		serviceName: "datadog-security-agent",
 		serviceInit: securityInit,

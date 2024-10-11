@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"net"
 	"os"
 	"strconv"
@@ -175,8 +176,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpCmd.AddCommand(snmpWalkCmd)
 
 	snmpScanCmd := &cobra.Command{
-		Use:   "scan <ipaddress>[:port]",
-		Short: "Scan a device for the profile editor.",
+		Hidden: true,
+		Use:    "scan <ipaddress>[:port]",
+		Short:  "Scan a device for the profile editor.",
 		Long: `Walk the SNMP tree for a device, collecting available OIDs.
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -184,20 +186,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.OneShot(scanDevice,
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
+				compressionimpl.Module(),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
-				),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 			)
 			if err != nil {
 				var ue configErr
@@ -230,7 +229,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
-	// snmpCmd.AddCommand(snmpScanCmd)
+	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
 }

@@ -161,12 +161,25 @@ func (c *safeConfig) SetDefault(key string, value interface{}) {
 	c.Viper.SetDefault(key, value)
 }
 
-// UnsetForSource wraps Viper for concurrent access
+// UnsetForSource unsets a config entry for a given source
 func (c *safeConfig) UnsetForSource(key string, source Source) {
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, nil)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key) // Can't use nil, so we get the newly computed value
+	if previousValue != nil {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
+
+	// notifying all receiver about the updated setting
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
+	}
 }
 
 // mergeViperInstances is called after a change in an instance of Viper
@@ -523,17 +536,17 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 }
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
-func (c *safeConfig) BindEnv(input ...string) {
+func (c *safeConfig) BindEnv(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
 
 	// If one input is given, viper derives an env key from it; otherwise, all inputs after
 	// the first are literal env vars.
-	if len(input) == 1 {
-		envKeys = []string{c.mergeWithEnvPrefix(input[0])}
+	if len(envvars) == 0 {
+		envKeys = []string{c.mergeWithEnvPrefix(key)}
 	} else {
-		envKeys = input[1:]
+		envKeys = envvars
 	}
 
 	for _, key := range envKeys {
@@ -544,8 +557,9 @@ func (c *safeConfig) BindEnv(input ...string) {
 		c.configEnvVars[key] = struct{}{}
 	}
 
-	_ = c.configSources[SourceEnvVar].BindEnv(input...)
-	_ = c.Viper.BindEnv(input...)
+	newKeys := append([]string{key}, envvars...)
+	_ = c.configSources[SourceEnvVar].BindEnv(newKeys...)
+	_ = c.Viper.BindEnv(newKeys...)
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
@@ -640,6 +654,8 @@ func (c *safeConfig) MergeConfig(in io.Reader) error {
 // MergeFleetPolicy merges the configuration from the reader given with an existing config
 // it overrides the existing values with the new ones in the FleetPolicies source, and updates the main config
 // according to sources priority order.
+//
+// Note: this should only be called at startup, as notifiers won't receive a notification when this loads
 func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	c.Lock()
 	defer c.Unlock()
@@ -810,9 +826,9 @@ func (c *safeConfig) GetEnvVars() []string {
 }
 
 // BindEnvAndSetDefault implements the Config interface
-func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, env ...string) {
+func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
 	c.SetDefault(key, val)
-	c.BindEnv(append([]string{key}, env...)...) //nolint:errcheck
+	c.BindEnv(key, envvars...) //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *Warnings {

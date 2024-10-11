@@ -50,6 +50,7 @@ enum event_type
     EVENT_ON_DEMAND,
     EVENT_LOGIN_UID_WRITE,
     EVENT_CGROUP_WRITE,
+    EVENT_RAW_PACKET,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -87,28 +88,35 @@ enum
 enum policy_mode
 {
     NO_FILTER = 0,
-    ACCEPT = 1,
-    DENY = 2,
+    ACCEPT,
+    DENY,
 };
 
-enum policy_flags
+enum APPROVER_TYPE
 {
-    BASENAME = 1,
-    FLAGS = 2,
-    MODE = 4,
-    PARENT_NAME = 8,
+    BASENAME_APPROVER_TYPE = 0,
+    FLAG_APPROVER_TYPE,
+    AUID_APPROVER_TYPE,
+};
+
+enum SYSCALL_STATE
+{
+    ACCEPTED = 0,    // approved and can't be discarded later
+    APPROVED,        // approved but can be discarded later
+    DISCARDED,       // discarded
+};
+
+enum MONITOR_KEYS
+{
+    ERPC_MONITOR_KEY = 1,
+    DISCARDER_MONITOR_KEY,
+    APPROVER_MONITOR_KEY,
 };
 
 enum tls_format
 {
     DEFAULT_TLS_FORMAT
 };
-
-typedef enum discard_check_state
-{
-    NOT_DISCARDED,
-    DISCARDED,
-} discard_check_state;
 
 enum bpf_cmd_def
 {
