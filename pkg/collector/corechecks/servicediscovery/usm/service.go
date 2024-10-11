@@ -34,6 +34,8 @@ const (
 	NodePackageJSONPath = iota
 	// The SubdirFS instance package.json path is valid in.
 	ServiceSubFS = iota
+	// The working directory of the service
+	ServiceCwd = iota
 )
 
 const (
@@ -180,8 +182,9 @@ var languageDetectors = map[language.Language]detectorCreatorFn{
 // Map executables that usually have additional process context of what's
 // running, to context detectors
 var executableDetectors = map[string]detectorCreatorFn{
-	"sudo":     newSimpleDetector,
 	"gunicorn": newGunicornDetector,
+	"puma":     newRailsDetector,
+	"sudo":     newSimpleDetector,
 }
 
 func serviceNameInjected(envs map[string]string) bool {
