@@ -23,8 +23,9 @@ func runtimeAfterFork()
 //go:linkname runtimeAfterForkInChild syscall.runtime_AfterForkInChild
 func runtimeAfterForkInChild()
 
-//go:norace
 //nolint:unused
+//go:norace
+//go:nosplit
 func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *syscall.SockFprog) (int, error) {
 	argv0p, err := syscall.BytePtrFromString(argv0)
 	if err != nil {
