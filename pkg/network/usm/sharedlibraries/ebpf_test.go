@@ -9,6 +9,7 @@ package sharedlibraries
 
 import (
 	"strings"
+
 	"sync"
 	"testing"
 	"time"
@@ -67,8 +68,11 @@ func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {
 
 	require.NoError(t, prog.InitWithLibsets(LibsetCrypto))
 
+	var eventMutex sync.Mutex
 	var receivedEvent *LibPath
 	cb := func(path LibPath) {
+		eventMutex.Lock()
+		defer eventMutex.Unlock()
 		lp := path.String()
 		if strings.Contains(lp, "foo-libssl.so") {
 			receivedEvent = &path
@@ -89,6 +93,8 @@ func (s *EbpfProgramSuite) TestProgramReceivesEventsWithSingleLibset() {
 	})
 
 	require.Eventually(t, func() bool {
+		eventMutex.Lock()
+		defer eventMutex.Unlock()
 		return receivedEvent != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
@@ -110,11 +116,16 @@ func (s *EbpfProgramSuite) TestSingleProgramReceivesMultipleLibsetEvents() {
 
 	require.NoError(t, prog.InitWithLibsets(LibsetCrypto, LibsetGPU))
 
+	var eventMutex sync.Mutex
 	var receivedEventSsl, receivedEventCuda *LibPath
 	cbSsl := func(path LibPath) {
+		eventMutex.Lock()
+		defer eventMutex.Unlock()
 		receivedEventSsl = &path
 	}
 	cbCuda := func(path LibPath) {
+		eventMutex.Lock()
+		defer eventMutex.Unlock()
 		receivedEventCuda = &path
 	}
 
@@ -145,6 +156,8 @@ func (s *EbpfProgramSuite) TestSingleProgramReceivesMultipleLibsetEvents() {
 	})
 
 	require.Eventually(t, func() bool {
+		eventMutex.Lock()
+		defer eventMutex.Unlock()
 		return receivedEventSsl != nil && receivedEventCuda != nil
 	}, 1*time.Second, 10*time.Millisecond)
 
