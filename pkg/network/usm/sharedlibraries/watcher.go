@@ -101,7 +101,6 @@ func (w *Watcher) Stop() {
 		return
 	}
 
-	w.ebpfProgram.Stop()
 	close(w.done)
 	w.wg.Wait()
 }
@@ -260,8 +259,9 @@ func (w *Watcher) Start() {
 			// Removing the registration of our hook.
 			cleanupExit()
 			cleanupLibs()
-			// Stopping the process monitor (if we're the last instance)
+			// Stopping the process and library monitors (if we're the last instance)
 			w.processMonitor.Stop()
+			w.ebpfProgram.Stop()
 			// Cleaning up all active hooks.
 			w.registry.Clear()
 			// marking we're finished.
