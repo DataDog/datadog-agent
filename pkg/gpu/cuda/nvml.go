@@ -5,9 +5,7 @@
 
 //go:build linux
 
-// Package gpu defines the agent corecheck for
-// the GPU integration
-package gpu
+package cuda
 
 import (
 	"errors"
@@ -19,11 +17,11 @@ import (
 
 var initOnce sync.Once
 
-type gpuDevice struct {
+type GpuDevice struct {
 	nvml.Device
 }
 
-func wrapNvmlError(ret nvml.Return) error {
+func WrapNvmlError(ret nvml.Return) error {
 	if ret == nvml.SUCCESS {
 		return nil
 	}
@@ -34,49 +32,49 @@ func wrapNvmlError(ret nvml.Return) error {
 func ensureNvmlInit() error {
 	var err error
 	initOnce.Do(func() {
-		err = wrapNvmlError(nvml.Init())
+		err = WrapNvmlError(nvml.Init())
 	})
 
 	return err
 }
 
-func getGPUDevices() ([]gpuDevice, error) {
+func GetGPUDevices() ([]GpuDevice, error) {
 	err := ensureNvmlInit()
 	if err != nil {
 		return nil, err
 	}
 
 	count, ret := nvml.DeviceGetCount()
-	if err := wrapNvmlError(ret); err != nil {
+	if err := WrapNvmlError(ret); err != nil {
 		return nil, fmt.Errorf("cannot get number of GPU devices: %w", err)
 	}
 
-	var devices []gpuDevice
+	var devices []GpuDevice
 
 	for i := 0; i < count; i++ {
 		device, ret := nvml.DeviceGetHandleByIndex(i)
-		if err := wrapNvmlError(ret); err != nil {
+		if err := WrapNvmlError(ret); err != nil {
 			return nil, fmt.Errorf("cannot get handle for GPU device %d: %w", i, err)
 		}
 
-		devices = append(devices, gpuDevice{device})
+		devices = append(devices, GpuDevice{device})
 	}
 
 	return devices, nil
 }
 
-func (d *gpuDevice) GetNumMultiprocessors() (int, error) {
+func (d *GpuDevice) GetNumMultiprocessors() (int, error) {
 	devProps, ret := d.GetAttributes()
-	if err := wrapNvmlError(ret); err != nil {
+	if err := WrapNvmlError(ret); err != nil {
 		return 0, fmt.Errorf("cannot get device attributes: %w", err)
 	}
 
 	return int(devProps.MultiprocessorCount), nil
 }
 
-func (d *gpuDevice) GetMaxThreads() (int, error) {
+func (d *GpuDevice) GetMaxThreads() (int, error) {
 	cores, ret := d.GetNumGpuCores()
-	if err := wrapNvmlError(ret); err != nil {
+	if err := WrapNvmlError(ret); err != nil {
 		return 0, fmt.Errorf("cannot get number of GPU cores: %w", err)
 	}
 
