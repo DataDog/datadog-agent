@@ -471,6 +471,19 @@ new-e2e-cspm:
     TEAM: cspm
   timeout: 35m
 
+new-e2e-dev-gke-autopilot:
+  extends: .new_e2e_template
+  rules:
+    - when: on_success
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent
+    - qa_dca
+    - qa_dogstatsd
+  variables:
+    TARGETS: ./examples/
+    EXTRA_PARAMS: --run TestGKEAutopilotSuite
+    TEAM: dev-gke-autopilot    
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
