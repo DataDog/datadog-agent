@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const output = `
+const outputLocalError = `
 Updating (gjulian-guillermo.julian-e2e-report-all-errors-ddvm):
 
     pulumi:pulumi:Stack e2elocal-gjulian-guillermo.julian-e2e-report-all-errors-ddvm running
@@ -94,12 +94,142 @@ Resources:
 Duration: 6s
 `
 
+const outputSSHFailed = `
+    pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 **failed** 1 error
+Diagnostics:
+  pulumi:pulumi:Stack (e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877):
+    error: update failed
+  command:remote:Command (remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb):
+    error: proxy: after 60 failed attempts: ssh: rejected: connect failed (No route to host)
+Outputs:
+    kmt-stack: [secret]
+Resources:
+    +-8 replaced
+    349 unchanged
+Duration: 7m35s
+`
+
+const outputSSHFailedWithChangedOrder = `
+@ updating....
+ +  pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 creating (933s) error: update failed
+ +  pulumi:pulumi:Stack e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877 **creating failed (933s)** 1 error
+Diagnostics:
+  command:remote:Command (remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb):
+    error: proxy: after 60 failed attempts: ssh: rejected: connect failed (No route to host)
+
+  pulumi:pulumi:Stack (e2eci-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877):
+    error: update failed
+
+Outputs:
+    kmt-stack: [secret]
+
+Resources:
+    + 357 created
+
+Duration: 15m34s
+`
+
 func TestParseDiagnostics(t *testing.T) {
-	result := parsePulumiDiagnostics(output)
-	require.NotNil(t, result)
-	require.Equal(t, "remote-gjulian-guillermo.julian-e2e-report-all-errors-ddvm-arm64-conn-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-cmd-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-mount-disk-dev-vdb", result.command)
-	require.Equal(t, "arm64", result.arch)
-	require.Equal(t, "mount-disk-dev-vdb", result.vmCommand)
-	require.Equal(t, "error: Process exited with status 127: running \" nocommand /mnt/docker && mount /dev/vdb /mnt/docker\":\nbash: line 1: nocommand: command not found\n", result.errorMessage)
-	require.Equal(t, "ubuntu_22.04", result.vmName)
+	cases := []struct {
+		caseName string
+		output   string
+		result   pulumiError
+	}{
+		{
+			caseName: "LocalError",
+			output:   outputLocalError,
+			result: pulumiError{
+				command:      "remote-gjulian-guillermo.julian-e2e-report-all-errors-ddvm-arm64-conn-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-cmd-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-mount-disk-dev-vdb",
+				arch:         "arm64",
+				vmCommand:    "mount-disk-dev-vdb",
+				errorMessage: "error: Process exited with status 127: running \" nocommand /mnt/docker && mount /dev/vdb /mnt/docker\":\nbash: line 1: nocommand: command not found\n",
+				vmName:       "ubuntu_22.04",
+			},
+		},
+		{
+			caseName: "SSHFailed",
+			output:   outputSSHFailed,
+			result: pulumiError{
+				command:      "remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb",
+				arch:         "arm64",
+				vmCommand:    "mount-disk-dev-vdb",
+				vmName:       "fedora_37",
+				errorMessage: "error: proxy: after 60 failed attempts: ssh: rejected: connect failed (No route to host)\n",
+			},
+		},
+		{
+			caseName: "SSHFailedWithChangedOrder",
+			output:   outputSSHFailedWithChangedOrder,
+			result: pulumiError{
+				command:      "remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb",
+				arch:         "arm64",
+				vmCommand:    "mount-disk-dev-vdb",
+				vmName:       "fedora_37",
+				errorMessage: "error: proxy: after 60 failed attempts: ssh: rejected: connect failed (No route to host)\n",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.caseName, func(tt *testing.T) {
+			result := parsePulumiDiagnostics(c.output)
+			require.NotNil(tt, result)
+			require.Equal(tt, c.result, *result)
+		})
+	}
+}
+
+func TestParsePulumiCommand(t *testing.T) {
+	cases := []struct {
+		caseName string
+		command  string
+		arch     string
+		vmCmd    string
+		vmName   string
+	}{
+		{
+			caseName: "NoVMSet",
+			command:  "remote-gjulian-guillermo.julian-e2e-report-all-errors-ddvm-arm64-conn-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-cmd-arm64-ubuntu_22.04-distro_arm64-ddvm-4-8192-mount-disk-dev-vdb",
+			arch:     "arm64",
+			vmCmd:    "mount-disk-dev-vdb",
+			vmName:   "ubuntu_22.04",
+		},
+		{
+			caseName: "CommandWithoutVM",
+			command:  "remote-aws-ci-634872953-4670-kernel-matrix-testing-system-probe-x86-64-44043832-x86_64-cmd-only_usm-distro_x86_64-download-with-curl",
+			arch:     "x86_64",
+			vmCmd:    "download-with-curl",
+			vmName:   "",
+		},
+		{
+			caseName: "DomainCreationCommand",
+			command:  "remote-aws-ci-632806887-4670-kernel-matrix-testing-system-probe-arm64-43913143-arm64-cmd-arm64-debian_12-distro_arm64-no_usm-ddvm-4-12288-create-nvram",
+			arch:     "arm64",
+			vmCmd:    "create-nvram",
+			vmName:   "debian_12",
+		},
+		{
+			caseName: "AlteredTagOrder",
+			command:  "remote-ci-632806887-4670-kernel-matrix-testing-system-probe-arm64-43913143-arm64-conn-arm64-ubuntu_23.10-only_usm-distro_arm64-ddvm-4-12288-cmd-arm64-ubuntu_23.10-only_usm-distro_arm64-ddvm-4-12288-set-docker-data-root",
+			arch:     "arm64",
+			vmCmd:    "set-docker-data-root",
+			vmName:   "ubuntu_23.10",
+		},
+		{
+			caseName: "CommandWithVMSet",
+			command:  "remote-ci-630160752-4670-kernel-matrix-testing-system-probe-arm64-43724877-arm64-conn-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-cmd-arm64-fedora_37-no_usm-distro_arm64-ddvm-4-12288-mount-disk-dev-vdb",
+			arch:     "arm64",
+			vmCmd:    "mount-disk-dev-vdb",
+			vmName:   "fedora_37",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.caseName, func(tt *testing.T) {
+			arch, vmCmd, vmName := parsePulumiComand(c.command)
+			require.Equal(tt, c.arch, arch)
+			require.Equal(tt, c.vmCmd, vmCmd)
+			require.Equal(tt, c.vmName, vmName)
+		})
+	}
 }

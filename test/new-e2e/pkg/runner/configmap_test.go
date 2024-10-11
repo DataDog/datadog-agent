@@ -42,6 +42,9 @@ func Test_BuildStackParameters(t *testing.T) {
 		"ddinfra:az/defaultPublicKeyPath":       auto.ConfigValue{Value: "public_key_path", Secret: false},
 		"ddinfra:az/defaultPrivateKeyPath":      auto.ConfigValue{Value: "private_key_path", Secret: false},
 		"ddinfra:az/defaultPrivateKeyPassword":  auto.ConfigValue{Value: "private_key_password", Secret: true},
+		"ddinfra:gcp/defaultPublicKeyPath":      auto.ConfigValue{Value: "public_key_path", Secret: false},
+		"ddinfra:gcp/defaultPrivateKeyPath":     auto.ConfigValue{Value: "private_key_path", Secret: false},
+		"ddinfra:gcp/defaultPrivateKeyPassword": auto.ConfigValue{Value: "private_key_password", Secret: true},
 		"ddagent:pipeline_id":                   auto.ConfigValue{Value: "pipeline_id", Secret: false},
 		"ddagent:commit_sha":                    auto.ConfigValue{Value: "commit_sha", Secret: false},
 	}, configMap)

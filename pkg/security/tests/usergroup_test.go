@@ -127,7 +127,7 @@ func TestUserGroup(t *testing.T) {
 
 	for _, distroTest := range distroTests {
 		t.Run(distroTest.name, func(t *testing.T) {
-			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name)
+			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name, "")
 			if err != nil {
 				t.Fatal(err)
 			}

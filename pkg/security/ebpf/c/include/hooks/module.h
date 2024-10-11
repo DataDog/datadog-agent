@@ -42,8 +42,8 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_INIT_MODULE : 0;
     syscall->resolver.iteration = 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.ret = 0;
 

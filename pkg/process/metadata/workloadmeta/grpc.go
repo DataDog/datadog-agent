@@ -18,7 +18,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -32,7 +33,7 @@ var DuplicateConnectionErr = errors.New("the stream was closed because another c
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
-	config    config.Reader
+	config    pkgconfigmodel.Reader
 	extractor *WorkloadMetaExtractor
 	server    *grpc.Server
 	// The address of the server set by start(). Primarily used for testing. May be nil if start() has not been called.
@@ -53,7 +54,7 @@ var (
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
-func NewGRPCServer(config config.Reader, extractor *WorkloadMetaExtractor) *GRPCServer {
+func NewGRPCServer(config pkgconfigmodel.Reader, extractor *WorkloadMetaExtractor) *GRPCServer {
 	l := &GRPCServer{
 		config:    config,
 		extractor: extractor,
@@ -201,8 +202,8 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 // getListener returns a listening connection
-func getListener(cfg config.Reader) (net.Listener, error) {
-	host, err := config.GetIPCAddress()
+func getListener(cfg pkgconfigmodel.Reader) (net.Listener, error) {
+	host, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, err
 	}
@@ -211,11 +212,11 @@ func getListener(cfg config.Reader) (net.Listener, error) {
 	return net.Listen("tcp", address)
 }
 
-func getGRPCStreamPort(cfg config.Reader) int {
+func getGRPCStreamPort(cfg pkgconfigmodel.Reader) int {
 	grpcPort := cfg.GetInt("process_config.language_detection.grpc_port")
 	if grpcPort <= 0 {
-		log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, config.DefaultProcessEntityStreamPort)
-		grpcPort = config.DefaultProcessEntityStreamPort
+		log.Warnf("Invalid process_config.language_detection.grpc_port -- %d, using default port %d", grpcPort, pkgconfigsetup.DefaultProcessEntityStreamPort)
+		grpcPort = pkgconfigsetup.DefaultProcessEntityStreamPort
 	}
 	return grpcPort
 }

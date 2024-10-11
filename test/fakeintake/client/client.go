@@ -776,7 +776,7 @@ func (c *Client) get(route string) ([]byte, error) {
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err, ok := err.(net.Error); ok && err.Timeout() {
-			panic("fakeintake call timed out")
+			panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 		}
 		if err != nil {
 			return err
@@ -784,7 +784,11 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+			var errStr string
+			if errBody, _ := io.ReadAll(tmpResp.Body); len(errBody) > 0 {
+				errStr = string(errBody)
+			}
+			return fmt.Errorf("expected %d got %d: %s", http.StatusOK, tmpResp.StatusCode, errStr)
 		}
 		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
 		// If the fakeintake ID is not set yet we set the one we get from the first request

@@ -39,6 +39,7 @@ type PlatformProbe struct {
 // Probe represents the runtime security probe
 type Probe struct {
 	Config *config.Config
+	Opts   Opts
 }
 
 // Origin returns origin
@@ -64,6 +65,10 @@ func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return nil, nil
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
 }
 
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
@@ -110,3 +115,8 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
+}

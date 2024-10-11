@@ -36,9 +36,9 @@
       powershell
       -C C:\mnt\tools\ci\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - powershell -Command "docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
+    - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - docker push ${TARGET_TAG}
+    - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker push ${TARGET_TAG}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker rmi ${TARGET_TAG}
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -55,24 +55,6 @@
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
 
-.docker_build_agent6_windows_common:
-  extends:
-    - .docker_build_agent_windows_common
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
-  variables:
-    AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:lts-nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
-
-.docker_build_agent6_windows_servercore_common:
-  extends:
-    - .docker_build_agent6_windows_common
-  variables:
-    BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:windowsservercore-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=core-${VARIANT}"
-    SERVERCORE: "-servercore"
-
 .docker_build_agent7_windows_servercore_common:
   extends:
     - .docker_build_agent7_windows_common
@@ -81,5 +63,4 @@
     SERVERCORE: "-servercore"
 
 include:
-  - .gitlab/container_build/docker_windows_agent6.yml
   - .gitlab/container_build/docker_windows_agent7.yml

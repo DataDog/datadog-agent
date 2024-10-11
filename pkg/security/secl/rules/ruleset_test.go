@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"syscall"
@@ -419,7 +420,7 @@ func TestRuleSetApprovers9(t *testing.T) {
 	caps := FieldCapabilities{
 		{
 			Field:       "open.flags",
-			TypeBitmask: eval.ScalarValueType,
+			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 		},
 		{
 			Field:        "open.file.path",
@@ -743,6 +744,323 @@ func TestRuleSetApprovers20(t *testing.T) {
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
+}
+
+func TestRuleSetApprovers21(t *testing.T) {
+	exprs := []string{
+		`open.flags&1 > 0 || open.flags&2 > 0`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers22(t *testing.T) {
+	exprs := []string{
+		`open.flags&1 > 0 || open.flags > 0`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatalf("shouldn't get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers23(t *testing.T) {
+	exprs := []string{
+		`open.flags&1 > 0 && open.flags > 0`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers24(t *testing.T) {
+	exprs := []string{
+		`open.flags&1 > 0 && open.flags > 2`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatalf("shouldn't get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers25(t *testing.T) {
+	exprs := []string{
+		`open.flags&(O_CREAT|O_WRONLY) == (O_CREAT|O_WRONLY)`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.flags",
+			TypeBitmask:  eval.ScalarValueType | eval.BitmaskValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers26(t *testing.T) {
+	exprs := []string{
+		`open.file.path in [~"/proc/*/mem"] && open.file.path not in ["/proc/${process.pid}/mem", "/proc/self/mem"]`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetAUDApprovers(t *testing.T) {
+	caps := FieldCapabilities{
+		{
+			Field:       "open.file.path",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		},
+		{
+			Field:       "open.flags",
+			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+		{
+			Field:            "process.auid",
+			TypeBitmask:      eval.ScalarValueType | eval.RangeValueType,
+			FilterMode:       ApproverOnlyMode,
+			RangeFilterValue: &RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1},
+			FilterWeight:     10,
+			HandleNotApproverValue: func(fieldValueType eval.FieldValueType, value interface{}) (eval.FieldValueType, interface{}, bool) {
+				if fieldValueType != eval.ScalarValueType {
+					return fieldValueType, value, false
+				}
+
+				if i, ok := value.(int); ok && uint32(i) == model.AuditUIDUnset {
+					return eval.RangeValueType, RangeFilterValue{Min: 0, Max: model.AuditUIDUnset - 1}, true
+				}
+
+				return fieldValueType, value, false
+			},
+		},
+	}
+
+	getApprovers := func(exprs []string) Approvers {
+		handler := &testHandler{
+			filters: make(map[string]testFieldValues),
+		}
+
+		rs := newRuleSet()
+		rs.AddListener(handler)
+
+		AddTestRuleExpr(t, rs, exprs...)
+
+		approvers, _ := rs.GetEventTypeApprovers("open", caps)
+		return approvers
+	}
+
+	t.Run("equal", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid == 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 || approvers["process.auid"][0].Value != 1000 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+	})
+
+	t.Run("not-equal", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid != 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 0 {
+			t.Fatalf("shouldn't get an approver`: %v", approvers)
+		}
+	})
+
+	t.Run("not-equal-unset", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid != AUDIT_AUID_UNSET`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 0 || rge.Max != model.AuditUIDUnset-1 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("lesser-equal-than", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid <= 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 0 || rge.Max != 1000 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("lesser-than", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid < 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 0 || rge.Max != 999 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("greater-equal-than", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid >= 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 1000 || rge.Max != math.MaxUint32-1 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("greater-than", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid > 1000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 1001 || rge.Max != math.MaxUint32-1 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("greater-equal-than-and", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid >= 1000 && process.auid != AUDIT_AUID_UNSET`,
+			`open.flags&O_WRONLY > 0`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 2 || len(approvers["process.auid"]) != 2 && len(approvers["open.flags"]) != 1 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 1000 || rge.Max != math.MaxUint32-1 {
+			t.Fatalf("unexpected range")
+		}
+	})
+
+	t.Run("lesser-and-greater", func(t *testing.T) {
+		exprs := []string{
+			`open.file.path != "" && process.auid > 1000 && process.auid < 4000`,
+		}
+
+		approvers := getApprovers(exprs)
+		if len(approvers) != 1 || len(approvers["process.auid"]) != 2 {
+			t.Fatalf("should get an approver`: %v", approvers)
+		}
+
+		rge := approvers["process.auid"][0].Value.(RangeFilterValue)
+		if rge.Min != 1001 || rge.Max != math.MaxUint32-1 {
+			t.Fatalf("unexpected range")
+		}
+
+		rge = approvers["process.auid"][1].Value.(RangeFilterValue)
+		if rge.Min != 0 || rge.Max != 3999 {
+			t.Fatalf("unexpected range")
+		}
+	})
 }
 
 func TestGetRuleEventType(t *testing.T) {

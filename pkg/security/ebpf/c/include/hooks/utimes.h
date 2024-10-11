@@ -6,6 +6,10 @@
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
+    if (is_discarded_by_pid()) {
+        return 0;
+    }
+
     struct policy_t policy = fetch_policy(EVENT_UTIME);
     struct syscall_cache_t syscall = {
         .type = EVENT_UTIME,

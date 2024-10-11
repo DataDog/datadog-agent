@@ -90,14 +90,15 @@ int hook_vfs_rename(ctx_t *ctx) {
     }
 
     // always return after any invalidate_inode call
-    if (filter_syscall(syscall, rename_approvers)) {
-        return mark_as_discarded(syscall);
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        return 0;
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
     syscall->resolver.key = syscall->rename.src_file.path_key;
-    syscall->resolver.discarder_type = 0;
+    syscall->resolver.discarder_event_type = 0;
     syscall->resolver.callback = DR_NO_CALLBACK;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
@@ -128,8 +129,6 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, inode);
     }
 
-    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RENAME);
-
     // invalid discarder + path_id
     if (retval >= 0) {
         expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino);
@@ -141,11 +140,11 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
         }
     }
 
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
         // for centos7, use src dentry for target resolution as the pointers have been swapped
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.dentry = syscall->rename.src_dentry;
-        syscall->resolver.discarder_type = 0;
+        syscall->resolver.discarder_event_type = 0;
         syscall->resolver.callback = select_dr_key(dr_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;

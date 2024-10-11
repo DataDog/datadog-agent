@@ -11,7 +11,6 @@ package scanner
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -106,6 +105,8 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+
 			// Create a mock collector
 			collName := "mock"
 			mockCollector := collectors.NewMockCollector()
@@ -121,7 +122,6 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Type").Return(tt.st)
 
 			// Set up the configuration as the default one is too slow
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -156,6 +156,8 @@ func TestRetryLogic_Error(t *testing.T) {
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
+	cfg := configmock.New(t)
+
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -186,7 +188,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration as the default one is too slow
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
@@ -222,6 +223,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
+	cfg := configmock.New(t)
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -251,7 +253,6 @@ func TestRetryChannelFull(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker

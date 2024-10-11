@@ -78,14 +78,15 @@ build do
   }
 
   # Install dependencies
+  python_version = "py2"
   lockfile_name = case
     when linux_target?
-      arm_target? ? "linux-aarch64_py2.txt" : "linux-x86_64_py2.txt"
+      arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64_py2.txt"
+      "macos-x86_64"
     when windows_target?
-      "windows-x86_64_py2.txt"
-  end
+      "windows-x86_64"
+  end + "_#{python_version}.txt"
   lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
   command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
 
@@ -131,8 +132,6 @@ build do
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
-    # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \
@@ -140,8 +139,7 @@ build do
                 "--branch #{cache_branch || 'main'} " \
                 "--integrations-dir #{windows_safe_path(project_dir)} " \
                 "--target-dir #{cached_wheels_dir} " \
-                "--integrations #{checks_to_install.join(',')} " \
-                "--awscli #{awscli}",
+                "--integrations #{checks_to_install.join(',')}",
                 :cwd => tasks_dir_in
 
       # install all wheels from cache in one pip invocation to speed things up
@@ -218,8 +216,7 @@ build do
                   "--branch #{cache_branch} " \
                   "--integrations-dir #{windows_safe_path(project_dir)} " \
                   "--build-dir #{wheel_build_dir} " \
-                  "--integration #{check} " \
-                  "--awscli #{awscli}",
+                  "--integration #{check}",
                   :cwd => tasks_dir_in
       end
     end

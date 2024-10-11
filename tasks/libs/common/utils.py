@@ -332,6 +332,10 @@ def get_build_flags(
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["CC"] = arch.gcc_compiler()
+    if os.getenv('DD_CC'):
+        env['CC'] = os.getenv('DD_CC')
+    if os.getenv('DD_CXX'):
+        env['CXX'] = os.getenv('DD_CXX')
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -725,3 +729,23 @@ def download_to_tempfile(url, checksum=None):
             os.close(fd)
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+
+def experimental(message):
+    """
+    Marks this task as experimental and prints the message.
+
+    Note: This decorator must be placed after the `task` decorator.
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            fname = f.__name__
+            print(color_message(f"Warning: {fname} is experimental: {message}", Color.ORANGE), file=sys.stderr)
+
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

@@ -284,6 +284,13 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	return eventType, nil
 }
 
+func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
+	if action.Def.Name() == HashAction && eventType != model.FileOpenEventType.String() && eventType != model.ExecEventType.String() {
+		return false
+	}
+	return true
+}
+
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (*eval.Rule, error) {
 	if pRule.Def.Disabled {
@@ -339,6 +346,10 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	}
 
 	for _, action := range rule.PolicyRule.Actions {
+		if !rs.isActionAvailable(eventType, action) {
+			return nil, &ErrRuleLoad{Rule: pRule, Err: &ErrActionNotAvailable{ActionName: action.Def.Name(), EventType: eventType}}
+		}
+
 		// compile action filter
 		if action.Def.Filter != nil {
 			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
@@ -503,14 +514,14 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return IsDiscarder(ctx, field, bucket.rules)
 }
 
-func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
+func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		// action.Kill has to handled by a ruleset listener
+		// other actions are handled by ruleset listeners
 		case action.Def.Set != nil:
 			name := string(action.Def.Set.Scope)
 			if name != "" {
@@ -541,6 +552,11 @@ func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) e
 					}
 				}
 			}
+
+			if rs.opts.ruleActionPerformedCb != nil {
+				rs.opts.ruleActionPerformedCb(rule, action.Def)
+			}
+
 		}
 	}
 
@@ -575,8 +591,8 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
 				}
 
-				if err := rs.runRuleActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				if err := rs.runSetActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing Set actions: %s", err)
 				}
 
 				rs.NotifyRuleMatch(rule, event)

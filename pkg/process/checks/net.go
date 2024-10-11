@@ -21,7 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -47,7 +47,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
@@ -60,8 +60,8 @@ func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysco
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
 	syscfg             *sysconfigtypes.Config
-	sysprobeYamlConfig config.Reader
-	config             config.Reader
+	sysprobeYamlConfig pkgconfigmodel.Reader
+	config             pkgconfigmodel.Reader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -212,7 +212,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(config config.Reader, conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config pkgconfigmodel.Reader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}

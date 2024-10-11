@@ -312,41 +312,6 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return nil
 }
 
-func newSystemProbe(path string) *RemoteSysProbeUtil {
-	return &RemoteSysProbeUtil{
-		path: path,
-		httpClient: http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:    2,
-				IdleConnTimeout: 30 * time.Second,
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 5 * time.Second,
-				ExpectContinueTimeout: 50 * time.Millisecond,
-			},
-		},
-		pprofClient: http.Client{
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-			},
-		},
-		tracerouteClient: http.Client{
-			// no timeout set here, the expected usage of this client
-			// is that the caller will set a timeout on each request
-			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial(netType, path)
-				},
-			},
-		},
-	}
-}
-
 //nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
 	procs := make([]*languagepb.Process, len(pids))
@@ -430,6 +395,31 @@ func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesRes
 		return nil, err
 	}
 	return res, nil
+}
+
+// GetTelemetry queries the telemetry endpoint from system-probe.
+func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, telemetryURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(`GetTelemetry got non-success status code: path %s, url: %s, status_code: %d, response: "%s"`, r.path, req.URL, resp.StatusCode, data)
+	}
+
+	return data, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

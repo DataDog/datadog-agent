@@ -7,7 +7,8 @@ package marshal
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 )
@@ -27,8 +28,8 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		conns:             conns,
 		ipc:               ipc,
 		domainSet:         make(map[string]int),
-		queryTypeEnabled:  config.SystemProbe().GetBool("network_config.enable_dns_by_querytype"),
-		dnsDomainsEnabled: config.SystemProbe().GetBool("system_probe_config.collect_dns_domains"),
+		queryTypeEnabled:  pkgconfigsetup.SystemProbe().GetBool("network_config.enable_dns_by_querytype"),
+		dnsDomainsEnabled: pkgconfigsetup.SystemProbe().GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 

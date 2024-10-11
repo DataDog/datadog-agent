@@ -176,8 +176,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpCmd.AddCommand(snmpWalkCmd)
 
 	snmpScanCmd := &cobra.Command{
-		Use:   "scan <ipaddress>[:port]",
-		Short: "Scan a device for the profile editor.",
+		Hidden: true,
+		Use:    "scan <ipaddress>[:port]",
+		Short:  "Scan a device for the profile editor.",
 		Long: `Walk the SNMP tree for a device, collecting available OIDs.
 		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -191,15 +192,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "trace", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
-				orchestratorimpl.Module(),
-				fx.Provide(
-					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
-				),
+				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 			)
 			if err != nil {
 				var ue configErr
