@@ -37,7 +37,7 @@ type Variables struct {
 func NewVariables(vars map[string]string) Variables {
 	if len(vars) > 0 {
 		// Only some tests pass a non-empty parameter. Check that input variables match the target value.
-		for env, _ := range vars {
+		for env := range vars {
 			if _, ok := targets[env]; !ok {
 				return Variables{}
 			}
