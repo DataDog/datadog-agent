@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
@@ -158,12 +159,12 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 }
 
 // Start is called when the extension is started.
-func (ext *ddExtension) Start(_ context.Context, _ component.Host) error {
+func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	go func() {
 		if err := ext.server.start(); err != nil && err != http.ErrServerClosed {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
 			ext.telemetry.Logger.Info("DD Extension HTTP could not start", zap.String("err", err.Error()))
 		}
 	}()

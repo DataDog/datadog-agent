@@ -48,7 +48,7 @@ type languagePatcher struct {
 	k8sClient dynamic.Interface
 	store     workloadmeta.Component
 	logger    log.Component
-	queue     workqueue.RateLimitingInterface
+	queue     workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -64,12 +64,12 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		k8sClient: k8sClient,
 		store:     store,
 		logger:    logger,
-		queue: workqueue.NewRateLimitingQueueWithConfig(
-			workqueue.NewItemExponentialFailureRateLimiter(
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
 				pkgconfigsetup.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
-			workqueue.RateLimitingQueueConfig{
+			workqueue.TypedRateLimitingQueueConfig[langUtil.NamespacedOwnerReference]{
 				Name:            subsystem,
 				MetricsProvider: queueMetricsProvider,
 			},
@@ -204,17 +204,9 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 	}()
 	go func() {
 		for {
-			obj, shutdown := lp.queue.Get()
+			owner, shutdown := lp.queue.Get()
 			if shutdown {
 				break
-			}
-
-			owner, ok := obj.(langUtil.NamespacedOwnerReference)
-			if !ok {
-				// The item in the queue was not of the expected type. This should not happen.
-				lp.logger.Errorf("The item in the queue is not of the expected type (i.e. NamespacedOwnerReference). This should not have happened.")
-				lp.queue.Forget(obj)
-				continue
 			}
 
 			err := lp.processOwner(ctx, owner)
@@ -223,10 +215,10 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 				Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusError)
 				lp.queue.AddRateLimited(owner)
 			} else {
-				lp.queue.Forget(obj)
+				lp.queue.Forget(owner)
 			}
 
-			lp.queue.Done(obj)
+			lp.queue.Done(owner)
 		}
 	}()
 }

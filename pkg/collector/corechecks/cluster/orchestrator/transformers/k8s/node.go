@@ -39,7 +39,6 @@ func ExtractNode(n *corev1.Node) *model.Node {
 			OsImage:                 n.Status.NodeInfo.OSImage,
 			KernelVersion:           n.Status.NodeInfo.KernelVersion,
 			KubeletVersion:          n.Status.NodeInfo.KubeletVersion,
-			KubeProxyVersion:        n.Status.NodeInfo.KubeProxyVersion,
 		},
 	}
 

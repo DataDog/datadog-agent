@@ -184,7 +184,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 			t.Skip("need at least 16 bytes for trace id")
 		}
 		mc := &mockConsumer{} //Do this setup in here to avoid having to clear this data between tests
-		tp, err := pspFactory.CreateTracesProcessor(context.Background(), cfg, pspCfg, mc)
+		tp, err := pspFactory.CreateTraces(context.Background(), cfg, pspCfg, mc)
 		require.NoError(t, err)
 
 		otelTrace := makeOtelTraceWithID(tid)

@@ -26,9 +26,9 @@ var _ component.Config = (*ExporterConfig)(nil)
 func newDefaultConfig() component.Config {
 	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
-		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
+		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
+		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics: MetricsConfig{
 			DeltaTTL: 3600,

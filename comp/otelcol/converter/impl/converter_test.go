@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
@@ -34,9 +33,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
 		},
-		ConverterFactories: []confmap.ConverterFactory{
-			expandconverter.NewFactory(),
-		},
+		ConverterFactories: []confmap.ConverterFactory{},
 	})
 }
 

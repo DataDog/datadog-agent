@@ -42,14 +42,17 @@ type metadataController struct {
 	store *metaBundleStore
 
 	// Endpoints that need to be added to services mapping.
-	queue workqueue.RateLimitingInterface
+	queue workqueue.TypedRateLimitingInterface[string]
 }
 
 // newMetadataController returns a new metadata controller
 func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wmeta workloadmeta.Component) *metadataController {
 	m := &metadataController{
 		wmeta: wmeta,
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "endpoints"},
+		),
 	}
 
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -110,7 +113,7 @@ func (m *metadataController) processNextWorkItem() bool {
 	}
 	defer m.queue.Done(key)
 
-	err := m.syncEndpoints(key.(string))
+	err := m.syncEndpoints(key)
 	if err != nil {
 		log.Debugf("Error syncing endpoints %v: %v", key, err)
 	}
