@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -81,6 +82,10 @@ type ProbeDependencies struct {
 
 	// ProcessMonitor is the process monitor interface
 	ProcessMonitor uprobes.ProcessMonitor
+
+	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
+	// on the host
+	WorkloadMeta workloadmeta.Component
 }
 
 // Probe represents the GPU monitoring probe
