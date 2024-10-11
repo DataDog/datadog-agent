@@ -11,8 +11,14 @@
       export GOPATH=$GOROOT
       echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
       du -sh $HOME/.gimme/versions/*
-    # Remove the Python cache and env if the Python version changed
     - |
+      PYTHON_REPO_VERSION=$(cat .python-version)
+      echo "Python version in .python-version: $PYTHON_REPO_VERSION"
+    - |
+      PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+      echo "Python current version: $PYTHON_VERSION"
+    - |
+      # Remove the Python cache and env if the Python version changed
       PYTHON_REPO_VERSION=$(cat .python-version)
       PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
       if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
