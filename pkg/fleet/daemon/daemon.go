@@ -297,11 +297,7 @@ func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	if runtime.GOOS == "windows" {
-		err = d.installer.InstallExperiment(ctx, url)
-	} else {
-		err = bootstrap.InstallExperiment(ctx, d.env, url)
-	}
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
 	if err != nil {
 		return fmt.Errorf("could not install installer experiment: %w", err)
 	}
