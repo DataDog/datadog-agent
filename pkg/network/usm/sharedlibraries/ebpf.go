@@ -159,10 +159,10 @@ func (e *EbpfProgram) areLibsetsAlreadyEnabled(libsets ...Libset) bool {
 	return true
 }
 
-func (e *EbpfProgram) loadProgram() error {
+func (e *EbpfProgram) loadProgram(libsets []Libset) error {
 	var err error
 	if e.cfg.EnableCORE {
-		err = e.initCORE()
+		err = e.initCORE(libsets)
 		if err == nil {
 			return nil
 		}
@@ -174,7 +174,7 @@ func (e *EbpfProgram) loadProgram() error {
 	}
 
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
-		err = e.initRuntimeCompiler()
+		err = e.initRuntimeCompiler(libsets)
 		if err == nil {
 			return nil
 		}
@@ -185,7 +185,7 @@ func (e *EbpfProgram) loadProgram() error {
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
-	if err := e.initPrebuilt(); err != nil {
+	if err := e.initPrebuilt(libsets); err != nil {
 		return fmt.Errorf("prebuilt load failed: %w", err)
 	}
 
@@ -227,7 +227,7 @@ func (e *EbpfProgram) InitWithLibsets(libsets ...Libset) error {
 
 	e.setupManagerAndPerfHandlers()
 
-	if err := e.loadProgram(); err != nil {
+	if err := e.loadProgram(libsets); err != nil {
 		return fmt.Errorf("cannot load program: %w", err)
 	}
 
@@ -277,6 +277,8 @@ func (e *EbpfProgram) start() error {
 }
 
 func (e *EbpfProgram) handleEvent(event *ebpf.DataEvent, libset Libset) {
+	log.Infof("shared libraries event: %v, %v", event, libset)
+
 	e.callbacksMutex.RLock()
 	defer func() {
 		event.Done()
@@ -368,7 +370,7 @@ func (e *EbpfProgram) stopImpl() {
 	e.Manager = nil
 }
 
-func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, libsets []Libset) error {
 	options.RLimit = &unix.Rlimit{
 		Cur: math.MaxUint64,
 		Max: math.MaxUint64,
@@ -382,9 +384,9 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		)
 	}
 
-	for lib := range e.enabledLibsets {
+	for _, libset := range libsets {
 		constEd := manager.ConstantEditor{
-			Name:  fmt.Sprintf("%s_libset_enabled", string(lib)),
+			Name:  fmt.Sprintf("%s_libset_enabled", string(libset)),
 			Value: uint64(1),
 		}
 
@@ -395,28 +397,29 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	return e.InitWithOptions(buf, &options)
 }
 
-func (e *EbpfProgram) initCORE() error {
+func (e *EbpfProgram) initCORE(libsets []Libset) error {
 	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	fn := func(buf bytecode.AssetReader, options manager.Options) error { return e.init(buf, options, libsets) }
+	return ddebpf.LoadCOREAsset(assetName, fn)
 }
 
-func (e *EbpfProgram) initRuntimeCompiler() error {
+func (e *EbpfProgram) initRuntimeCompiler(libsets []Libset) error {
 	bc, err := getRuntimeCompiledSharedLibraries(e.cfg)
 	if err != nil {
 		return err
 	}
 	defer bc.Close()
-	return e.init(bc, manager.Options{})
+	return e.init(bc, manager.Options{}, libsets)
 }
 
-func (e *EbpfProgram) initPrebuilt() error {
+func (e *EbpfProgram) initPrebuilt(libsets []Libset) error {
 	bc, err := netebpf.ReadSharedLibrariesModule(e.cfg.BPFDir, e.cfg.BPFDebug)
 	if err != nil {
 		return err
 	}
 	defer bc.Close()
 
-	return e.init(bc, manager.Options{})
+	return e.init(bc, manager.Options{}, libsets)
 }
 
 func sysOpenAt2Supported() bool {
