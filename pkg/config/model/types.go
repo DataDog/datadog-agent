@@ -108,7 +108,7 @@ type Setup interface {
 	SetFs(fs afero.Fs)
 
 	SetEnvPrefix(in string)
-	BindEnv(input ...string)
+	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to

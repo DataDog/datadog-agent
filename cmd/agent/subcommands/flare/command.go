@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
-
-	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -53,6 +51,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -92,7 +91,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.args = args
 			config := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
-					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
+					path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true),
@@ -109,12 +108,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				flare.Module(flare.NewLocalParams(
-					commonpath.GetDistPath(),
-					commonpath.PyChecksPath,
-					commonpath.DefaultLogFile,
-					commonpath.DefaultJmxLogFile,
-					commonpath.DefaultDogstatsDLogFile,
-					commonpath.DefaultStreamlogsLogFile,
+					defaultpaths.GetDistPath(),
+					defaultpaths.PyChecksPath,
+					defaultpaths.LogFile,
+					defaultpaths.JmxLogFile,
+					defaultpaths.DogstatsDLogFile,
+					defaultpaths.StreamlogsLogFile,
 				)),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -285,7 +284,7 @@ func makeFlare(flareComp flare.Component,
 	)
 
 	streamLogParams := streamlogs.CliParams{
-		FilePath: commonpath.DefaultStreamlogsLogFile,
+		FilePath: defaultpaths.StreamlogsLogFile,
 		Duration: cliParams.withStreamLogs,
 		Quiet:    true,
 	}
