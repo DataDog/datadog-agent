@@ -94,7 +94,7 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 
 	return &EbpfProgram{
 		cfg:         c,
-		Manager:     ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager:     ddebpf.NewManager(mgr, "shared-libraries", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
