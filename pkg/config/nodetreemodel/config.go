@@ -77,7 +77,7 @@ type ntmConfig struct {
 	extraConfigFilePaths []string
 }
 
-// OnUpdate adds a callback to the list of eceivers to be called each time a value is changed in the configuration
+// OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
 func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
@@ -264,7 +264,7 @@ func (c *ntmConfig) Get(key string) interface{} {
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	// TODO: should only need to deepcopy for `Get`, because it can be an arbitrary value,
+	// NOTE: should only need to deepcopy for `Get`, because it can be an arbitrary value,
 	// and we shouldn't ever return complex types like maps and slices that could be modified
 	// by callers accidentally or on purpose. By copying, the caller may modify the result safetly
 	return deepcopy.Copy(val)
