@@ -34,8 +34,9 @@ var (
 
 // any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
 type flareResponse struct {
-	CaseID int    `json:"case_id,omitempty"`
-	Error  string `json:"error,omitempty"`
+	CaseID      int    `json:"case_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	RequestUUID string `json:"request_uuid,omitempty"`
 }
 
 // FlareSource has metadata about why the flare was sent
@@ -184,7 +185,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 	}
 
 	if res.Error != "" {
-		response := fmt.Sprintf("An error occurred while uploading the flare: %s. Please contact support by email.", res.Error)
+		response := fmt.Sprintf("An error occurred while uploading the flare: %s with the corresponding uuid: %s. Please contact support by email.", res.Error, res.RequestUUID)
 		return response, errors.New(res.Error)
 	}
 
