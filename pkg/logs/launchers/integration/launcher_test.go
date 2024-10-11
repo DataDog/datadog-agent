@@ -8,7 +8,6 @@ package integration
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 type LauncherTestSuite struct {
@@ -43,10 +41,6 @@ type LauncherTestSuite struct {
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
-	if runtime.GOOS == "windows" {
-		flake.Mark(suite.T())
-	}
-
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.integrationsComp = integrationsmock.Mock()
