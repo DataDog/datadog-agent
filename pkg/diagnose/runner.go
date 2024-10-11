@@ -521,5 +521,5 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
-	catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
+	catalog.Register("port-conflict", ports.DiagnosePortSuite)
 }

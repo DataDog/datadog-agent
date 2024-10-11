@@ -1,9 +1,7 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
+// Copyright (c) Tailscale Inc & AUTHORS
+// SPDX-License-Identifier: BSD-3-Clause
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-//go:build windows
+// Copyright 2014-present Datadog, Inc.
 
 package portlist
 
@@ -46,8 +44,6 @@ func newWindowsImpl(includeLocalhost bool) osImpl {
 func (*windowsImpl) Close() error { return nil }
 
 func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
-	// TODO(bradfitz): netstat.Get makes a bunch of garbage, add an append-style API to that package instead/additionally
-	// tab, err :=netstat.Get()
 	tab, err := GetConnTable()
 	if err != nil {
 		return nil, err
@@ -66,7 +62,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 			continue
 		}
 		fp := famPort{
-			proto: "tcp", // TODO(bradfitz): UDP too; add to netstat
+			proto: "tcp",
 			port:  e.Local.Port(),
 			pid:   uint32(e.Pid),
 		}
