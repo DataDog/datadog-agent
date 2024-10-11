@@ -10,16 +10,47 @@ package telemetry
 import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
-	mockMapName    = "mock_map"
-	mockHelperName = "mock_helper"
+	mockMapName   = "mock_map"
+	mockProbeName = "kprobe__ebpf"
 )
+
+type telemetryIndex struct {
+	tKey    telemetryKey
+	eBPFKey uint64
+}
+
+type MockMapName struct {
+	n string
+}
+
+func (m *MockMapName) String() string {
+	return m.n
+}
+
+func (m *MockMapName) Type() names.ResourceType {
+	return names.MapType
+}
+
+type MockProgramName struct {
+	n string
+}
+
+func (m *MockProgramName) String() string {
+	return m.n
+}
+
+func (m *MockProgramName) Type() names.ResourceType {
+	return names.ProgramType
+}
 
 type mockErrorsTelemetry struct {
 	ebpfErrorsTelemetry
@@ -40,17 +71,17 @@ func (m *mockErrorsTelemetry) isInitialized() bool {
 	return m.mapErrMap != nil && m.helperErrMap != nil
 }
 
-func (m *mockErrorsTelemetry) forEachMapEntry(yield func(telemetryIndex, mapErrTelemetry) bool) {
+func (m *mockErrorsTelemetry) forEachMapErrorEntryInMaps(yield func(telemetryKey, uint64, mapErrTelemetry) bool) {
 	for i, telemetry := range m.mapErrMap {
-		if !yield(i, telemetry) {
+		if !yield(i.tKey, i.eBPFKey, telemetry) {
 			return
 		}
 	}
 }
 
-func (m *mockErrorsTelemetry) forEachHelperEntry(yield func(telemetryIndex, helperErrTelemetry) bool) {
+func (m *mockErrorsTelemetry) forEachHelperErrorEntryInMaps(yield func(telemetryKey, uint64, helperErrTelemetry) bool) {
 	for i, telemetry := range m.helperErrMap {
-		if !yield(i, telemetry) {
+		if !yield(i.tKey, i.eBPFKey, telemetry) {
 			return
 		}
 	}
@@ -99,19 +130,49 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
 	//create mock telemetry objects (since we don't want to trigger full ebpf subsystem)
 	mapEntries := map[telemetryIndex]mapErrTelemetry{
-		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue}},
+		{
+			eBPFKey: 1,
+			tKey: telemetryKey{
+				resourceName: &MockMapName{n: mockMapName},
+				moduleName:   names.NewModuleName("m1"),
+			},
+		}: {Count: [64]uint64{mapErrorsMockValue}},
+		{
+			eBPFKey: 2,
+			tKey: telemetryKey{
+				resourceName: &MockMapName{n: mockMapName},
+				moduleName:   names.NewModuleName("m2"),
+			},
+		}: {Count: [64]uint64{mapErrorsMockValue}},
 	}
+
 	helperEntries := map[telemetryIndex]helperErrTelemetry{
-		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue}},
+		{
+			eBPFKey: 2,
+			tKey: telemetryKey{
+				resourceName: &MockProgramName{n: mockProbeName},
+				moduleName:   names.NewModuleName("m3"),
+			},
+		}: {Count: [320]uint64{helperErrorsMockValue}},
+		{
+			eBPFKey: 3,
+			tKey: telemetryKey{
+				resourceName: &MockProgramName{n: mockProbeName},
+				moduleName:   names.NewModuleName("m4"),
+			},
+		}: {Count: [320]uint64{helperErrorsMockValue}},
 	}
 
 	//check expected metrics and labels
 	expectedMetrics := []struct {
-		value  float64
-		labels []string
+		value      float64
+		labels     map[string]string
+		discovered bool
 	}{
-		{value: float64(mapErrorsMockValue), labels: []string{"errno 0", mockMapName}},
-		{value: float64(helperErrorsMockValue), labels: []string{"errno 0", "bpf_probe_read", mockHelperName}},
+		{value: float64(mapErrorsMockValue), labels: map[string]string{"error": "errno 0", "map_name": mockMapName, "module": "m1"}},
+		{value: float64(mapErrorsMockValue), labels: map[string]string{"error": "errno 0", "map_name": mockMapName, "module": "m2"}},
+		{value: float64(helperErrorsMockValue), labels: map[string]string{"error": "errno 0", "helper": "bpf_probe_read", "probe_name": mockProbeName, "module": "m3"}},
+		{value: float64(helperErrorsMockValue), labels: map[string]string{"error": "errno 0", "helper": "bpf_probe_read", "probe_name": mockProbeName, "module": "m4"}},
 	}
 
 	telemetry := &mockErrorsTelemetry{
@@ -135,17 +196,33 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 	assert.Equal(t, len(expectedMetrics), len(metrics), "received unexpected number of metrics")
 
 	//parse received metrics to compare the values and labels
-	for i, promMetric := range metrics {
+	for _, promMetric := range metrics {
 		dtoMetric := dto.Metric{}
 		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
 
 		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
-		assert.Equal(t, expectedMetrics[i].value, dtoMetric.GetCounter().GetValue(),
-			"expected metric value %v, but got %v", expectedMetrics[i].value, dtoMetric.GetCounter().GetValue())
-		for j, label := range dtoMetric.GetLabel() {
-			assert.Equal(t, expectedMetrics[i].labels[j], label.GetValue(),
-				"expected label %v, but got %v", expectedMetrics[i].labels[j], label.GetValue())
+
+		for j, expected := range expectedMetrics {
+			if expected.discovered {
+				continue
+			}
+			expectedMetrics[j].discovered = true
+			if expected.value != dtoMetric.GetCounter().GetValue() {
+				expectedMetrics[j].discovered = false
+				continue
+			}
+
+			for _, label := range dtoMetric.GetLabel() {
+				if expected.labels[label.GetName()] != label.GetValue() {
+					expectedMetrics[j].discovered = false
+					continue
+				}
+			}
 		}
+	}
+
+	for _, expected := range expectedMetrics {
+		require.True(t, expected.discovered, "expected metric (%v %v) not found", expected.value, expected)
 	}
 }
 
@@ -157,20 +234,51 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	}
 	mapErrorsMockValue1, helperErrorsMockValue1 := uint64(20), uint64(100)
 	mapErrorsMockValue2, helperErrorsMockValue2 := uint64(100), uint64(1000)
+
 	mapEntries := map[telemetryIndex]mapErrTelemetry{
-		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue1}},
+		{
+			eBPFKey: 1,
+			tKey: telemetryKey{
+				resourceName: &MockMapName{n: mockMapName},
+				moduleName:   names.NewModuleName("m1"),
+			},
+		}: {Count: [64]uint64{mapErrorsMockValue1}},
+		{
+			eBPFKey: 2,
+			tKey: telemetryKey{
+				resourceName: &MockMapName{n: mockMapName},
+				moduleName:   names.NewModuleName("m2"),
+			},
+		}: {Count: [64]uint64{mapErrorsMockValue1}},
 	}
+
 	helperEntries := map[telemetryIndex]helperErrTelemetry{
-		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue1}},
+		{
+			eBPFKey: 2,
+			tKey: telemetryKey{
+				resourceName: &MockProgramName{n: mockProbeName},
+				moduleName:   names.NewModuleName("m3"),
+			},
+		}: {Count: [320]uint64{helperErrorsMockValue1}},
+		{
+			eBPFKey: 3,
+			tKey: telemetryKey{
+				resourceName: &MockProgramName{n: mockProbeName},
+				moduleName:   names.NewModuleName("m4"),
+			},
+		}: {Count: [320]uint64{helperErrorsMockValue1}},
 	}
 
 	//in this test we expect the values to match the delta between second and first collects
 	expectedMetrics := []struct {
-		value  float64
-		labels []string
+		value      float64
+		labels     map[string]string
+		discovered bool
 	}{
-		{value: float64(mapErrorsMockValue2), labels: []string{"errno 0", mockMapName}},
-		{value: float64(helperErrorsMockValue2), labels: []string{"errno 0", "bpf_probe_read", mockHelperName}},
+		{value: float64(mapErrorsMockValue2), labels: map[string]string{"error": "errno 0", "map_name": mockMapName, "module": "m1"}},
+		{value: float64(mapErrorsMockValue2), labels: map[string]string{"error": "errno 0", "map_name": mockMapName, "module": "m1"}},
+		{value: float64(helperErrorsMockValue2), labels: map[string]string{"error": "errno 0", "helper": "bpf_probe_read", "probe_name": mockProbeName, "module": "m3"}},
+		{value: float64(helperErrorsMockValue2), labels: map[string]string{"error": "errno 0", "helper": "bpf_probe_read", "probe_name": mockProbeName, "module": "m4"}},
 	}
 
 	telemetry := &mockErrorsTelemetry{
@@ -196,9 +304,37 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	//increase the counters of the mock telemetry object before second collect
 	collector.(*EBPFErrorsCollector).t = &mockErrorsTelemetry{
 		mapErrMap: map[telemetryIndex]mapErrTelemetry{
-			{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue2}}},
+			{
+				eBPFKey: 1,
+				tKey: telemetryKey{
+					resourceName: &MockMapName{n: mockMapName},
+					moduleName:   names.NewModuleName("m1"),
+				},
+			}: {Count: [64]uint64{mapErrorsMockValue2}},
+			{
+				eBPFKey: 2,
+				tKey: telemetryKey{
+					resourceName: &MockMapName{n: mockMapName},
+					moduleName:   names.NewModuleName("m2"),
+				},
+			}: {Count: [64]uint64{mapErrorsMockValue2}},
+		},
 		helperErrMap: map[telemetryIndex]helperErrTelemetry{
-			{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue2}}},
+			{
+				eBPFKey: 2,
+				tKey: telemetryKey{
+					resourceName: &MockProgramName{n: mockProbeName},
+					moduleName:   names.NewModuleName("m3"),
+				},
+			}: {Count: [320]uint64{helperErrorsMockValue2}},
+			{
+				eBPFKey: 3,
+				tKey: telemetryKey{
+					resourceName: &MockProgramName{n: mockProbeName},
+					moduleName:   names.NewModuleName("m4"),
+				},
+			}: {Count: [320]uint64{helperErrorsMockValue2}},
+		},
 	}
 
 	ch = make(chan prometheus.Metric)
@@ -213,12 +349,34 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	}
 	assert.Equal(t, len(expectedMetrics), len(metrics), "received unexpected number of metrics")
 
-	for i, promMetric := range metrics {
+	for _, promMetric := range metrics {
 		dtoMetric := dto.Metric{}
 		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
 
 		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
-		assert.Equal(t, expectedMetrics[i].value, dtoMetric.GetCounter().GetValue(),
-			"expected metric value %v, but got %v", expectedMetrics[i].value, dtoMetric.GetCounter().GetValue())
+
+		for j, expected := range expectedMetrics {
+			if expected.discovered {
+				continue
+			}
+
+			expectedMetrics[j].discovered = true
+			if expected.value != dtoMetric.GetCounter().GetValue() {
+				expectedMetrics[j].discovered = false
+				continue
+			}
+
+			for _, label := range dtoMetric.GetLabel() {
+				if expected.labels[label.GetName()] != label.GetValue() {
+					expectedMetrics[j].discovered = false
+					continue
+				}
+
+			}
+		}
+	}
+
+	for _, expected := range expectedMetrics {
+		require.True(t, expected.discovered, "expected metric (%v %v) not found", expected.value, expected)
 	}
 }

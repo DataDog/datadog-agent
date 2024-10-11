@@ -149,8 +149,10 @@ func (e *ebpfTelemetry) forEachHelperErrorEntryInMaps(yield func(key telemetryKe
 // newEBPFTelemetry initializes a new ebpfTelemetry object
 func newEBPFTelemetry() ebpfErrorsTelemetry {
 	errorsTelemetry = &ebpfTelemetry{
-		mapKeys:   make(map[telemetryKey]uint64),
-		probeKeys: make(map[telemetryKey]uint64),
+		mapKeys:               make(map[telemetryKey]uint64),
+		probeKeys:             make(map[telemetryKey]uint64),
+		mapErrMapsByModule:    make(map[names.ModuleName]*maps.GenericMap[uint64, mapErrTelemetry]),
+		helperErrMapsByModule: make(map[names.ModuleName]*maps.GenericMap[uint64, helperErrTelemetry]),
 	}
 	return errorsTelemetry
 }
@@ -182,7 +184,7 @@ func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(helperErrMap *maps.Gener
 	for p, key := range e.probeKeys {
 		err := helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
+			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p.String())
 		}
 	}
 
