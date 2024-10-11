@@ -614,6 +614,7 @@
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/integration/                      @DataDog/container-integrations
+/test/integration/docker/otel_agent_build_tests.py @DataDog/opentelemetry
 /test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
 /test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
 /test/kitchen/                          @DataDog/agent-devx-loops
