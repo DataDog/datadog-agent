@@ -168,33 +168,39 @@ func (sp *StatsProcessor) markInterval() error {
 		}
 	}
 
-	var memTsBuilder tseriesBuilder
-
-	for _, alloc := range sp.currentAllocs {
-		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		memTsBuilder.AddEventStart(uint64(startEpoch), int64(alloc.Size))
+	builders := make(map[model.MemAllocType]*tseriesBuilder)
+	getBuilder := func(allocType model.MemAllocType) *tseriesBuilder {
+		if _, ok := builders[allocType]; !ok {
+			builders[allocType] = &tseriesBuilder{}
+		}
+		return builders[allocType]
 	}
 
+	for _, alloc := range sp.currentAllocs {
+		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		getBuilder(alloc.Type).AddEventStart(startEpoch, int64(alloc.Size))
+	}
 	for _, alloc := range sp.pastAllocs {
-		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		endEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
-		memTsBuilder.AddEvent(uint64(startEpoch), uint64(endEpoch), int64(alloc.Size))
+		startEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix())
+		endEpoch := uint64(sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix())
+		getBuilder(alloc.Type).AddEvent(startEpoch, endEpoch, int64(alloc.Size))
 	}
 
 	lastCheckEpoch := sp.lastCheck.Unix()
 
-	points, maxValue := memTsBuilder.Build()
-	tags := sp.getTags()
-	sentPoints := false
-
-	for _, point := range points {
-		// Do not send points that are before the last check, those have been already sent
-		// Also do not send points that are 0, unless we have already sent some points, in which case
-		// we need them to close the series
-		if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
-			err := sp.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
-			if err != nil {
-				return fmt.Errorf("cannot send metric: %w", err)
+	for allocType, builder := range builders {
+		tags := append(sp.getTags(), fmt.Sprintf("memory_type:%s", allocType))
+		sentPoints := false
+		points, maxMemory := builder.Build()
+		for _, point := range points {
+			// Do not send points that are before the last check, those have been already sent
+			// Also do not send points that are 0, unless we have already sent some points, in which case
+			// we need them to close the series
+			if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
+				err := sp.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
+				if err != nil {
+					return fmt.Errorf("cannot send metric: %w", err)
+				}
 			}
 
 			if int64(point.time) > sp.maxTimestampLastMetric.Unix() {
@@ -203,9 +209,10 @@ func (sp *StatsProcessor) markInterval() error {
 
 			sentPoints = true
 		}
+
+		sp.sender.Gauge(metricNameMaxMem, float64(maxMemory), "", tags)
 	}
 
-	sp.sender.Gauge(metricNameMaxMem, float64(maxValue), "", tags)
 	sp.sentEvents++
 
 	return nil

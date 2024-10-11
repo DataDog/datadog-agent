@@ -25,7 +25,10 @@ func TestProbeCanLoad(t *testing.T) {
 		t.Skipf("minimum kernel version %s not met, read %s", minimumKernelVersion, kver)
 	}
 
-	probe, err := NewProbe(NewConfig(), nil)
+	cfg := NewConfig()
+	cfg.InitialProcessSync = false
+	cfg.DisableGpuDeviceQuery = true
+	probe, err := NewProbe(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
@@ -45,6 +48,7 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	cfg := NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
+	cfg.DisableGpuDeviceQuery = true
 	probe, err := NewProbe(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, probe)
