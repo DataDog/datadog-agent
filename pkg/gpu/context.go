@@ -239,3 +239,8 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
 }
+
+func (ctx *systemContext) cleanupDataForProcess(pid int) {
+	delete(ctx.selectedDeviceByPIDAndTID, pid)
+	delete(ctx.visibleDevicesCache, pid)
+}
