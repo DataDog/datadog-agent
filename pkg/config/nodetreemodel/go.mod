@@ -15,9 +15,8 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
-	gopkg.in/yaml.v2 v2.4.0
 	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
