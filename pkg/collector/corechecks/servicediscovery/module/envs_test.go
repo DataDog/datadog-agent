@@ -125,6 +125,13 @@ func TestTargetEnvs(t *testing.T) {
 	require.NotContains(t, vars.Vars, "HOME")
 	require.NotContains(t, vars.Vars, "PATH")
 	require.NotContains(t, vars.Vars, "SHELL")
+
+	// check that non-target variables return an empty map.
+	vars = envs.NewVariables(map[string]string{
+		"NON_TARGET1": "some",
+		"NON_TARGET2": "some",
+	})
+	require.Empty(t, vars.Vars)
 }
 
 // BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.

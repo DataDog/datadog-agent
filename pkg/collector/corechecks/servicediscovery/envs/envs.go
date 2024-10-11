@@ -35,6 +35,14 @@ type Variables struct {
 
 // NewVariables returns a new [Variables] to collect env. variables.
 func NewVariables(vars map[string]string) Variables {
+	if len(vars) > 0 {
+		// Only some tests pass a non-empty parameter. Check that input variables match the target value.
+		for env, _ := range vars {
+			if _, ok := targets[env]; !ok {
+				return Variables{}
+			}
+		}
+	}
 	return Variables{
 		Vars: vars,
 	}
@@ -42,10 +50,6 @@ func NewVariables(vars map[string]string) Variables {
 
 // Get returns an environment variable if it is present in the collection
 func (ev *Variables) Get(name string) (string, bool) {
-	if _, ok := targets[name]; !ok {
-		return "", false
-	}
-
 	val, ok := ev.Vars[name]
 	return val, ok
 }
