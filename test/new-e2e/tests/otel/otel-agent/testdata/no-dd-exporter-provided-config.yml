@@ -1,0 +1,49 @@
+connectors: {}
+exporters:
+  debug:
+    sampling_initial: 2
+    sampling_thereafter: 1
+    use_internal_logger: true
+    verbosity: Detailed
+extensions: {}
+processors: {}
+receivers:
+  hostmetrics:
+    collection_interval: 1m0s
+    initial_delay: 1s
+    root_path: ""
+    timeout: 0s
+service:
+  extensions: []
+  pipelines:
+    metrics/sys:
+      exporters:
+      - debug
+      processors: []
+      receivers:
+      - hostmetrics
+  telemetry:
+    logs:
+      development: false
+      disable_caller: false
+      disable_stacktrace: false
+      encoding: console
+      error_output_paths:
+      - stderr
+      initial_fields: {}
+      level: info
+      output_paths:
+      - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10s
+    metrics:
+      address: :8888
+      level: Normal
+      readers: []
+    resource: {}
+    traces:
+      processors: []
+      propagators: []

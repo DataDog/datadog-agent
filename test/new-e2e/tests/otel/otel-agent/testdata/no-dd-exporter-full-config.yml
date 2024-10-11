@@ -1,0 +1,93 @@
+connectors: {}
+exporters:
+  debug:
+    sampling_initial: 2
+    sampling_thereafter: 1
+    use_internal_logger: true
+    verbosity: Detailed
+extensions:
+  ddflare/dd-autoconfigured:
+    auth: null
+    compression_algorithms: []
+    cors: null
+    endpoint: localhost:7777
+    include_metadata: false
+    max_request_body_size: 0
+    response_headers: {}
+    tls: null
+  health_check/dd-autoconfigured:
+    auth: null
+    check_collector_pipeline:
+      enabled: false
+      exporter_failure_threshold: 5
+      interval: 5m
+    compression_algorithms: []
+    cors: null
+    endpoint: localhost:13133
+    include_metadata: false
+    max_request_body_size: 0
+    path: /
+    response_body: null
+    response_headers: {}
+    tls: null
+  pprof/dd-autoconfigured:
+    block_profile_fraction: 0
+    dialer:
+      timeout: 0s
+    endpoint: localhost:1777
+    mutex_profile_fraction: 0
+    save_to_file: ""
+  zpages/dd-autoconfigured:
+    auth: null
+    compression_algorithms: []
+    cors: null
+    endpoint: localhost:55679
+    include_metadata: false
+    max_request_body_size: 0
+    response_headers: {}
+    tls: null
+processors: {}
+receivers:
+  hostmetrics:
+    collection_interval: 1m0s
+    initial_delay: 1s
+    root_path: ""
+    timeout: 0s
+service:
+  extensions:
+  - pprof/dd-autoconfigured
+  - zpages/dd-autoconfigured
+  - health_check/dd-autoconfigured
+  - ddflare/dd-autoconfigured
+  pipelines:
+    metrics/sys:
+      exporters:
+      - debug
+      processors: []
+      receivers:
+      - hostmetrics
+  telemetry:
+    logs:
+      development: false
+      disable_caller: false
+      disable_stacktrace: false
+      encoding: console
+      error_output_paths:
+      - stderr
+      initial_fields: {}
+      level: info
+      output_paths:
+      - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10s
+    metrics:
+      address: :8888
+      level: Normal
+      readers: []
+    resource: {}
+    traces:
+      processors: []
+      propagators: []
