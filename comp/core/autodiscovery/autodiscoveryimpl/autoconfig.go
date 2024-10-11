@@ -731,7 +731,6 @@ func configType(c integration.Config) string {
 type optionalModuleDeps struct {
 	fx.In
 	Lc         fx.Lifecycle
-	Config     configComponent.Component
 	Log        logComp.Component
 	TaggerComp optional.Option[tagger.Component]
 	Secrets    secrets.Component
