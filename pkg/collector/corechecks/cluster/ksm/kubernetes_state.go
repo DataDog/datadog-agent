@@ -337,7 +337,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAInformerClient)
+	// builder.WithVPAClient(c.VPAInformerClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
