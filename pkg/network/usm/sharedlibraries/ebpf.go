@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -384,14 +385,23 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options, li
 		)
 	}
 
-	for _, libset := range libsets {
+	var enabledMsgs []string
+	for libset, _ := range LibsetToLibSuffixes {
+		value := uint64(0)
+		if slices.Contains(libsets, libset) {
+			value = uint64(1)
+		}
+
 		constEd := manager.ConstantEditor{
 			Name:  fmt.Sprintf("%s_libset_enabled", string(libset)),
 			Value: uint64(1),
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, constEd)
+		enabledMsgs = append(enabledMsgs, fmt.Sprintf("%s=%d", libset, value))
 	}
+
+	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
 
 	options.BypassEnabled = e.cfg.BypassEnabled
 	return e.InitWithOptions(buf, &options)
