@@ -12,11 +12,12 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/mock => ../../pkg/config/mock
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../../pkg/config/setup
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../pkg/config/teeconfig
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../config/nodetreemodel
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup
+	github.com/DataDog/datadog-agent/pkg/config/structure => ../config/structure
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry/
@@ -40,6 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.57.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.57.1
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3
