@@ -77,7 +77,7 @@ type ntmConfig struct {
 	extraConfigFilePaths []string
 }
 
-// OnUpdate adds a callback to the list rof eceivers to be called each time a value is changed in the configuration
+// OnUpdate adds a callback to the list of eceivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
 func (c *ntmConfig) OnUpdate(callback model.NotificationReceiver) {
@@ -122,7 +122,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 }
 
-// SetWithout assigns the value to the given key using source Unknown
+// SetWithoutSource assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.Set(key, value, model.SourceUnknown)
 }
@@ -134,17 +134,9 @@ func (c *ntmConfig) SetDefault(key string, value interface{}) {
 
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(_key string, _source model.Source) {
-	// modify the config then release the lock to avoid deadlocks while notifying
-	//var receivers []model.NotificationReceiver
-	// TODO: Is this needed by anything?
 	c.Lock()
 	c.logErrorNotImplemented("UnsetForSource")
 	c.Unlock()
-
-	// notifying all receiver about the updated setting
-	//for _, receiver := range receivers {
-	//receiver(key, previousValue, newValue)
-	//}
 }
 
 // SetKnown adds a key to the set of known valid config keys
@@ -226,7 +218,7 @@ func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.noimpl.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// SetFs assigns a filesystem
+// SetFs assigns a filesystem to the config
 func (c *ntmConfig) SetFs(fs afero.Fs) {
 	c.Lock()
 	defer c.Unlock()
@@ -263,7 +255,7 @@ func (c *ntmConfig) leafAtPath(key string) LeafNode {
 	return &missingLeaf
 }
 
-// Get returns a copy of the value at the given key
+// Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -288,7 +280,7 @@ func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 	return vals
 }
 
-// GetString returns a string-typed value at the given key
+// GetString returns a string-typed value for the given key
 func (c *ntmConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
@@ -300,7 +292,7 @@ func (c *ntmConfig) GetString(key string) string {
 	return str
 }
 
-// GetBool returns a bool-typed value at the given key
+// GetBool returns a bool-typed value for the given key
 func (c *ntmConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
@@ -312,7 +304,7 @@ func (c *ntmConfig) GetBool(key string) bool {
 	return b
 }
 
-// GetInt returns an int-typed value at the given key
+// GetInt returns an int-typed value for the given key
 func (c *ntmConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
@@ -324,7 +316,7 @@ func (c *ntmConfig) GetInt(key string) int {
 	return val
 }
 
-// GetInt32 returns an int32-typed value at the given key
+// GetInt32 returns an int32-typed value for the given key
 func (c *ntmConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
@@ -336,7 +328,7 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 	return int32(val)
 }
 
-// GetInt64 returns an int64-typed value at the given key
+// GetInt64 returns an int64-typed value for the given key
 func (c *ntmConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
@@ -348,7 +340,7 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 	return int64(val)
 }
 
-// GetFloat64 returns a float64-typed value at the given key
+// GetFloat64 returns a float64-typed value for the given key
 func (c *ntmConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
@@ -360,7 +352,7 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 	return val
 }
 
-// GetTime returns a time-typed value at the given key
+// GetTime returns a time-typed value for the given key
 func (c *ntmConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
@@ -372,7 +364,7 @@ func (c *ntmConfig) GetTime(key string) time.Time {
 	return val
 }
 
-// GetDuration returns a duration-typed value at the given key
+// GetDuration returns a duration-typed value for the given key
 func (c *ntmConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
@@ -384,7 +376,7 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 	return val
 }
 
-// GetStringSlice returns a string slice value at the given key
+// GetStringSlice returns a string slice value for the given key
 func (c *ntmConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -396,7 +388,7 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 	return slices.Clone(val)
 }
 
-// GetFloat64SliceE returns a float slice value at the given key, or an error
+// GetFloat64SliceE returns a float slice value for the given key, or an error
 func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	c.RLock()
 	defer c.RUnlock()
@@ -419,7 +411,7 @@ func (c *ntmConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	return res, nil
 }
 
-// GetStringMap returns a map[string]interface value at the given key
+// GetStringMap returns a map[string]interface value for the given key
 func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -431,7 +423,7 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 	return deepcopy.Copy(val).(map[string]interface{})
 }
 
-// GetStringMapString returns a map[string]string value at the given key
+// GetStringMapString returns a map[string]string value for the given key
 func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
@@ -443,7 +435,7 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 	return deepcopy.Copy(val).(map[string]string)
 }
 
-// GetStringMapStringSlice returns a map[string][]string value at the given key
+// GetStringMapStringSlice returns a map[string][]string value for the given key
 func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
@@ -455,7 +447,7 @@ func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
 	return deepcopy.Copy(val).(map[string][]string)
 }
 
-// GetSizeInBytes returns the size in bytes of the filename at the given key
+// GetSizeInBytes returns the size in bytes of the filename for the given key
 func (c *ntmConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
@@ -526,7 +518,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(_r *strings.Replacer) {
 	c.logErrorNotImplemented("SetEnvKeyReplacer")
 }
 
-// UnmarshalKey unmarshals the data at the given key
+// UnmarshalKey unmarshals the data for the given key
 // DEPRECATED: use pkg/config/structure.UnmarshalKey instead
 func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...viper.DecoderConfigOption) error {
 	c.RLock()
@@ -617,7 +609,7 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AddConfigPath adds another config at the given path
+// AddConfigPath adds another config for the given path
 func (c *ntmConfig) AddConfigPath(_in string) {
 	c.Lock()
 	defer c.Unlock()

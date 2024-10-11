@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"golang.org/x/exp/maps"
 )
 
 // ErrNotFound is an error for when a key is not found
@@ -179,10 +180,7 @@ func (n *mapNodeImpl) GetChild(key string) (Node, error) {
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
 func (n *mapNodeImpl) ChildrenKeys() ([]string, error) {
-	mapkeys := make([]string, 0, len(n.val))
-	for key := range n.val {
-		mapkeys = append(mapkeys, key)
-	}
+	mapkeys := maps.Keys(n.val)
 	// map keys are iterated non-deterministically, sort them
 	slices.Sort(mapkeys)
 	return mapkeys, nil
