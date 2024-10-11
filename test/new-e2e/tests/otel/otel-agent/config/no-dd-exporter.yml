@@ -1,0 +1,15 @@
+receivers:
+  hostmetrics:
+    scrapers:
+      load:
+      memory:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics/sys:
+      receivers: [hostmetrics]
+      exporters: [debug]
