@@ -50,6 +50,20 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 			m.Maps = append(m.Maps, &manager.Map{Name: helperErrTelemetryMapName})
 		}
 
+		if opts.MapSpecEditors == nil {
+			opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+		}
+
+		opts.MapSpecEditors[mapErrTelemetryMapName] = manager.MapSpecEditor{
+			MaxEntries: uint32(len(m.Maps)),
+			EditorFlag: manager.EditMaxEntries,
+		}
+
+		opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
+			MaxEntries: uint32(len(m.Probes)),
+			EditorFlag: manager.EditMaxEntries,
+		}
+
 		h := keyHash()
 		for _, ebpfMap := range m.Maps {
 			opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
@@ -57,6 +71,7 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 				Value: eBPFMapErrorKey(h, mapTelemetryKey(names.NewMapNameFromManagerMap(ebpfMap), module)),
 			})
 		}
+
 	}
 
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
@@ -76,7 +91,7 @@ func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, module names.Mod
 		return nil
 	}
 
-	mapNames := make([]names.MapName, len(m.Maps))
+	var mapNames []names.MapName
 	for _, mp := range m.Maps {
 		mapNames = append(mapNames, names.NewMapNameFromManagerMap(mp))
 	}

@@ -94,7 +94,7 @@ func (e *ebpfTelemetry) fill(maps []names.MapName, mn names.ModuleName, mapErrMa
 	if err := e.initializeMapErrTelemetryMap(maps, mn, mapErrMap); err != nil {
 		return err
 	}
-	if err := e.initializeHelperErrTelemetryMap(helperErrMap); err != nil {
+	if err := e.initializeHelperErrTelemetryMap(mn, helperErrMap); err != nil {
 		return err
 	}
 
@@ -170,7 +170,7 @@ func (e *ebpfTelemetry) initializeMapErrTelemetryMap(maps []names.MapName, mn na
 		key := eBPFMapErrorKey(h, mapTelemetryKey(mapName, mn))
 		err := mapErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", mapName)
+			return fmt.Errorf("failed to initialize telemetry struct for map %s: %w", mapName, err)
 		}
 		e.mapKeys[mapTelemetryKey(mapName, mn)] = key
 	}
@@ -178,13 +178,17 @@ func (e *ebpfTelemetry) initializeMapErrTelemetryMap(maps []names.MapName, mn na
 	return nil
 }
 
-func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
+func (e *ebpfTelemetry) initializeHelperErrTelemetryMap(module names.ModuleName, helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]) error {
 	// the `probeKeys` get added during instruction patching, so we just try to insert entries for any that don't exist
 	z := new(helperErrTelemetry)
 	for p, key := range e.probeKeys {
+		if p.moduleName != module {
+			continue
+		}
+
 		err := helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
-			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p.String())
+			return fmt.Errorf("failed to initialize telemetry struct for probe %s: %w", p.String(), err)
 		}
 	}
 
