@@ -8,6 +8,4 @@
 ---
 enhancements:
   - |
-    The ``flare`` subcommand now has a ``--provider-timeout`` option to specify a timeout
-    in seconds to collect individual files (defaults to 10). This is particularly useful when
-    the flare takes too long to create.
+    The ``flare`` subcommand includes a ``--provider-timeout`` option to set a file collection timeout in seconds (default is 10), useful for speeding up slow flare creation.
