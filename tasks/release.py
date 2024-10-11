@@ -73,7 +73,6 @@ from tasks.libs.releasing.version import (
     next_rc_version,
     parse_major_versions,
 )
-from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
@@ -83,6 +82,12 @@ GITLAB_FILES_TO_UPDATE = [
 ]
 
 BACKPORT_LABEL_COLOR = "5319e7"
+
+
+def get_default_modules(ctx):
+    from tasks.modules import DEFAULT_MODULES
+
+    return DEFAULT_MODULES
 
 
 @contextmanager
@@ -106,6 +111,12 @@ def agent_context(ctx, version: str):
         assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
 
         base_branch = get_current_branch(ctx)
+
+        # Already on the target branch
+        if base_branch == branch:
+            yield
+            return
+
         should_stash = check_uncommitted_changes(ctx)
 
         # Save + change branch
@@ -129,6 +140,12 @@ def agent_context(ctx, version: str):
     else:
         # Nothing to do
         yield
+
+
+@task
+def t(ctx, v='6.53.0'):
+    with agent_context(ctx, v):
+        print(len(get_default_modules(ctx)))
 
 
 @task
