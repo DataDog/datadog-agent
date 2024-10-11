@@ -1,5 +1,9 @@
-"""
-Release helper tasks
+"""Release helper tasks
+
+Notes about Agent6:
+    Release tasks should be run from this branch.
+    To make a task compatible with agent 6, it is possible to use agent_context such that
+    the task will be run in the agent6 branch.
 """
 
 import json
