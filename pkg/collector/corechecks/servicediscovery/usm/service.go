@@ -108,18 +108,26 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	args       []string
-	envs       envs.Variables
-	fs         fs.SubFS
-	contextMap DetectorContextMap
+	// Pid process PID
+	Pid int
+	// Args the command line arguments of the process
+	Args []string
+	// Envs targeted environment variables of the process
+	Envs envs.Variables
+	// Fs provides access to a file system
+	Fs fs.SubFS
+	// DetectorContextMap a map to pass data between detectors, like some paths.
+	ContextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(args []string, envs envs.Variables, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(pid int, args []string, envs envs.Variables, fs fs.SubFS, contextMap DetectorContextMap) DetectionContext {
 	return DetectionContext{
-		args: args,
-		envs: envs,
-		fs:   fs,
+		Pid:        pid,
+		Args:       args,
+		Envs:       envs,
+		Fs:         fs,
+		ContextMap: contextMap,
 	}
 }
 
@@ -198,14 +206,8 @@ func serviceNameInjected(envs envs.Variables) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lang language.Language, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
-	dc := DetectionContext{
-		args:       args,
-		envs:       envs,
-		fs:         fs,
-		contextMap: contextMap,
-	}
-	cmd := dc.args
+func ExtractServiceMetadata(lang language.Language, dc DetectionContext) (metadata ServiceMetadata, success bool) {
+	cmd := dc.Args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return
 	}
@@ -213,9 +215,9 @@ func ExtractServiceMetadata(args []string, envs envs.Variables, fs fs.SubFS, lan
 	// We always return a service name from here on
 	success = true
 
-	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
+	if value, ok := chooseServiceNameFromEnvs(dc.Envs); ok {
 		metadata.DDService = value
-		metadata.DDServiceInjected = serviceNameInjected(envs)
+		metadata.DDServiceInjected = serviceNameInjected(dc.Envs)
 	}
 
 	exe := cmd[0]

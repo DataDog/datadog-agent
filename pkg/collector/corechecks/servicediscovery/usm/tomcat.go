@@ -78,7 +78,7 @@ func (te tomcatExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, 
 }
 
 func (te tomcatExtractor) scanDirForDeployments(path string, uniques *map[string]struct{}) []jeeDeployment {
-	entries, err := fs.ReadDir(te.ctx.fs, path)
+	entries, err := fs.ReadDir(te.ctx.Fs, path)
 	if err != nil {
 		log.Debugf("error while scanning tomcat deployments (app base: %q). Err: %v", path, err)
 		return nil
@@ -127,7 +127,7 @@ func (tomcatExtractor) defaultContextRootFromFile(fileName string) (string, bool
 
 func (te tomcatExtractor) parseServerXML(domainHome string) *tomcatServerXML {
 	xmlFilePath := path.Join(domainHome, serverXMLPath)
-	file, err := te.ctx.fs.Open(xmlFilePath)
+	file, err := te.ctx.Fs.Open(xmlFilePath)
 	if err != nil {
 		log.Debugf("Unable to locate tomcat server.xml (%q). Err: %v", xmlFilePath, err)
 		return nil

@@ -67,12 +67,12 @@ func trimPrefixFromLine(fs fs.SubFS, file string, prefix string) (string, bool) 
 
 func (l laravelParser) getLaravelAppNameFromEnv(laravelDir string) (string, bool) {
 	envFileName := path.Join(laravelDir, ".env")
-	if l.ctx.fs != nil {
-		if name, ok := trimPrefixFromLine(l.ctx.fs, envFileName, "DD_SERVICE="); ok {
+	if l.ctx.Fs != nil {
+		if name, ok := trimPrefixFromLine(l.ctx.Fs, envFileName, "DD_SERVICE="); ok {
 			return name, true
-		} else if name, ok := trimPrefixFromLine(l.ctx.fs, envFileName, "OTEL_SERVICE_NAME="); ok {
+		} else if name, ok := trimPrefixFromLine(l.ctx.Fs, envFileName, "OTEL_SERVICE_NAME="); ok {
 			return name, true
-		} else if name, ok := trimPrefixFromLine(l.ctx.fs, envFileName, "APP_NAME="); ok {
+		} else if name, ok := trimPrefixFromLine(l.ctx.Fs, envFileName, "APP_NAME="); ok {
 			return name, true
 		}
 	}
@@ -81,8 +81,8 @@ func (l laravelParser) getLaravelAppNameFromEnv(laravelDir string) (string, bool
 
 func (l laravelParser) getLaravelAppNameFromConfig(dir string) (string, bool) {
 	configFileName := path.Join(dir, "config", "app.php")
-	if l.ctx.fs != nil {
-		if f, err := l.ctx.fs.Open(configFileName); err == nil {
+	if l.ctx.Fs != nil {
+		if f, err := l.ctx.Fs.Open(configFileName); err == nil {
 			defer f.Close()
 			reader, err := SizeVerifiedReader(f)
 			if err != nil {

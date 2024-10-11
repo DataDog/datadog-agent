@@ -94,7 +94,8 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, envs.NewVariables(d.envs), nil)
+			dc := usm.NewDetectionContext(0, d.args, envs.NewVariables(d.envs), nil, nil)
+			result := javaDetector(dc)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -131,7 +132,8 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, envs.NewVariables(nil), d.contextMap)
+			dc := usm.NewDetectionContext(0, nil, envs.NewVariables(nil), nil, d.contextMap)
+			result := nodeDetector(dc)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -231,7 +233,8 @@ func TestDotNetDetector(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var result Instrumentation
 			if test.maps == "" {
-				result = dotNetDetector(0, nil, envs.NewVariables(test.envs), nil)
+				dc := usm.NewDetectionContext(0, nil, envs.NewVariables(test.envs), nil, nil)
+				result = dotNetDetector(dc)
 			} else {
 				result = dotNetDetectorFromMapsReader(strings.NewReader(test.maps))
 			}
@@ -260,12 +263,15 @@ func TestGoDetector(t *testing.T) {
 		_ = cmdWithoutSymbols.Process.Kill()
 	})
 
-	result := goDetector(os.Getpid(), nil, envs.NewVariables(nil), nil)
+	dc := usm.NewDetectionContext(os.Getpid(), nil, envs.NewVariables(nil), nil, nil)
+	result := goDetector(dc)
 	require.Equal(t, None, result)
 
-	result = goDetector(cmdWithSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
+	dc = usm.NewDetectionContext(cmdWithSymbols.Process.Pid, nil, envs.NewVariables(nil), nil, nil)
+	result = goDetector(dc)
 	require.Equal(t, Provided, result)
 
-	result = goDetector(cmdWithoutSymbols.Process.Pid, nil, envs.NewVariables(nil), nil)
+	dc = usm.NewDetectionContext(cmdWithoutSymbols.Process.Pid, nil, envs.NewVariables(nil), nil, nil)
+	result = goDetector(dc)
 	require.Equal(t, Provided, result)
 }

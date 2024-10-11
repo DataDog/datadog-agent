@@ -177,7 +177,7 @@ func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64)
 
 // newPropertySourceFromFile wraps filename opening and closing, delegating the rest of the logic to newPropertySourceFromStream
 func (s springBootParser) newPropertySourceFromFile(filename string) (props.PropertyGetter, error) {
-	f, err := s.ctx.fs.Open(filename)
+	f, err := s.ctx.Fs.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s springBootParser) scanSourcesFromFileSystem(profilePatterns map[string][
 	for profile, pp := range profilePatterns {
 		for _, pattern := range pp {
 			startPath := longestPathPrefix(pattern)
-			_ = fs.WalkDir(s.ctx.fs, startPath, func(p string, d fs.DirEntry, err error) error {
+			_ = fs.WalkDir(s.ctx.Fs, startPath, func(p string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
@@ -293,9 +293,9 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 // the jar path and the application arguments.
 // When resolving properties, it supports placeholder resolution (a = ${b} -> will lookup then b)
 func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
-	cwd, _ := workingDirFromEnvs(s.ctx.envs)
+	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
 	absName := abs(jarname, cwd)
-	file, err := s.ctx.fs.Open(absName)
+	file, err := s.ctx.Fs.Open(absName)
 	if err != nil {
 		return "", false
 	}
@@ -317,9 +317,9 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	log.Debugf("parsing information from spring boot archive: %q", jarname)
 
 	combined := &props.Combined{Sources: []props.PropertyGetter{
-		newArgumentSource(s.ctx.args, "--"),
-		newArgumentSource(s.ctx.args, "-D"),
-		newEnvironmentSource(s.ctx.envs),
+		newArgumentSource(s.ctx.Args, "--"),
+		newArgumentSource(s.ctx.Args, "-D"),
+		newEnvironmentSource(s.ctx.Envs),
 	}}
 
 	// resolved properties referring to other properties (thanks to the Expander)

@@ -50,7 +50,8 @@ func TestServiceNameFromCLI(t *testing.T) {
 			expected: "",
 		},
 	}
-	instance := &phpDetector{ctx: NewDetectionContext(nil, envs.NewVariables(nil), nil)}
+	dc := NewDetectionContext(0, nil, envs.NewVariables(nil), nil, nil)
+	instance := &phpDetector{ctx: dc}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value, ok := instance.detect(tt.args)
