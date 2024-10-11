@@ -8,6 +8,8 @@ package stats
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 

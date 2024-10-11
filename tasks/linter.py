@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from fnmatch import fnmatch
 from glob import glob
 
 import yaml
@@ -32,8 +33,9 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
-from tasks.libs.common.git import get_staged_files
+from tasks.libs.common.git import get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -145,6 +147,7 @@ def go(
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    debug=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -158,22 +161,13 @@ def go(
 
     --timeout is the number of minutes after which the linter should time out.
     --headless-mode allows you to output the result in a single json file.
+    --debug prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
 
     Example invokation:
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    if not check_tools_version(ctx, ['golangci-lint']):
-        print(
-            color_message(
-                "Error: The golanci-lint version you are using is not the correct one. Please run inv -e install-tools to install the correct version.",
-                "red",
-            )
-        )
-        raise Exit(code=1)
-
-    if not check_tools_version(ctx, ['go']):
-        print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
+    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
 
     modules, flavor = process_input_args(
         ctx,
@@ -451,14 +445,9 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 test_gitlab_configuration(ctx, entry_point, input_config)
 
 
-@task
-def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
     """
-    Verifies that each added / modified job contains `needs` and also `rules`.
-    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
-    All configurations are checked (even downstream ones).
-
-    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    Utility to get the jobs from full gitlab ci configuration file or from a diff file.
 
     - diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
     - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
@@ -471,29 +460,45 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     # Load all the jobs from the files
     if config_file:
         with open(config_file) as f:
-            conf = yaml.safe_load(f)
-
-        full_config = conf
-
-        jobs = []
-        for file_jobs in conf.values():
-            for job_name, job_contents in file_jobs.items():
-                if is_leaf_job(job_name, job_contents):
-                    jobs.append((job_name, job_contents))
+            full_config = yaml.safe_load(f)
+            jobs = [
+                (job, job_contents)
+                for contents in full_config.values()
+                for job, job_contents in contents.items()
+                if is_leaf_job(job, job_contents)
+            ]
     else:
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
         full_config = diff.after
-        jobs = [
-            (job, contents)
-            for _, job, contents, _ in diff.iter_jobs(added=True, modified=True)
-            if is_leaf_job(job, contents)
-        ]
+        jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
 
-        if not jobs:
-            print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-            return
+    if not jobs:
+        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        return [], {}
+
+    if only_names:
+        jobs = [job for job, _ in jobs]
+
+    return jobs, full_config
+
+
+@task
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+    """
+    Verifies that each added / modified job contains `needs` and also `rules`.
+    It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
+    All configurations are checked (even downstream ones).
+
+    SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
 
     ci_linters_config = CILintersConfig(
         lint=True,
@@ -520,7 +525,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
 
     if n_ignored:
         print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path})'
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path}:needs-rules)'
         )
 
     if error_jobs:
@@ -737,3 +742,89 @@ def gitlab_change_paths(ctx):
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
         )
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
+
+
+@task
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+    """
+    Verifies that each job is defined within JOBOWNERS files.
+    """
+
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+
+    # No change, info already printed in get_gitlab_ci_lintable_jobs
+    if not full_config:
+        return
+
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(full_config),
+        all_stages=full_config_get_all_stages(full_config),
+    )
+
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+
+    error_jobs = []
+    n_ignored = 0
+    for job in jobs:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            if job in ci_linters_config.job_owners_jobs:
+                n_ignored += 1
+            else:
+                error_jobs.append(job)
+
+    if n_ignored:
+        print(
+            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
+        )
+
+    if error_jobs:
+        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
+
+
+def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
+    error_files = []
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
+        if not teams:
+            error_files.append(path)
+
+    if error_files:
+        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+
+
+@task
+def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
+    """Verifies that added / modified job files are defined within CODEOWNERS."""
+    from codeowners import CodeOwners
+
+    if all_files:
+        modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)
+    else:
+        modified_yml_files = get_file_modifications(ctx, added=True, modified=True, only_names=True)
+        modified_yml_files = [path for path in modified_yml_files if fnmatch(path, '.gitlab/**.yml')]
+
+    if not modified_yml_files:
+        print(f'{color_message("Info", Color.BLUE)}: No added / modified job files, skipping lint')
+        return
+
+    with open(path_codeowners) as f:
+        parsed_owners = f.readlines()
+
+    # Keep only gitlab related lines to avoid defaults
+    parsed_owners = [line for line in parsed_owners if '/.gitlab/' in line]
+    gitlab_owners = CodeOwners('\n'.join(parsed_owners))
+
+    _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners)

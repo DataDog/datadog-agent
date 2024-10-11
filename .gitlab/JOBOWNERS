@@ -1,5 +1,14 @@
 *                                    @DataDog/agent-devx-infra
 
+# CI / DevX
+test_gitlab*                         @DataDog/agent-devx-infra
+invoke_unit_tests                    @DataDog/agent-devx-infra
+skip-ci-check                        @DataDog/agent-devx-infra
+slack_teams_channels_check           @DataDog/agent-devx-infra
+lint*                                @DataDog/agent-devx-infra
+notify*                              @DataDog/agent-devx-infra
+create_release_qa_cards              @DataDog/agent-devx-infra
+
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
 build_processed_btfhub_archive       @DataDog/ebpf-platform
@@ -91,7 +100,6 @@ qa_cws_instrumentation*                @DataDog/agent-devx-loops
 qa_dca*                                @DataDog/agent-devx-loops
 qa_dogstatsd*                          @DataDog/agent-devx-loops
 
-
 # Internal image deploy
 docker_trigger_internal*                     @DataDog/container-integrations
 docker_trigger_cluster_agent_internal*       @DataDog/container-integrations
@@ -122,6 +130,8 @@ trigger_auto_staging_release           @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
+integration_tests_otel        @DataDog/opentelemetry
+docker_image_build_otel       @DataDog/opentelemetry
 
 # Functional test
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations

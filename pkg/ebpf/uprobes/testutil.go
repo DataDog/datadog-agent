@@ -84,9 +84,9 @@ type MockBinaryInspector struct {
 }
 
 // Inspect is a mock implementation of the BinaryInspector.Inspect method.
-func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
 	args := m.Called(fpath, requests)
-	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
+	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Error(1)
 }
 
 // Cleanup is a mock implementation of the BinaryInspector.Cleanup method.

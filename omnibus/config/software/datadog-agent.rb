@@ -16,6 +16,10 @@ dependency "python3" if with_python_runtime? "3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
+# Alternative memory allocator which has better support for memory allocated by cgo calls,
+# especially at higher thread counts.
+dependency "libjemalloc" if linux_target?
+
 dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
@@ -152,9 +156,9 @@ build do
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
-        command "invoke -e system-probe.build"
+        command "invoke -e system-probe.build", env: env
       elsif linux_target?
-        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle"
+        command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir} --no-bundle", env: env
       end
     end
 
