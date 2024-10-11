@@ -113,7 +113,7 @@ func UninstallAgent(host *components.RemoteHost, logPath string) error {
 	if err != nil {
 		return err
 	}
-	return windowsCommon.UninstallMSI(host, product, logPath)
+	return windowsCommon.UninstallMSI(host, product, "", logPath)
 }
 
 // HasValidDatadogCodeSignature an error if the file at the given path is not validy signed by the Datadog Code Signing certificate
