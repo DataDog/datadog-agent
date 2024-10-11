@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/go-tuf/data"
 )
@@ -82,7 +83,7 @@ type Repository struct {
 	latestRootVersion      int64
 
 	// Config file storage
-	metadata map[string]Metadata
+	metadata sync.Map // map[string]Metadata
 	configs  map[string]map[string]interface{}
 }
 
@@ -106,7 +107,7 @@ func NewRepository(embeddedRoot []byte) (*Repository, error) {
 	return &Repository{
 		latestTargets:          data.NewTargets(),
 		tufRootsClient:         tufRootsClient,
-		metadata:               make(map[string]Metadata),
+		metadata:               sync.Map{},
 		configs:                configs,
 		tufVerificationEnabled: true,
 	}, nil
@@ -125,7 +126,7 @@ func NewUnverifiedRepository() (*Repository, error) {
 
 	return &Repository{
 		latestTargets:          data.NewTargets(),
-		metadata:               make(map[string]Metadata),
+		metadata:               sync.Map{},
 		configs:                configs,
 		tufVerificationEnabled: false,
 		latestRootVersion:      1, // The backend expects us to start with a root version of 1.
@@ -205,9 +206,12 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		}
 
 		// 3.b and 3.c: Check if this configuration is either new or has been modified
-		storedMetadata, exists := r.metadata[path]
-		if exists && hashesEqual(targetFileMetadata.Hashes, storedMetadata.Hashes) {
-			continue
+		storedMetadata, exists := r.metadata.Load(path)
+		if exists {
+			m, ok := storedMetadata.(Metadata)
+			if ok && hashesEqual(targetFileMetadata.Hashes, m.Hashes) {
+				continue
+			}
 		}
 
 		// 3.d: Ensure that the raw configuration file is present in the
@@ -283,9 +287,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 // Note: it is the responsibility of the caller to ensure that no new Update() call was made between
 // the first Update() call and the call to UpdateApplyStatus() so as to keep the repository state accurate.
 func (r *Repository) UpdateApplyStatus(cfgPath string, status ApplyStatus) {
-	if m, ok := r.metadata[cfgPath]; ok {
-		m.ApplyStatus = status
-		r.metadata[cfgPath] = m
+	if val, ok := r.metadata.Load(cfgPath); ok {
+		if m, ok := val.(Metadata); ok {
+			m.ApplyStatus = status
+			r.metadata.Store(cfgPath, m)
+		}
 	}
 }
 
@@ -311,12 +317,12 @@ func (r *Repository) applyUpdateResult(_ Update, result updateResult) {
 		}
 	}
 	for path, metadata := range result.metadata {
-		r.metadata[path] = metadata
+		r.metadata.Store(path, metadata)
 	}
 
 	// 5.b Clean up the cache of any removed configs
 	for _, path := range result.removed {
-		delete(r.metadata, path)
+		r.metadata.Delete(path)
 		for _, configs := range r.configs {
 			delete(configs, path)
 		}
@@ -329,10 +335,17 @@ func (r *Repository) CurrentState() (RepositoryState, error) {
 	var configs []ConfigState
 	var cached []CachedFile
 
-	for path, metadata := range r.metadata {
-		configs = append(configs, configStateFromMetadata(metadata))
-		cached = append(cached, cachedFileFromMetadata(path, metadata))
-	}
+	r.metadata.Range(func(path, value any) bool {
+		metadata, ok := value.(Metadata)
+		if ok {
+			configs = append(configs, configStateFromMetadata(metadata))
+			cached = append(cached, cachedFileFromMetadata(path.(string), metadata))
+		} else {
+			// Log the error but continue processing the rest of the configs
+			log.Printf("Failed to convert metadata for %s", path)
+		}
+		return true
+	})
 
 	var latestRootVersion int64
 	if r.tufVerificationEnabled {

@@ -147,6 +147,7 @@ def go(
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    debug=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -160,22 +161,13 @@ def go(
 
     --timeout is the number of minutes after which the linter should time out.
     --headless-mode allows you to output the result in a single json file.
+    --debug prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
 
     Example invokation:
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    if not check_tools_version(ctx, ['golangci-lint']):
-        print(
-            color_message(
-                "Error: The golanci-lint version you are using is not the correct one. Please run inv -e install-tools to install the correct version.",
-                "red",
-            )
-        )
-        raise Exit(code=1)
-
-    if not check_tools_version(ctx, ['go']):
-        print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
+    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
 
     modules, flavor = process_input_args(
         ctx,
