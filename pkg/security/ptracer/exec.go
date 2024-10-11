@@ -54,9 +54,9 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 		syscall.ForkLock.Unlock()
 
 		if errno != 0 {
-			err = errno
+			return int(pid), errno
 		}
-		return int(pid), err
+		return int(pid), nil
 	}
 
 	// in the child, no more go runtime calls
@@ -109,10 +109,13 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 		}
 	}
 
-	_, _, err = syscall.RawSyscall(syscall.SYS_EXECVE,
+	_, _, errno = syscall.RawSyscall(syscall.SYS_EXECVE,
 		uintptr(unsafe.Pointer(argv0p)),
 		uintptr(unsafe.Pointer(&argvp[0])),
 		uintptr(unsafe.Pointer(&envvp[0])))
+	if errno != 0 {
+		exit(errno)
+	}
 
 	return 0, err
 }
