@@ -264,7 +264,7 @@ func (je jeeExtractor) doExtractContextRoots(extractor vendorExtractor, app *jee
 	if len(app.contextRoot) > 0 {
 		return []string{app.contextRoot}
 	}
-	fsCloser, dt, err := vfsAndTypeFromAppPath(app, je.ctx.Fs)
+	fsCloser, dt, err := vfsAndTypeFromAppPath(app, je.ctx.fs)
 	if err != nil {
 		log.Debugf("error locating the deployment: %v", err)
 		if dt == ear {

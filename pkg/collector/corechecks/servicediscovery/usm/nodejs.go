@@ -48,7 +48,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile
-			} else if target, err := ReadlinkFS(n.ctx.Fs, absFile); err == nil {
+			} else if target, err := ReadlinkFS(n.ctx.fs, absFile); err == nil {
 				if !isJs(target) {
 					continue
 				}
@@ -58,7 +58,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 
-			if _, err := fs.Stat(n.ctx.Fs, absFile); err == nil {
+			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
 					return NewServiceMetadata(value), true
@@ -97,7 +97,7 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 	if foundServiceName {
 		// Save package.json path for the instrumentation detector to use.
 		n.ctx.ContextMap[NodePackageJSONPath] = currentFilePath
-		n.ctx.ContextMap[ServiceSubFS] = n.ctx.Fs
+		n.ctx.ContextMap[ServiceSubFS] = n.ctx.fs
 	}
 
 	return value, foundServiceName
@@ -107,7 +107,7 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	// using a limit reader won't be useful here because we cannot parse incomplete json
 	// Hence it's better to check against the file size and avoid to allocate memory for a non-parseable content
-	file, err := n.ctx.Fs.Open(filename)
+	file, err := n.ctx.fs.Open(filename)
 	if err != nil {
 		return "", false
 	}

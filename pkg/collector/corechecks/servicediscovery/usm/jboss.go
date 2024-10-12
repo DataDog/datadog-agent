@@ -116,7 +116,7 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 	if domainMode {
 		var sub fs.FS
 		baseDir = path.Join(baseDir, jbossDomainBase)
-		sub, err = j.cxt.Fs.Sub(baseDir)
+		sub, err = j.cxt.fs.Sub(baseDir)
 		if err != nil {
 			log.Debugf("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
 			return nil, false
@@ -125,7 +125,7 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 	} else {
 		var sub fs.FS
 		baseDir = path.Join(baseDir, jbossStandaloneBase)
-		sub, err = j.cxt.Fs.Sub(baseDir)
+		sub, err = j.cxt.fs.Sub(baseDir)
 		if err != nil {
 			log.Debugf("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
 			return nil, false

@@ -90,13 +90,13 @@ func (we websphereExtractor) findDeployedApps(domainHome string) ([]jeeDeploymen
 	if len(cellName) == 0 || len(nodeName) == 0 || len(serverName) == 0 {
 		return nil, false
 	}
-	matches, err := fs.Glob(we.ctx.Fs, path.Join(domainHome, "config", "cells", cellName, "applications", "*", "deployments", "*", "deployment.xml"))
+	matches, err := fs.Glob(we.ctx.fs, path.Join(domainHome, "config", "cells", cellName, "applications", "*", "deployments", "*", "deployment.xml"))
 	if err != nil {
 		return nil, false
 	}
 	var apps []jeeDeployment
 	for _, m := range matches {
-		if ok, err := isApplicationDeployed(we.ctx.Fs, m, nodeName, serverName); ok {
+		if ok, err := isApplicationDeployed(we.ctx.fs, m, nodeName, serverName); ok {
 			apps = append(apps, jeeDeployment{
 				path: path.Dir(m),
 				dt:   ear,

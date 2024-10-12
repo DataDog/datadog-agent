@@ -96,7 +96,7 @@ const (
 
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
-// unstripped binaries.F
+// unstripped binaries.
 func goDetector(dc usm.DetectionContext) Instrumentation {
 	exePath := kernel.HostProc(strconv.Itoa(dc.Pid), "exe")
 

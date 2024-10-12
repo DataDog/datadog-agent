@@ -57,7 +57,7 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 	if !ok {
 		return nil, false
 	}
-	serverConfigFile, err := we.ctx.Fs.Open(path.Join(domainHome, wlsServerConfigDir, wlsServerConfigFile))
+	serverConfigFile, err := we.ctx.fs.Open(path.Join(domainHome, wlsServerConfigDir, wlsServerConfigFile))
 	if err != nil {
 		log.Debugf("weblogic: unable to open config.xml. Err: %v", err)
 		return nil, false

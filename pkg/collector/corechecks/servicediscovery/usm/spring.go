@@ -177,7 +177,7 @@ func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64)
 
 // newPropertySourceFromFile wraps filename opening and closing, delegating the rest of the logic to newPropertySourceFromStream
 func (s springBootParser) newPropertySourceFromFile(filename string) (props.PropertyGetter, error) {
-	f, err := s.ctx.Fs.Open(filename)
+	f, err := s.ctx.fs.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s springBootParser) scanSourcesFromFileSystem(profilePatterns map[string][
 	for profile, pp := range profilePatterns {
 		for _, pattern := range pp {
 			startPath := longestPathPrefix(pattern)
-			_ = fs.WalkDir(s.ctx.Fs, startPath, func(p string, d fs.DirEntry, err error) error {
+			_ = fs.WalkDir(s.ctx.fs, startPath, func(p string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
@@ -295,7 +295,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	cwd, _ := workingDirFromEnvs(s.ctx.Envs)
 	absName := abs(jarname, cwd)
-	file, err := s.ctx.Fs.Open(absName)
+	file, err := s.ctx.fs.Open(absName)
 	if err != nil {
 		return "", false
 	}

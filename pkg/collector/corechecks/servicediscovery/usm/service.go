@@ -115,7 +115,7 @@ type DetectionContext struct {
 	// Envs targeted environment variables of the process
 	Envs envs.Variables
 	// Fs provides access to a file system
-	Fs fs.SubFS
+	fs fs.SubFS
 	// DetectorContextMap a map to pass data between detectors, like some paths.
 	ContextMap DetectorContextMap
 }
@@ -126,7 +126,7 @@ func NewDetectionContext(pid int, args []string, envs envs.Variables, fs fs.SubF
 		Pid:        pid,
 		Args:       args,
 		Envs:       envs,
-		Fs:         fs,
+		fs:         fs,
 		ContextMap: contextMap,
 	}
 }
