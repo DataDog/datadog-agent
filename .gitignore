@@ -39,7 +39,8 @@ Dockerfiles/cluster-agent/nosys-seccomp
 
 # Utility tools
 devagent
-deva
+/deva
+!/deva/
 
 # go-generated files
 datadog.yaml
