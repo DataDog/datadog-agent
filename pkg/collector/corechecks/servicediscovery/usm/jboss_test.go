@@ -211,8 +211,8 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 			if len(tt.location) > 0 {
 				memFs[tt.location] = &fstest.MapFile{Data: []byte(tt.jbossWebXML)}
 			}
-			dc := NewDetectionContext(0, nil, envs.NewVariables(nil), fstest.MapFS(nil), nil)
-			value, ok := newJbossExtractor(dc).customExtractWarContextRoot(memFs)
+			dc := NewDetectionContext(0, nil, envs.NewVariables(nil), memFs, nil)
+			value, ok := newJbossExtractor(dc).customExtractWarContextRoot(dc.fs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
