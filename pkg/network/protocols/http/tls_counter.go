@@ -17,7 +17,6 @@ type TLSCounter struct {
 	counterPlain     *libtelemetry.Counter
 	counterGnuTLS    *libtelemetry.Counter
 	counterOpenSSL   *libtelemetry.Counter
-	counterJavaTLS   *libtelemetry.Counter
 	counterGoTLS     *libtelemetry.Counter
 	counterIstioTLS  *libtelemetry.Counter
 	counterNodeJSTLS *libtelemetry.Counter
@@ -30,7 +29,6 @@ func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tag
 		counterPlain:     metricGroup.NewCounter(metricName, append(tags, "encrypted:false", "tls_library:none")...),
 		counterGnuTLS:    metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:gnutls")...),
 		counterOpenSSL:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:openssl")...),
-		counterJavaTLS:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:java")...),
 		counterGoTLS:     metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:go")...),
 		counterIstioTLS:  metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:istio")...),
 		counterNodeJSTLS: metricGroup.NewCounter(metricName, append(tags, "encrypted:true", "tls_library:nodejs")...),

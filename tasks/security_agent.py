@@ -159,7 +159,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
