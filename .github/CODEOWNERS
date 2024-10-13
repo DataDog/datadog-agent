@@ -244,7 +244,7 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
-/cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/cmd/system-probe/modules/service_discover* @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger
@@ -345,7 +345,7 @@
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
-/pkg/discovery/				@DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/pkg/discovery/                         @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
@@ -405,7 +405,7 @@
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/pkg/collector/corechecks/servicediscovery/ @DataDog/universal-service-monitoring
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/platform-integrations @DataDog/windows-agent
@@ -638,8 +638,7 @@
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
-/test/fakeintake/aggregator/servicediscoveryAggregator.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
-/test/fakeintake/aggregator/servicediscoveryAggregator_test.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/test/fakeintake/aggregator/servicediscovery* @DataDog/universal-service-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/new-e2e/pkg/components/datadog-installer @DataDog/windows-agent
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
@@ -649,7 +648,7 @@
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
-/test/new-e2e/tests/discovery                 @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/test/new-e2e/tests/discovery                 @DataDog/universal-service-monitoring
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
