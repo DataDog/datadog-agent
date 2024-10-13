@@ -133,6 +133,26 @@ func xccdfEnabled() bool {
 	return pkgconfigsetup.Datadog().GetBool("compliance_config.xccdf.enabled") || pkgconfigsetup.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
+var (
+	defaultSECLRuleFilterLock sync.Mutex
+	defaultSECLRuleFilter     *secl.SECLRuleFilter
+)
+
+func getDefaultSECLRuleFilter() (*secl.SECLRuleFilter, error) {
+	defaultSECLRuleFilterLock.Lock()
+	defer defaultSECLRuleFilterLock.Unlock()
+
+	if defaultSECLRuleFilter == nil {
+		ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default SECL rule filter: %w", err)
+		}
+		defaultSECLRuleFilter = secl.NewSECLRuleFilter(ruleFilterModel)
+	}
+
+	return defaultSECLRuleFilter, nil
+}
+
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
@@ -150,12 +170,12 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
+		seclRuleFilter, err := getDefaultSECLRuleFilter()
 		if err != nil {
-			log.Errorf("failed to apply rule filters: %v", err)
+			log.Errorf("failed to apply rule filters: %s", err)
 			return false
 		}
-		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
+
 		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
 		})
