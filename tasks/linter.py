@@ -417,17 +417,20 @@ def list_get_parameter_calls(file):
 
 
 @task
-def gitlab_ci(ctx, test="all", custom_context=None):
+def gitlab_ci(ctx, test="all", custom_context=None, full_config=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
 
     This will lint the main gitlab ci file with different
     variable contexts and lint other triggered gitlab ci configs.
-    """
-    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, with_lint=False)
 
-    for entry_point, input_config in configs.items():
+    Args:
+        full_config: Full gitlab ci configuration **without linting**
+    """
+    print(f'{color_message("Info", Color.BLUE)}: Fetching Gitlab CI configurations...')
+    full_config = full_config or get_all_gitlab_ci_configurations(ctx, with_lint=False)
+
+    for entry_point, input_config in full_config.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
             # Only the main config should be tested with all contexts
             if entry_point == ".gitlab-ci.yml":
@@ -437,7 +440,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 else:
                     all_contexts = get_preset_contexts(test)
 
-                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                print(f'{color_message("Info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
                     test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
@@ -445,7 +448,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 test_gitlab_configuration(ctx, entry_point, input_config)
 
 
-def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
+def get_gitlab_ci_lintable_jobs(diff_file, config_file, full_config=None, only_names=False):
     """
     Utility to get the jobs from full gitlab ci configuration file or from a diff file.
 
@@ -453,20 +456,22 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
     - config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
     """
 
-    assert (
+    assert full_config or (
         diff_file or config_file and not (diff_file and config_file)
     ), "You must provide either a diff file or a config file and not both"
 
     # Load all the jobs from the files
-    if config_file:
-        with open(config_file) as f:
-            full_config = yaml.safe_load(f)
-            jobs = [
-                (job, job_contents)
-                for contents in full_config.values()
-                for job, job_contents in contents.items()
-                if is_leaf_job(job, job_contents)
-            ]
+    if config_file or full_config:
+        if not full_config:
+            with open(config_file) as f:
+                full_config = yaml.safe_load(f)
+
+        jobs = [
+            (job, job_contents)
+            for contents in full_config.values()
+            for job, job_contents in contents.items()
+            if is_leaf_job(job, job_contents)
+        ]
     else:
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
@@ -485,7 +490,7 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
 
 
 @task
-def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None, full_config=None):
     """
     Verifies that each added / modified job contains `needs` and also `rules`.
     It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
@@ -494,7 +499,7 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     SEE: https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, full_config=full_config)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
@@ -745,12 +750,12 @@ def gitlab_change_paths(ctx):
 
 
 @task
-def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS', full_config=None):
     """
     Verifies that each job is defined within JOBOWNERS files.
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, full_config=full_config, only_names=True)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
