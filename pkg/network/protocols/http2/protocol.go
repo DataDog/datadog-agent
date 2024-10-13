@@ -47,7 +47,7 @@ type Protocol struct {
 const (
 	// InFlightMap is the name of the map used to store in-flight HTTP/2 streams
 	InFlightMap               = "http2_in_flight"
-	remainderTable            = "http2_remainder"
+	incompleteFramesTable     = "http2_incomplete_frames"
 	dynamicTable              = "http2_dynamic_table"
 	dynamicTableCounter       = "http2_dynamic_counter_table"
 	http2IterationsTable      = "http2_iterations"
@@ -92,7 +92,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: tlsHTTP2IterationsTable,
 		},
 		{
-			Name: remainderTable,
+			Name: incompleteFramesTable,
 		},
 		{
 			Name: "http2_headers_to_process",
@@ -246,7 +246,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[remainderTable] = manager.MapSpecEditor{
+	opts.MapSpecEditors[incompleteFramesTable] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
