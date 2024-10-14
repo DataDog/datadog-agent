@@ -8,7 +8,7 @@ More information about what a canonical hostname is can be found at [How does Da
 To know if your Agents are affected, starting with v6.16.0 and v7.16.0, the Agent logs the following warning if it detects a situation where the config-provided hostname is a valid hostname but will not be accepted as the canonical hostname in-app:
 `Hostname '<HOSTNAME>' defined in configuration are not used as the in-app hostname. For more information: https://dtdg.co/agent-hostname-force-config-as-canonical`
 
-If this warning is logged, you can either:
+If this warning is logged, you have the following options:
 
 - if you are satisfied with the in-app hostname: unset the configured `hostname` from `datadog.yaml` (or the `DD_HOSTNAME` env var) and restart the Agent; or
 - if you are not satisfied with the in-app hostname, and want the configured hostname to appear as the in-app hostname, follow the instructions below
