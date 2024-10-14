@@ -72,7 +72,8 @@ func getFragment(e *ebpf.EbpfTx) []byte {
 // Operation returns the operation of the query (SELECT, INSERT, UPDATE, DROP, etc.)
 func (e *EventWrapper) Operation() Operation {
 	if !e.operationSet {
-		e.operation = FromString(string(bytes.SplitN(getFragment(&e.Tx), []byte(" "), 2)[0]))
+		op, _, _ := bytes.Cut(getFragment(&e.Tx), []byte(" "))
+		e.operation = FromString(string(op))
 		e.operationSet = true
 	}
 	return e.operation
