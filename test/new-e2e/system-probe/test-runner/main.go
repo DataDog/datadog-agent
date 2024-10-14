@@ -252,7 +252,29 @@ func createCWSTestDockerContainer(testsuite string, containerName string, bpfDir
 	// mount debugfs
 	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
 	if err := runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %s", err)
+		return fmt.Errorf("run docker: %w", err)
+	}
+
+	return nil
+}
+
+func deleteCWSTestDockerContainer(testsuite string, containerName string) error {
+	runDockerCmd := func(args []string) error {
+		cmd := exec.Command("docker", args...)
+		cmd.Dir = filepath.Dir(testsuite)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
+	args := []string{"stop", containerName}
+	if err := runDockerCmd(args); err != nil {
+		return fmt.Errorf("run docker: %w", err)
+	}
+
+	args = []string{"rm", containerName}
+	if err := runDockerCmd(args); err != nil {
+		return fmt.Errorf("run docker: %w", err)
 	}
 
 	return nil
@@ -338,6 +360,10 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := addProperties(xmlpath, props); err != nil {
 			return fmt.Errorf("xml add props: %s", err)
+		}
+
+		if err := deleteCWSTestDockerContainer(testsuite, cwsContainerName); err != nil {
+			return fmt.Errorf("deleteCWSTestDockerContainer: %w", err)
 		}
 	}
 
