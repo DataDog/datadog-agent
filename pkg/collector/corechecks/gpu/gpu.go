@@ -34,7 +34,7 @@ type Check struct {
 	config         *CheckConfig
 	sysProbeUtil   *processnet.RemoteSysProbeUtil
 	lastCheckTime  time.Time
-	timeResolver   *sectime.Resolver
+	timeResolver   *sectime.Resolver // TODO: Move resolver to a common package, see EBPF-579
 	statProcessors map[uint32]*StatsProcessor
 }
 
