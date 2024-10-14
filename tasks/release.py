@@ -123,7 +123,7 @@ def get_default_modules(ctx):
 
 
 def set_agent6_context(
-    ctx, version=DEFAULT_AGENT6_VERSION, major_version: int | None = None, allow_stash=False, echo_switch_info=True
+    ctx, version: str | None = None, major_version: int | None = None, allow_stash=False, echo_switch_info=True
 ) -> dict:
     """Change the context to the agent6 branch.
 
@@ -141,7 +141,7 @@ def set_agent6_context(
 
     base_branch = get_current_branch(ctx)
     if major_version is not None:
-        version = DEFAULT_AGENT6_VERSION
+        version = version or DEFAULT_AGENT6_VERSION
         branch = DEFAULT_AGENT6_BRANCH
     else:
         branch = version[:4] + '.x'
@@ -181,7 +181,7 @@ def set_agent6_context(
 
 
 @contextmanager
-def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION, major_version: int | None = None, mutable=False):
+def agent_context(ctx, version: str | None = None, major_version: int | None = None, mutable=False):
     """If the version is 6.XX.X, checkout temporarily (or constantly if `mutable`) to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
 
     Args:
@@ -196,9 +196,11 @@ def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION, major_version: int
     global is_agent6_context
 
     if not major_version:
+        version = version or DEFAULT_AGENT6_VERSION
+
         check_version(version, allow_agent6=True)
 
-    if major_version == 6 or version.startswith('6.'):
+    if major_version == 6 or (version and version.startswith('6.')):
         was_agent6_context = is_agent6_context
 
         context_info = set_agent6_context(
@@ -232,7 +234,8 @@ def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION, major_version: int
 # TODO: Remove test
 @task
 def t(ctx, v='6.53.0'):
-    with agent_context(ctx, v, mutable=True):
+    # with agent_context(ctx, v, mutable=True):
+    with agent_context(ctx, major_version=6, mutable=True):
         print(get_default_modules(ctx))
         print(len(get_default_modules(ctx)))
 
