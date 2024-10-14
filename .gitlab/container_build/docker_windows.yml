@@ -100,4 +100,3 @@
 
 include:
   - .gitlab/container_build/docker_windows_agent6.yml
-  - .gitlab/container_build/docker_windows_agent7.yml

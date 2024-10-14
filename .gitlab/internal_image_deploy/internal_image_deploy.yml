@@ -4,11 +4,11 @@
 
 docker_trigger_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7_internal_or_manual]
+  rules: !reference [.on_deploy_a6_internal_or_manual]
   needs:
-    - job: docker_build_agent7_jmx
+    - job: docker_build_agent6_jmx
       artifacts: false
-    - job: docker_build_agent7_jmx_arm64
+    - job: docker_build_agent6_jmx_arm64
       artifacts: false
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -50,7 +50,7 @@ docker_trigger_internal:
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy_a6]
   needs:
     - job: docker_build_cluster_agent_amd64
       artifacts: false
@@ -97,7 +97,7 @@ docker_trigger_cluster_agent_internal:
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy_a6]
   needs:
     - job: docker_build_cws_instrumentation_amd64
       artifacts: false
