@@ -96,5 +96,5 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
+	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory(store))
 }
