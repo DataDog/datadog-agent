@@ -3,9 +3,6 @@ if not exist c:\mnt\ goto nomntdir
 @echo c:\mnt found, continuing
 
 @echo PARAMS %*
-@echo PY_RUNTIMES %PY_RUNTIMES%
-
-if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~1
 
 
 set BUILD_ROOT=c:\buildroot

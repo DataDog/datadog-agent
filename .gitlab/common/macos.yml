@@ -2,8 +2,6 @@
 # This is the scripts to be executed on the Gitlab macOS runners before every job.
 # We don't have virtualization now so we need to clean the environment and install the proper dependencies before every job.
 .macos_gitlab:
-  variables:
-    PYTHON_RUNTIMES: "3"
   before_script:
     # Selecting the current Go version
     - |

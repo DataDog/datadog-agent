@@ -63,7 +63,3 @@ def os
     end
 end
 
-def with_python_runtime?(runtime)
-    python_runtimes = ENV['PY_RUNTIMES'].nil? ? ['3'] : ENV['PY_RUNTIMES'].split(',')
-    return python_runtimes.include? runtime
-end

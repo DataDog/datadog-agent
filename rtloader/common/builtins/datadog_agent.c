@@ -70,22 +70,12 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, DATADOG_AGENT_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit_datadog_agent(void)
 {
     return PyModule_Create(&module_def);
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init_datadog_agent()
-{
-    module = Py_InitModule(DATADOG_AGENT_MODULE_NAME, methods);
-}
-#endif
 
 void _set_get_version_cb(cb_get_version_t cb)
 {

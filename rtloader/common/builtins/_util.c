@@ -34,7 +34,6 @@ static PyMethodDef methods[] = {
     { NULL, NULL } // guards
 };
 
-#ifdef DATADOG_AGENT_THREE
 static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, _UTIL_MODULE_NAME, NULL, -1, methods };
 
 PyMODINIT_FUNC PyInit__util(void)
@@ -43,16 +42,6 @@ PyMODINIT_FUNC PyInit__util(void)
     addSubprocessException(m);
     return m;
 }
-#elif defined(DATADOG_AGENT_TWO)
-// in Python2 keep the object alive for the program lifetime
-static PyObject *module;
-
-void Py2_init__util()
-{
-    module = Py_InitModule(_UTIL_MODULE_NAME, methods);
-    addSubprocessException(module);
-}
-#endif
 
 void _set_get_subprocess_output_cb(cb_get_subprocess_output_t cb)
 {

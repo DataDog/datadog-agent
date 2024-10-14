@@ -69,7 +69,6 @@
 .agent_7_build:
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     FLAVOR: base
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -77,7 +76,6 @@
 .ot_agent_7_build:
   variables:
     AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
     FLAVOR: ot
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7

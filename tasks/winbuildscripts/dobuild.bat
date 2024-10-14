@@ -1,16 +1,13 @@
 @echo PARAMS %*
 @echo RELEASE_VERSION %RELEASE_VERSION%
 @echo MAJOR_VERSION %MAJOR_VERSION%
-@echo PY_RUNTIMES %PY_RUNTIMES%
 @echo GO_VERSION_CHECK %GO_VERSION_CHECK%
 
 if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
 if NOT DEFINED MAJOR_VERSION set MAJOR_VERSION=%~2
-if NOT DEFINED PY_RUNTIMES set PY_RUNTIMES=%~3
 if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~4
 
 set OMNIBUS_BUILD=omnibus.build
-set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
 if "%OMNIBUS_TARGET%" == "" set OMNIBUS_TARGET=main
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot
@@ -52,8 +49,8 @@ inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION
 
 REM only build MSI for main targets for now.
 if "%OMNIBUS_TARGET%" == "main" (
-    @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
-    inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
+    @echo "inv -e msi.build --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%
+    inv -e msi.build --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 106
 )
 
 REM Build the OCI package for the Agent 7 only.
