@@ -135,7 +135,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		resstr, reserr := analyzeResponse(r, "abcdef")
 		require.Equal(t, errors.New("uhoh"), reserr)
 		require.Equal(t,
-			"An error occurred while uploading the flare: uhoh. Please contact support by email.",
+			"An error occurred while uploading the flare: uhoh with the corresponding uuid: . Please contact support by email.",
 			resstr)
 	})
 
