@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -80,7 +81,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
-		}}, "gpu")
+		}}, "gpu", &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)

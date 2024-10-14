@@ -65,7 +65,7 @@ func NewManagerWithDefault(mgr *manager.Manager, name string, modifiers ...Modif
 type Modifier interface {
 	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
-	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options) error
+	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options, io.ReaderAt) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
 	AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error
@@ -75,7 +75,7 @@ type Modifier interface {
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	for _, mod := range m.EnabledModifiers {
 		log.Tracef("Running %s manager modifier BeforeInit", mod)
-		if err := mod.BeforeInit(m.Manager, m.Name, opts); err != nil {
+		if err := mod.BeforeInit(m.Manager, m.Name, opts, bytecode); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}

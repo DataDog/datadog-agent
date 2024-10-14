@@ -89,7 +89,7 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	}
 
 	modifier := ErrorsTelemetryModifier{}
-	err = modifier.BeforeInit(m, names.NewModuleName("ebpf"), &options)
+	err = modifier.BeforeInit(m, names.NewModuleName("ebpf"), &options, buf)
 	require.NoError(t, err)
 	err = m.InitWithOptions(buf, options)
 	require.NoError(t, err)
