@@ -8,12 +8,15 @@
 package gpu
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
@@ -315,4 +318,102 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 
 	// Also check we didn't leak
 	require.Empty(t, stream.memAllocEvents)
+}
+
+func TestKernelLaunchesIncludeEnrichedKernelData(t *testing.T) {
+	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
+	require.NoError(t, err)
+
+	// Set up the caches in system context so no actual queries are done
+	pid, tid := uint64(1), uint64(1)
+	kernAddress := uint64(42)
+	binPath := "/path/to/binary"
+	smVersion := uint32(75)
+	kernName := "kernel"
+	kernSize := uint64(1000)
+	sharedMem := uint64(100)
+	constantMem := uint64(200)
+
+	sysCtx.pidMaps[int(pid)] = &kernel.ProcMapEntries{
+		kernel.ProcMapEntry{Start: 0, End: 1000, Offset: 0, Path: binPath},
+	}
+
+	procBinPath := fmt.Sprintf("/proc/%d/root/%s", pid, binPath)
+	kernKey := cuda.CubinKernelKey{Name: kernName, SmVersion: smVersion}
+	sysCtx.fileData[procBinPath] = &fileData{
+		symbolTable: map[uint64]string{kernAddress: kernName},
+		fatbin: &cuda.Fatbin{
+			Kernels: map[cuda.CubinKernelKey]*cuda.CubinKernel{
+				kernKey: {
+					Name:        kernName,
+					KernelSize:  kernSize,
+					SharedMem:   sharedMem,
+					ConstantMem: constantMem,
+				},
+			},
+		},
+	}
+
+	sysCtx.deviceSmVersions = map[int]int{0: int(smVersion)}
+
+	stream := newStreamHandler(&model.StreamKey{Pid: uint32(pid)}, sysCtx)
+
+	kernStartTime := uint64(1)
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      gpuebpf.CudaEventTypeKernelLaunch,
+			Pid_tgid:  uint64(pid<<32 + tid),
+			Ktime_ns:  kernStartTime,
+			Stream_id: 1,
+		},
+		Kernel_addr:     kernAddress,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 0,
+	}
+	threadCount := 10 * 10 * 10 * 2 * 2
+
+	numLaunches := 3
+	for i := 0; i < numLaunches; i++ {
+		stream.handleKernelLaunch(launch)
+	}
+
+	// No sync, so we should have data
+	require.Nil(t, stream.getPastData(false))
+
+	// We should have a current kernel span running
+	currTime := uint64(100)
+	currData := stream.getCurrentData(currTime)
+	require.NotNil(t, currData)
+	require.Len(t, currData.Spans, 1)
+
+	span := currData.Spans[0]
+	require.Equal(t, kernStartTime, span.StartKtime)
+	require.Equal(t, currTime, span.EndKtime)
+	require.Equal(t, uint64(numLaunches), span.NumKernels)
+	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
+	require.Equal(t, sharedMem, span.AvgSharedMem)
+	require.Equal(t, constantMem, span.AvgConstantMem)
+	require.Equal(t, kernSize, span.AvgKernelSize)
+
+	// Now we mark a sync event
+	syncTime := uint64(200)
+	stream.markSynchronization(syncTime)
+
+	// We should have a past kernel span
+	pastData := stream.getPastData(true)
+	require.NotNil(t, pastData)
+
+	require.Len(t, pastData.Spans, 1)
+	span = pastData.Spans[0]
+	require.Equal(t, kernStartTime, span.StartKtime)
+	require.Equal(t, syncTime, span.EndKtime)
+	require.Equal(t, uint64(numLaunches), span.NumKernels)
+	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
+	require.Equal(t, sharedMem, span.AvgSharedMem)
+	require.Equal(t, constantMem, span.AvgConstantMem)
+	require.Equal(t, kernSize, span.AvgKernelSize)
+
+	// We should have no current data
+	require.Nil(t, stream.getCurrentData(currTime))
 }
