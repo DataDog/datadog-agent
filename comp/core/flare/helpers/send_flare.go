@@ -185,7 +185,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 	}
 
 	if res.Error != "" {
-		response := fmt.Sprintf("An error occurred while uploading the flare: %s with the corresponding uuid: %s. Please contact support by email.", res.Error, res.RequestUUID)
+		response := fmt.Sprintf("An error occurred while uploading the flare: %s. Please contact support by email and facilitate the request uuid: `%s`.", res.Error, res.RequestUUID)
 		return response, errors.New(res.Error)
 	}
 
