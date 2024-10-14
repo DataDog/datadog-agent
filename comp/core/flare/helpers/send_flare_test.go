@@ -135,7 +135,20 @@ func TestAnalyzeResponse(t *testing.T) {
 		resstr, reserr := analyzeResponse(r, "abcdef")
 		require.Equal(t, errors.New("uhoh"), reserr)
 		require.Equal(t,
-			"An error occurred while uploading the flare: uhoh with the corresponding uuid: 1dd9a912-843f-4987-9007-b915edb3d047. Please contact support by email.",
+			"An error occurred while uploading the flare: uhoh. Please contact support by email and facilitate the request uuid: `1dd9a912-843f-4987-9007-b915edb3d047`.",
+			resstr)
+	})
+
+	t.Run("error-from-server-with-no-request_uuid", func(t *testing.T) {
+		r := &http.Response{
+			StatusCode: 200,
+			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
+			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\"}"))),
+		}
+		resstr, reserr := analyzeResponse(r, "abcdef")
+		require.Equal(t, errors.New("uhoh"), reserr)
+		require.Equal(t,
+			"An error occurred while uploading the flare: uhoh. Please contact support by email.",
 			resstr)
 	})
 
