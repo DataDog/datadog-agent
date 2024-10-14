@@ -44,8 +44,25 @@ func GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	return globalTagger.GetEntity(entityID)
 }
 
+// TagDeprecated is an interface function that queries taggerclient singleton
+// This function is not to be used by golang components
+// This function exists in order not to break backward compatibility with rtloader and python
+// integrations using the tagger
+func TagDeprecated(entity string, cardinality types.TagCardinality) ([]string, error) {
+	if globalTagger == nil {
+		return nil, fmt.Errorf("a global tagger must be set before calling Tag")
+	}
+
+	entityID, err := types.NewEntityIDFromString(entity)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return globalTagger.Tag(entityID, cardinality)
+}
+
 // Tag is an interface function that queries taggerclient singleton
-func Tag(entity string, cardinality types.TagCardinality) ([]string, error) {
+func Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling Tag")
 	}
