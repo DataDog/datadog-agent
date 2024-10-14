@@ -289,7 +289,7 @@ new-e2e-updater:
   rules:
     !reference [.on_updater_or_e2e_changes_or_manual]
   needs:
-    - deploy_deb_testing-u7_arm64
+    - deploy_deb_testing-u6_arm64
   variables:
     TARGETS: ./tests/updater
     TEAM: fleet

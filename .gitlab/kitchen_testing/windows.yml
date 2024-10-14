@@ -138,7 +138,7 @@
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_windows
-  needs: ["deploy_windows_testing-a7"]
+  needs: ["deploy_windows_testing-a6"]
 
 # Kitchen: final test matrix (test types * scenarios)
 # ----------------------------------------------
@@ -159,11 +159,6 @@ kitchen_windows_installer_npm_driver-a7:
 kitchen_windows_installer_agent-a6:
   extends:
     - .kitchen_scenario_windows_a6
-    - .kitchen_test_windows_installer_agent
-
-kitchen_windows_installer_agent-a7:
-  extends:
-    - .kitchen_scenario_windows_a7
     - .kitchen_test_windows_installer_agent
 
 kitchen_windows_upgrade5_agent-a6:

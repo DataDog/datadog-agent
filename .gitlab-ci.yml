@@ -1,47 +1,45 @@
 ---
 include:
-  - /.gitlab/.pre/cancel-prev-pipelines.yml
-  - /.gitlab/.pre/test_gitlab_configuration.yml
-  - /.gitlab/benchmarks/include.yml
-  - /.gitlab/binary_build/include.yml
-  - /.gitlab/check_deploy/check_deploy.yml
-  - /.gitlab/check_merge/do_not_merge.yml
-  - /.gitlab/choco_build/choco_build.yml
-  - /.gitlab/choco_deploy/choco_deploy.yml
-  - /.gitlab/common/shared.yml
-  - /.gitlab/common/pr_commenter.yml
-  - /.gitlab/container_build/include.yml
-  - /.gitlab/container_scan/container_scan.yml
-  - /.gitlab/deploy_containers/deploy_containers.yml
-  - /.gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
-  - /.gitlab/deploy_dca/deploy_dca.yml
-  - /.gitlab/deploy_packages/include.yml
-  - /.gitlab/deps_build/deps_build.yml
-  - /.gitlab/deps_fetch/deps_fetch.yml
-  - /.gitlab/dev_container_deploy/include.yml
-  - /.gitlab/e2e/e2e.yml
-  - /.gitlab/e2e_pre_test/e2e_pre_test.yml
-  - /.gitlab/functional_test/include.yml
-  - /.gitlab/functional_test_cleanup/functional_test_cleanup.yml
-  - /.gitlab/install_script_testing/install_script_testing.yml
-  - /.gitlab/integration_test/include.yml
-  - /.gitlab/internal_image_deploy/internal_image_deploy.yml
-  - /.gitlab/internal_kubernetes_deploy/include.yml
-  - /.gitlab/junit_upload/junit_upload.yml
-  - /.gitlab/kitchen_cleanup/include.yml
-  - /.gitlab/kitchen_deploy/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing/include.yml
-  - /.gitlab/maintenance_jobs/include.yml
-  - /.gitlab/notify/notify.yml
-  - /.gitlab/package_build/include.yml
-  - /.gitlab/packaging/include.yml
-  - /.gitlab/package_deps_build/package_deps_build.yml
-  - /.gitlab/pkg_metrics/pkg_metrics.yml
-  - /.gitlab/post_rc_build/post_rc_tasks.yml
-  - /.gitlab/setup/setup.yml
-  - /.gitlab/software_composition_analysis/software_composition_analysis.yml
-  - /.gitlab/source_test/include.yml
-  - /.gitlab/trigger_release/trigger_release.yml
+  - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/.pre/test_gitlab_configuration.yml
+  - .gitlab/benchmarks/include.yml
+  - .gitlab/binary_build/include.yml
+  - .gitlab/check_deploy/check_deploy.yml
+  - .gitlab/check_merge/do_not_merge.yml
+  - .gitlab/common/shared.yml
+  - .gitlab/common/pr_commenter.yml
+  - .gitlab/container_build/include.yml
+  - .gitlab/container_scan/container_scan.yml
+  - .gitlab/deploy_containers/deploy_containers.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - .gitlab/deploy_dca/deploy_dca.yml
+  - .gitlab/deploy_packages/include.yml
+  - .gitlab/deps_build/deps_build.yml
+  - .gitlab/deps_fetch/deps_fetch.yml
+  - .gitlab/dev_container_deploy/include.yml
+  - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  - .gitlab/functional_test/include.yml
+  - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
+  - .gitlab/install_script_testing/install_script_testing.yml
+  - .gitlab/integration_test/include.yml
+  - .gitlab/internal_image_deploy/internal_image_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/include.yml
+  - .gitlab/junit_upload/junit_upload.yml
+  - .gitlab/kitchen_cleanup/include.yml
+  - .gitlab/kitchen_deploy/kitchen_deploy.yml
+  - .gitlab/kitchen_testing/include.yml
+  - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/notify/notify.yml
+  - .gitlab/package_build/include.yml
+  - .gitlab/packaging/include.yml
+  - .gitlab/package_deps_build/package_deps_build.yml
+  - .gitlab/pkg_metrics/pkg_metrics.yml
+  - .gitlab/post_rc_build/post_rc_tasks.yml
+  - .gitlab/setup/setup.yml
+  - .gitlab/software_composition_analysis/software_composition_analysis.yml
+  - .gitlab/source_test/include.yml
+  - .gitlab/trigger_release/trigger_release.yml
 
 default:
   retry:
@@ -470,22 +468,11 @@ workflow:
     when: never
   - <<: *if_main_branch
 
-.on_main_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_main_branch
-
-.on_tag_or_a7:
+.on_tag_or_a6:
   - <<: *if_mergequeue
     when: never
   - <<: *if_tagged_commit
-  - <<: *if_version_7
-
-.on_tag_or_a7_all_builds:
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_tagged_commit
-  - <<: *if_version_7
+  - <<: *if_version_6
 
 .on_deploy:
   - <<: *if_deploy
@@ -533,6 +520,19 @@ workflow:
     variables:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
+
+# rule to trigger job for internal image deployment if deploy is set or
+# manually if not
+.on_deploy_a6_internal_or_manual:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    variables:
+      RELEASE_PROD: "true"
+  - when: manual
+    allow_failure: true
+    variables:
+      RELEASE_PROD: "false"
 
 # Same as on_deploy_a6_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
@@ -583,123 +583,13 @@ workflow:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-.on_deploy_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a7_failure:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a7_rc:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-# rule to trigger job for internal image deployment if deploy is set or
-# manually if not
-.on_deploy_a7_internal_or_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    variables:
-      RELEASE_PROD: "true"
-  - when: manual
-    allow_failure: true
-    variables:
-      RELEASE_PROD: "false"
-
-# Same as on_deploy_a7_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
-.on_deploy_a7_manual_final:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-# This rule is a variation of on_deploy_a7_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_a7_manual_auto_on_rc:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
 # This is used for image vulnerability scanning. Because agent 6
 # uses python 2, which has many vulnerabilities that will not get
 # patched, we do not wish to scan this image. For this reason, only
 # agent 7 versions should be published internally using these
-# configurations.
-.on_deploy_a7_internal_rc:
-  - <<: *if_not_version_7
+# configurations. -> then we should remove this
+.on_deploy_a6_internal_rc:
+  - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
     when: never
@@ -711,10 +601,10 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# Same as on_deploy_a6_manual_final, except the job is used to publish images
 # to our internal registries.
-.on_deploy_a7_internal_manual_final:
-  - <<: *if_not_version_7
+.on_deploy_a6_internal_manual_final:
+  - <<: *if_not_version_6
     when: never
   - <<: *if_not_deploy
     when: never
@@ -958,20 +848,20 @@ workflow:
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
-.on_default_kitchen_tests_a7:
+.on_default_kitchen_tests_a6:
   - <<: *if_mergequeue
     when: never
-  - <<: *if_not_version_7
+  - <<: *if_not_version_6
     when: never
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
-.on_default_new-e2e_tests_a7:
+.on_default_new-e2e_tests_a6:
   - <<: *if_mergequeue
     when: never
-  - <<: *if_not_version_7
+  - <<: *if_not_version_6
     when: never
   - <<: *if_disable_e2e_tests
     when: never
