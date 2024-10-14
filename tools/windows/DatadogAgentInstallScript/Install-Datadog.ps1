@@ -184,7 +184,11 @@ try {
 
    # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
    # We check that particular key since we use it later in the script to restart the service.
-   if (((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 0) -or ($null -eq (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))) {
+   if (
+       ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 0) -or
+       (-Not (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent")) -or
+       ($null -eq (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
+      ) {
       throw "Agent is not installed"
    }
 
