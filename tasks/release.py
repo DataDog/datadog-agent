@@ -120,6 +120,52 @@ def get_default_modules(ctx):
         return DEFAULT_MODULES
 
 
+def set_agent6_context(ctx, version, allow_stash=False) -> dict:
+    """Changes the context to the agent6 branch.
+
+    Note:
+        Should be used only for operations modifying agent6 files.
+        Prefer using agent_context for read only operations.
+
+    Returns:
+        Dict of {'branch_switched', 'stashed', 'base_branch'}
+    """
+
+    global is_agent6_context
+
+    branch = os.getenv('AGENT_6_BRANCH', version[:4] + '.x')
+    base_branch = get_current_branch(ctx)
+
+    check_version(version, allow_agent6=True)
+    assert version.startswith('6.'), 'Not an agent6 version'
+    # Ensure this branch exists
+    assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
+
+    info = {'branch_switched': False, 'stashed': False, 'base_branch': base_branch}
+
+    # Already on the target branch
+    if base_branch == branch:
+        return info
+
+    should_stash = check_uncommitted_changes(ctx)
+
+    assert not (should_stash and not allow_stash), "Uncommitted changes detected, aborting"
+
+    # Save + change branch
+    if should_stash:
+        print(color_message("Stashing uncommitted changes", "bold"))
+        print(f'{color_message("Agent6", "bold")}: Stashing uncommitted changes')
+        ctx.run("git stash -u", hide=True)
+        info['stashed'] = True
+    print(f'{color_message("Agent6", "bold")}: Checking out to {branch}')
+    ctx.run(f"git checkout {branch}", hide=True)
+    info['branch_switched'] = True
+
+    is_agent6_context = True
+
+    return info
+
+
 @contextmanager
 def agent_context(ctx, version: str):
     """If the version is 6.XX.X, will checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
@@ -134,49 +180,36 @@ def agent_context(ctx, version: str):
 
     global is_agent6_context
 
-    check_version(version)
+    check_version(version, allow_agent6=True)
 
     if version.startswith('6.'):
-        branch = os.getenv('AGENT_6_BRANCH', version[:4] + '.x')
+        was_agent6_context = is_agent6_context
 
-        # Ensure this branch exists
-        assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
-
-        base_branch = get_current_branch(ctx)
-
-        # Already on the target branch
-        if base_branch == branch:
-            yield
-            return
-
-        should_stash = check_uncommitted_changes(ctx)
-
-        # Save + change branch
-        if should_stash:
-            print(color_message("Stashing uncommitted changes", "bold"))
-            print(f'{color_message("Agent6", "bold")}: Stashing uncommitted changes')
-            ctx.run("git stash -u", hide=True)
-        print(f'{color_message("Agent6", "bold")}: Checking out to {branch}')
-        ctx.run(f"git checkout {branch}", hide=True)
+        context_info = set_agent6_context(ctx, version, allow_stash=True)
 
         try:
-            was_agent6_context = is_agent6_context
-            is_agent6_context = True
-
             yield
         finally:
             is_agent6_context = was_agent6_context
 
             # Go back + restore
-            print(f'{color_message("Agent6", "bold")}: Going back to {base_branch}')
-            ctx.run(f"git checkout {base_branch}", hide=True)
+            print(f'{color_message("Agent6", "bold")}: Going back to {context_info["base_branch"]}')
+            ctx.run(f"git checkout {context_info['base_branch']}", hide=True)
 
-            if should_stash:
+            if context_info['stashed']:
                 print(f'{color_message("Agent6", "bold")}: Unstashing uncommitted changes')
                 ctx.run("git stash pop", hide=True)
     else:
         # Nothing to do
         yield
+
+
+# TODO: Remove test
+@task
+def t(ctx, v='6.53.0'):
+    with agent_context(ctx, v):
+        print(get_default_modules(ctx))
+        print(len(get_default_modules(ctx)))
 
 
 @task
