@@ -212,7 +212,7 @@ def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION, major_version: int
                 # Leaving the first agent 6 context
                 if not was_agent6_context:
                     print(
-                        f'{color_message("Info", "blue")}: You are now in the Agent6 branch {get_current_branch(ctx)}'
+                        f'{color_message("Info", "blue")}: You are now in the Agent6 branch {get_current_branch(ctx)}, you can `git switch -` to go back to your previous branch'
                     )
             else:
                 is_agent6_context = was_agent6_context
