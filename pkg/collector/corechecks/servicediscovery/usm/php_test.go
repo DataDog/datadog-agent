@@ -6,8 +6,11 @@
 package usm
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 func TestServiceNameFromCLI(t *testing.T) {
@@ -47,7 +50,7 @@ func TestServiceNameFromCLI(t *testing.T) {
 			expected: "",
 		},
 	}
-	instance := &phpDetector{ctx: NewDetectionContext(nil, nil, nil)}
+	instance := &phpDetector{ctx: NewDetectionContext(nil, envs.NewVariables(nil), nil)}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value, ok := instance.detect(tt.args)
