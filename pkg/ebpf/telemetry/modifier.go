@@ -43,20 +43,30 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, module names.Mo
 	if err != nil {
 		return err
 	}
+	if opts.MapSpecEditors == nil {
+		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+
+	// add telemetry maps to list of maps, if not present
+	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == mapErrTelemetryMapName }) {
+		m.Maps = append(m.Maps, &manager.Map{Name: mapErrTelemetryMapName})
+	}
+	if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == helperErrTelemetryMapName }) {
+		m.Maps = append(m.Maps, &manager.Map{Name: helperErrTelemetryMapName})
+	}
+
+	// set a small max entries value if telemetry is not supported. We have to load the maps because the eBPF code
+	// references them even when we cannot track the telemetry.
+	opts.MapSpecEditors[mapErrTelemetryMapName] = manager.MapSpecEditor{
+		MaxEntries: uint32(1),
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[helperErrTelemetryMapName] = manager.MapSpecEditor{
+		MaxEntries: uint32(1),
+		EditorFlag: manager.EditMaxEntries,
+	}
 
 	if activateBPFTelemetry {
-		// add telemetry maps to list of maps, if not present
-		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == mapErrTelemetryMapName }) {
-			m.Maps = append(m.Maps, &manager.Map{Name: mapErrTelemetryMapName})
-		}
-		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == helperErrTelemetryMapName }) {
-			m.Maps = append(m.Maps, &manager.Map{Name: helperErrTelemetryMapName})
-		}
-
-		if opts.MapSpecEditors == nil {
-			opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
-		}
-
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bytecode)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec for module %s: %w", module.String(), err)
