@@ -140,7 +140,11 @@ def set_agent6_context(
     global is_agent6_context
 
     base_branch = get_current_branch(ctx)
-    if major_version is not None:
+
+    if version is None and major_version is None:
+        version = DEFAULT_AGENT6_VERSION
+        branch = DEFAULT_AGENT6_BRANCH
+    elif major_version is not None:
         version = version or DEFAULT_AGENT6_VERSION
         branch = DEFAULT_AGENT6_BRANCH
     else:
@@ -194,6 +198,9 @@ def agent_context(ctx, version: str | None = None, major_version: int | None = N
     """
 
     global is_agent6_context
+
+    if not major_version and not version:
+        major_version = 6
 
     if not major_version:
         version = version or DEFAULT_AGENT6_VERSION
