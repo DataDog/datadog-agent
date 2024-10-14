@@ -242,7 +242,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -265,7 +265,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -288,7 +288,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            200 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -307,7 +307,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -326,7 +326,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  500,
 						ServiceLanguage:      "python",
 						CommandLine:          pythonCommandLine,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},
@@ -381,7 +381,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -404,7 +404,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -422,7 +422,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -440,7 +440,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:                []uint16{5432},
 						PID:                  101,
 						CommandLine:          []string{"test-service-1"},
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -463,7 +463,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},
@@ -521,7 +521,7 @@ func Test_linuxImpl(t *testing.T) {
 						APMInstrumentation:   "none",
 						RSSMemory:            100 * 1024 * 1024,
 						CPUCores:             1.5,
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 				{
@@ -542,7 +542,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                  102,
 						CommandLine:          []string{"test-service-1"},
 						APMInstrumentation:   "injected",
-						ContainerID:          "abcd",
+						ContainerID:          dummyContainerID,
 					},
 				},
 			},

@@ -15,6 +15,10 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
+const (
+	dummyContainerID = "abcd"
+)
+
 type containerProviderStub struct {
 	pidToCid map[int]string
 }
@@ -23,7 +27,7 @@ func newContainerProviderStub(targetPIDs []int) proccontainers.ContainerProvider
 	pidToCid := make(map[int]string)
 
 	for _, pid := range targetPIDs {
-		pidToCid[pid] = "abcd"
+		pidToCid[pid] = dummyContainerID
 	}
 
 	return &containerProviderStub{
