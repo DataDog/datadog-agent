@@ -122,8 +122,12 @@ def get_default_modules(ctx):
         return DEFAULT_MODULES
 
 
-def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, echo_switch_info=True) -> dict:
+def set_agent6_context(
+    ctx, version=DEFAULT_AGENT6_VERSION, major_version: int | None = None, allow_stash=False, echo_switch_info=True
+) -> dict:
     """Change the context to the agent6 branch.
+
+    The branch can be overriden by setting the AGENT6_BRANCH environment variable.
 
     Note:
         Should be used only for operations modifying agent6 files.
@@ -135,8 +139,14 @@ def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, e
 
     global is_agent6_context
 
-    branch = os.getenv('AGENT_6_BRANCH', version[:4] + '.x')
     base_branch = get_current_branch(ctx)
+    if major_version is not None:
+        version = DEFAULT_AGENT6_VERSION
+        branch = DEFAULT_AGENT6_BRANCH
+    else:
+        branch = version[:4] + '.x'
+
+    branch = os.getenv('AGENT6_BRANCH', branch)
 
     check_version(version, allow_agent6=True)
     assert version.startswith('6.'), 'Not an agent6 version'
@@ -171,11 +181,12 @@ def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, e
 
 
 @contextmanager
-def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION):
-    """If the version is 6.XX.X, checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
+def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION, major_version: int | None = None, mutable=False):
+    """If the version is 6.XX.X, checkout temporarily (or constantly if `mutable`) to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
 
     Args:
-        version: Agent full version ('6.53.0', '7.42.2-rc.1', etc.)
+        version: Agent full version ('6.53.0', '7.42.2-rc.1', etc.).
+        mutable: Won't leave the context and will disallow squashes if set to True.
 
     Example:
         > with agent_context(ctx, "6.53.0"):
@@ -184,25 +195,35 @@ def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION):
 
     global is_agent6_context
 
-    check_version(version, allow_agent6=True)
+    if not major_version:
+        check_version(version, allow_agent6=True)
 
-    if version.startswith('6.'):
+    if major_version == 6 or version.startswith('6.'):
         was_agent6_context = is_agent6_context
 
-        context_info = set_agent6_context(ctx, version, allow_stash=True, echo_switch_info=False)
+        context_info = set_agent6_context(
+            ctx, version, major_version=major_version, allow_stash=not mutable, echo_switch_info=mutable
+        )
 
         try:
             yield
         finally:
-            is_agent6_context = was_agent6_context
+            if mutable:
+                # Leaving the first agent 6 context
+                if not was_agent6_context:
+                    print(
+                        f'{color_message("Info", "blue")}: You are now in the Agent6 branch {get_current_branch(ctx)}'
+                    )
+            else:
+                is_agent6_context = was_agent6_context
 
-            # Go back + restore
-            print(f'{color_message("Agent6", "bold")}: Going back to {context_info["base_branch"]}')
-            ctx.run(f"git checkout {context_info['base_branch']}", hide=True)
+                # Go back + restore
+                print(f'{color_message("Agent6", "bold")}: Going back to {context_info["base_branch"]}')
+                ctx.run(f"git checkout {context_info['base_branch']}", hide=True)
 
-            if context_info['stashed']:
-                print(f'{color_message("Agent6", "bold")}: Unstashing uncommitted changes')
-                ctx.run("git stash pop", hide=True)
+                if context_info['stashed']:
+                    print(f'{color_message("Agent6", "bold")}: Unstashing uncommitted changes')
+                    ctx.run("git stash pop", hide=True)
     else:
         # Nothing to do
         yield
@@ -211,7 +232,7 @@ def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION):
 # TODO: Remove test
 @task
 def t(ctx, v='6.53.0'):
-    with agent_context(ctx, v):
+    with agent_context(ctx, v, mutable=True):
         print(get_default_modules(ctx))
         print(len(get_default_modules(ctx)))
 
@@ -359,23 +380,17 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
 
 # TODO
 @task
-def finish(ctx, major_versions="7", upstream="origin"):
+def finish(ctx, major_version: int = 7, upstream="origin"):
     """Updates the release entry in the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
 
-    assert ',' not in major_versions, "Only one major version is supported now"
-
     # Step 1: Preparation
 
-    list_major_versions = parse_major_versions(major_versions)
-    print(f"Finishing release for major version(s) {list_major_versions}")
+    print(f"Finishing release for major version {major_version}")
 
-    if list_major_versions[0] == 6:
-        set_agent6_context(ctx)
-
-    for major_version in list_major_versions:
+    with agent_context(ctx, major_version=major_version, mutable=True):
         # NOTE: the release process assumes that at least one RC
         # was built before release.finish is used. It doesn't support
         # doing final version -> final version updates (eg. 7.32.0 -> 7.32.1
@@ -386,84 +401,82 @@ def finish(ctx, major_versions="7", upstream="origin"):
         new_version = next_final_version(ctx, major_version, False)
         update_release_json(new_version, new_version)
 
-    current_branch = get_current_branch(ctx)
+        current_branch = get_current_branch(ctx)
 
-    # Step 2: Update internal module dependencies
+        # Step 2: Update internal module dependencies
 
-    update_modules(ctx, str(new_version))
+        update_modules(ctx, str(new_version))
 
-    # Step 3: Branch out, commit change, push branch
+        # Step 3: Branch out, commit change, push branch
 
-    final_branch = f"{new_version}-final"
+        final_branch = f"{new_version}-final"
 
-    print(color_message(f"Branching out to {final_branch}", "bold"))
-    ctx.run(f"git checkout -b {final_branch}")
+        print(color_message(f"Branching out to {final_branch}", "bold"))
+        ctx.run(f"git checkout -b {final_branch}")
 
-    print(color_message("Committing release.json and Go modules updates", "bold"))
-    print(
-        color_message(
-            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
-        )
-    )
-    ctx.run("git add release.json")
-    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
-
-    commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
-
-    ok = try_git_command(ctx, f"git commit -m {commit_message}")
-    if not ok:
-        raise Exit(
+        print(color_message("Committing release.json and Go modules updates", "bold"))
+        print(
             color_message(
-                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
-                "red",
-            ),
-            code=1,
+                "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+            )
         )
+        ctx.run("git add release.json")
+        ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    # Step 4: Add release changelog preludes
-    print(color_message("Adding Agent release changelog prelude", "bold"))
-    _add_prelude(ctx, str(new_version))
+        commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
 
-    print(color_message("Adding DCA release changelog prelude", "bold"))
-    _add_dca_prelude(
-        ctx, str(new_version), branch=DEFAULT_BRANCH if list_major_versions[0] == 7 else DEFAULT_AGENT6_BRANCH
-    )
+        ok = try_git_command(ctx, f"git commit -m {commit_message}")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
 
-    ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
-    if not ok:
-        raise Exit(
-            color_message(
-                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
-                "red",
-            ),
-            code=1,
+        # Step 4: Add release changelog preludes
+        print(color_message("Adding Agent release changelog prelude", "bold"))
+        _add_prelude(ctx, str(new_version))
+
+        print(color_message("Adding DCA release changelog prelude", "bold"))
+        _add_dca_prelude(ctx, str(new_version), branch=DEFAULT_AGENT6_BRANCH if major_version == 6 else DEFAULT_BRANCH)
+
+        ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 5: Push branch and create PR
+
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        create_release_pr(
+            f"Final updates for release.json and Go modules for {new_version} release + preludes",
+            current_branch,
+            final_branch,
+            new_version,
         )
-
-    # Step 5: Push branch and create PR
-
-    print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
-    if res.exited is None or res.exited > 0:
-        raise Exit(
-            color_message(
-                f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    create_release_pr(
-        f"Final updates for release.json and Go modules for {new_version} release + preludes",
-        current_branch,
-        final_branch,
-        new_version,
-    )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin", slack_webhook=None):
-    """
-    Updates the release entries in release.json to prepare the next RC build.
+def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin", slack_webhook=None):
+    """Updates the release entries in release.json to prepare the next RC build.
+
     If the previous version of the Agent (determined as the latest tag on the
     current branch) is not an RC:
     - by default, updates the release entries for the next minor version of
@@ -477,126 +490,124 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     If the previous version of the Agent was an RC, updates the release entries for RC + 1.
 
     Examples:
-    If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
-    is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
-    will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
+        If the latest tag on the branch is 7.31.0, and invoke release.create-rc --patch-version
+        is run, then the task will prepare the release entries for 7.31.1-rc.1, and therefore
+        will only use 7.31.X tags on the dependency repositories that follow the Agent version scheme.
 
-    If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
-    is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
-    will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
+        If the latest tag on the branch is 7.32.0-devel or 7.31.0, and invoke release.create-rc
+        is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
+        will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
-    Updates internal module dependencies with the new RC.
+        Updates internal module dependencies with the new RC.
 
-    Commits the above changes, and then creates a PR on the upstream repository with the change.
+        Commits the above changes, and then creates a PR on the upstream repository with the change.
 
-    If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
+        If slack_webhook is provided, it tries to send the PR URL to the provided webhook. This is meant to be used mainly in automation.
 
     Notes:
-    This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
-    with 'repo' permissions.
-    This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
-    release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
+        This requires a Github token (either in the GITHUB_TOKEN environment variable, or in the MacOS keychain),
+        with 'repo' permissions.
+        This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
+        release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    with agent_context(ctx, major_version=major_version, mutable=True):
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
 
-    list_major_versions = parse_major_versions(major_versions)
+        # Get the version of the highest major: useful for some logging & to get
+        # the version to use for Go submodules updates
+        new_highest_version = next_rc_version(ctx, major_version, patch_version)
+        # Get the next final version of the highest major: useful to know which
+        # milestone to target, as well as decide which tags from dependency repositories
+        # can be used.
+        new_final_version = next_final_version(ctx, major_version, patch_version)
 
-    # Get the version of the highest major: useful for some logging & to get
-    # the version to use for Go submodules updates
-    new_highest_version = next_rc_version(ctx, max(list_major_versions), patch_version)
-    # Get the next final version of the highest major: useful to know which
-    # milestone to target, as well as decide which tags from dependency repositories
-    # can be used.
-    new_final_version = next_final_version(ctx, max(list_major_versions), patch_version)
+        print(color_message(f"Preparing RC for agent version {major_version}", "bold"))
 
-    print(color_message(f"Preparing RC for agent version(s) {list_major_versions}", "bold"))
+        # Step 0: checks
 
-    # Step 0: checks
+        print(color_message("Checking repository state", "bold"))
+        ctx.run("git fetch")
 
-    print(color_message("Checking repository state", "bold"))
-    ctx.run("git fetch")
+        # Check that the current and update branches are valid
+        current_branch = get_current_branch(ctx)
+        update_branch = f"release/{new_highest_version}"
 
-    # Check that the current and update branches are valid
-    current_branch = get_current_branch(ctx)
-    update_branch = f"release/{new_highest_version}"
+        check_clean_branch_state(ctx, github, update_branch)
+        if not check_base_branch(current_branch, new_highest_version):
+            raise Exit(
+                color_message(
+                    f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    "red",
+                ),
+                code=1,
+            )
 
-    check_clean_branch_state(ctx, github, update_branch)
-    if not check_base_branch(current_branch, new_highest_version):
-        raise Exit(
-            color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
-                "red",
-            ),
-            code=1,
-        )
+        # Step 1: Update release entries
 
-    # Step 1: Update release entries
-
-    print(color_message("Updating release entries", "bold"))
-    for major_version in list_major_versions:
+        print(color_message("Updating release entries", "bold"))
         new_version = next_rc_version(ctx, major_version, patch_version)
         update_release_json(new_version, new_final_version)
 
-    # Step 2: Update internal module dependencies
+        # Step 2: Update internal module dependencies
 
-    print(color_message("Updating Go modules", "bold"))
-    update_modules(ctx, str(new_highest_version))
+        print(color_message("Updating Go modules", "bold"))
+        update_modules(ctx, str(new_highest_version))
 
-    # Step 3: branch out, commit change, push branch
+        # Step 3: branch out, commit change, push branch
 
-    print(color_message(f"Branching out to {update_branch}", "bold"))
-    ctx.run(f"git checkout -b {update_branch}")
+        print(color_message(f"Branching out to {update_branch}", "bold"))
+        ctx.run(f"git checkout -b {update_branch}")
 
-    print(color_message("Committing release.json and Go modules updates", "bold"))
-    print(
-        color_message(
-            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
-        )
-    )
-    ctx.run("git add release.json")
-    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
-
-    ok = try_git_command(
-        ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
-    )
-    if not ok:
-        raise Exit(
+        print(color_message("Committing release.json and Go modules updates", "bold"))
+        print(
             color_message(
-                f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {current_branch}.",
-                "red",
-            ),
-            code=1,
+                "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+            )
+        )
+        ctx.run("git add release.json")
+        ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+        ok = try_git_command(
+            ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+        )
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually, push the {update_branch} branch and then open a PR against {current_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {current_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        pr_url = create_release_pr(
+            f"[release] Update release.json and Go modules for {new_highest_version}",
+            current_branch,
+            update_branch,
+            new_final_version,
         )
 
-    print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
-    if res.exited is None or res.exited > 0:
-        raise Exit(
-            color_message(
-                f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {current_branch}.",
-                "red",
-            ),
-            code=1,
-        )
-
-    pr_url = create_release_pr(
-        f"[release] Update release.json and Go modules for {new_highest_version}",
-        current_branch,
-        update_branch,
-        new_final_version,
-    )
-
-    # Step 4 - If slack workflow webhook is provided, send a slack message
-    if slack_webhook:
-        print(color_message("Sending slack notification", "bold"))
-        ctx.run(
-            f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
-        )
+        # Step 4 - If slack workflow webhook is provided, send a slack message
+        if slack_webhook:
+            print(color_message("Sending slack notification", "bold"))
+            ctx.run(
+                f"curl -X POST -H 'Content-Type: application/json' --data '{{\"pr_url\":\"{pr_url}\"}}' {slack_webhook}"
+            )
 
 
 @task
-def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
+def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=False):
     """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
@@ -608,19 +619,17 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     """
 
     datadog_agent = get_gitlab_repo()
-    list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
-    new_version = next_rc_version(ctx, max(list_major_versions), patch_version)
+    new_version = next_rc_version(ctx, major_version, patch_version)
 
     # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-    versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_version)])}"
+    versions_string = new_version
 
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
-    # TODO: Should we iterate through `major_versions` ?
     # Check that the base branch is valid
     current_branch = get_current_branch(ctx)
 
@@ -644,7 +653,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     # Step 1: Tag versions
 
-    print(color_message(f"Tagging RC for agent version(s) {list_major_versions}", "bold"))
+    print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
     print(
         color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
     )
@@ -672,7 +681,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         ctx,
         git_ref=gitlab_tag.name,
         use_release_entries=True,
-        major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
         rc_build=True,
