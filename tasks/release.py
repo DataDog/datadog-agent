@@ -25,6 +25,7 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
+    DEFAULT_AGENT6_BRANCH,
     DEFAULT_AGENT6_VERSION,
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -424,7 +425,9 @@ def finish(ctx, major_versions="7", upstream="origin"):
     _add_prelude(ctx, str(new_version))
 
     print(color_message("Adding DCA release changelog prelude", "bold"))
-    _add_dca_prelude(ctx, str(new_version))
+    _add_dca_prelude(
+        ctx, str(new_version), branch=DEFAULT_BRANCH if list_major_versions[0] == 7 else DEFAULT_AGENT6_BRANCH
+    )
 
     ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
     if not ok:
@@ -437,10 +440,6 @@ def finish(ctx, major_versions="7", upstream="origin"):
         )
 
     # Step 5: Push branch and create PR
-
-    # TODO
-    print('NOT pushing')
-    exit()
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
     res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
