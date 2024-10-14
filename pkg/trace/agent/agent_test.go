@@ -1353,16 +1353,11 @@ func TestSampleTrace(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			_, hasExceptionSpanEvent := tt.trace.TraceChunk.Spans[0].Meta["_dd.span_events.has_exception"]
 			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			if hasExceptionSpanEvent {
-				// element was cleaned up during sampling
-				tt.trace.TraceChunk.Spans[0].Meta["_dd.span_events.has_exception"] = "true"
-			}
 			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
