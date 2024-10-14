@@ -8,7 +8,6 @@ from fnmatch import fnmatch
 from glob import glob
 
 import yaml
-from codeowners import CodeOwners
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
@@ -825,6 +824,8 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
     Args:
         all_files: If True, lint all job files. If False, lint only added / modified job.
     """
+
+    from codeowners import CodeOwners
 
     if all_files:
         modified_yml_files = glob('.gitlab/**/*.yml', recursive=True)
