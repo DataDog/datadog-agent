@@ -119,7 +119,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -132,8 +132,15 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg,
 	}
+	args = append(args, testArgs...)
+	args = append(
+		args,
+		"-test.v",
+		fmt.Sprintf("-test.count=%d", testConfig.runCount),
+		"-test.timeout="+getTimeout(pkg).String(),
+	)
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -186,6 +193,70 @@ func createDir(d string) error {
 	return nil
 }
 
+func createCWSTestDockerContainer(testsuite string, containerName string, bpfDir string) error {
+	runDockerCmd := func(args []string) error {
+		cmd := exec.Command("docker", args...)
+		cmd.Dir = filepath.Dir(testsuite)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
+	args := []string{
+		"run",
+		"--name", containerName,
+		"--privileged",
+		"--detach",
+	}
+
+	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK", "ALL"}
+	for _, cap := range capabilities {
+		args = append(args, "--cap-add", cap)
+	}
+
+	var mounts = []string{
+		"/dev:/dev",
+		"/proc:/host/proc",
+		"/etc:/host/etc",
+		"/sys:/host/sys",
+		"/etc/os-release:/host/etc/os-release",
+		"/usr/lib/os-release:/host/usr/lib/os-release",
+		"/etc/passwd:/etc/passwd",
+		"/etc/group:/etc/group",
+		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
+		"/opt/kmt-ramfs:/opt/kmt-ramfs",
+		fmt.Sprintf("%s:/opt/bpf", bpfDir),
+	}
+	for _, mount := range mounts {
+		args = append(args, "-v", mount)
+	}
+
+	var envs = []string{
+		"HOST_PROC=/host/proc",
+		"HOST_ETC=/host/etc",
+		"HOST_SYS=/host/sys",
+		"DD_SYSTEM_PROBE_BPF_DIR=/opt/bpf",
+	}
+	for _, env := range envs {
+		args = append(args, "-e", env)
+	}
+
+	// create container
+	args = append(args, "ghcr.io/datadog/apps-cws-centos7:main") // image tag
+	args = append(args, "sleep", "3600")
+	if err := runDockerCmd(args); err != nil {
+		return fmt.Errorf("run docker: %s", err)
+	}
+
+	// mount debugfs
+	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
+	if err := runDockerCmd(args); err != nil {
+		return fmt.Errorf("run docker: %s", err)
+	}
+
+	return nil
+}
+
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
@@ -213,7 +284,26 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
-	for _, testsuite := range testsuites {
+	for i, testsuite := range testsuites {
+		var inDocker bool
+		var containerName string
+		if strings.Contains(testsuite, "security") {
+			inDocker = true
+			containerName = fmt.Sprintf("security-agent-tests-%d", i)
+		}
+
+		buildDir, err := getEBPFBuildDir()
+		if err != nil {
+			return fmt.Errorf("getEBPFBuildDir: %w", err)
+		}
+		bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
+
+		if inDocker {
+			if err := createCWSTestDockerContainer(testsuite, containerName, bpfDir); err != nil {
+				return fmt.Errorf("createCWSTestDockerContainer: %w", err)
+			}
+		}
+
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
@@ -221,17 +311,19 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
+
+		testsuiteArgs := []string{testsuite}
+		if inDocker {
+			testsuiteArgs = []string{"docker", "exec", containerName, testsuite, "--env", "docker"}
+		}
+
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
 
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
-		buildDir, err := getEBPFBuildDir()
-		if err != nil {
-			return fmt.Errorf("getEBPFBuildDir: %w", err)
-		}
 		baseEnv = append(
 			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
+			"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
 		if testConfig.extraEnv != "" {
