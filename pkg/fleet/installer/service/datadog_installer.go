@@ -53,7 +53,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating dd-agent group: %w", err)
 	}
 	if addDDAgentUser(ctx) != nil {
-		return fmt.Errorf("error creating dd-agent user: %w", err)
+		return fmt.Errorf("error creating dd-agent user")
 	}
 	err = exec.CommandContext(ctx, "usermod", "-g", "dd-agent", "dd-agent").Run()
 	if err != nil {
