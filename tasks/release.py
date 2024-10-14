@@ -381,7 +381,6 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
     tag_modules(ctx, agent_version, commit, verify, push, force, devel=True)
 
 
-# TODO
 @task
 def finish(ctx, major_version: int = 7, upstream="origin"):
     """Updates the release entry in the release.json file for the new version.
@@ -457,23 +456,23 @@ def finish(ctx, major_version: int = 7, upstream="origin"):
 
         # Step 5: Push branch and create PR
 
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
+        # print(color_message("Pushing new branch to the upstream repository", "bold"))
+        # res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
+        # if res.exited is None or res.exited > 0:
+        #     raise Exit(
+        #         color_message(
+        #             f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
+        #             "red",
+        #         ),
+        #         code=1,
+        #     )
 
-        create_release_pr(
-            f"Final updates for release.json and Go modules for {new_version} release + preludes",
-            current_branch,
-            final_branch,
-            new_version,
-        )
+        # create_release_pr(
+        #     f"Final updates for release.json and Go modules for {new_version} release + preludes",
+        #     current_branch,
+        #     final_branch,
+        #     new_version,
+        # )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
