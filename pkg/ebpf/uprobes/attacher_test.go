@@ -273,13 +273,14 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
+	launchProcessMonitor(t, false)
+
 	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
-		ProcessMonitorEventStream: false,
-		EbpfConfig:                ebpfCfg,
+		EbpfConfig: ebpfCfg,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -653,6 +654,8 @@ func TestUprobeAttacher(t *testing.T) {
 		t.Skip("Kernel version does not support shared libraries")
 		return
 	}
+
+	launchProcessMonitor(t, false)
 
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)

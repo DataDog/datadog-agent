@@ -178,9 +178,6 @@ type AttacherConfig struct {
 	// PerformInitialScan defines if the attacher should perform an initial scan of the processes before starting the monitor
 	PerformInitialScan bool
 
-	// ProcessMonitorEventStream defines whether the process monitor is using the event stream
-	ProcessMonitorEventStream bool
-
 	// EnableDetailedLogging makes the attacher log why it's attaching or not attaching to a process
 	// This is useful for debugging purposes, do not enable in production.
 	EnableDetailedLogging bool
@@ -383,11 +380,6 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
 	procMonitor := monitor.GetProcessMonitor()
-	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
-	if err != nil {
-		return fmt.Errorf("error initializing process monitor: %w", err)
-	}
-
 	if ua.handlesExecutables() {
 		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
 	}
