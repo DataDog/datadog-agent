@@ -176,6 +176,8 @@ type AttacherConfig struct {
 	EbpfConfig *ebpf.Config
 
 	// PerformInitialScan defines if the attacher should perform an initial scan of the processes before starting the monitor
+	// Note that if processMonitor is being used (i.e., rules are targeting executables), the ProcessMonitor itself
+	// will perform an initial scan in its Initialize method.
 	PerformInitialScan bool
 
 	// EnableDetailedLogging makes the attacher log why it's attaching or not attaching to a process
