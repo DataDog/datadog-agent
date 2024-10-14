@@ -221,7 +221,7 @@ def agent_context(ctx, version: str | None = None, major_version: int | None = N
                 # Leaving the first agent 6 context
                 if not was_agent6_context:
                     print(
-                        f'{color_message("Info", "blue")}: You are now in the Agent6 branch {context_info["base_branch"]}, you can `git switch -` to go back to your previous branch'
+                        f'{color_message("Info", "blue")}: You are now in the Agent6 branch {context_info["branch"]}, you can `git switch {context_info["base_branch"]}` to go back to your previous branch'
                     )
             else:
                 is_agent6_context = was_agent6_context
@@ -542,15 +542,15 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         current_branch = get_current_branch(ctx)
         update_branch = f"release/{new_highest_version}"
 
-        # check_clean_branch_state(ctx, github, update_branch)
-        # if not check_base_branch(current_branch, new_highest_version):
-        #     raise Exit(
-        #         color_message(
-        #             f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
-        #             "red",
-        #         ),
-        #         code=1,
-        #     )
+        check_clean_branch_state(ctx, github, update_branch)
+        if not check_base_branch(current_branch, new_highest_version):
+            raise Exit(
+                color_message(
+                    f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    "red",
+                ),
+                code=1,
+            )
 
         # Step 1: Update release entries
 
@@ -561,8 +561,7 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         # Step 2: Update internal module dependencies
 
         print(color_message("Updating Go modules", "bold"))
-        # TODO
-        # update_modules(ctx, str(new_highest_version))
+        update_modules(ctx, str(new_highest_version))
 
         # Step 3: branch out, commit change, push branch
 
@@ -589,9 +588,6 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
                 ),
                 code=1,
             )
-
-        print('push...')
-        exit()
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
