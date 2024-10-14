@@ -76,7 +76,7 @@ type DeviceMetadata struct {
 // DeviceOID device scan oid data
 type DeviceOID struct {
 	DeviceID string `json:"device_id"`
-	Oid      string `json:"oid"`
+	OID      string `json:"oid"`
 	Type     string `json:"type"`
 	Value    string `json:"value"`
 }
