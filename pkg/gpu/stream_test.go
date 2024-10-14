@@ -8,18 +8,41 @@
 package gpu
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestKernelLaunchesHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
+func getMockWorkloadMetaStore(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func getSystemContextForTest(t *testing.T) *systemContext {
+	sysCtx, err := getSystemContext(getMockWorkloadMetaStore(t), systemContextOptDisableGpuQuery)
 	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+
+	return sysCtx
+}
+
+func TestKernelLaunchesHandled(t *testing.T) {
+	stream := newStreamHandler(&model.StreamKey{}, getSystemContextForTest(t))
 
 	kernStartTime := uint64(1)
 	launch := &gpuebpf.CudaKernelLaunch{
@@ -42,11 +65,14 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	}
 
 	// No sync, so we should have data
-	require.Nil(t, stream.getPastData(false))
+	data, err := stream.getPastData(false)
+	require.Nil(t, data)
+	require.NoError(t, err)
 
 	// We should have a current kernel span running
 	currTime := uint64(100)
-	currData := stream.getCurrentData(currTime)
+	currData, err := stream.getCurrentData(currTime)
+	require.NoError(t, err)
 	require.NotNil(t, currData)
 	require.Len(t, currData.Spans, 1)
 
@@ -61,7 +87,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	stream.markSynchronization(syncTime)
 
 	// We should have a past kernel span
-	pastData := stream.getPastData(true)
+	pastData, err := stream.getPastData(true)
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.Spans, 1)
@@ -72,13 +98,13 @@ func TestKernelLaunchesHandled(t *testing.T) {
 	require.Equal(t, uint64(threadCount), span.AvgThreadCount)
 
 	// We should have no current data
-	require.Nil(t, stream.getCurrentData(currTime))
+	data, err = stream.getCurrentData(currTime)
+	require.Nil(t, data)
+	require.NoError(t, err)
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
-	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(&model.StreamKey{}, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -111,11 +137,14 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	stream.handleMemEvent(allocation)
 
 	// With just an allocation event, we should have no data
-	require.Nil(t, stream.getPastData(false))
+	data, err := stream.getPastData(false)
+	require.NoError(t, err)
+	require.Nil(t, data)
 
 	// We should have a current memory allocation span running
 	currTime := uint64(100)
-	currData := stream.getCurrentData(currTime)
+	currData, err := stream.getCurrentData(currTime)
+	require.NoError(t, err)
 	require.NotNil(t, currData)
 	require.Len(t, currData.Allocations, 1)
 
@@ -129,7 +158,8 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	stream.handleMemEvent(free)
 
 	// We should have a past memory allocation span
-	pastData := stream.getPastData(true)
+	pastData, err := stream.getPastData(true)
+	require.NoError(t, err)
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.Allocations, 1)
@@ -140,16 +170,16 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 	require.Equal(t, allocSize, memAlloc.Size)
 
 	// We should have no current data
-	require.Nil(t, stream.getCurrentData(currTime))
+	data, err = stream.getCurrentData(currTime)
+	require.NoError(t, err)
+	require.Nil(t, data)
 
 	// Also check we didn't leak
 	require.Empty(t, stream.memAllocEvents)
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
-	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(&model.StreamKey{}, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memAddr := uint64(42)
@@ -171,7 +201,8 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 	stream.markEnd() // Mark the stream as ended. This should mark the allocation as leaked
 
 	// We should have a past memory allocatio
-	pastData := stream.getPastData(true)
+	pastData, err := stream.getPastData(true)
+	require.NoError(t, err)
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.Allocations, 1)
@@ -182,9 +213,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
-	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(&model.StreamKey{}, getSystemContextForTest(t))
 
 	memAllocTime := uint64(1)
 	memFreeTime := uint64(2)
@@ -222,13 +251,13 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 	stream.handleMemEvent(free)
 
 	// The free was for a different address, so we should have no data
-	require.Nil(t, stream.getPastData(false))
+	data, err := stream.getPastData(false)
+	require.NoError(t, err)
+	require.Nil(t, data)
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	sysCtx, err := getSystemContext(systemContextOptDisableGpuQuery)
-	require.NoError(t, err)
-	stream := newStreamHandler(&model.StreamKey{}, sysCtx)
+	stream := newStreamHandler(&model.StreamKey{}, getSystemContextForTest(t))
 
 	memAllocTime1, memAllocTime2 := uint64(1), uint64(10)
 	memFreeTime1, memFreeTime2 := uint64(15), uint64(20)
@@ -287,7 +316,8 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	stream.handleMemEvent(free2)
 
 	// We should have a past memory allocation span
-	pastData := stream.getPastData(true)
+	pastData, err := stream.getPastData(true)
+	require.NoError(t, err)
 	require.NotNil(t, pastData)
 
 	require.Len(t, pastData.Allocations, 2)
@@ -311,7 +341,9 @@ func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
 	require.True(t, foundAlloc2)
 
 	// We should have no current data
-	require.Nil(t, stream.getCurrentData(memFreeTime2+1))
+	data, err := stream.getCurrentData(memFreeTime2 + 1)
+	require.NoError(t, err)
+	require.Nil(t, data)
 
 	// Also check we didn't leak
 	require.Empty(t, stream.memAllocEvents)

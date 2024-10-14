@@ -17,6 +17,7 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -46,7 +47,7 @@ type Probe struct {
 }
 
 // NewProbe starts the GPU monitoring probe
-func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, error) {
+func NewProbe(cfg *Config, telemetryComponent telemetry.Component, wmeta workloadmeta.Component) (*Probe, error) {
 	log.Debugf("starting GPU monitoring probe...")
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -63,7 +64,7 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
-		probe, err = startGPUProbe(buf, opts, telemetryComponent, cfg)
+		probe, err = startGPUProbe(buf, opts, telemetryComponent, wmeta, cfg)
 		if err != nil {
 			return fmt.Errorf("cannot start GPU monitoring probe: %s", err)
 		}
@@ -77,7 +78,7 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	return probe, nil
 }
 
-func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.Component, cfg *Config) (*Probe, error) {
+func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.Component, wmeta workloadmeta.Component, cfg *Config) (*Probe, error) {
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
@@ -146,7 +147,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, _ telemetry.C
 		sysCtxOpts = append(sysCtxOpts, systemContextOptDisableGpuQuery)
 	}
 
-	p.sysCtx, err = getSystemContext(sysCtxOpts...)
+	p.sysCtx, err = getSystemContext(wmeta, sysCtxOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting GPU system info: %w", err)
 	}
@@ -190,8 +191,17 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 
 	stats := model.GPUStats{}
 	for key, handler := range p.consumer.streamHandlers {
-		currData := handler.getCurrentData(uint64(now))
-		pastData := handler.getPastData(true)
+		currData, err := handler.getCurrentData(uint64(now))
+		if err != nil {
+			// If we get an error we might still get partial results, so we log the error and continue
+			log.Warnf("error getting past data for %s: %s", key, err)
+		}
+
+		pastData, err := handler.getPastData(true)
+		if err != nil {
+			// If we get an error we might still get partial results, so we log the error and continue
+			log.Warnf("error getting past data for %s: %s", key, err)
+		}
 
 		if currData != nil {
 			currData.Key = key

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -198,11 +199,24 @@ func getAssociatedAllocations(span *model.KernelSpan) []*model.MemoryAllocation 
 	return allocations
 }
 
+func (sh *StreamHandler) buildMetadata() (model.StreamMetadata, error) {
+	metadata := model.StreamMetadata{}
+
+	proc, err := sh.sysCtx.workloadmeta.GetProcess(int32(sh.key.Pid))
+	if err == nil {
+		metadata.ContainerID = proc.ContainerID
+	} else if !errors.IsNotFound(err) { // If the process is not found, we don't want to return an error
+		return metadata, fmt.Errorf("error retrieving process PID=%d: %w", sh.key.Pid, err)
+	}
+
+	return metadata, nil
+}
+
 // getPastData returns all the events that have finished (kernel spans with synchronizations/allocations that have been freed)
 // If flush is true, the data will be cleared from the handler
-func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
+func (sh *StreamHandler) getPastData(flush bool) (*model.StreamData, error) {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	data := &model.StreamData{
@@ -215,12 +229,17 @@ func (sh *StreamHandler) getPastData(flush bool) *model.StreamData {
 		sh.allocations = nil
 	}
 
-	return data
+	var err error
+	data.Metadata, err = sh.buildMetadata()
+	if err != nil {
+		return data, fmt.Errorf("error building stream metadata: %w", err)
+	}
+	return data, nil
 }
 
-func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
+func (sh *StreamHandler) getCurrentData(now uint64) (*model.StreamData, error) {
 	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	data := &model.StreamData{
@@ -238,7 +257,13 @@ func (sh *StreamHandler) getCurrentData(now uint64) *model.StreamData {
 
 	data.Allocations = append(data.Allocations, getAssociatedAllocations(data.Spans[0])...)
 
-	return data
+	var err error
+	data.Metadata, err = sh.buildMetadata()
+	if err != nil {
+		return data, fmt.Errorf("error building stream metadata: %w", err)
+	}
+
+	return data, nil
 }
 
 // markEnd is called when this stream is closed (process exited or stream destroyed).

@@ -13,7 +13,9 @@ import (
 	"slices"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
+	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -27,6 +29,12 @@ type systemContext struct {
 
 	// pidMaps maps each process ID to its memory maps
 	pidMaps map[int]*kernel.ProcMapEntries
+
+	// timeResolver is used to convert from kernel time to system time
+	timeResolver *sectime.Resolver
+
+	// workloadmeta is used to resolve process information
+	workloadmeta workloadmeta.Component
 }
 
 // fileData holds the symbol table and Fatbin data for a given file.
@@ -47,16 +55,24 @@ const (
 	systemContextOptDisableGpuQuery systemContextOpts = "disableGpuQuery"
 )
 
-func getSystemContext(opts ...systemContextOpts) (*systemContext, error) {
+func getSystemContext(wmeta workloadmeta.Component, opts ...systemContextOpts) (*systemContext, error) {
+	var err error
+
 	ctx := &systemContext{
-		fileData: make(map[string]*fileData),
-		pidMaps:  make(map[int]*kernel.ProcMapEntries),
+		fileData:     make(map[string]*fileData),
+		pidMaps:      make(map[int]*kernel.ProcMapEntries),
+		workloadmeta: wmeta,
 	}
 
 	if !slices.Contains(opts, systemContextOptDisableGpuQuery) {
-		if err := ctx.queryDevices(); err != nil {
+		if err = ctx.queryDevices(); err != nil {
 			return nil, fmt.Errorf("error querying devices: %w", err)
 		}
+	}
+
+	ctx.timeResolver, err = sectime.NewResolver()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create time resolver: %s", err)
 	}
 
 	return ctx, nil

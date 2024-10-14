@@ -29,8 +29,8 @@ var gpuMonitoringConfigNamespaces = []string{gpu.GPUConfigNS}
 var GPUMonitoring = module.Factory{
 	Name:             config.GPUMonitoringModule,
 	ConfigNamespaces: gpuMonitoringConfigNamespaces,
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		t, err := gpu.NewProbe(gpu.NewConfig(), nil)
+	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+		t, err := gpu.NewProbe(gpu.NewConfig(), deps.Telemetry, deps.WMeta)
 		if err != nil {
 			return nil, fmt.Errorf("unable to start GPU monitoring: %w", err)
 		}

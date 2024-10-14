@@ -28,7 +28,7 @@ func TestProbeCanLoad(t *testing.T) {
 	cfg := NewConfig()
 	cfg.InitialProcessSync = false
 	cfg.DisableGpuDeviceQuery = true
-	probe, err := NewProbe(cfg, nil)
+	probe, err := NewProbe(cfg, nil, getMockWorkloadMetaStore(t))
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
@@ -49,7 +49,7 @@ func TestProbeCanReceiveEvents(t *testing.T) {
 	cfg.InitialProcessSync = false
 	cfg.BPFDebug = true
 	cfg.DisableGpuDeviceQuery = true
-	probe, err := NewProbe(cfg, nil)
+	probe, err := NewProbe(cfg, nil, getMockWorkloadMetaStore(t))
 	require.NoError(t, err)
 	require.NotNil(t, probe)
 	t.Cleanup(probe.Close)
