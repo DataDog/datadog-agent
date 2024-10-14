@@ -414,7 +414,8 @@ def finish(ctx, major_version: int = 7, upstream="origin"):
 
         # Step 2: Update internal module dependencies
 
-        update_modules(ctx, str(new_version))
+        # TODO
+        # update_modules(ctx, str(new_version))
 
         # Step 3: Branch out, commit change, push branch
 
