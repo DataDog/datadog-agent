@@ -130,12 +130,12 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\"}"))),
+			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\", \"request_uuid\": \"1dd9a912-843f-4987-9007-b915edb3d047\"}"))),
 		}
 		resstr, reserr := analyzeResponse(r, "abcdef")
 		require.Equal(t, errors.New("uhoh"), reserr)
 		require.Equal(t,
-			"An error occurred while uploading the flare: uhoh with the corresponding uuid: . Please contact support by email.",
+			"An error occurred while uploading the flare: uhoh with the corresponding uuid: 1dd9a912-843f-4987-9007-b915edb3d047. Please contact support by email.",
 			resstr)
 	})
 
