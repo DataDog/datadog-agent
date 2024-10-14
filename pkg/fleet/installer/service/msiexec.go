@@ -10,25 +10,26 @@ package service
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/sys/windows/registry"
 	"os/exec"
 	"path/filepath"
 )
 
-func msiexec(target, product, operation string, args []string) (err error) {
+func msiexec(target, product, operation string, args []string) (*exec.Cmd, error) {
 	updaterPath := filepath.Join(paths.PackagesPath, product, target)
 	msis, err := filepath.Glob(filepath.Join(updaterPath, fmt.Sprintf("%s-*-1-x86_64.msi", product)))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(msis) > 1 {
-		return fmt.Errorf("too many MSIs in package")
+		return nil, fmt.Errorf("too many MSIs in package")
 	} else if len(msis) == 0 {
-		return fmt.Errorf("no MSIs in package")
+		return nil, fmt.Errorf("no MSIs in package")
 	}
 
 	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "MSIFASTINSTALL=7"}, args...)...)
-	return cmd.Run()
+	return cmd, nil
 }
 
 // Product represents a software from the Windows Registry
@@ -84,6 +85,7 @@ func processKey(rootPath, key, name string) (*Product, error) {
 // reflect the installed version, and using those installers can lead to undefined behavior (either failure to uninstall,
 // or weird bugs from uninstalling a product with an installer from a different version).
 func removeProduct(productName string) error {
+	log.Debugf("Removing product %s", productName)
 	product, err := findProductCode(productName)
 	if err != nil {
 		return fmt.Errorf("error trying to find product %s: %w", productName, err)
@@ -93,4 +95,12 @@ func removeProduct(productName string) error {
 		return cmd.Run()
 	}
 	return fmt.Errorf("product %s not found", productName)
+}
+
+func isProductInstalled(productName string) bool {
+	product, err := findProductCode(productName)
+	if err != nil {
+		return false
+	}
+	return product != nil
 }

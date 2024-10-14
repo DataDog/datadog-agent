@@ -1015,11 +1015,17 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
-  ## @param integrations_logs_files_max_size - integer - optional - default: 100
-  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
-  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  ## @param integrations_logs_files_max_size - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
+  ## The max size in MB that an integration logs file is allowed to use
   #
   # integrations_logs_files_max_size
+
+  ## @param integrations_logs_total_usage - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_TOTAL_USAGE - integer - optional - default: 100
+  ## The total combined usage all integrations logs files can use
+  #
+  # integrations_logs_total_usage
 
 {{ end -}}
 {{- if .TraceAgent }}
@@ -1363,7 +1369,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","sqllexer","enable_otlp_compute_top_level_by_span_kind","enable_receive_resource_spans_v2"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -1492,6 +1498,15 @@ api_key:
 ## See https://docs.datadoghq.com/graphing/infrastructure/process/
 #
 # process_config:
+
+  {{- if (eq .OS "linux")}}
+  ## @param run_in_core_agent - custom object - optional
+  ## Controls whether the process Agent or core Agent collects process and/or container information (Linux only).
+  # run_in_core_agent:
+    ## @param enabled - boolean - optional - default: false
+    ## Enables process/container collection on the core Agent instead of the process Agent.
+    # enabled: false
+  {{ end }}
 
   ## @param process_collection - custom object - optional
   ## Specifies settings for collecting processes.
@@ -2910,6 +2925,28 @@ api_key:
   ## Set to true to enable the admission controller in the cluster-agent.
   #
   # enabled: false
+
+  ## @param validation - custom object - optional
+  ## The admission controller's validation configuration.
+  #
+  # validation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable validation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
+
+  ## @param mutation - custom object - optional
+  ## The admission controller's mutation configuration.
+  #
+  # mutation:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_ADMISSION_CONTROLLER_MUTATION_ENABLED - boolean - optional - default: true
+    ## Set to true to enable mutation webhooks controller in the cluster-agent.
+    #
+    # enabled: true
 
   ## @param mutate_unlabelled - boolean - optional - default: false
   ## @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false

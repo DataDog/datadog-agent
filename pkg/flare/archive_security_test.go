@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -26,9 +25,7 @@ import (
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	common.SetupConfigForTest("./test")
 	mockConfig := configmock.New(t)
-
 	statusComponent := fxutil.Test[status.Mock](t, fx.Options(
 		statusimpl.MockModule(),
 	))

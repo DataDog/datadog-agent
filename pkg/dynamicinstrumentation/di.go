@@ -12,6 +12,7 @@ package dynamicinstrumentation
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,7 +26,7 @@ import (
 // GoDI is the central controller representation of the Dynamic Instrumentation
 // implementation for Go services
 type GoDI struct {
-	cm diconfig.ConfigManager
+	ConfigManager diconfig.ConfigManager
 
 	lu uploader.LogUploader
 	du uploader.DiagnosticUploader
@@ -50,56 +51,87 @@ func newGoDIStats() GoDIStats {
 	}
 }
 
-// DIOptions is used to configure the running Dynamic Instrumentation process
-type DIOptions struct {
-	Offline bool
-
+type OfflineOptions struct {
+	Offline          bool
 	ProbesFilePath   string
 	SnapshotOutput   string
 	DiagnosticOutput string
+}
 
+type ReaderWriterOptions struct {
+	CustomReaderWriters bool
+	SnapshotWriter      io.Writer
+	DiagnosticWriter    io.Writer
+}
+
+// DIOptions is used to configure the running Dynamic Instrumentation process
+type DIOptions struct {
+	OfflineOptions             OfflineOptions
+	ReaderWriterOptions        ReaderWriterOptions
+	RateLimitPerProbePerSecond float64
 	ditypes.EventCallback
 }
 
 // RunDynamicInstrumentation is the main entry point into running the Dynamic
-// Instrumentation project for Go.
+// Instrumentation project for Go. It does not block.
 func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
-
 	err := ebpf.SetupEventsMap()
 	if err != nil {
 		return nil, err
 	}
-
-	if opts.Offline {
-		cm, err := diconfig.NewFileConfigManager(opts.ProbesFilePath)
+	stopFunctions := []func(){
+		diagnostics.StopGlobalDiagnostics,
+	}
+	if opts.ReaderWriterOptions.CustomReaderWriters {
+		cm, err := diconfig.NewReaderConfigManager()
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create new file config manager: %w", err)
+			return nil, fmt.Errorf("could not create new reader config manager: %w", err)
 		}
-		lu, err := uploader.NewOfflineLogSerializer(opts.SnapshotOutput)
+		ls, err := uploader.NewWriterLogSerializer(opts.ReaderWriterOptions.SnapshotWriter)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create new offline log serializer: %w", err)
+			return nil, fmt.Errorf("could not create new writer log serializer: %w", err)
 		}
-		du, err := uploader.NewOfflineDiagnosticSerializer(diagnostics.Diagnostics, opts.DiagnosticOutput)
+		ds, err := uploader.NewWriterDiagnosticSerializer(diagnostics.Diagnostics, opts.ReaderWriterOptions.DiagnosticWriter)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create new offline diagnostic serializer: %w", err)
+			return nil, fmt.Errorf("could not create new writer diagnostic serializer: %w", err)
 		}
 		goDI = &GoDI{
-			cm:    cm,
-			lu:    lu,
-			du:    du,
-			stats: newGoDIStats(),
+			ConfigManager: cm,
+			lu:            ls,
+			du:            ds,
+			stats:         newGoDIStats(),
 		}
+	} else if opts.OfflineOptions.Offline {
+		cm, stopFileConfigManager, err := diconfig.NewFileConfigManager(opts.OfflineOptions.ProbesFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("could not create new file config manager: %w", err)
+		}
+		lu, err := uploader.NewOfflineLogSerializer(opts.OfflineOptions.SnapshotOutput)
+		if err != nil {
+			return nil, fmt.Errorf("could not create new offline log serializer: %w", err)
+		}
+		du, err := uploader.NewOfflineDiagnosticSerializer(diagnostics.Diagnostics, opts.OfflineOptions.DiagnosticOutput)
+		if err != nil {
+			return nil, fmt.Errorf("could not create new offline diagnostic serializer: %w", err)
+		}
+		goDI = &GoDI{
+			ConfigManager: cm,
+			lu:            lu,
+			du:            du,
+			stats:         newGoDIStats(),
+		}
+		stopFunctions = append(stopFunctions, stopFileConfigManager)
 	} else {
 		cm, err := diconfig.NewRCConfigManager()
 		if err != nil {
-			return nil, fmt.Errorf("couldn't create new RC config manager: %w", err)
+			return nil, fmt.Errorf("could not create new RC config manager: %w", err)
 		}
 		goDI = &GoDI{
-			cm:    cm,
-			lu:    uploader.NewLogUploader(),
-			du:    uploader.NewDiagnosticUploader(),
-			stats: newGoDIStats(),
+			ConfigManager: cm,
+			lu:            uploader.NewLogUploader(),
+			du:            uploader.NewDiagnosticUploader(),
+			stats:         newGoDIStats(),
 		}
 	}
 	if opts.EventCallback != nil {
@@ -107,15 +139,17 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	} else {
 		goDI.processEvent = goDI.uploadSnapshot
 	}
-
-	closeRingbuffer, err := goDI.startRingbufferConsumer()
+	closeRingbuffer, err := goDI.startRingbufferConsumer(opts.RateLimitPerProbePerSecond)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't set up new ringbuffer consumer: %w", err)
+		return nil, fmt.Errorf("could not set up new ringbuffer consumer: %w", err)
 	}
 
+	stopFunctions = append(stopFunctions, goDI.ConfigManager.Stop)
+	stopFunctions = append(stopFunctions, closeRingbuffer)
 	goDI.Close = func() {
-		goDI.cm.Stop()
-		closeRingbuffer()
+		for i := range stopFunctions {
+			stopFunctions[i]()
+		}
 	}
 
 	return goDI, nil
@@ -125,7 +159,7 @@ func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) {
 	if event == nil {
 		return
 	}
-	procInfo := goDI.cm.GetProcInfos()[event.PID]
+	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
 	diLog := uploader.NewDILog(procInfo, event)
 
 	var bs []byte
@@ -144,11 +178,14 @@ func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) {
 }
 
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {
-	goDI.printSnapshot(event)
-	procInfo := goDI.cm.GetProcInfos()[event.PID]
+	// goDI.printSnapshot(event)
+	procInfo := goDI.ConfigManager.GetProcInfos()[event.PID]
 	diLog := uploader.NewDILog(procInfo, event)
 	if diLog != nil {
-		goDI.lu.Enqueue(diLog)
+		err := goDI.lu.Enqueue(diLog)
+		if err != nil {
+			log.Error(err)
+		}
 	}
 }
 

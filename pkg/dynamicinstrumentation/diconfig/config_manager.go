@@ -249,12 +249,6 @@ generateCompileAttach:
 	err = codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
-		return
-	}
-
-	err = ebpf.CompileBPFProgram(procInfo, probe)
-	if err != nil {
-		log.Info("Couldn't compile BPF object", err)
 		if !probe.InstrumentationInfo.AttemptedRebuild {
 			log.Info("Removing parameters and attempting to rebuild BPF object", err)
 			probe.InstrumentationInfo.AttemptedRebuild = true
@@ -264,6 +258,18 @@ generateCompileAttach:
 		return
 	}
 
+	err = ebpf.CompileBPFProgram(procInfo, probe)
+	if err != nil {
+		// TODO: Emit diagnostic?
+		log.Info("Couldn't compile BPF object", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
+		return
+	}
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't load and attach bpf programs", err)

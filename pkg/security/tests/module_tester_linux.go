@@ -71,8 +71,6 @@ system_probe_config:
 
 event_monitoring_config:
   socket: /tmp/test-event-monitor.sock
-  runtime_compilation:
-    enabled: true
   remote_tagger: false
   custom_sensitive_words:
     - "*custom*"
@@ -654,7 +652,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu")
+		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu", "")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -791,17 +789,6 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 
 	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
-	}
-
-	kv, _ := kernel.NewKernelVersion()
-
-	var isRuntimeCompiled bool
-	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*sprobe.EBPFProbe); ok {
-		isRuntimeCompiled = p.IsRuntimeCompiled()
-	}
-
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !isRuntimeCompiled && !kv.IsSuseKernel() {
-		return nil, errors.New("failed to runtime compile module")
 	}
 
 	if opts.staticOpts.preStartCallback != nil {
@@ -1255,7 +1242,7 @@ func DecodeSecurityProfile(path string) (*profile.SecurityProfile, error) {
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
-	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine")
+	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}

@@ -55,6 +55,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/gpu/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -85,6 +86,8 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
+TEST_HELPER_CBINS = ["cudasample"]
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -109,7 +112,12 @@ def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
 
 
 def ninja_define_ebpf_compiler(
-    nw: NinjaWriter, strip_object_files=False, kernel_release=None, with_unit_test=False, arch: Arch | None = None
+    nw: NinjaWriter,
+    strip_object_files=False,
+    kernel_release=None,
+    with_unit_test=False,
+    arch: Arch | None = None,
+    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -122,7 +130,7 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
@@ -132,12 +140,12 @@ def ninja_define_ebpf_compiler(
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compiler: str = "clang"):
     nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
-        command="clang -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command=f"{compiler} -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -343,6 +351,19 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
+    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
+    gpu_programs_co_re_programs = ["gpu"]
+
+    for prog in gpu_programs_co_re_programs:
+        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+
+
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -497,6 +518,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/ebpf/c/lock_contention.h",
             ],
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/types.h"],
+            "pkg/gpu/ebpf/kprobe_types.go": [
+                "pkg/gpu/ebpf/c/types.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -536,6 +560,7 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -566,14 +591,17 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
-            ninja_define_co_re_compiler(nw, arch=arch)
+            ninja_define_ebpf_compiler(
+                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
+            )
+            ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -594,6 +622,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
+    ebpf_compiler='clang',
 ):
     """
     Build the system-probe
@@ -607,6 +636,7 @@ def build(
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
             bundle_ebpf=bundle_ebpf,
+            ebpf_compiler=ebpf_compiler,
         )
 
     build_sysprobe_binary(
@@ -845,7 +875,6 @@ def go_package_dirs(packages, build_tags):
     This handles the ellipsis notation (eg. ./pkg/ebpf/...)
     """
 
-    target_packages = []
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
     packages_arg = " ".join(packages)
@@ -951,12 +980,19 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "grpc_external_server",
             "prefetch_file",
             "fake_server",
+            "sample_service",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
                 with chdir(pkg):
                     ctx.run(f"go build -o {binary_path} -tags=\"test\" -ldflags=\"-extldflags '-static'\" {gobin}.go")
+
+        for cbin in TEST_HELPER_CBINS:
+            source = Path(pkg) / "testdata" / f"{cbin}.c"
+            if not is_windows and source.is_file():
+                binary = Path(target_path) / cbin
+                ctx.run(f"clang -o {binary} {source}")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -1233,10 +1269,21 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(
+        ctx,
+        nf_path,
+        major_version,
+        arch,
+        debug,
+        strip_object_files,
+        kernel_release,
+        with_unit_test,
+        ebpf_compiler=ebpf_compiler,
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1353,6 +1400,7 @@ def build_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1380,6 +1428,7 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
+        ebpf_compiler=ebpf_compiler,
     )
 
     if bundle_ebpf:
@@ -1450,6 +1499,7 @@ def build_cws_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
+    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1466,8 +1516,12 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
+def object_files(
+    ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH, ebpf_compiler: str = 'clang'
+):
+    build_object_files(
+        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch, ebpf_compiler=ebpf_compiler
+    )
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):

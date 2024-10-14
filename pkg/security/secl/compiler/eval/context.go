@@ -15,8 +15,6 @@ import (
 type Context struct {
 	Event Event
 
-	Registers Registers
-
 	// cache available across all the evaluations
 	StringCache map[string][]string
 	IntCache    map[string][]int
@@ -41,7 +39,6 @@ func (c *Context) SetEvent(evt Event) {
 // Reset the context
 func (c *Context) Reset() {
 	c.Event = nil
-	c.Registers = nil
 	c.now = time.Time{}
 
 	// as the cache should be low in entry, prefer to delete than re-alloc

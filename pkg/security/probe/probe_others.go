@@ -67,6 +67,10 @@ func (p *Probe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, er
 	return nil, nil
 }
 
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
+}
+
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
 func (p *Probe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
@@ -111,3 +115,8 @@ func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
+}

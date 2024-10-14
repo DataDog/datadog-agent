@@ -31,6 +31,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 type noopConcentrator struct{}
 
 func (c *noopConcentrator) Start()            {}

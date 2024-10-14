@@ -73,3 +73,6 @@ func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language,
 func (r *RemoteSysProbeUtil) GetPprof(_ string) ([]byte, error) {
 	return nil, ErrNotImplemented
 }
+
+// GetTelemetry is not supported
+func (r *RemoteSysProbeUtil) GetTelemetry() ([]byte, error) { return nil, ErrNotImplemented }

@@ -20,7 +20,7 @@ if ohai['platform'] == "windows"
   install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent'
+  install_dir ENV["INSTALL_DIR"] || '/opt/datadog-agent'
   if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
@@ -64,6 +64,8 @@ else
 
   # creates required build directories
   dependency 'preparation'
+
+  dependency "systemd" if linux_target?
 
   # Datadog agent
   dependency 'datadog-iot-agent'

@@ -251,6 +251,18 @@ func TestSnsEntityCarrier(t *testing.T) {
 		expErr string
 	}{
 		{
+			name: "eventbridge-through-sns",
+			event: events.SNSEntity{
+				Message: `{"detail":{"_datadog":{"x-datadog-trace-id":"123456789","x-datadog-parent-id":"987654321","x-datadog-sampling-priority":"1"}}}`,
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
+			expErr: "",
+		},
+		{
 			name:   "no-msg-attrs",
 			event:  events.SNSEntity{},
 			expMap: nil,
@@ -363,6 +375,72 @@ func TestSnsEntityCarrier(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tm, err := snsEntityCarrier(tc.event)
 			t.Logf("snsEntityCarrier returned TextMapReader=%#v error=%#v", tm, err)
+			assert.Equal(t, tc.expErr != "", err != nil)
+			if tc.expErr != "" {
+				assert.ErrorContains(t, err, tc.expErr)
+			}
+			assert.Equal(t, tc.expMap, getMapFromCarrier(tm))
+		})
+	}
+}
+
+func TestEventBridgeCarrier(t *testing.T) {
+	testcases := []struct {
+		name   string
+		event  events.EventBridgeEvent
+		expMap map[string]string
+		expErr string
+	}{
+		{
+			name: "valid_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: map[string]string{
+						"x-datadog-trace-id":          "123456789",
+						"x-datadog-parent-id":         "987654321",
+						"x-datadog-sampling-priority": "1",
+					},
+				},
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
+			expErr: "",
+		},
+		{
+			name: "missing_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: map[string]string{},
+				},
+			},
+			expMap: nil,
+			expErr: "No Datadog trace context found",
+		},
+		{
+			name: "nil_trace_context",
+			event: events.EventBridgeEvent{
+				Detail: struct {
+					TraceContext map[string]string `json:"_datadog"`
+				}{
+					TraceContext: nil,
+				},
+			},
+			expMap: nil,
+			expErr: "No Datadog trace context found",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tm, err := eventBridgeCarrier(tc.event)
+			t.Logf("eventBridgeCarrier returned TextMapReader=%#v error=%#v", tm, err)
 			assert.Equal(t, tc.expErr != "", err != nil)
 			if tc.expErr != "" {
 				assert.ErrorContains(t, err, tc.expErr)
@@ -621,6 +699,18 @@ func TestSqsMessageCarrier(t *testing.T) {
 			name:   "datadog-map",
 			event:  eventSqsMessage(headersAll, headersNone, headersNone),
 			expMap: headersMapAll,
+			expErr: nil,
+		},
+		{
+			name: "eventbridge-through-sqs",
+			event: events.SQSMessage{
+				Body: `{"detail":{"_datadog":{"x-datadog-trace-id":"123456789","x-datadog-parent-id":"987654321","x-datadog-sampling-priority":"1"}}}`,
+			},
+			expMap: map[string]string{
+				"x-datadog-trace-id":          "123456789",
+				"x-datadog-parent-id":         "987654321",
+				"x-datadog-sampling-priority": "1",
+			},
 			expErr: nil,
 		},
 	}

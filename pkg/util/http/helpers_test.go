@@ -11,14 +11,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGet(t *testing.T) {
@@ -29,7 +28,7 @@ func TestGet(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	res, err := Get(context.Background(), ts.URL, nil, 5*time.Second, c)
 
 	require.NoError(t, err)
@@ -45,7 +44,7 @@ func TestGetHeader(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	res, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.NoError(t, err)
@@ -61,7 +60,7 @@ func TestGetTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 100*time.Millisecond, c)
 
 	require.Error(t, err)
@@ -75,7 +74,7 @@ func TestGetError(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	_, err := Get(context.Background(), ts.URL, map[string]string{"header": "value"}, 5*time.Second, c)
 
 	require.Error(t, err)

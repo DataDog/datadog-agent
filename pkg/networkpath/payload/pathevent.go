@@ -33,9 +33,13 @@ const (
 // NetworkPathHop encapsulates the data for a single
 // hop within a path
 type NetworkPathHop struct {
-	TTL       int     `json:"ttl"`
-	IPAddress string  `json:"ip_address"`
-	Hostname  string  `json:"hostname,omitempty"`
+	TTL       int    `json:"ttl"`
+	IPAddress string `json:"ip_address"`
+
+	// hostname is the reverse DNS of the ip_address
+	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
+	Hostname string `json:"hostname,omitempty"`
+
 	RTT       float64 `json:"rtt,omitempty"`
 	Reachable bool    `json:"reachable"`
 }
@@ -53,10 +57,11 @@ type NetworkPathSource struct {
 // NetworkPathDestination encapsulates information
 // about the destination of a path
 type NetworkPathDestination struct {
-	Hostname  string `json:"hostname"`
-	IPAddress string `json:"ip_address"`
-	Port      uint16 `json:"port"`
-	Service   string `json:"service,omitempty"`
+	Hostname           string `json:"hostname"`
+	IPAddress          string `json:"ip_address"`
+	Port               uint16 `json:"port"`
+	Service            string `json:"service,omitempty"`
+	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a

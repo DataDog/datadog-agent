@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
@@ -40,6 +39,11 @@ const (
 	httpError    = "api: simulated HTTP error"
 	agentVersion = "9.9.9"
 	testEnv      = "test-env"
+)
+
+const (
+	site = "test-site"
+	k    = "test-api-key"
 )
 
 // Setup overrides for tests
@@ -69,8 +73,21 @@ type mockUptane struct {
 	mock.Mock
 }
 
-func (m *mockUptane) Update(response *pbgo.LatestConfigsResponse) error {
+type mockCoreAgentUptane struct {
+	mockUptane
+}
+
+type mockCDNUptane struct {
+	mockUptane
+}
+
+func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error {
 	args := m.Called(response)
+	return args.Error(0)
+}
+
+func (m *mockCDNUptane) Update(ctx context.Context) error {
+	args := m.Called(ctx)
 	return args.Error(0)
 }
 
@@ -139,11 +156,9 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-
+func newTestService(t *testing.T, api *mockAPI, uptane *mockCoreAgentUptane, clock clock.Clock) *CoreAgentService {
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("hostname", "test-hostname")
-	defer cfg.SetWithoutSource("hostname", "")
 
 	dir := t.TempDir()
 	cfg.SetWithoutSource("run_path", dir)
@@ -167,7 +182,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 
 func TestServiceBackoffFailure(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -251,7 +266,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -319,7 +334,7 @@ func customMeta(tracerPredicates []*pbgo.TracerPredicateV1, expiration int64) *j
 // gRPC's InvalidArgument status code.
 func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -384,7 +399,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 
 func TestService(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -415,7 +430,7 @@ func TestService(t *testing.T) {
 	api.AssertExpectations(t)
 	uptaneClient.AssertExpectations(t)
 
-	*uptaneClient = mockUptane{}
+	*uptaneClient = mockCoreAgentUptane{}
 	*api = mockAPI{}
 
 	root3 := []byte(`{"signatures": "testroot3", "signed": "signed"}`)
@@ -530,7 +545,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
 	}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
@@ -624,7 +639,7 @@ func TestServiceClientPredicates(t *testing.T) {
 
 func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -664,7 +679,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 
 func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -704,7 +719,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 
 func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -744,7 +759,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 
 func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -784,7 +799,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 
 func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	api := &mockAPI{}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	clock := clock.NewMock()
 	service := newTestService(t, api, uptaneClient, clock)
 
@@ -836,7 +851,7 @@ func TestConfigExpiration(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{
 		TargetFiles: []*pbgo.File{{Path: "test"}},
 	}
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	api := &mockAPI{}
 
 	service := newTestService(t, api, uptaneClient, clock)
@@ -914,7 +929,7 @@ func TestConfigExpiration(t *testing.T) {
 func TestOrgStatus(t *testing.T) {
 	api := &mockAPI{}
 	clock := clock.NewMock()
-	uptaneClient := &mockUptane{}
+	uptaneClient := &mockCoreAgentUptane{}
 	service := newTestService(t, api, uptaneClient, clock)
 
 	response := &pbgo.OrgStatusResponse{
@@ -942,7 +957,7 @@ func TestOrgStatus(t *testing.T) {
 }
 
 func TestWithTraceAgentEnv(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	dir := t.TempDir()
 	cfg.SetWithoutSource("run_path", dir)
 
@@ -961,7 +976,7 @@ func TestWithTraceAgentEnv(t *testing.T) {
 }
 
 func TestWithDatabaseFileName(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
@@ -1002,7 +1017,7 @@ func TestWithRefreshInterval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("run_path", "/tmp")
 
 			baseRawURL := "https://localhost"
@@ -1099,7 +1114,7 @@ type clientTTLTest struct {
 }
 
 func TestWithDirectorRootOverride(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("run_path", "/tmp")
 
 	baseRawURL := "https://localhost"
@@ -1145,4 +1160,104 @@ func TestWithClientTTL(t *testing.T) {
 
 func getHostTags() []string {
 	return []string{"dogo_state:hungry"}
+}
+
+func setupCDNClient(t *testing.T, uptaneClient *mockCDNUptane) *HTTPClient {
+	client, err := NewHTTPClient(t.TempDir(), site, k, "9.9.9")
+	require.NoError(t, err)
+	if uptaneClient != nil {
+		client.uptane = uptaneClient
+	}
+	return client
+}
+
+// TestHTTPClientRecentUpdate tests that with a recent (<50s ago) last-update-time,
+// the client will not fetch a new update and will return the cached state
+func TestHTTPClientRecentUpdate(t *testing.T) {
+	uptaneClient := &mockCDNUptane{}
+	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+		DirectorRoot:    1,
+		DirectorTargets: 1,
+		ConfigRoot:      1,
+		ConfigSnapshot:  1,
+	}, nil)
+	uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
+	uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
+	uptaneClient.On("Targets").Return(
+		data.TargetFiles{
+			"datadog/2/TESTING1/id/1": {},
+			"datadog/2/TESTING2/id/2": {},
+		},
+		nil,
+	)
+	uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+
+	client := setupCDNClient(t, uptaneClient)
+	defer client.Close()
+	client.lastUpdate = time.Now()
+
+	u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+	require.NoError(t, err)
+	uptaneClient.AssertExpectations(t)
+	require.NotNil(t, u)
+	require.Len(t, u.TargetFiles, 1)
+	require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
+	require.Len(t, u.ClientConfigs, 1)
+	require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
+	require.Len(t, u.TUFRoots, 1)
+	require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+}
+
+// TestHTTPClientUpdateSuccess tests that a stale state will trigger an update of the cached state
+// before returning the cached state. In the event that the Update fails, the stale state will be returned.
+func TestHTTPClientUpdateSuccess(t *testing.T) {
+	var tests = []struct {
+		updateSucceeds bool
+	}{
+		{true},
+		{false},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("updateSucceeds=%t", tt.updateSucceeds), func(t *testing.T) {
+			uptaneClient := &mockCDNUptane{}
+			uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{
+				DirectorRoot:    1,
+				DirectorTargets: 1,
+				ConfigRoot:      1,
+				ConfigSnapshot:  1,
+			}, nil)
+			uptaneClient.On("DirectorRoot", uint64(1)).Return([]byte(`{"signatures": "testroot1", "signed": "one"}`), nil)
+			uptaneClient.On("TargetsMeta").Return([]byte(`{"signatures": "testtargets", "signed": "stuff"}`), nil)
+			uptaneClient.On("Targets").Return(
+				data.TargetFiles{
+					"datadog/2/TESTING1/id/1": {},
+					"datadog/2/TESTING2/id/2": {},
+				},
+				nil,
+			)
+			uptaneClient.On("TargetFile", "datadog/2/TESTING1/id/1").Return([]byte(`testing_1`), nil)
+
+			updateErr := fmt.Errorf("uh oh")
+			if tt.updateSucceeds {
+				updateErr = nil
+			}
+			uptaneClient.On("Update", mock.Anything).Return(updateErr)
+
+			client := setupCDNClient(t, uptaneClient)
+			defer client.Close()
+			client.lastUpdate = time.Now().Add(time.Second * -60)
+
+			u, err := client.GetCDNConfigUpdate(context.TODO(), []string{"TESTING1"}, 0, 0, []*pbgo.TargetFileMeta{})
+			require.NoError(t, err)
+			uptaneClient.AssertExpectations(t)
+			require.NotNil(t, u)
+			require.Len(t, u.TargetFiles, 1)
+			require.Equal(t, []byte(`testing_1`), u.TargetFiles["datadog/2/TESTING1/id/1"])
+			require.Len(t, u.ClientConfigs, 1)
+			require.Equal(t, "datadog/2/TESTING1/id/1", u.ClientConfigs[0])
+			require.Len(t, u.TUFRoots, 1)
+			require.Equal(t, []byte(`{"signatures":"testroot1","signed":"one"}`), u.TUFRoots[0])
+		})
+	}
 }

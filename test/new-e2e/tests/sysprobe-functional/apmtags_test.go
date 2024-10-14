@@ -59,8 +59,9 @@ type usmTaggingTest struct {
 	clientJSONFile  string
 	clientAppConfig string
 
-	defaultFiles usmTaggingFiles
-	siteFiles    map[string]usmTaggingFiles
+	defaultFiles  usmTaggingFiles
+	siteFiles     map[string]usmTaggingFiles
+	clientEnvVars map[string]string
 
 	appFiles map[string]usmTaggingFiles
 
@@ -295,7 +296,10 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
 	vm.CopyFile("usmtest/littleget.exe", testExe)
 
-	pscommand := "%s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
+	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
+	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
+
+	pscommand := "%s %s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
 	for _, test := range usmTaggingTests {
 		v.Run(test.name, func() {
@@ -315,7 +319,19 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 			if test.targetPath != "" {
 				targetpath = test.targetPath
 			}
-			localcmd := fmt.Sprintf(pscommand, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+			var envstring string
+			for k, v := range test.clientEnvVars {
+				envstring += fmt.Sprintf("$Env:%s=\"%s\" ; ", k, v)
+			}
+			localcmd := fmt.Sprintf(pscommand, envstring, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+
+			if len(test.clientEnvVars) > 0 {
+				var envarg string
+				for k, v := range test.clientEnvVars {
+					envarg += fmt.Sprintf("%s=%s", k, v)
+				}
+			}
+
 			out, err := vm.Execute(localcmd)
 			if err != nil {
 				t.Logf("Error running test: %v", out)

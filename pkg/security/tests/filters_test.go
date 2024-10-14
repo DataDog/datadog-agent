@@ -18,9 +18,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -92,22 +94,19 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	defer os.Remove(testFile2)
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
-
-	// reset stats
-	test.statsdClient.Flush()*/
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
@@ -119,10 +118,6 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		t.Fatal("shouldn't get an event")
 	}
 
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
-
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
 		if err != nil {
@@ -132,10 +127,6 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
-
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
@@ -358,6 +349,9 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}
 	defer cmdWrapper.stop()
 
+	// reset stats
+	test.statsdClient.Flush()
+
 	if err := waitForOpenProbeEvent(test, func() error {
 		args := []string{
 			"-login-uid-open-test",
@@ -372,25 +366,19 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:auid"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
-		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count != 1 {
-			return errors.New("expected metrics not found")
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
-
-	// reset stats
-	test.statsdClient.Flush()
-	if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 1 {
-		t.Fatal("expected metrics not found")
-	}*/
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		args := []string{
@@ -404,10 +392,6 @@ func runAUIDTest(t *testing.T, test *testModule, goSyscallTester, auidOK, auidKO
 	}, "/tmp/test-auid"); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
-
-	/*if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count > 0 {
-		t.Fatal("expected metrics not found")
-	}*/
 }
 
 func TestFilterOpenAUIDEqualApprover(t *testing.T) {
@@ -839,22 +823,19 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 
 	// stats
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
-			return errors.New("expected approver metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
 	assert.NoError(t, err)
-
-	// reset stats
-	test.statsdClient.Flush()*/
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_SYNC)
@@ -866,19 +847,19 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	/*err = retry.Do(func() error {
+	err = retry.Do(func() error {
 		test.eventMonitor.SendStats()
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:flag"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
-			return errors.New("expected metrics not found")
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
 		}
 
 		return nil
 	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
-	assert.NoError(t, err)*/
+	assert.NoError(t, err)
 
 	if err := waitForOpenProbeEvent(test, func() error {
 		fd, err = openTestFile(test, testFile, syscall.O_RDONLY)
