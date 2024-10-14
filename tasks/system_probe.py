@@ -621,6 +621,7 @@ def build(
     with_unit_test=False,
     bundle=True,
     ebpf_compiler='clang',
+    static=False,
 ):
     """
     Build the system-probe
@@ -647,6 +648,7 @@ def build(
         strip_binary=strip_binary,
         bundle=bundle,
         arch=arch,
+        static=static,
     )
 
 
@@ -673,6 +675,7 @@ def build_sysprobe_binary(
     bundle_ebpf=False,
     strip_binary=False,
     bundle=True,
+    static=False,
 ) -> None:
     if bundle and not is_windows:
         return agent_build(
@@ -686,13 +689,18 @@ def build_sysprobe_binary(
 
     arch_obj = Arch.from_str(arch)
 
-    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, major_version=major_version, arch=arch_obj)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj, static=static
+    )
 
     build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
         ldflags += ' -s -w'
+
+    if static:
+        build_tags.extend(["osusergo", "netgo"])
 
     if os.path.exists(binary):
         os.remove(binary)
