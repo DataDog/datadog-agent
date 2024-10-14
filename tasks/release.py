@@ -83,6 +83,7 @@ GITLAB_FILES_TO_UPDATE = [
 
 BACKPORT_LABEL_COLOR = "5319e7"
 
+DEFAULT_AGENT6_VERSION = "6.53.0"
 is_agent6_context = False
 
 
@@ -120,7 +121,7 @@ def get_default_modules(ctx):
         return DEFAULT_MODULES
 
 
-def set_agent6_context(ctx, version, allow_stash=False) -> dict:
+def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, echo_switch_info=True) -> dict:
     """Changes the context to the agent6 branch.
 
     Note:
@@ -128,7 +129,7 @@ def set_agent6_context(ctx, version, allow_stash=False) -> dict:
         Prefer using agent_context for read only operations.
 
     Returns:
-        Dict of {'branch_switched', 'stashed', 'base_branch'}
+        Dict of {'branch_switched', 'stashed', 'base_branch', 'branch'}
     """
 
     global is_agent6_context
@@ -141,7 +142,7 @@ def set_agent6_context(ctx, version, allow_stash=False) -> dict:
     # Ensure this branch exists
     assert len(ctx.run(f'git branch --list {branch}', hide=True).stdout.strip()), f"Branch {branch} does not exist"
 
-    info = {'branch_switched': False, 'stashed': False, 'base_branch': base_branch}
+    info = {'branch_switched': False, 'stashed': False, 'base_branch': base_branch, 'branch': branch}
 
     # Already on the target branch
     if base_branch == branch:
@@ -160,14 +161,16 @@ def set_agent6_context(ctx, version, allow_stash=False) -> dict:
     print(f'{color_message("Agent6", "bold")}: Checking out to {branch}')
     ctx.run(f"git checkout {branch}", hide=True)
     info['branch_switched'] = True
-
     is_agent6_context = True
+
+    if echo_switch_info:
+        print(f'{color_message("Info", "blue")}: Switched to {branch} branch to perform agent6 operations')
 
     return info
 
 
 @contextmanager
-def agent_context(ctx, version: str):
+def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION):
     """If the version is 6.XX.X, will checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
 
     Args:
@@ -185,7 +188,7 @@ def agent_context(ctx, version: str):
     if version.startswith('6.'):
         was_agent6_context = is_agent6_context
 
-        context_info = set_agent6_context(ctx, version, allow_stash=True)
+        context_info = set_agent6_context(ctx, version, allow_stash=True, echo_switch_info=False)
 
         try:
             yield
@@ -214,9 +217,7 @@ def t(ctx, v='6.53.0'):
 
 @task
 def list_major_change(_, milestone):
-    """
-    List all PR labeled "major_changed" for this release.
-    """
+    """Lists all PR labeled "major_changed" for this release."""
 
     gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
@@ -232,15 +233,20 @@ def list_major_change(_, milestone):
 
 @task
 def update_modules(ctx, agent_version, verify=True):
-    """
-    Update internal dependencies between the different Agent modules.
-    * --verify checks for correctness on the Agent Version (on by default).
+    """Updates internal dependencies between the different Agent modules.
+
+    Args:
+        verify: Checks for correctness on the Agent Version (on by default).
 
     Examples:
-    inv -e release.update-modules 7.27.0
+        $ inv -e release.update-modules 7.27.0
     """
+
     if verify:
-        check_version(agent_version)
+        check_version(agent_version, allow_agent6=True)
+
+    if agent_version.startswith('6.'):
+        set_agent6_context(ctx)
 
     modules = get_default_modules(ctx)
     for module in modules.values():
@@ -251,6 +257,7 @@ def update_modules(ctx, agent_version, verify=True):
 
 def __get_force_option(force: bool) -> str:
     """Get flag to pass to git tag depending on if we want forcing or not."""
+
     force_option = ""
     if force:
         print(color_message("--force option enabled. This will allow the task to overwrite existing tags.", "orange"))
