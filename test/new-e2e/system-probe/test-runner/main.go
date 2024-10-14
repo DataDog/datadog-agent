@@ -49,6 +49,7 @@ type testConfig struct {
 	testingTools      string
 	extraParams       string
 	extraEnv          string
+	inCWSContainer    bool
 }
 
 const ciVisibility = "/ci-visibility"
@@ -257,6 +258,8 @@ func createCWSTestDockerContainer(testsuite string, containerName string, bpfDir
 	return nil
 }
 
+const cwsContainerName = "security-agent-tests"
+
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
 		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
@@ -284,22 +287,15 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
-	for i, testsuite := range testsuites {
-		var inDocker bool
-		var containerName string
-		if strings.Contains(testsuite, "security") {
-			inDocker = true
-			containerName = fmt.Sprintf("security-agent-tests-%d", i)
-		}
-
+	for _, testsuite := range testsuites {
 		buildDir, err := getEBPFBuildDir()
 		if err != nil {
 			return fmt.Errorf("getEBPFBuildDir: %w", err)
 		}
 		bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
-		if inDocker {
-			if err := createCWSTestDockerContainer(testsuite, containerName, bpfDir); err != nil {
+		if testConfig.inCWSContainer {
+			if err := createCWSTestDockerContainer(testsuite, cwsContainerName, bpfDir); err != nil {
 				return fmt.Errorf("createCWSTestDockerContainer: %w", err)
 			}
 		}
@@ -313,8 +309,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
 		testsuiteArgs := []string{testsuite}
-		if inDocker {
-			testsuiteArgs = []string{"docker", "exec", containerName, testsuite, "--env", "docker"}
+		if testConfig.inCWSContainer {
+			testsuiteArgs = []string{"docker", "exec", cwsContainerName, testsuite, "--env", "docker"}
 		}
 
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
@@ -373,6 +369,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
+	inCWSContainer := flag.Bool("in-cws-container", false, "if set to true, the testsuite is running in a CWS container")
 
 	flag.Parse()
 
@@ -411,6 +408,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testingTools:      tools,
 		extraParams:       *extraParams,
 		extraEnv:          *extraEnv,
+		inCWSContainer:    *inCWSContainer,
 	}, nil
 }
 
