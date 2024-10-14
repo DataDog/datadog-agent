@@ -143,8 +143,8 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 
 	queryProviderTimeout := r.URL.Query().Get("provider_timeout")
 	providerTimeoutSeconds, err := strconv.Atoi(queryProviderTimeout)
-	if err != nil || providerTimeoutSeconds <= 0 {
-		providerTimeoutSeconds = f.config.GetInt("flare_provider_timeout")
+	if err != nil {
+		providerTimeoutSeconds = 0 // use timeout from the config on error
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
@@ -174,6 +174,8 @@ func (f *flare) Send(flarePath string, caseID string, email string, source helpe
 }
 
 // Create creates a new flare and returns the path to the final archive file.
+//
+// If providerTimeoutSeconds is 0 or negative, the timeout from the configuration will be used.
 func (f *flare) Create(pdata ProfileData, providerTimeoutSeconds int, ipcError error) (string, error) {
 	if providerTimeoutSeconds <= 0 {
 		providerTimeoutSeconds = f.config.GetInt("flare_provider_timeout")
