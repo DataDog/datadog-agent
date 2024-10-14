@@ -25,6 +25,7 @@ from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
+    DEFAULT_AGENT6_VERSION,
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
@@ -83,7 +84,6 @@ GITLAB_FILES_TO_UPDATE = [
 
 BACKPORT_LABEL_COLOR = "5319e7"
 
-DEFAULT_AGENT6_VERSION = "6.53.0"
 is_agent6_context = False
 
 
@@ -438,6 +438,7 @@ def finish(ctx, major_versions="7", upstream="origin"):
 
     # Step 5: Push branch and create PR
 
+    # TODO
     print('NOT pushing')
     exit()
 
