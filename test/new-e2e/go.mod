@@ -37,7 +37,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../pkg/util/system/socket
-	github.com/DataDog/datadog-agent/pkg/util/tagger => ../../pkg/util/tagger
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
@@ -297,7 +296,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.2 // indirect
@@ -331,11 +329,4 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.67.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v6 v6.67.1 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.4 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
-	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/jwalterweatherman v1.0.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.12 // indirect
-	github.com/tklauser/numcpus v0.6.1 // indirect
-	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 )
