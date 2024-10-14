@@ -88,7 +88,7 @@ is_agent6_context = False
 
 
 def read_default_modules(contents):
-    """Extracts the modules from contents which is the content of tasks/modules.py."""
+    """Extract the modules from contents which is the content of tasks/modules.py."""
 
     # Used dynamically
     from tasks.modules import GoModule  # noqa
@@ -104,7 +104,7 @@ def read_default_modules(contents):
 
 
 def get_default_modules(ctx):
-    """Returns DEFAULT_MODULES either from the current file if current agent context or from the agent6 branch.
+    """Return DEFAULT_MODULES either from the current file if current agent context or from the agent6 branch.
 
     Will read the file of the current branch and parse it if agent6 context.
     """
@@ -122,7 +122,7 @@ def get_default_modules(ctx):
 
 
 def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, echo_switch_info=True) -> dict:
-    """Changes the context to the agent6 branch.
+    """Change the context to the agent6 branch.
 
     Note:
         Should be used only for operations modifying agent6 files.
@@ -171,7 +171,7 @@ def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, e
 
 @contextmanager
 def agent_context(ctx, version: str = DEFAULT_AGENT6_VERSION):
-    """If the version is 6.XX.X, will checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
+    """If the version is 6.XX.X, checkout temporarily to the 6.XX.x branch (or $AGENT_6_BRANCH if set).
 
     Args:
         version: Agent full version ('6.53.0', '7.42.2-rc.1', etc.)
@@ -217,7 +217,7 @@ def t(ctx, v='6.53.0'):
 
 @task
 def list_major_change(_, milestone):
-    """Lists all PR labeled "major_changed" for this release."""
+    """List all PR labeled "major_changed" for this release."""
 
     gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
@@ -233,7 +233,7 @@ def list_major_change(_, milestone):
 
 @task
 def update_modules(ctx, agent_version, verify=True):
-    """Updates internal dependencies between the different Agent modules.
+    """Update internal dependencies between the different Agent modules.
 
     Args:
         verify: Checks for correctness on the Agent Version (on by default).
@@ -272,6 +272,7 @@ def __get_force_option(force: bool) -> str:
 
 def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
+
     for tag in module.tag(agent_version):
         if devel:
             tag += "-devel"
@@ -291,58 +292,61 @@ def __tag_single_module(ctx, module, agent_version, commit, push, force_option, 
 
 @task
 def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
-    """
-    Create tags for Go nested modules for a given Datadog Agent version.
+    """Create tags for Go nested modules for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
-    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
-    * --verify checks for correctness on the Agent version (on by default).
-    * --push will push the tags to the origin remote (on by default).
-    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-    * --devel will create -devel tags (used after creation of the release branch)
+    Args:
+        commit: will tag `commit` with the tags (default HEAD).
+        verify: checks for correctness on the Agent version (on by default).
+        push: will push the tags to the origin remote (on by default).
+        force: will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+        devel: will create -devel tags (used after creation of the release branch).
 
     Examples:
-    inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
-    inv -e release.tag-modules 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
-    inv -e release.tag-modules 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
-
+        $ inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
+        $ inv -e release.tag-modules 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+        $ inv -e release.tag-modules 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
-    if verify:
-        check_version(agent_version)
 
-    force_option = __get_force_option(force)
-    modules = get_default_modules(ctx)
-    for module in modules.values():
-        # Skip main module; this is tagged at tag_version via __tag_single_module.
-        if module.should_tag and module.path != ".":
-            __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
+    if verify:
+        check_version(agent_version, allow_agent6=True)
+
+    with agent_context(ctx, agent_version):
+        force_option = __get_force_option(force)
+        modules = get_default_modules(ctx)
+        for module in modules.values():
+            # Skip main module; this is tagged at tag_version via __tag_single_module.
+            if module.should_tag and module.path != ".":
+                __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
 
     print(f"Created module tags for version {agent_version}")
 
 
 @task
 def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
-    """
-    Create tags for a given Datadog Agent version.
+    """Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
 
-    * --commit COMMIT will tag COMMIT with the tags (default HEAD)
-    * --verify checks for correctness on the Agent version (on by default).
-    * --push will push the tags to the origin remote (on by default).
-    * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-    * --devel will create -devel tags (used after creation of the release branch)
+    Args:
+        commit: will tag `commit` with the tags (default HEAD)
+        verify: checks for correctness on the Agent version (on by default).
+        push: will push the tags to the origin remote (on by default).
+        force: will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+        devel: will create -devel tags (used after creation of the release branch)
 
     Examples:
-    inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
-    inv -e release.tag-version 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
-    inv -e release.tag-version 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
+        $ inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
+        $ inv -e release.tag-version 7.27.0-rc.3 --no-push  # Create tags locally; don't push them
+        $ inv -e release.tag-version 7.29.0-rc.3 --force    # Create tags (overwriting existing tags with the same name), force-push them to origin
     """
+
     if verify:
-        check_version(agent_version)
+        check_version(agent_version, allow_agent6=True)
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, get_default_modules(ctx)["."], agent_version, commit, push, force_option, devel)
+    with agent_context(ctx, agent_version):
+        __tag_single_module(ctx, get_default_modules(ctx)["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
 
