@@ -401,6 +401,8 @@ def get_user_query(login):
 
 
 def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+    from tasks.libs.common.constants import DEFAULT_AGENT6_BRANCH
+
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -444,7 +446,7 @@ Make sure that milestone is open before trying again.""",
     ]
 
     if changelog_pr:
-        labels.append("backport/main")
+        labels.append(f"backport/{DEFAULT_AGENT6_BRANCH}" if base_branch.startswith('6.') else "backport/main")
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
