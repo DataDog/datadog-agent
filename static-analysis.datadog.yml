@@ -1,7 +1,5 @@
-schema-version: v1
 rulesets:
   - sit-ci-best-practices:
     only:
-      - .github/workflows
-  - go-best-practices
-  - go-security
+      - ".github/workflows"
+
