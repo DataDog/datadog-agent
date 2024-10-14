@@ -74,6 +74,11 @@ func (d *gpuDevice) GetNumMultiprocessors() (int, error) {
 	return int(devProps.MultiprocessorCount), nil
 }
 
+// GetMaxThreads returns the maximum number of threads that can be run on the
+// GPU. Each GPU core runs a thread, so this is the number of cores. Do not
+// confuse the number of cores with the number of streaming multiprocessors
+// (SM): the number of cores is equal to the number of SMs multiplied by the
+// number of cores per SM.
 func (d *gpuDevice) GetMaxThreads() (int, error) {
 	cores, ret := d.GetNumGpuCores()
 	if err := wrapNvmlError(ret); err != nil {
