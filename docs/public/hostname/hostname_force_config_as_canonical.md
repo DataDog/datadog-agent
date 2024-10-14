@@ -2,7 +2,7 @@
 
 ## Description of the issue
 
-In v6 and v7 Agents, if `hostname` is set in `datadog.yaml` (or through the `DD_HOSTNAME` env var) and its value starts with `ip-` or `domu`, the hostname is not used in-app as the canonical hostname, even though it is a valid hostname.
+In v6 and v7 Agents, if `hostname` is set in `datadog.yaml` (or through the `DD_HOSTNAME` env var) and its value starts with `ip-` or `domu`, the hostname is not used in-app as the canonical hostname, even if it is a valid hostname.
 More information about what a canonical hostname is can be found at [How does Datadog determine the Agent hostname?](https://docs.datadoghq.com/agent/faq/how-datadog-agent-determines-the-hostname/?tab=agentv6v7#agent-versions).
 
 To know if your Agents are affected, starting with v6.16.0 and v7.16.0, the Agent logs the following warning if it detects a situation where the config-provided hostname is a valid hostname but will not be accepted as the canonical hostname in-app:
