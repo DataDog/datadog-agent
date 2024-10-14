@@ -542,15 +542,15 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         current_branch = get_current_branch(ctx)
         update_branch = f"release/{new_highest_version}"
 
-        check_clean_branch_state(ctx, github, update_branch)
-        if not check_base_branch(current_branch, new_highest_version):
-            raise Exit(
-                color_message(
-                    f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
-                    "red",
-                ),
-                code=1,
-            )
+        # check_clean_branch_state(ctx, github, update_branch)
+        # if not check_base_branch(current_branch, new_highest_version):
+        #     raise Exit(
+        #         color_message(
+        #             f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+        #             "red",
+        #         ),
+        #         code=1,
+        #     )
 
         # Step 1: Update release entries
 
@@ -646,14 +646,14 @@ def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=F
     # Check that the base branch is valid
     current_branch = get_current_branch(ctx)
 
-    # if not check_base_branch(current_branch, new_version):
-    #     raise Exit(
-    #         color_message(
-    #             f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
-    #             "red",
-    #         ),
-    #         code=1,
-    #     )
+    if not check_base_branch(current_branch, new_version):
+        raise Exit(
+            color_message(
+                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
+                "red",
+            ),
+            code=1,
+        )
 
     latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
 
