@@ -140,11 +140,12 @@ func newTaggerClient(deps dependencies) provides {
 			deps.Log.Errorf("remote tagger is disabled in clc runner.")
 			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), nil, deps.Log)
 		} else {
-			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+			filter := types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)
+			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, filter), nil, deps.Log)
 		}
 	case taggerComp.NodeRemoteTaggerAgent:
 		options, _ := remote.NodeAgentOptions(deps.Config)
-		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, types.NewMatchAllFilter()), nil, deps.Log)
 	case taggerComp.LocalTaggerAgent:
 		taggerClient = createTaggerClient(local.NewTagger(deps.Config, deps.Wmeta, telemetryStore), nil, deps.Log)
 	case taggerComp.FakeTagger:
