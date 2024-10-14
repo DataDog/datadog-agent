@@ -667,6 +667,7 @@
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet @DataDog/windows-agent
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-agent
+/test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
