@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_AGENT6_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
@@ -134,12 +134,12 @@ def get_main_parent_commit(ctx) -> str:
     return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()
 
 
-def check_base_branch(branch, release_version):
+def check_base_branch(branch, release_version, agent6=False):
     """
     Checks if the given branch is either the default branch or the release branch associated
     with the given release version.
     """
-    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+    return branch == (DEFAULT_AGENT6_BRANCH if agent6 else DEFAULT_BRANCH) or branch == release_version.branch()
 
 
 def try_git_command(ctx, git_command):
