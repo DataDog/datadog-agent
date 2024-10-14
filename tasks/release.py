@@ -134,7 +134,7 @@ def agent_context(ctx, version: str):
 
     global is_agent6_context
 
-    assert len(version.split('.')) == 3, f"Invalid version {version}, should be M.XX.P(-rc.R)?"
+    check_version(version)
 
     if version.startswith('6.'):
         branch = os.getenv('AGENT_6_BRANCH', version[:4] + '.x')
@@ -180,13 +180,6 @@ def agent_context(ctx, version: str):
 
 
 @task
-def t(ctx, v='6.53.0'):
-    with agent_context(ctx, v):
-        print(get_default_modules(ctx))
-        print(len(get_default_modules(ctx)))
-
-
-@task
 def list_major_change(_, milestone):
     """
     List all PR labeled "major_changed" for this release.
@@ -216,9 +209,10 @@ def update_modules(ctx, agent_version, verify=True):
     if verify:
         check_version(agent_version)
 
-    for module in DEFAULT_MODULES.values():
+    modules = get_default_modules(ctx)
+    for module in modules.values():
         for dependency in module.dependencies:
-            dependency_mod = DEFAULT_MODULES[dependency]
+            dependency_mod = modules[dependency]
             ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
 
 
@@ -277,7 +271,8 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
         check_version(agent_version)
 
     force_option = __get_force_option(force)
-    for module in DEFAULT_MODULES.values():
+    modules = get_default_modules(ctx)
+    for module in modules.values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
             __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
@@ -307,7 +302,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option, devel)
+    __tag_single_module(ctx, get_default_modules(ctx)["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
 
 
