@@ -131,15 +131,15 @@
 /.gitlab/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
 
-/.gitlab/kitchen_*                                   @DataDog/agent-delivery
-/.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/kitchen_*                                   @DataDog/container-ecosystems @DataDog/agent-delivery
+/.gitlab/kitchen_testing/windows.yml                 @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/e2e_install_packages/windows.yml            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/agent-devx-infra
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx-loops
-/.gitlab/e2e/install_packages                        @DataDog/agent-delivery
+/.gitlab/e2e/install_packages                        @DataDog/container-ecosystems @DataDog/agent-delivery
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
@@ -221,7 +221,7 @@
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
-/cmd/agent/install*.sh                  @DataDog/agent-delivery
+/cmd/agent/install*.sh                  @DataDog/container-ecosystems @DataDog/agent-delivery
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/commands/            @DataDog/container-platform
 /cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
@@ -619,8 +619,8 @@
 /test/integration/serverless            @DataDog/serverless @Datadog/serverless-aws
 /test/integration/serverless_perf       @DataDog/serverless @Datadog/serverless-aws
 /test/kitchen/                          @DataDog/agent-devx-loops
-/test/kitchen/test-definitions/         @DataDog/agent-delivery
-/test/kitchen/test/integration/         @DataDog/agent-delivery
+/test/kitchen/test-definitions/         @DataDog/container-ecosystems @DataDog/agent-delivery
+/test/kitchen/test/integration/         @DataDog/container-ecosystems @DataDog/agent-delivery
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
@@ -645,7 +645,7 @@
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
-/test/new-e2e/tests/agent-platform            @DataDog/agent-delivery @DataDog/agent-devx-loops
+/test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/agent-devx-loops
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
