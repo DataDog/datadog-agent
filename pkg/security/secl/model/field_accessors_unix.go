@@ -4756,6 +4756,14 @@ func (ev *Event) GetPacketDeviceIfname() string {
 	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.RawPacket.NetworkContext.Device)
 }
 
+// GetPacketFilter returns the value of the field, resolving if necessary
+func (ev *Event) GetPacketFilter() string {
+	if ev.GetEventType().String() != "packet" {
+		return ""
+	}
+	return ev.RawPacket.Filter
+}
+
 // GetPacketL3Protocol returns the value of the field, resolving if necessary
 func (ev *Event) GetPacketL3Protocol() uint16 {
 	if ev.GetEventType().String() != "packet" {

@@ -3640,6 +3640,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "packet.filter",
+          "definition": "pcap filter expression",
+          "property_doc_link": "packet-filter-doc"
+        },
+        {
           "name": "packet.l3_protocol",
           "definition": "L3 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l3_protocol-doc"
@@ -10151,6 +10156,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.filter",
+      "link": "packet-filter-doc",
+      "type": "string",
+      "definition": "pcap filter expression",
+      "prefixes": [
+        "packet"
       ],
       "constants": "",
       "constants_link": "",
