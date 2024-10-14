@@ -65,6 +65,8 @@ func NewManagerWithDefault(mgr *manager.Manager, name string, modifiers ...Modif
 type Modifier interface {
 	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
+	// names.ModuleName refers to the name associated with Manager instance.
+	// The io.ReaderAt is a reader for the eBPF bytecode.
 	BeforeInit(*manager.Manager, names.ModuleName, *manager.Options, io.ReaderAt) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
