@@ -561,7 +561,8 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         # Step 2: Update internal module dependencies
 
         print(color_message("Updating Go modules", "bold"))
-        update_modules(ctx, str(new_highest_version))
+        # TODO
+        # update_modules(ctx, str(new_highest_version))
 
         # Step 3: branch out, commit change, push branch
 
@@ -588,6 +589,9 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
                 ),
                 code=1,
             )
+
+        print('push...')
+        exit()
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
         res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
