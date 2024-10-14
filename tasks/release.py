@@ -296,11 +296,11 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     The version should be given as an Agent 7 version.
 
     Args:
-        commit: will tag `commit` with the tags (default HEAD).
-        verify: checks for correctness on the Agent version (on by default).
-        push: will push the tags to the origin remote (on by default).
-        force: will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-        devel: will create -devel tags (used after creation of the release branch).
+        commit: Will tag `commit` with the tags (default HEAD).
+        verify: Checks for correctness on the Agent version (on by default).
+        push: Will push the tags to the origin remote (on by default).
+        force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+        devel: Will create -devel tags (used after creation of the release branch).
 
     Examples:
         $ inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
@@ -328,11 +328,11 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     The version should be given as an Agent 7 version.
 
     Args:
-        commit: will tag `commit` with the tags (default HEAD)
-        verify: checks for correctness on the Agent version (on by default).
-        push: will push the tags to the origin remote (on by default).
-        force: will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
-        devel: will create -devel tags (used after creation of the release branch)
+        commit: Will tag `commit` with the tags (default HEAD)
+        verify: Checks for correctness on the Agent version (on by default).
+        push: Will push the tags to the origin remote (on by default).
+        force: Will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+        devel: Will create -devel tags (used after creation of the release branch)
 
     Examples:
         $ inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
@@ -356,18 +356,23 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
     tag_modules(ctx, agent_version, commit, verify, push, force, devel=True)
 
 
+# TODO
 @task
-def finish(ctx, major_versions="6,7", upstream="origin"):
-    """
-    Updates the release entry in the release.json file for the new version.
+def finish(ctx, major_versions="7", upstream="origin"):
+    """Updates the release entry in the release.json file for the new version.
 
     Updates internal module dependencies with the new version.
     """
+
+    assert ',' not in major_versions, "Only one major version is supported now"
 
     # Step 1: Preparation
 
     list_major_versions = parse_major_versions(major_versions)
     print(f"Finishing release for major version(s) {list_major_versions}")
+
+    if list_major_versions[0] == 6:
+        set_agent6_context(ctx)
 
     for major_version in list_major_versions:
         # NOTE: the release process assumes that at least one RC
@@ -432,6 +437,9 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         )
 
     # Step 5: Push branch and create PR
+
+    print('NOT pushing')
+    exit()
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
     res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
@@ -589,14 +597,14 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
 
 @task
 def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
-    """
-    To be done after the PR created by release.create-rc is merged, with the same options
+    """To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
-
-    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
+
+    Args:
+        k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
     """
 
     datadog_agent = get_gitlab_repo()
@@ -612,6 +620,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     # Step 0: checks
 
     print(color_message("Checking repository state", "bold"))
+    # TODO: Should we iterate through `major_versions` ?
     # Check that the base branch is valid
     current_branch = get_current_branch(ctx)
 
