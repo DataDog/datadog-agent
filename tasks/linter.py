@@ -657,6 +657,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-cws',
         'new-e2e-language-detection',
         'new-e2e-npm-docker',
+        'new-e2e-eks-cleanup',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
         'new-e2e-package-signing-amazonlinux-a6-x86_64',
