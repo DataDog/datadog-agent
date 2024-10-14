@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -40,6 +41,9 @@ type StatsProcessor struct {
 
 	// lastCheck is the last time the processor was checked
 	lastCheck time.Time
+
+	// lastMemPoint is the time of the last memory timeseries point sent
+	lastMemPointEpoch uint64
 
 	// measuredInterval is the interval between the last two checks
 	measuredInterval time.Duration
@@ -152,12 +156,15 @@ func (sp *StatsProcessor) markInterval() error {
 	if intervalSecs > 0 {
 		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor
 
+		// if this is the first event, we need to send it with the timestamp of the first kernel start so that we have a complete series
 		if sp.sentEvents == 0 {
 			err := sp.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
 			if err != nil {
 				return fmt.Errorf("cannot send metric: %w", err)
 			}
 		}
+
+		// aftewards, we only need to update the utilization at the point of the last kernel end
 		err := sp.sender.GaugeWithTimestamp(metricNameUtil, utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
 		if err != nil {
 			return fmt.Errorf("cannot send metric: %w", err)
@@ -170,18 +177,21 @@ func (sp *StatsProcessor) markInterval() error {
 
 	var memTsBuilder tseriesBuilder
 
+	firstUnfreedAllocKTime := uint64(math.MaxUint64)
+
 	for _, alloc := range sp.currentAllocs {
-		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		memTsBuilder.AddEventStart(uint64(startEpoch), int64(alloc.Size))
+		firstUnfreedAllocKTime = min(firstUnfreedAllocKTime, alloc.StartKtime)
 	}
 
 	for _, alloc := range sp.pastAllocs {
-		startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
-		endEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
-		memTsBuilder.AddEvent(uint64(startEpoch), uint64(endEpoch), int64(alloc.Size))
+		// Only build the timeseries up until the point of the first unfreed allocation. After that, the timeseries is still incomplete
+		// until all those allocations are freed.
+		if alloc.EndKtime < firstUnfreedAllocKTime {
+			startEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.StartKtime).Unix()
+			endEpoch := sp.timeResolver.ResolveMonotonicTimestamp(alloc.EndKtime).Unix()
+			memTsBuilder.AddEvent(uint64(startEpoch), uint64(endEpoch), int64(alloc.Size))
+		}
 	}
-
-	lastCheckEpoch := sp.lastCheck.Unix()
 
 	points, maxValue := memTsBuilder.Build()
 	tags := sp.getTags()
@@ -191,7 +201,7 @@ func (sp *StatsProcessor) markInterval() error {
 		// Do not send points that are before the last check, those have been already sent
 		// Also do not send points that are 0, unless we have already sent some points, in which case
 		// we need them to close the series
-		if int64(point.time) > lastCheckEpoch && (point.value > 0 || sentPoints) {
+		if point.time > sp.lastMemPointEpoch && (point.value > 0 || sentPoints) {
 			err := sp.sender.GaugeWithTimestamp(metricNameMemory, float64(point.value), "", tags, float64(point.time))
 			if err != nil {
 				return fmt.Errorf("cannot send metric: %w", err)
@@ -205,8 +215,13 @@ func (sp *StatsProcessor) markInterval() error {
 		}
 	}
 
+	if len(points) > 0 {
+		sp.lastMemPointEpoch = points[len(points)-1].time
+	}
+
 	sp.sender.Gauge(metricNameMaxMem, float64(maxValue), "", tags)
 	sp.sentEvents++
+	fmt.Println(sp.sentEvents)
 
 	return nil
 }
