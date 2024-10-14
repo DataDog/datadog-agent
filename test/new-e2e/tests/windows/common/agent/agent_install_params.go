@@ -13,11 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	Package *Package
+	Package            *Package
+	DownloadMSIBackOff backoff.BackOff
+
 	// Path on local test runner to save the MSI install log
 	LocalInstallLogFile string
 
@@ -142,6 +146,14 @@ func WithLastStablePackage() InstallAgentOption {
 			return err
 		}
 		i.Package = lastStablePackage
+		return nil
+	}
+}
+
+// WithDownloadMSIBackoff specifies the backoff strategy for downloading the MSI.
+func WithDownloadMSIBackoff(backoff backoff.BackOff) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.DownloadMSIBackOff = backoff
 		return nil
 	}
 }

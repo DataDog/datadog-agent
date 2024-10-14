@@ -48,6 +48,16 @@ func (c testComponent) SendStatsPayload(p *pb.StatsPayload) {
 var _ traceagent.Component = (*testComponent)(nil)
 
 func TestTraceExporter(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testTraceExporter(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testTraceExporter(true, t)
+	})
+}
+
+func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	got := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", req.Header.Get("DD-Api-Key"))
@@ -77,6 +87,9 @@ func TestTraceExporter(t *testing.T) {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
+	if enableReceiveResourceSpansV2 {
+		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	ctx := context.Background()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
@@ -99,6 +112,16 @@ func TestTraceExporter(t *testing.T) {
 }
 
 func TestNewTracesExporter(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testNewTracesExporter(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testNewTracesExporter(true, t)
+	})
+}
+
+func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := &Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
 	params := exportertest.NewNopSettings()
@@ -106,6 +129,9 @@ func TestNewTracesExporter(t *testing.T) {
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
 	tcfg.ReceiverEnabled = false
+	if enableReceiveResourceSpansV2 {
+		tcfg.Features["enable_receive_resource_spans_v2"] = struct{}{}
+	}
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly

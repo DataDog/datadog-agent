@@ -80,11 +80,6 @@ If ($LASTEXITCODE -ne "0") {
     exit $LASTEXITCODE
 }
 $Env:DATADOG_API_KEY=$(cat "$tmpfile")
-& "$UT_BUILD_ROOT\tools\ci\fetch_secret.ps1" -parameterName "$Env:GITLAB_TOKEN" -tempFile "$tmpfile"
-If ($LASTEXITCODE -ne "0") {
-    exit $LASTEXITCODE
-}
-$Env:GITLAB_TOKEN=$(cat "$tmpfile")
 Remove-Item "$tmpfile"
 
 & inv -e junit-upload --tgz-path $Env:JUNIT_TAR

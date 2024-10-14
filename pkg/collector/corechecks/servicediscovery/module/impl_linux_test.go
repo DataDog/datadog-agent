@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,8 +27,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"net/http/httptest"
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -72,7 +71,15 @@ func setupDiscoveryModule(t *testing.T) string {
 	m := module.Factory{
 		Name:             config.DiscoveryModule,
 		ConfigNamespaces: []string{"discovery"},
-		Fn:               NewDiscoveryModule,
+		Fn: func(cfg *types.Config, deps module.FactoryDependencies) (module.Module, error) {
+			module, err := NewDiscoveryModule(cfg, deps)
+			if err != nil {
+				return nil, err
+			}
+
+			module.(*discovery).config.cpuUsageUpdateDelay = time.Second
+			return module, nil
+		},
 		NeedsEBPF: func() bool {
 			return false
 		},

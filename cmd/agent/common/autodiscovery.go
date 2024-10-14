@@ -23,6 +23,7 @@ import (
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -62,7 +63,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	// Register additional configuration providers
 	var configProviders []pkgconfigsetup.ConfigurationProviders
 	var uniqueConfigProviders map[string]pkgconfigsetup.ConfigurationProviders
-	err := pkgconfigsetup.Datadog().UnmarshalKey("config_providers", &configProviders)
+	err := structure.UnmarshalKey(pkgconfigsetup.Datadog(), "config_providers", &configProviders)
 
 	if err == nil {
 		uniqueConfigProviders = make(map[string]pkgconfigsetup.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
@@ -125,7 +126,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	}
 
 	var listeners []pkgconfigsetup.Listeners
-	err = pkgconfigsetup.Datadog().UnmarshalKey("listeners", &listeners)
+	err = structure.UnmarshalKey(pkgconfigsetup.Datadog(), "listeners", &listeners)
 	if err == nil {
 		// Add extra listeners
 		for _, name := range pkgconfigsetup.Datadog().GetStringSlice("extra_listeners") {

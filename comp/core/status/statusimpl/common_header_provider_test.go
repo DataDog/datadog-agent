@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -127,6 +129,33 @@ func TestCommonHeaderProviderTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, data, "time_nano")
 	assert.EqualValues(t, int64(2000000000), data["time_nano"])
+}
+
+func assertLogLevel(t *testing.T, provider status.HeaderProvider, expected string) {
+	t.Helper()
+
+	data := map[string]interface{}{}
+	err := provider.JSON(false, data)
+	require.NoError(t, err)
+
+	require.Contains(t, data, "config")
+	require.Contains(t, data["config"], "log_level")
+
+	cfg, ok := data["config"].(map[string]string)
+	require.True(t, ok)
+
+	require.EqualValues(t, expected, cfg["log_level"])
+}
+
+func TestCommonHeaderProviderConfig(t *testing.T) {
+	config := config.NewMock(t)
+	provider := newCommonHeaderProvider(agentParams, config)
+
+	config.Set("log_level", "info", model.SourceAgentRuntime)
+	assertLogLevel(t, provider, "info")
+
+	config.Set("log_level", "warn", model.SourceAgentRuntime)
+	assertLogLevel(t, provider, "warn")
 }
 
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {

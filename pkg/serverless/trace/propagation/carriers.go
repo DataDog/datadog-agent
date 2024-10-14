@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	awsTraceHeader   = "AWSTraceHeader"
-	datadogSQSHeader = "_datadog"
+	awsTraceHeader     = "AWSTraceHeader"
+	datadogTraceHeader = "_datadog"
 
 	rootPrefix     = "Root="
 	parentPrefix   = "Parent="
@@ -110,9 +110,20 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 // sqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the events.SQSMessage type.
 func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	if attr, ok := event.MessageAttributes[datadogSQSHeader]; ok {
+	// Check if this is a normal SQS message
+	if attr, ok := event.MessageAttributes[datadogTraceHeader]; ok {
 		return sqsMessageAttrCarrier(attr)
 	}
+
+	// Check if this is an EventBridge event sent through SQS
+	var eventBridgeEvent events.EventBridgeEvent
+	if err := json.Unmarshal([]byte(event.Body), &eventBridgeEvent); err == nil {
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
+			return eventBridgeCarrier(eventBridgeEvent)
+		}
+	}
+
+	// Check if this is an SNS event sent through SQS
 	return snsSqsMessageCarrier(event)
 }
 
@@ -164,7 +175,16 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 // snsEntityCarrier returns the tracer.TextMapReader used to extract trace
 // context from the attributes of an events.SNSEntity type.
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
-	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
+	// Check if this is an EventBridge event sent through SNS
+	var eventBridgeEvent events.EventBridgeEvent
+	if err := json.Unmarshal([]byte(event.Message), &eventBridgeEvent); err == nil {
+		if len(eventBridgeEvent.Detail.TraceContext) > 0 {
+			return eventBridgeCarrier(eventBridgeEvent)
+		}
+	}
+
+	// If not, check if this is a regular SNS message with Datadog trace information
+	msgAttrs, ok := event.MessageAttributes[datadogTraceHeader]
 	if !ok {
 		return nil, errorNoDDContextFound
 	}
@@ -201,6 +221,16 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
 	}
 	return carrier, nil
+}
+
+// eventBridgeCarrier returns the tracer.TextMapReader used to extract trace
+// context from the Detail field of an events.EventBridgeEvent
+func eventBridgeCarrier(event events.EventBridgeEvent) (tracer.TextMapReader, error) {
+	traceContext := event.Detail.TraceContext
+	if len(traceContext) > 0 {
+		return tracer.TextMapCarrier(traceContext), nil
+	}
+	return nil, errorNoDDContextFound
 }
 
 type invocationPayload struct {

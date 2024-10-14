@@ -51,13 +51,17 @@ import (
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
-	a.TraceWriter = &mockTraceWriter{}
+	a.TraceWriter = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
 	return a
 }
 
 type mockTraceWriter struct {
 	mu       sync.Mutex
 	payloads []*writer.SampledChunks
+
+	apiKey string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -70,6 +74,10 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 
 func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
+}
+
+func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
+	m.apiKey = newKey
 }
 
 type mockConcentrator struct {
@@ -1718,6 +1726,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
 		data, count, err := tracesFromFile(file)
@@ -2598,4 +2608,16 @@ func TestProcessedTrace(t *testing.T) {
 		}
 		assert.Equal(t, expectedPt, pt)
 	})
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	agnt.UpdateAPIKey("test", "foo")
+	tw := agnt.TraceWriter.(*mockTraceWriter)
+	assert.Equal(t, "foo", tw.apiKey)
 }
