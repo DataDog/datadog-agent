@@ -600,6 +600,8 @@ new-e2e-eks-cleanup-on-failure:
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
-  when: always
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
   allow_failure: true
 
