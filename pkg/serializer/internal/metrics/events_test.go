@@ -14,7 +14,6 @@ import (
 	"math"
 	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
@@ -23,8 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -179,7 +177,7 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := mock.New(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
@@ -203,7 +201,7 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := mock.New(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_max_payload_size", 300)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
@@ -265,7 +263,7 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := mock.New(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			json, err := events.MarshalJSON()
 			assert.NoError(t, err)
@@ -371,7 +369,7 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+		cfg := configmock.New(b)
 		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 		events := createEvents(numberOfItem)
 
@@ -385,7 +383,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+		cfg := configmock.New(b)
 		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 		events := createBenchmarkEvents(numberOfItem)
 
@@ -401,7 +399,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
-		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+		cfg := configmock.New(b)
 		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.FromConfig(cfg))
 
 		events := Events{}

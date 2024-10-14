@@ -12,7 +12,6 @@ import (
 	"net"
 	"reflect"
 	"syscall"
-	"unsafe"
 )
 
 var legacyFields = map[Field]Field{
@@ -41,54 +40,6 @@ type testProcess struct {
 	orNameValues  func() *StringValues
 	orArray       []*testItem
 	orArrayValues func() *StringValues
-}
-
-type testItemListIterator struct {
-	prev *list.Element
-}
-
-func (t *testItemListIterator) Front(ctx *Context) unsafe.Pointer {
-	if front := ctx.Event.(*testEvent).process.list.Front(); front != nil {
-		t.prev = front
-		return unsafe.Pointer(front)
-	}
-	return nil
-}
-
-func (t *testItemListIterator) Next() unsafe.Pointer {
-	if next := t.prev.Next(); next != nil {
-		t.prev = next
-		return unsafe.Pointer(next)
-	}
-	return nil
-}
-
-type testItemArrayIterator struct {
-	event *testEvent
-	index int
-}
-
-func (t *testItemArrayIterator) Front(ctx *Context) unsafe.Pointer {
-	t.event = ctx.Event.(*testEvent)
-
-	array := ctx.Event.(*testEvent).process.array
-	if t.index < len(array) {
-		t.index++
-		return unsafe.Pointer(array[0])
-	}
-	return nil
-}
-
-func (t *testItemArrayIterator) Next() unsafe.Pointer {
-	array := t.event.process.array
-	if t.index < len(array) {
-		value := array[t.index]
-		t.index++
-
-		return unsafe.Pointer(value)
-	}
-
-	return nil
 }
 
 type testOpen struct {
@@ -154,17 +105,6 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	}
 
 	return nil
-}
-
-func (m *testModel) GetIterator(field Field) (Iterator, error) {
-	switch field {
-	case "process.list":
-		return &testItemListIterator{}, nil
-	case "process.array":
-		return &testItemArrayIterator{}, nil
-	}
-
-	return nil, &ErrIteratorNotSupported{Field: field}
 }
 
 func (m *testModel) GetFieldRestrictions(_ Field) []EventType {

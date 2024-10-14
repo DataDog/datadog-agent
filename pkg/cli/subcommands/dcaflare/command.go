@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -26,6 +25,7 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
@@ -158,7 +158,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = path.DefaultDCALogFile
+		logFile = defaultpaths.DCALogFile
 	}
 
 	if cliParams.profiling >= 30 {
@@ -206,7 +206,7 @@ func run(cliParams *cliParams, _ config.Component) error {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, nil)
+		filePath, e = flare.CreateDCAArchive(true, defaultpaths.GetDistPath(), logFile, profile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

@@ -375,10 +375,6 @@ Package collector defines the OpenTelemetry Collector component.
 
 Package collectorcontrib defines the OTel collector-contrib component
 
-### [comp/otelcol/configstore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/configstore)
-
-Package configstore defines the otel agent configstore component.
-
 ### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
 
 Package converter defines the otel agent converter component.
@@ -615,3 +611,9 @@ Package rdnsquerier provides the reverse DNS querier component.
 *Datadog Team*: agent-metrics-logs
 
 Package compression provides a compression implementation based on the configuration or available build tags.
+
+### [comp/snmpscan](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscan)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device

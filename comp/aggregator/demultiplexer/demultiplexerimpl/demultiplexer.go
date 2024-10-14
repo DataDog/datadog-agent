@@ -27,20 +27,21 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer))
+		fx.Provide(newDemultiplexer),
+		fx.Supply(params))
 }
 
 type dependencies struct {
 	fx.In
 	Lc                     fx.Lifecycle
+	Config                 config.Component
 	Log                    log.Component
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
 	CompressorFactory      compression.Factory
-	Config                 config.Component
 
 	Params Params
 }
@@ -69,7 +70,7 @@ type provides struct {
 func newDemultiplexer(deps dependencies) (provides, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		if deps.Params.ContinueOnMissingHostname {
+		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
@@ -84,11 +85,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		[]string{"zstd", "zlib", "nativezstd"},
 	)
 
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
-		deps.Params.AgentDemultiplexerOptions,
+		options,
 		deps.EventPlatformForwarder,
 		compressor,
 		hostnameDetected)
@@ -109,6 +111,19 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}),
 		AggregatorDemultiplexer: demultiplexer,
 	}, nil
+}
+
+func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
+	options := aggregator.DefaultAgentDemultiplexerOptions()
+	if params.useDogstatsdNoAggregationPipelineConfig {
+		options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
+	}
+
+	// Override FlushInterval only if flushInterval is set by the user
+	if v, ok := params.flushInterval.Get(); ok {
+		options.FlushInterval = v
+	}
+	return options
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.

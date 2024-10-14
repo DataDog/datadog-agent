@@ -27,13 +27,13 @@ import (
 
 // LogUploader is the interface for uploading Dynamic Instrumentation logs
 type LogUploader interface {
-	Enqueue(item *ditypes.SnapshotUpload) bool
+	Enqueue(item *ditypes.SnapshotUpload) error
 }
 
 // DiagnosticUploader is the interface for uploading Dynamic Instrumentation
 // diagnostic information
 type DiagnosticUploader interface {
-	Enqueue(item *ditypes.DiagnosticUpload) bool
+	Enqueue(item *ditypes.DiagnosticUpload) error
 }
 
 // Uploader is a generic form of uploader functionality
@@ -57,9 +57,13 @@ const (
 
 func startDiagnosticUploader(dm *diagnostics.DiagnosticManager) *Uploader[ditypes.DiagnosticUpload] {
 	u := NewUploader[ditypes.DiagnosticUpload](UploadModeDiagnostic)
+	var err error
 	go func() {
 		for diagnostic := range dm.Updates {
-			u.Enqueue(diagnostic)
+			err = u.Enqueue(diagnostic)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 	}()
 	return u
@@ -90,13 +94,12 @@ func NewUploader[T any](mode UploadMode) *Uploader[T] {
 
 // Enqueue enqueues data to be uploaded. It's return value reflects whether
 // or not the upload queue was full
-func (u *Uploader[T]) Enqueue(item *T) bool {
+func (u *Uploader[T]) Enqueue(item *T) error {
 	select {
 	case u.buffer <- item:
-		return true
+		return nil
 	default:
-		log.Infof("Uploader buffer full, dropping message %+v", item)
-		return false
+		return fmt.Errorf("Uploader buffer full, dropping message %+v", item)
 	}
 }
 

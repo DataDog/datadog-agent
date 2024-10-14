@@ -14,15 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_getDestinationHostname(t *testing.T) {
+func Test_getReverseDnsForIP(t *testing.T) {
 	t.Run("reverse dns lookup successful", func(t *testing.T) {
 		lookupAddrFn = func(_ context.Context, _ string) ([]string, error) {
 			return []string{"domain-a.com", "domain-b.com"}, nil
 		}
 		defer func() { lookupAddrFn = net.DefaultResolver.LookupAddr }()
 
-		assert.Equal(t, "domain-a.com", getDestinationHostname("1.2.3.4"))
-		assert.Equal(t, "not-an-ip", getDestinationHostname("not-an-ip"))
+		assert.Equal(t, "domain-a.com", getReverseDNSForIP(net.ParseIP("1.2.3.4")))
+		assert.Equal(t, "", getReverseDNSForIP(nil))
 	})
 	t.Run("reverse dns lookup failure", func(t *testing.T) {
 		lookupAddrFn = func(_ context.Context, _ string) ([]string, error) {
@@ -30,8 +30,8 @@ func Test_getDestinationHostname(t *testing.T) {
 		}
 		defer func() { lookupAddrFn = net.DefaultResolver.LookupAddr }()
 
-		assert.Equal(t, "1.2.3.4", getDestinationHostname("1.2.3.4"))
-		assert.Equal(t, "not-an-ip", getDestinationHostname("not-an-ip"))
+		assert.Equal(t, "1.2.3.4", getReverseDNSForIP(net.ParseIP("1.2.3.4")))
+		assert.Equal(t, "", getReverseDNSForIP(nil))
 	})
 }
 

@@ -168,6 +168,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
+			e.probe.PlaySnapshot()
 		}
 	}()
 
@@ -331,6 +332,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
+
+	// reset the probe process killer state once the new ruleset is loaded
+	e.probe.OnNewRuleSetLoaded(rs)
 
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)

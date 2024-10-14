@@ -140,11 +140,12 @@ func newTaggerClient(deps dependencies) provides {
 			deps.Log.Errorf("remote tagger is disabled in clc runner.")
 			taggerClient = createTaggerClient(local.NewFakeTagger(deps.Config, telemetryStore), nil, deps.Log)
 		} else {
-			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+			filter := types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality)
+			taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, filter), nil, deps.Log)
 		}
 	case taggerComp.NodeRemoteTaggerAgent:
 		options, _ := remote.NodeAgentOptions(deps.Config)
-		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore), nil, deps.Log)
+		taggerClient = createTaggerClient(remote.NewTagger(options, deps.Config, telemetryStore, types.NewMatchAllFilter()), nil, deps.Log)
 	case taggerComp.LocalTaggerAgent:
 		taggerClient = createTaggerClient(local.NewTagger(deps.Config, deps.Wmeta, telemetryStore), nil, deps.Log)
 	case taggerComp.FakeTagger:
@@ -338,14 +339,14 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
 		if err == nil && len(tags) > 0 {
 			t.mux.RUnlock()
 			return tags, nil
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityID().String(), cardinality)
+	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming
@@ -353,7 +354,7 @@ func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, e
 func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+		err := t.captureTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityIDString(), cardinality, tb)
 
 		if err == nil {
 			t.mux.RUnlock()
@@ -361,7 +362,7 @@ func (t *TaggerClient) globalTagBuilder(cardinality types.TagCardinality, tb tag
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityID().String(), cardinality, tb)
+	return t.defaultTagger.AccumulateTagsFor(taggercommon.GetGlobalEntityIDString(), cardinality, tb)
 }
 
 // List the content of the defaulTagger
@@ -425,30 +426,30 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
 		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
-			originInfo.FromUDS = packets.NoOrigin
-			originInfo.FromTag = ""
-			originInfo.FromMsg = ""
+			originInfo.ContainerIDFromSocket = packets.NoOrigin
+			originInfo.PodUID = ""
+			originInfo.ContainerID = ""
 			return
 		}
 
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
-		if originInfo.FromUDS != packets.NoOrigin &&
-			(originInfo.FromTag == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
-			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+		if originInfo.ContainerIDFromSocket != packets.NoOrigin &&
+			(originInfo.PodUID == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
+			if err := t.AccumulateTagsFor(originInfo.ContainerIDFromSocket, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
 			}
 		}
 
 		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
 		originFromClient := ""
-		if originInfo.FromTag != "" && originInfo.FromTag != "none" {
+		if originInfo.PodUID != "" && originInfo.PodUID != "none" {
 			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
 			// Currently only supported for pods
-			originFromClient = types.NewEntityID(types.KubernetesPodUID, originInfo.FromTag).String()
-		} else if originInfo.FromTag == "" && len(originInfo.FromMsg) > 0 {
+			originFromClient = types.NewEntityID(types.KubernetesPodUID, originInfo.PodUID).String()
+		} else if originInfo.PodUID == "" && len(originInfo.ContainerID) > 0 {
 			// originInfo.FromMsg is the container ID sent by the newer clients.
-			originFromClient = types.NewEntityID(types.ContainerID, originInfo.FromMsg).String()
+			originFromClient = types.NewEntityID(types.ContainerID, originInfo.ContainerID).String()
 		}
 
 		if originFromClient != "" {
@@ -459,18 +460,18 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		}
 	default:
 		// Tag using Local Data
-		if originInfo.FromUDS != packets.NoOrigin {
-			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+		if originInfo.ContainerIDFromSocket != packets.NoOrigin {
+			if err := t.AccumulateTagsFor(originInfo.ContainerIDFromSocket, cardinality, tb); err != nil {
 				t.log.Errorf("%s", err.Error())
 			}
 		}
 
-		if err := t.AccumulateTagsFor(types.ContainerID.ToUID(originInfo.FromMsg), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+		if err := t.AccumulateTagsFor(types.ContainerID.ToUID(originInfo.ContainerID), cardinality, tb); err != nil {
+			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
 		}
 
-		if err := t.AccumulateTagsFor(types.KubernetesPodUID.ToUID(originInfo.FromTag), cardinality, tb); err != nil {
-			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromTag, err)
+		if err := t.AccumulateTagsFor(types.KubernetesPodUID.ToUID(originInfo.PodUID), cardinality, tb); err != nil {
+			t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.PodUID, err)
 		}
 
 		// Tag using External Data.
@@ -503,7 +504,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 			// Accumulate tags for pod UID
 			if parsedExternalData.podUID != "" {
 				if err := t.AccumulateTagsFor(types.KubernetesPodUID.ToUID(parsedExternalData.podUID), cardinality, tb); err != nil {
-					t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+					t.log.Tracef("Cannot get tags for entity %s: %s", originInfo.ContainerID, err)
 				}
 			}
 
@@ -563,13 +564,8 @@ func taggerCardinality(cardinality string,
 }
 
 // Subscribe calls defaultTagger.Subscribe
-func (t *TaggerClient) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
-	return t.defaultTagger.Subscribe(cardinality)
-}
-
-// Unsubscribe calls defaultTagger.Unsubscribe
-func (t *TaggerClient) Unsubscribe(ch chan []types.EntityEvent) {
-	t.defaultTagger.Unsubscribe(ch)
+func (t *TaggerClient) Subscribe(subscriptionID string, filter *types.Filter) (types.Subscription, error) {
+	return t.defaultTagger.Subscribe(subscriptionID, filter)
 }
 
 type optionalTaggerDeps struct {

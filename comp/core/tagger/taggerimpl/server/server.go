@@ -48,19 +48,26 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 		return err
 	}
 
-	// NOTE: StreamTagsRequest can specify filters, but they cannot be
-	// implemented since the tagger has no concept of container metadata.
-	// these filters will be introduced when we implement a container
-	// metadata service that can receive them as is from the tagger.
+	filterBuilder := types.NewFilterBuilder()
+	for _, prefix := range in.GetPrefixes() {
+		filterBuilder = filterBuilder.Include(types.EntityIDPrefix(prefix))
+	}
 
-	eventCh := s.taggerComponent.Subscribe(cardinality)
-	defer s.taggerComponent.Unsubscribe(eventCh)
+	filter := filterBuilder.Build(cardinality)
+
+	subscriptionID := fmt.Sprintf("streaming-client-%s", in.GetStreamingID())
+	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
+	if err != nil {
+		return err
+	}
+
+	defer subscription.Unsubscribe()
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case events, ok := <-eventCh:
+		case events, ok := <-subscription.EventsChan():
 			if !ok {
 				log.Warnf("subscriber channel closed, client will reconnect")
 				return fmt.Errorf("subscriber channel closed")

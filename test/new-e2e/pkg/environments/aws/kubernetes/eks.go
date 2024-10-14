@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -175,9 +175,14 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
+		if awsEnv.InitOnly() {
+			return nil
+		}
+
 		kubeConfig, err := cluster.GetKubeconfig(ctx, &eks.ClusterGetKubeconfigArgs{
 			ProfileName: pulumi.String(awsEnv.Profile()),
 		})
+
 		if err != nil {
 			return err
 		}
@@ -324,34 +329,24 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
+		} else {
+			env.FakeIntake = nil
 		}
 
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			paramsAgent, err := kubernetesagentparams.NewParams(params.agentOptions...)
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(dependsOnSetup), kubernetesagentparams.WithFakeintake(fakeIntake))
+			kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, "eks", eksKubeProvider, params.agentOptions...)
 			if err != nil {
 				return err
 			}
-
-			helmComponent, err := agent.NewHelmInstallation(&awsEnv, agent.HelmInstallationArgs{
-				KubeProvider:  eksKubeProvider,
-				Namespace:     "datadog",
-				ValuesYAML:    paramsAgent.HelmValues,
-				Fakeintake:    fakeIntake,
-				DeployWindows: params.eksWindowsNodeGroup,
-			}, dependsOnSetup)
+			err = kubernetesAgent.Export(ctx, &env.Agent.KubernetesAgentOutput)
 			if err != nil {
 				return err
 			}
+		} else {
 			env.Agent = nil
-
-			ctx.Export("agent-linux-helm-install-name", helmComponent.LinuxHelmReleaseName)
-			ctx.Export("agent-linux-helm-install-status", helmComponent.LinuxHelmReleaseStatus)
-			if params.eksWindowsNodeGroup {
-				ctx.Export("agent-windows-helm-install-name", helmComponent.WindowsHelmReleaseName)
-				ctx.Export("agent-windows-helm-install-status", helmComponent.WindowsHelmReleaseStatus)
-			}
 		}
 
 		// Deploy standalone dogstatsd
