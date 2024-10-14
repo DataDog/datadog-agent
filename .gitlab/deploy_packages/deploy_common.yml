@@ -12,7 +12,7 @@
   extends: .deploy_packages_deb
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -31,7 +31,7 @@
   extends: .deploy_packages_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -45,6 +45,6 @@
   extends: .deploy_packages_suse_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6

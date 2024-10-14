@@ -18,26 +18,26 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}"
 
-# will push the `7.xx.y-rc.z` tags
+# will push the `6.xx.y-rc.z` tags
 deploy_containers-cws-instrumentation-rc-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a6_rc]
+  rules: !reference [.on_deploy_rc]
 
 # will update the `rc` tag
 deploy_containers-cws-instrumentation-rc-mutable:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a6_rc]
+  rules: !reference [.on_deploy_rc]
   variables:
     VERSION: rc
 
-# will push the `7.xx.y` tags
+# will push the `6.xx.y` tags
 deploy_containers-cws-instrumentation-final-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a6_manual_final]
+  rules: !reference [.on_deploy_manual_final]
 
 # will update the `latest` tag
 deploy_containers-cws-instrumentation-latest:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a6_manual_final]
+  rules: !reference [.on_deploy_manual_final]
   variables:
     VERSION: latest

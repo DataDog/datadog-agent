@@ -1576,8 +1576,8 @@ def cleanup(ctx):
 def check_omnibus_branches(ctx):
     base_branch = _get_release_json_value('base_branch')
     if base_branch == '6.53.x':
-        omnibus_ruby_branch = 'datadog-5.5.0'
-        omnibus_software_branch = 'master'
+        omnibus_ruby_branch = '6.53.x'
+        omnibus_software_branch = '6.53.x'
     else:
         omnibus_ruby_branch = base_branch
         omnibus_software_branch = base_branch

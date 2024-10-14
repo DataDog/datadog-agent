@@ -1,6 +1,6 @@
 ---
 # deploy_packages stage
-# Contains jobs which deploy Agent 6 & 7 to staging repositories.
+# Contains jobs which deploy Agent 6 to staging repositories.
 # Jobs are expected to depend on the underlying build job and
 # start as soon as possible.
 

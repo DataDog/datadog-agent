@@ -37,7 +37,8 @@
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -56,35 +57,12 @@ agent_suse-x64-a6:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
-# build Agent package for suse-x64
-agent_suse-x64-a7:
-  extends: .agent_build_common_suse_rpm
-  rules:
-    - !reference [.on_a7]
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-x64",
-      "go_deps",
-      "generate_minimized_btfs_x64",
-    ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
-    PACKAGE_ARCH: amd64
-  before_script:
-    - source /root/.bashrc
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-
 # build Agent package for suse-arm64
 # This is a bit hackish and mostly mimics the CentOS7/arm64 build
-agent_suse-arm64-a7:
+agent_suse-arm64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -98,10 +76,10 @@ agent_suse-arm64-a7:
       "generate_minimized_btfs_arm64",
     ]
   variables:
-    AGENT_MAJOR_VERSION: 7
+    AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "3"
     PACKAGE_ARCH: arm64
     OMNIBUS_TASK_EXTRA_PARAMS: "--host-distribution=suse"
   before_script:
     - source /root/.bashrc
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export RELEASE_VERSION=$RELEASE_VERSION_6

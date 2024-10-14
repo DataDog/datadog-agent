@@ -1,7 +1,8 @@
 ---
 cluster_agent_cloudfoundry-build_amd64:
   rules:
-    !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -20,5 +21,5 @@ cluster_agent_cloudfoundry-build_amd64:
     - inv -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
     - mkdir -p $OMNIBUS_PACKAGE_DIR
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 6)
     - tar cf $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent-cloudfoundry-$PACKAGE_VERSION-$ARCH.tar.xz datadog-cluster-agent-cloudfoundry
