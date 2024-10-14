@@ -610,8 +610,6 @@ def docker_functional_tests(
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
-        "GOPATH": get_gopath(ctx),
-        "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
         "image_tag": image_tag,
