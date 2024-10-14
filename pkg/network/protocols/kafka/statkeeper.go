@@ -46,15 +46,17 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		return
 	}
 
-	statKeeper.statsMutex.Lock()
-	defer statKeeper.statsMutex.Unlock()
-
+	// Extract operation is an expensive operation but, it is also concurrent safe, so we can do it here
+	// without holding the lock.
 	key := Key{
 		RequestAPIKey:  tx.APIKey(),
 		RequestVersion: tx.APIVersion(),
 		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
+
+	statKeeper.statsMutex.Lock()
+	defer statKeeper.statsMutex.Unlock()
 	requestStats, ok := statKeeper.stats[key]
 	if !ok {
 		if len(statKeeper.stats) >= statKeeper.maxEntries {
