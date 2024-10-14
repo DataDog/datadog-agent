@@ -183,4 +183,4 @@ pull_test_dockers*                @DataDog/universal-service-monitoring
 single_machine_performance*       @DataDog/single-machine-performance
 
 # Dependency Security
-software_composition_analysis*    @DataDog/software-integrity-and-trus<t
+software_composition_analysis*    @DataDog/software-integrity-and-trust
