@@ -164,7 +164,7 @@ def set_agent6_context(ctx, version=DEFAULT_AGENT6_VERSION, allow_stash=False, e
     is_agent6_context = True
 
     if echo_switch_info:
-        print(f'{color_message("Info", "blue")}: Switched to {branch} branch to perform agent6 operations')
+        print(f'{color_message("Agent6", "bold")}: Switched to {branch} branch to perform agent6 operations')
 
     return info
 
