@@ -62,3 +62,21 @@ func diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 ## Context of a diagnose function execution
 Normally, registered diagnose suite functions will be executed in context of the running agent service (or other services) but if ```Config.ForceLocal``` configuration is specified the registered diagnose function will be executed in the context of agent diagnose CLI command (if possible).
+
+## Which connectivity to endpoint are tested ?
+With diagnose command, the Agent try to reach out a lot of endpoints, these ones are listed below:
+
+| Subdomain | Route | HTTP Method | Status Code expected |
+|-----------|-------|-------------|----------------------|
+| https://app.datadoghq.com | /api/v1/series | POST | 200 |
+| https://app.datadoghq.com | /api/v1/check_run | POST | 200 |
+| https://app.datadoghq.com | /intake/ | POST | 200 |
+| https://app.datadoghq.com | /api/v1/validate | GET | 200 |
+| https://app.datadoghq.com | /api/v1/metadata | POST | 200 |
+| https://app.datadoghq.com | /api/v2/series | POST | 200 |
+| https://app.datadoghq.com | /api/beta/sketches | POST | 200 |
+| https://\<Agent_version>-flare.agent.datadoghq.com | /support/flare | HEAD | 307 |
+| https://process.datadoghq.com | /intake/status | GET | 200 |
+
+
+
