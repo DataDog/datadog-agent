@@ -621,7 +621,6 @@ func (a *Agent) errorSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 		for _, span := range pt.TraceChunk.Spans {
 			if spanIsError(span) {
 				span.Meta["_dd.error_tracking_backend_standalone.error"] = "true"
-				delete(span.Meta, "_dd.span_events.has_exception")
 			} else {
 				span.Meta["_dd.error_tracking_backend_standalone.error"] = "false"
 			}
