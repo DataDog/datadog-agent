@@ -44,6 +44,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewNodeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeClaimCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeCollectorVersions(),
+			k8sCollectors.NewPodDisruptionBudgetCollectorVersions(),
 			k8sCollectors.NewReplicaSetCollectorVersions(),
 			k8sCollectors.NewRoleBindingCollectorVersions(),
 			k8sCollectors.NewRoleCollectorVersions(),
