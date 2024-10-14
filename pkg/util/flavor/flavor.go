@@ -33,6 +33,8 @@ const (
 	KernelAgent = "kernel_agent"
 	// LogsAgent is the Logs Agent flavor
 	LogsAgent = "logs_agent"
+	// ChecksAgent is the Checks Agent flavor
+	ChecksAgent = "checks_agent"
 )
 
 var agentFlavors = map[string]string{
@@ -48,6 +50,7 @@ var agentFlavors = map[string]string{
 	OTelAgent:       "OpenTelemetry Collector",
 	KernelAgent:     "Kernel Agent",
 	LogsAgent:       "Logs Agent",
+	ChecksAgent:     "Checks Agent",
 }
 
 const unknownAgent = "Unknown Agent"

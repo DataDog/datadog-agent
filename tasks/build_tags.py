@@ -118,6 +118,9 @@ KA_AGENT_TAGS = {"zlib", "zstd", "docker", "kubelet"}
 # LOGS_AGENT_TAGS lists the tags needed when building the Logs agent
 LOGS_AGENT_TAGS = {"docker", "kubelet"}
 
+# CHECKS_AGENT_TAGS lists the tags needed when building the Logs agent
+CHECKS_AGENT_TAGS = {"zlib", "zstd", "python"}
+
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
@@ -229,6 +232,11 @@ build_tags = {
         "agent": LOGS_AGENT_TAGS,
         "lint": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.checks: {
+        "agent": CHECKS_AGENT_TAGS,
+        "lint": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": CHECKS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

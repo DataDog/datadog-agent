@@ -221,6 +221,8 @@ def build(
         command_flavor = "kernel-agent"
     if flavor.is_logs():
         command_flavor = "logs-agent"
+    if flavor.is_checks():
+        command_flavor = "checks-agent"
 
     args = {
         "go_mod": go_mod,
