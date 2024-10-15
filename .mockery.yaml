@@ -44,3 +44,11 @@ packages:
           replace-type:
             # https://github.com/vektra/mockery/issues/331
             - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody
+
+  # gpu
+  github.com/DataDog/datadog-agent/pkg/gpu/nvml:
+    interfaces:
+      Library:
+        config:
+          mock-build-tags: test
+          with-expecter: true

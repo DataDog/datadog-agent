@@ -17,6 +17,16 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
+type NvmlLibrary interface {
+	Init() (nvml.Return, error)
+	GetGpuDevices() ([]GpuDevice, error)
+}
+
+type GpuDevice interface {
+	GetNumMultiprocessors() (int, error)
+	GetMaxThreads() (int, error)
+}
+
 var initOnce sync.Once
 
 type gpuDevice struct {
