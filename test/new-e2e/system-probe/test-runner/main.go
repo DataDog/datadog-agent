@@ -362,8 +362,10 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("xml add props: %s", err)
 		}
 
-		if err := deleteCWSTestDockerContainer(testsuite, cwsContainerName); err != nil {
-			return fmt.Errorf("deleteCWSTestDockerContainer: %w", err)
+		if testConfig.inCWSContainer {
+			if err := deleteCWSTestDockerContainer(testsuite, cwsContainerName); err != nil {
+				return fmt.Errorf("deleteCWSTestDockerContainer: %w", err)
+			}
 		}
 	}
 
