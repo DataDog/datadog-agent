@@ -274,6 +274,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
 	}
 
+	if core.IsSet("apm_config.error_tracking_standalone.enabled") {
+		c.ErrorTrackingStandalone = core.GetBool("apm_config.error_tracking_standalone.enabled")
+	}
+
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}

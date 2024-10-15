@@ -1091,6 +1091,23 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 12.3, cfg.OTLPReceiver.ProbabilisticSampling)
 	})
 
+	env = "DD_APM_ERROR_TRACKING_STANDALONE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "true")
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{
+				Params: corecomp.Params{ConfFilePath: "./testdata/undocumented.yaml"},
+			}),
+			MockModule(),
+		))
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, true, cfg.ErrorTrackingStandalone)
+	})
+
 	for _, envKey := range []string{
 		"DD_IGNORE_RESOURCE", // deprecated
 		"DD_APM_IGNORE_RESOURCES",
