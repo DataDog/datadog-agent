@@ -191,11 +191,7 @@ try {
    $myWindowsID = [System.Security.Principal.WindowsIdentity]::GetCurrent()
    $myWindowsPrincipal = new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
    $adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
-   if ($myWindowsPrincipal.IsInRole($adminRole)) {
-      # We are running "as Administrator"
-      $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
-   }
-   else {
+   if (-not $myWindowsPrincipal.IsInRole($adminRole)) {
       # We are not running "as Administrator"
       $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
       $newProcess.Arguments = $myInvocation.MyCommand.Definition;
