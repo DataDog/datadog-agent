@@ -130,7 +130,7 @@ func (m *Check) Run() error {
 
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
-		return fmt.Errorf("cannot get data from system-probe: %s", err)
+		return fmt.Errorf("cannot get data from system-probe: %w", err)
 	}
 	now := time.Now()
 
@@ -142,7 +142,7 @@ func (m *Check) Run() error {
 
 	snd, err := m.GetSender()
 	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+		return fmt.Errorf("get metric sender: %w", err)
 	}
 
 	// Commit the metrics even in case of an error
@@ -156,7 +156,7 @@ func (m *Check) Run() error {
 	// TODO: Multiple GPUs are not supported yet
 	gpuThreads, err := m.gpuDevices[0].GetMaxThreads()
 	if err != nil {
-		return fmt.Errorf("get GPU device threads: %s", err)
+		return fmt.Errorf("get GPU device threads: %w", err)
 	}
 
 	usedProcessors := make(map[uint32]bool)
