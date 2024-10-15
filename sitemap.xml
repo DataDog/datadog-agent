@@ -126,6 +126,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/hostname/hostname_force_config_as_canonical/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/how-to/go/add-module/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
