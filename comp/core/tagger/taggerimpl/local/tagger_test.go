@@ -60,7 +60,7 @@ func TestAccumulateTagsFor(t *testing.T) {
 	})
 
 	tb := tagset.NewHashlessTagsAccumulator()
-	err := tagger.AccumulateTagsFor(entityID.String(), types.HighCardinality, tb)
+	err := tagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
 }

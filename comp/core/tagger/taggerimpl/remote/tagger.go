@@ -214,8 +214,8 @@ func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]strin
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	tags, err := t.Tag(entityID, cardinality)
+func (t *Tagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+	tags, err := t.Tag(entityID.String(), cardinality)
 	if err != nil {
 		return err
 	}
@@ -224,9 +224,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 }
 
 // Standard returns the standard tags for a given entity.
-func (t *Tagger) Standard(entityID string) ([]string, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) Standard(entityID types.EntityID) ([]string, error) {
+	entity := t.store.getEntity(entityID)
 	if entity == nil {
 		return []string{}, nil
 	}
@@ -235,9 +234,8 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 }
 
 // GetEntity returns the entity corresponding to the specified id and an error
-func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	id, _ := types.NewEntityIDFromString(entityID)
-	entity := t.store.getEntity(id)
+func (t *Tagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
+	entity := t.store.getEntity(entityID)
 	if entity == nil {
 		return nil, fmt.Errorf("Entity not found for entityID")
 	}

@@ -17,8 +17,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -59,11 +61,12 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	telemetryStore := telemetry.NewStore(telemetryComponent)
 	cfg := configmock.New(t)
 	taggerInstance := local.NewFakeTagger(cfg, telemetryStore)
-	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
-	taggerInstance.SetTags("deployment://workload-redis/my-deployment-1", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
-	taggerInstance.SetTags("deployment://default/my-deployment-2", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
-	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
-	taggerInstance.SetTags("kubernetes_metadata://api-group/resourcetypes/default/generic-resource", "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesPodUID, "nginx"), "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "workload-redis/my-deployment-1"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesDeployment, "default/my-deployment-2"), "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "default"))), "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance.SetTags(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("api-group", "resourcetypes", "default", "generic-resource"))), "workloadmeta-kubernetes_resource", []string{"generic_tag:generic-resource"}, nil, nil, nil)
+
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference

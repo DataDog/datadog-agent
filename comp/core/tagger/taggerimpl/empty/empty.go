@@ -18,7 +18,7 @@ type Tagger struct{}
 
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
-func (t *Tagger) GetEntityHash(string, types.TagCardinality) string {
+func (t *Tagger) GetEntityHash(types.EntityID, types.TagCardinality) string {
 	return ""
 }
 

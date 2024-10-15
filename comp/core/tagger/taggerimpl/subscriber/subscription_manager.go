@@ -127,12 +127,7 @@ func (sm *subscriptionManager) Notify(events []types.EntityEvent) {
 	for _, event := range events {
 		entityID := event.Entity.ID
 
-		if entityID == nil {
-			log.Warn("subscription manager received an entity with invalid nil id")
-			continue
-		}
-
-		prefix := event.Entity.ID.GetPrefix()
+		prefix := entityID.GetPrefix()
 		if subscribers, found := sm.prefixToSub[prefix]; found {
 			for _, subscriber := range subscribers {
 

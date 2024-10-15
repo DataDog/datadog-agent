@@ -41,8 +41,8 @@ func TestEnrichTags(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 
 	// Fill fake tagger with entities
-	fakeTagger.SetTags(types.KubernetesPodUID.ToUID("pod"), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
-	fakeTagger.SetTags(types.ContainerID.ToUID("container"), "host", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
+	fakeTagger.SetTags(types.NewEntityID(types.KubernetesPodUID, "pod"), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "container"), "host", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
 
 	for _, tt := range []struct {
 		name         string
@@ -92,9 +92,9 @@ func TestEnrichTags(t *testing.T) {
 func TestEnrichTagsOrchestrator(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
 	defer fakeTagger.ResetTagger()
-	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.ContainerID, "bar"), "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://bar", Cardinality: "orchestrator"})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "container_id://bar", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }
 
@@ -103,7 +103,7 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
-	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	fakeTagger.SetTags(types.NewEntityID(types.EntityIDPrefix("foo"), "bar"), "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
 	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{ContainerIDFromSocket: "foo://originID", PodUID: "pod-uid", ContainerID: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
