@@ -766,6 +766,12 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	cs.Via = t.gwLookup.Lookup(cs)
 }
 
+type debugConntrackResponse struct {
+	Kind    string
+	RootNS  uint32
+	Entries map[uint32][]netlink.DebugConntrackEntry
+}
+
 // DebugCachedConntrack dumps the cached NAT conntrack data
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	ns, err := t.config.GetRootNetNs()
@@ -783,10 +789,8 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
+	return debugConntrackResponse{
+		Kind:    "cached-" + t.conntracker.GetType(),
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
@@ -809,10 +813,8 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	return struct {
-		RootNS  uint32
-		Entries map[uint32][]netlink.DebugConntrackEntry
-	}{
+	return debugConntrackResponse{
+		Kind:    "host",
 		RootNS:  rootNS,
 		Entries: table,
 	}, nil
