@@ -236,8 +236,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		var testContainer *cwsTestContainer
 		if testConfig.inCWSContainer {
 			testContainer = newCWSTestContainer(testsuite, bpfDir)
-			testContainer.start()
-
 			if err := testContainer.start(); err != nil {
 				return fmt.Errorf("error creating cws test container: %w", err)
 			}
