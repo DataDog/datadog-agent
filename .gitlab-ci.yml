@@ -776,7 +776,7 @@ workflow:
   - !reference [.except_mergequeue]
   - changes:
       paths:
-        - .gitab/e2e/e2e.yml
+        - .gitlab/e2e/e2e.yml
         - test/new-e2e/pkg/**/*
         - test/new-e2e/test-infra-definition/*
         - test/new-e2e/go.mod
