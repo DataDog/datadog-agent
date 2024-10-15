@@ -1,5 +1,7 @@
 {
-	"*": {
-		"exclude": false
+	"filters": {
+		"*": {
+			"exclude": false
+		}
 	}
 }

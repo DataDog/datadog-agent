@@ -52,6 +52,11 @@ type testConfig struct {
 	inCWSContainer    bool
 }
 
+type userProvidedConfig struct {
+	PackagesRunConfig map[string]packageRunConfiguration `json:"filters"`
+	InCWSContainer    bool                               `json:"cwscontainer"`
+}
+
 const ciVisibility = "/ci-visibility"
 
 var baseEnv = []string{
@@ -308,11 +313,10 @@ func buildTestConfiguration() (*testConfig, error) {
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
-	inCWSContainer := flag.Bool("in-cws-container", false, "if set to true, the testsuite is running in a CWS container")
 
 	flag.Parse()
 
-	breakdown := make(map[string]packageRunConfiguration)
+	var userConfig userProvidedConfig
 	if *packageRunConfigPtr != "" {
 		configData, err := os.ReadFile(*packageRunConfigPtr)
 		if err != nil {
@@ -322,7 +326,7 @@ func buildTestConfiguration() (*testConfig, error) {
 
 		dec := json.NewDecoder(bytes.NewReader(configData))
 		dec.DisallowUnknownFields()
-		if err := dec.Decode(&breakdown); err != nil {
+		if err := dec.Decode(&userConfig); err != nil {
 			return nil, err
 		}
 	}
@@ -342,12 +346,12 @@ func buildTestConfiguration() (*testConfig, error) {
 		runCount:          *runCount,
 		verbose:           *verbose,
 		retryCount:        *retryPtr,
-		packagesRunConfig: breakdown,
+		packagesRunConfig: userConfig.PackagesRunConfig,
 		testDirRoot:       root,
 		testingTools:      tools,
 		extraParams:       *extraParams,
 		extraEnv:          *extraEnv,
-		inCWSContainer:    *inCWSContainer,
+		inCWSContainer:    userConfig.InCWSContainer,
 	}, nil
 }
 
