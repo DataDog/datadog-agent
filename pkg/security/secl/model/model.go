@@ -530,7 +530,6 @@ func (it *ProcessAncestorsIterator) At(ctx *eval.Context, regID eval.RegisterID,
 func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
 	var size int
 
-	// TODO(safchain) use ctx to cache the result
 	ancestor := ctx.Event.(*Event).ProcessContext.Ancestor
 	for ancestor != nil {
 		size++
