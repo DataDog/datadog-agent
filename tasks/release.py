@@ -520,7 +520,7 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
 
-    with agent_context(ctx, major_version=major_version, mutable=True):
+    with agent_context(ctx, major_version=major_version):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
 
         # Get the version of the highest major: useful for some logging & to get
@@ -543,10 +543,10 @@ def create_rc(ctx, major_version: int = 7, patch_version=False, upstream="origin
         update_branch = f"release/{new_highest_version}"
 
         check_clean_branch_state(ctx, github, update_branch)
-        if not check_base_branch(current_branch, new_highest_version):
+        if not check_base_branch(current_branch, new_highest_version, agent6=True):
             raise Exit(
                 color_message(
-                    f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
+                    f"The branch you are on is neither {DEFAULT_BRANCH}, {DEFAULT_AGENT6_BRANCH} or the correct release branch ({new_highest_version.branch()}). Aborting.",
                     "red",
                 ),
                 code=1,
@@ -627,74 +627,77 @@ def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=F
         k8s_deployments: When set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
     """
 
-    datadog_agent = get_gitlab_repo()
+    with agent_context(ctx, major_version=major_version):
+        datadog_agent = get_gitlab_repo()
 
-    # Get the version of the highest major: needed for tag_version and to know
-    # which tag to target when creating the pipeline.
-    new_version = next_rc_version(ctx, major_version, patch_version)
+        # Get the version of the highest major: needed for tag_version and to know
+        # which tag to target when creating the pipeline.
+        new_version = next_rc_version(ctx, major_version, patch_version)
 
-    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-    versions_string = new_version
+        # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
+        versions_string = new_version
 
-    # Step 0: checks
+        # Step 0: checks
 
-    print(color_message("Checking repository state", "bold"))
-    # Check that the base branch is valid
-    current_branch = get_current_branch(ctx)
+        print(color_message("Checking repository state", "bold"))
+        # Check that the base branch is valid
+        current_branch = get_current_branch(ctx)
 
-    if not check_base_branch(current_branch, new_version):
-        raise Exit(
+        if not check_base_branch(current_branch, new_version, agent6=True):
+            raise Exit(
+                color_message(
+                    f"The branch you are on is neither {DEFAULT_BRANCH}, {DEFAULT_AGENT6_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
+
+        if not yes_no_question(
+            f"This task will create tags for {versions_string} on the current commit: {latest_commit}. Is this OK?",
+            color="orange",
+            default=False,
+        ):
+            raise Exit(color_message("Aborting.", "red"), code=1)
+
+        # Step 1: Tag versions
+
+        print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
+        print(
             color_message(
-                f"The branch you are on is neither {DEFAULT_BRANCH} or the correct release branch ({new_version.branch()}). Aborting.",
-                "red",
-            ),
-            code=1,
+                "If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold"
+            )
         )
+        # tag_version only takes the highest version (Agent 7 currently), and creates
+        # the tags for all supported versions
+        # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
+        tag_version(ctx, str(new_version), force=False)
+        tag_modules(ctx, str(new_version), force=False)
 
-    latest_commit = ctx.run("git --no-pager log --no-color -1 --oneline").stdout.strip()
+        print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
+        gitlab_tag = None
+        while not gitlab_tag:
+            try:
+                gitlab_tag = datadog_agent.tags.get(str(new_version))
+            except GitlabError:
+                continue
 
-    if not yes_no_question(
-        f"This task will create tags for {versions_string} on the current commit: {latest_commit}. Is this OK?",
-        color="orange",
-        default=False,
-    ):
-        raise Exit(color_message("Aborting.", "red"), code=1)
+            sleep(5)
 
-    # Step 1: Tag versions
+        print(color_message("Creating RC pipeline", "bold"))
 
-    print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
-    print(
-        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
-    )
-    # tag_version only takes the highest version (Agent 7 currently), and creates
-    # the tags for all supported versions
-    # TODO: make it possible to do Agent 6-only or Agent 7-only tags?
-    tag_version(ctx, str(new_version), force=False)
-    tag_modules(ctx, str(new_version), force=False)
+        # Step 2: Run the RC pipeline
 
-    print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
-    gitlab_tag = None
-    while not gitlab_tag:
-        try:
-            gitlab_tag = datadog_agent.tags.get(str(new_version))
-        except GitlabError:
-            continue
-
-        sleep(5)
-
-    print(color_message("Creating RC pipeline", "bold"))
-
-    # Step 2: Run the RC pipeline
-
-    run(
-        ctx,
-        git_ref=gitlab_tag.name,
-        use_release_entries=True,
-        repo_branch="beta",
-        deploy=True,
-        rc_build=True,
-        rc_k8s_deployments=k8s_deployments,
-    )
+        run(
+            ctx,
+            git_ref=gitlab_tag.name,
+            use_release_entries=True,
+            repo_branch="beta",
+            deploy=True,
+            rc_build=True,
+            rc_k8s_deployments=k8s_deployments,
+        )
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
