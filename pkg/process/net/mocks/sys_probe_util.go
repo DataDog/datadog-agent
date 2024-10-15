@@ -22,6 +22,14 @@ type SysProbeUtil struct {
 	mock.Mock
 }
 
+type SysProbeUtil_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *SysProbeUtil) EXPECT() *SysProbeUtil_Expecter {
+	return &SysProbeUtil_Expecter{mock: &_m.Mock}
+}
+
 // DetectLanguage provides a mock function with given fields: pids
 func (_m *SysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
 	ret := _m.Called(pids)
@@ -50,6 +58,34 @@ func (_m *SysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language,
 	}
 
 	return r0, r1
+}
+
+// SysProbeUtil_DetectLanguage_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DetectLanguage'
+type SysProbeUtil_DetectLanguage_Call struct {
+	*mock.Call
+}
+
+// DetectLanguage is a helper method to define mock.On call
+//   - pids []int32
+func (_e *SysProbeUtil_Expecter) DetectLanguage(pids interface{}) *SysProbeUtil_DetectLanguage_Call {
+	return &SysProbeUtil_DetectLanguage_Call{Call: _e.mock.On("DetectLanguage", pids)}
+}
+
+func (_c *SysProbeUtil_DetectLanguage_Call) Run(run func(pids []int32)) *SysProbeUtil_DetectLanguage_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]int32))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_DetectLanguage_Call) Return(_a0 []languagemodels.Language, _a1 error) *SysProbeUtil_DetectLanguage_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_DetectLanguage_Call) RunAndReturn(run func([]int32) ([]languagemodels.Language, error)) *SysProbeUtil_DetectLanguage_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetCheck provides a mock function with given fields: module
@@ -82,6 +118,34 @@ func (_m *SysProbeUtil) GetCheck(module types.ModuleName) (interface{}, error) {
 	return r0, r1
 }
 
+// SysProbeUtil_GetCheck_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCheck'
+type SysProbeUtil_GetCheck_Call struct {
+	*mock.Call
+}
+
+// GetCheck is a helper method to define mock.On call
+//   - module types.ModuleName
+func (_e *SysProbeUtil_Expecter) GetCheck(module interface{}) *SysProbeUtil_GetCheck_Call {
+	return &SysProbeUtil_GetCheck_Call{Call: _e.mock.On("GetCheck", module)}
+}
+
+func (_c *SysProbeUtil_GetCheck_Call) Run(run func(module types.ModuleName)) *SysProbeUtil_GetCheck_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(types.ModuleName))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetCheck_Call) Return(_a0 interface{}, _a1 error) *SysProbeUtil_GetCheck_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetCheck_Call) RunAndReturn(run func(types.ModuleName) (interface{}, error)) *SysProbeUtil_GetCheck_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetConnections provides a mock function with given fields: clientID
 func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, error) {
 	ret := _m.Called(clientID)
@@ -110,6 +174,34 @@ func (_m *SysProbeUtil) GetConnections(clientID string) (*process.Connections, e
 	}
 
 	return r0, r1
+}
+
+// SysProbeUtil_GetConnections_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetConnections'
+type SysProbeUtil_GetConnections_Call struct {
+	*mock.Call
+}
+
+// GetConnections is a helper method to define mock.On call
+//   - clientID string
+func (_e *SysProbeUtil_Expecter) GetConnections(clientID interface{}) *SysProbeUtil_GetConnections_Call {
+	return &SysProbeUtil_GetConnections_Call{Call: _e.mock.On("GetConnections", clientID)}
+}
+
+func (_c *SysProbeUtil_GetConnections_Call) Run(run func(clientID string)) *SysProbeUtil_GetConnections_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnections_Call) Return(_a0 *process.Connections, _a1 error) *SysProbeUtil_GetConnections_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetConnections_Call) RunAndReturn(run func(string) (*process.Connections, error)) *SysProbeUtil_GetConnections_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetDiscoveryServices provides a mock function with given fields:
@@ -142,6 +234,33 @@ func (_m *SysProbeUtil) GetDiscoveryServices() (*model.ServicesResponse, error) 
 	return r0, r1
 }
 
+// SysProbeUtil_GetDiscoveryServices_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDiscoveryServices'
+type SysProbeUtil_GetDiscoveryServices_Call struct {
+	*mock.Call
+}
+
+// GetDiscoveryServices is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetDiscoveryServices() *SysProbeUtil_GetDiscoveryServices_Call {
+	return &SysProbeUtil_GetDiscoveryServices_Call{Call: _e.mock.On("GetDiscoveryServices")}
+}
+
+func (_c *SysProbeUtil_GetDiscoveryServices_Call) Run(run func()) *SysProbeUtil_GetDiscoveryServices_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetDiscoveryServices_Call) Return(_a0 *model.ServicesResponse, _a1 error) *SysProbeUtil_GetDiscoveryServices_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetDiscoveryServices_Call) RunAndReturn(run func() (*model.ServicesResponse, error)) *SysProbeUtil_GetDiscoveryServices_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNetworkID provides a mock function with given fields:
 func (_m *SysProbeUtil) GetNetworkID() (string, error) {
 	ret := _m.Called()
@@ -168,6 +287,33 @@ func (_m *SysProbeUtil) GetNetworkID() (string, error) {
 	}
 
 	return r0, r1
+}
+
+// SysProbeUtil_GetNetworkID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetNetworkID'
+type SysProbeUtil_GetNetworkID_Call struct {
+	*mock.Call
+}
+
+// GetNetworkID is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetNetworkID() *SysProbeUtil_GetNetworkID_Call {
+	return &SysProbeUtil_GetNetworkID_Call{Call: _e.mock.On("GetNetworkID")}
+}
+
+func (_c *SysProbeUtil_GetNetworkID_Call) Run(run func()) *SysProbeUtil_GetNetworkID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetNetworkID_Call) Return(_a0 string, _a1 error) *SysProbeUtil_GetNetworkID_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetNetworkID_Call) RunAndReturn(run func() (string, error)) *SysProbeUtil_GetNetworkID_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetPing provides a mock function with given fields: clientID, host, count, interval, timeout
@@ -200,6 +346,38 @@ func (_m *SysProbeUtil) GetPing(clientID string, host string, count int, interva
 	return r0, r1
 }
 
+// SysProbeUtil_GetPing_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPing'
+type SysProbeUtil_GetPing_Call struct {
+	*mock.Call
+}
+
+// GetPing is a helper method to define mock.On call
+//   - clientID string
+//   - host string
+//   - count int
+//   - interval time.Duration
+//   - timeout time.Duration
+func (_e *SysProbeUtil_Expecter) GetPing(clientID interface{}, host interface{}, count interface{}, interval interface{}, timeout interface{}) *SysProbeUtil_GetPing_Call {
+	return &SysProbeUtil_GetPing_Call{Call: _e.mock.On("GetPing", clientID, host, count, interval, timeout)}
+}
+
+func (_c *SysProbeUtil_GetPing_Call) Run(run func(clientID string, host string, count int, interval time.Duration, timeout time.Duration)) *SysProbeUtil_GetPing_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(int), args[3].(time.Duration), args[4].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetPing_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetPing_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetPing_Call) RunAndReturn(run func(string, string, int, time.Duration, time.Duration) ([]byte, error)) *SysProbeUtil_GetPing_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetPprof provides a mock function with given fields: path
 func (_m *SysProbeUtil) GetPprof(path string) ([]byte, error) {
 	ret := _m.Called(path)
@@ -228,6 +406,34 @@ func (_m *SysProbeUtil) GetPprof(path string) ([]byte, error) {
 	}
 
 	return r0, r1
+}
+
+// SysProbeUtil_GetPprof_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPprof'
+type SysProbeUtil_GetPprof_Call struct {
+	*mock.Call
+}
+
+// GetPprof is a helper method to define mock.On call
+//   - path string
+func (_e *SysProbeUtil_Expecter) GetPprof(path interface{}) *SysProbeUtil_GetPprof_Call {
+	return &SysProbeUtil_GetPprof_Call{Call: _e.mock.On("GetPprof", path)}
+}
+
+func (_c *SysProbeUtil_GetPprof_Call) Run(run func(path string)) *SysProbeUtil_GetPprof_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetPprof_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetPprof_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetPprof_Call) RunAndReturn(run func(string) ([]byte, error)) *SysProbeUtil_GetPprof_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetProcStats provides a mock function with given fields: pids
@@ -260,6 +466,34 @@ func (_m *SysProbeUtil) GetProcStats(pids []int32) (*process.ProcStatsWithPermBy
 	return r0, r1
 }
 
+// SysProbeUtil_GetProcStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProcStats'
+type SysProbeUtil_GetProcStats_Call struct {
+	*mock.Call
+}
+
+// GetProcStats is a helper method to define mock.On call
+//   - pids []int32
+func (_e *SysProbeUtil_Expecter) GetProcStats(pids interface{}) *SysProbeUtil_GetProcStats_Call {
+	return &SysProbeUtil_GetProcStats_Call{Call: _e.mock.On("GetProcStats", pids)}
+}
+
+func (_c *SysProbeUtil_GetProcStats_Call) Run(run func(pids []int32)) *SysProbeUtil_GetProcStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].([]int32))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetProcStats_Call) Return(_a0 *process.ProcStatsWithPermByPID, _a1 error) *SysProbeUtil_GetProcStats_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetProcStats_Call) RunAndReturn(run func([]int32) (*process.ProcStatsWithPermByPID, error)) *SysProbeUtil_GetProcStats_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetStats provides a mock function with given fields:
 func (_m *SysProbeUtil) GetStats() (map[string]interface{}, error) {
 	ret := _m.Called()
@@ -288,6 +522,33 @@ func (_m *SysProbeUtil) GetStats() (map[string]interface{}, error) {
 	}
 
 	return r0, r1
+}
+
+// SysProbeUtil_GetStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetStats'
+type SysProbeUtil_GetStats_Call struct {
+	*mock.Call
+}
+
+// GetStats is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetStats() *SysProbeUtil_GetStats_Call {
+	return &SysProbeUtil_GetStats_Call{Call: _e.mock.On("GetStats")}
+}
+
+func (_c *SysProbeUtil_GetStats_Call) Run(run func()) *SysProbeUtil_GetStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetStats_Call) Return(_a0 map[string]interface{}, _a1 error) *SysProbeUtil_GetStats_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetStats_Call) RunAndReturn(run func() (map[string]interface{}, error)) *SysProbeUtil_GetStats_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // GetTelemetry provides a mock function with given fields:
@@ -320,6 +581,33 @@ func (_m *SysProbeUtil) GetTelemetry() ([]byte, error) {
 	return r0, r1
 }
 
+// SysProbeUtil_GetTelemetry_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTelemetry'
+type SysProbeUtil_GetTelemetry_Call struct {
+	*mock.Call
+}
+
+// GetTelemetry is a helper method to define mock.On call
+func (_e *SysProbeUtil_Expecter) GetTelemetry() *SysProbeUtil_GetTelemetry_Call {
+	return &SysProbeUtil_GetTelemetry_Call{Call: _e.mock.On("GetTelemetry")}
+}
+
+func (_c *SysProbeUtil_GetTelemetry_Call) Run(run func()) *SysProbeUtil_GetTelemetry_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetTelemetry_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetTelemetry_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetTelemetry_Call) RunAndReturn(run func() ([]byte, error)) *SysProbeUtil_GetTelemetry_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetTraceroute provides a mock function with given fields: clientID, host, port, protocol, maxTTL, timeout
 func (_m *SysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol payload.Protocol, maxTTL uint8, timeout time.Duration) ([]byte, error) {
 	ret := _m.Called(clientID, host, port, protocol, maxTTL, timeout)
@@ -350,6 +638,39 @@ func (_m *SysProbeUtil) GetTraceroute(clientID string, host string, port uint16,
 	return r0, r1
 }
 
+// SysProbeUtil_GetTraceroute_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTraceroute'
+type SysProbeUtil_GetTraceroute_Call struct {
+	*mock.Call
+}
+
+// GetTraceroute is a helper method to define mock.On call
+//   - clientID string
+//   - host string
+//   - port uint16
+//   - protocol payload.Protocol
+//   - maxTTL uint8
+//   - timeout time.Duration
+func (_e *SysProbeUtil_Expecter) GetTraceroute(clientID interface{}, host interface{}, port interface{}, protocol interface{}, maxTTL interface{}, timeout interface{}) *SysProbeUtil_GetTraceroute_Call {
+	return &SysProbeUtil_GetTraceroute_Call{Call: _e.mock.On("GetTraceroute", clientID, host, port, protocol, maxTTL, timeout)}
+}
+
+func (_c *SysProbeUtil_GetTraceroute_Call) Run(run func(clientID string, host string, port uint16, protocol payload.Protocol, maxTTL uint8, timeout time.Duration)) *SysProbeUtil_GetTraceroute_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string), args[2].(uint16), args[3].(payload.Protocol), args[4].(uint8), args[5].(time.Duration))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_GetTraceroute_Call) Return(_a0 []byte, _a1 error) *SysProbeUtil_GetTraceroute_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *SysProbeUtil_GetTraceroute_Call) RunAndReturn(run func(string, string, uint16, payload.Protocol, uint8, time.Duration) ([]byte, error)) *SysProbeUtil_GetTraceroute_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Register provides a mock function with given fields: clientID
 func (_m *SysProbeUtil) Register(clientID string) error {
 	ret := _m.Called(clientID)
@@ -366,6 +687,34 @@ func (_m *SysProbeUtil) Register(clientID string) error {
 	}
 
 	return r0
+}
+
+// SysProbeUtil_Register_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Register'
+type SysProbeUtil_Register_Call struct {
+	*mock.Call
+}
+
+// Register is a helper method to define mock.On call
+//   - clientID string
+func (_e *SysProbeUtil_Expecter) Register(clientID interface{}) *SysProbeUtil_Register_Call {
+	return &SysProbeUtil_Register_Call{Call: _e.mock.On("Register", clientID)}
+}
+
+func (_c *SysProbeUtil_Register_Call) Run(run func(clientID string)) *SysProbeUtil_Register_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *SysProbeUtil_Register_Call) Return(_a0 error) *SysProbeUtil_Register_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *SysProbeUtil_Register_Call) RunAndReturn(run func(string) error) *SysProbeUtil_Register_Call {
+	_c.Call.Return(run)
+	return _c
 }
 
 // NewSysProbeUtil creates a new instance of SysProbeUtil. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
