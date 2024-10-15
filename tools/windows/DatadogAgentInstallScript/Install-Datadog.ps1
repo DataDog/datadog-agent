@@ -275,7 +275,7 @@ try {
    Write-Host "Starting Datadog Installer service"
    Restart-Service "Datadog Installer"
    # This command handles restarting the dependent services as well
-   Write-Host "Stopping Datadog Agent services"
+   Write-Host "Starting Datadog Agent services"
    & ((Get-ItemProperty "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").InstallPath + "bin\\agent.exe") restart-service
 }
 catch [ExitCodeException] {
