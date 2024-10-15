@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -32,6 +33,8 @@ var (
 		"Count of SDS reconfiguration error.", telemetry.Options{DefaultMetric: true})
 	tlmSDSReconfigSuccess = telemetry.NewCounterWithOpts("sds", "reconfiguration_success", []string{"pipeline", "type"},
 		"Count of SDS reconfiguration success.", telemetry.Options{DefaultMetric: true})
+	tlmSDSProcessingLatency = telemetry.NewSimpleHistogram("sds", "processing_latency", "Processing latency histogram",
+	                 []float64{10, 250, 500, 2000, 5000, 10000}) // unit: us
 )
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
@@ -284,7 +287,6 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		reqCapabilitiesCount := len(stdRuleDef.RequiredCapabilities)
 		if reqCapabilitiesCount > 0 {
 			if reqCapabilitiesCount > 1 {
-				// TODO(remy): telemetry
 				log.Warnf("Standard rule '%v' with multiple required capabilities: %d. Only the first one will be used", standardRule.Name, reqCapabilitiesCount)
 			}
 			received := stdRuleDef.RequiredCapabilities[0]
@@ -307,20 +309,27 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 	}
 
 	if defToUse.Version == -1 {
-		// TODO(remy): telemetry
 		return nil, fmt.Errorf("unsupported rule with no compatible definition")
 	}
 
-	// we use the filled `CharacterCount` value to decide if we want
-	// to use the user provided configuration for proximity keywords
-	// or if we have to use the information provided in the std rules instead.
-	if userRule.IncludedKeywords.CharacterCount > 0 {
-		// proximity keywords configuration provided by the user
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
-	} else if len(defToUse.DefaultIncludedKeywords) > 0 && defaults.IncludedKeywordsCharCount > 0 {
-		// the user has not specified proximity keywords
-		// use the proximity keywords provided by the standard rule if any
+	// If the "Use recommended keywords" checkbox has been checked, we use the default
+	// included keywords available in the rule (curated by Datadog).
+	// Otherwise:
+	//   If some included keywords have been manually filled by the user, we use them
+	//   Else we start using the default excluded keywords.
+	if userRule.IncludedKeywords.UseRecommendedKeywords {
+		// default included keywords
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
+	} else {
+		if len(userRule.IncludedKeywords.Keywords) > 0 && userRule.IncludedKeywords.CharacterCount > 0 {
+			// user provided included keywords
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+		} else if len(defaults.ExcludedKeywords) > 0 && defaults.ExcludedKeywordsCharCount > 0 {
+			// default excluded keywords
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.ExcludedKeywordsCharCount, nil, defaults.ExcludedKeywords)
+		} else {
+			log.Warn("not using the recommended keywords but no keywords available for rule", userRule.Name)
+		}
 	}
 
 	// we've compiled all necessary information merging the standard rule and the user config
@@ -358,6 +367,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error) {
 	s.Lock()
 	defer s.Unlock()
+	start := time.Now()
 
 	if s.Scanner == nil {
 		return false, nil, fmt.Errorf("can't Scan with an unitialized scanner")
@@ -378,6 +388,7 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 	// using a tag.
 	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
+	tlmSDSProcessingLatency.Observe(float64(time.Since(start) / 1000))
 	return scanResult.Mutated, scanResult.Event, err
 }
 
