@@ -701,26 +701,28 @@ def build_rc(ctx, major_version: int = 7, patch_version=False, k8s_deployments=F
 
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
-def set_release_json(_, key, value):
-    release_json = load_release_json()
-    path = key.split('::')
-    current_node = release_json
-    for key_idx in range(len(path)):
-        key = path[key_idx]
-        if key not in current_node:
-            raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
-        if key_idx == len(path) - 1:
-            current_node[key] = value
-            break
-        else:
-            current_node = current_node[key]
-    _save_release_json(release_json)
+def set_release_json(ctx, key, value, agent6=False):
+    with agent_context(ctx, major_version=6 if agent6 else 7, mutable=True):
+        release_json = load_release_json()
+        path = key.split('::')
+        current_node = release_json
+        for key_idx in range(len(path)):
+            key = path[key_idx]
+            if key not in current_node:
+                raise Exit(code=1, message=f"Couldn't find '{key}' in release.json")
+            if key_idx == len(path) - 1:
+                current_node[key] = value
+                break
+            else:
+                current_node = current_node[key]
+        _save_release_json(release_json)
 
 
 @task(help={'key': "Path to the release.json key, separated with double colons, eg. 'last_stable::6'"})
-def get_release_json_value(_, key):
-    release_json = _get_release_json_value(key)
-    print(release_json)
+def get_release_json_value(ctx, key, agent6=False):
+    with agent_context(ctx, major_version=6 if agent6 else 7, mutable=True):
+        release_json = _get_release_json_value(key)
+        print(release_json)
 
 
 def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
