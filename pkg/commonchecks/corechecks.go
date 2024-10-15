@@ -8,6 +8,7 @@ package commonchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -53,7 +54,7 @@ import (
 )
 
 // RegisterChecks registers all core checks
-func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetry telemetry.Component) {
+func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg config.Component, telemetry telemetry.Component) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -70,7 +71,7 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
-	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg))
