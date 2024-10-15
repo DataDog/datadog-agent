@@ -259,7 +259,7 @@ func (t *TaggerClient) GetEntity(entityID types.EntityID) (*types.Entity, error)
 // Tag queries the captureTagger (for replay scenarios) or the defaultTagger.
 // It can return tags at high cardinality (with tags about individual containers),
 // or at orchestrator cardinality (pod/task level).
-func (t *TaggerClient) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+func (t *TaggerClient) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
 	// TODO: defer unlock once performance overhead of defer is negligible
 	t.mux.RLock()
 	if t.captureTagger != nil {
@@ -294,7 +294,7 @@ func (t *TaggerClient) AccumulateTagsFor(entityID types.EntityID, cardinality ty
 // GetEntityHash returns the hash for the tags associated with the given entity
 // Returns an empty string if the tags lookup fails
 func (t *TaggerClient) GetEntityHash(entityID types.EntityID, cardinality types.TagCardinality) string {
-	tags, err := t.Tag(entityID.String(), cardinality)
+	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return ""
 	}
@@ -329,7 +329,7 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 		return nil, nil
 	}
 
-	entityID := types.NewEntityID(types.ContainerID, ctrID).String()
+	entityID := types.NewEntityID(types.ContainerID, ctrID)
 	return t.Tag(entityID, cardinality)
 }
 
@@ -338,14 +338,14 @@ func (t *TaggerClient) AgentTags(cardinality types.TagCardinality) ([]string, er
 func (t *TaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	t.mux.RLock()
 	if t.captureTagger != nil {
-		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
+		tags, err := t.captureTagger.Tag(taggercommon.GetGlobalEntityID(), cardinality)
 		if err == nil && len(tags) > 0 {
 			t.mux.RUnlock()
 			return tags, nil
 		}
 	}
 	t.mux.RUnlock()
-	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityIDString(), cardinality)
+	return t.defaultTagger.Tag(taggercommon.GetGlobalEntityID(), cardinality)
 }
 
 // globalTagBuilder queries global tags that should apply to all data coming

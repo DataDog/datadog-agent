@@ -44,11 +44,11 @@ func GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	return globalTagger.GetEntity(entityID)
 }
 
-// TagDeprecated is an interface function that queries taggerclient singleton
-// This function is not to be used by golang components
+// LegacyTag is an interface function that queries taggerclient singleton
+// If possible, avoid using this function, and use the Tag interface function instead.
 // This function exists in order not to break backward compatibility with rtloader and python
 // integrations using the tagger
-func TagDeprecated(entity string, cardinality types.TagCardinality) ([]string, error) {
+func LegacyTag(entity string, cardinality types.TagCardinality) ([]string, error) {
 	if globalTagger == nil {
 		return nil, fmt.Errorf("a global tagger must be set before calling Tag")
 	}
