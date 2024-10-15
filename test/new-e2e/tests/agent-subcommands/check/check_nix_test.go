@@ -7,7 +7,6 @@
 package check
 
 import (
-	_ "embed"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -20,12 +19,6 @@ import (
 type linuxCheckSuite struct {
 	baseCheckSuite
 }
-
-//go:embed fixtures/hello.yaml
-var customCheckYaml []byte
-
-//go:embed fixtures/hello.py
-var customCheckPython []byte
 
 func TestLinuxCheckSuite(t *testing.T) {
 	e2e.Run(t, &linuxCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
