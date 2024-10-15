@@ -190,7 +190,7 @@ func newEnvReader(proc *process.Process) (*EnvReader, error) {
 	return &EnvReader{
 		file:    file,
 		scanner: scanner,
-		envs:    envs.NewVariables(nil),
+		envs:    envs.Variables{},
 	}, nil
 }
 
@@ -220,7 +220,7 @@ func getTargetEnvs(proc *process.Process) (envs.Variables, error) {
 	}()
 
 	if err != nil {
-		return envs.NewVariables(nil), err
+		return envs.Variables{}, err
 	}
 
 	for er.scanner.Scan() {

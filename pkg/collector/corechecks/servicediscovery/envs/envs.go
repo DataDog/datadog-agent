@@ -33,20 +33,6 @@ type Variables struct {
 	Vars map[string]string
 }
 
-// NewVariables returns a new [Variables] to collect env. variables.
-func NewVariables(vars map[string]string) Variables {
-	// A regular flow provides an empty input map. For unit tests, verify that the input map has only target variables.
-	for env := range vars {
-		if _, ok := targets[env]; !ok {
-			return Variables{}
-		}
-	}
-
-	return Variables{
-		Vars: vars,
-	}
-}
-
 // Get returns an environment variable if it is present in the collection
 func (ev *Variables) Get(name string) (string, bool) {
 	val, ok := ev.Vars[name]
