@@ -725,13 +725,23 @@ def get_release_json_value(ctx, key, agent6=False):
         print(release_json)
 
 
-def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
+def create_and_update_release_branch(
+    ctx, repo, release_branch, base_branch: str | None = None, base_directory="~/dd", upstream="origin"
+):
+    """Creates and pushes a release branch to `repo`.
+
+    Args:
+        base_branch: Branch from which we create the release branch. Default branch if `None`.
+    """
+
     # Perform branch out in all required repositories
     with ctx.cd(f"{base_directory}/{repo}"):
         # Step 1 - Create a local branch out from the default branch
 
         print(color_message(f"Working repository: {repo}", "bold"))
-        main_branch = ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
+        main_branch = (
+            base_branch or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
+        )
         ctx.run(f"git checkout {main_branch}")
         ctx.run("git pull")
         print(color_message(f"Branching out to {release_branch}", "bold"))
