@@ -369,6 +369,7 @@ def build_functional_tests(
     debug=False,
     skip_object_files=False,
     syscall_tester_compiler='clang',
+    ebpf_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -379,6 +380,7 @@ def build_functional_tests(
                 kernel_release=kernel_release,
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
+                ebpf_compiler=ebpf_compiler,
             )
         build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
@@ -608,8 +610,6 @@ def docker_functional_tests(
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
-        "GOPATH": get_gopath(ctx),
-        "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
         "image_tag": image_tag,

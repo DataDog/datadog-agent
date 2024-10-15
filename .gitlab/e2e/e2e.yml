@@ -103,10 +103,40 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
-      - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+
+new-e2e-containers-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_INIT_ONLY: "true"
+  allow_failure: true
+
+new-e2e-containers-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-containers-eks-init
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -210,7 +240,39 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+
+
+new-e2e-npm-eks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_INIT_ONLY: "true"
+  allow_failure: true
+
+new-e2e-npm-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-npm-eks-init
+    - qa_agent
+    - qa_dca
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-aml:
   extends: .new_e2e_template
@@ -516,3 +578,30 @@ trigger-flakes-finder:
       - artifact: flake-finder-gitlab-ci.yml
         job: generate-flakes-finder-pipeline
   allow_failure: true
+
+new-e2e-eks-cleanup-on-failure:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  stage: e2e_cleanup
+  dependencies: [go_e2e_deps]
+  script:
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_PROFILE >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    # Now all `aws` commands target the agent-qa profile
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_PUBLIC_KEY_RSA > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SSH_KEY_RSA > $E2E_PRIVATE_KEY_PATH || exit $?
+    # Use S3 backend
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $E2E_PULUMI_CONFIG_PASSPHRASE) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - inv -e new-e2e-tests.cleanup-remote-stacks --stack-regex "ci-$CI_PIPELINE_ID.*eks.*" --pulumi-backend=dd-pulumi-state
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PIPELINE_ID: $CI_PIPELINE_ID
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+  allow_failure: true
+
