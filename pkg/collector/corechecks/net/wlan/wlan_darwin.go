@@ -9,9 +9,7 @@
 package wlan
 
 /*
-#cgo LDFLAGS: -framework CoreWLAN -framework Foundation
-#include <stdbool.h>
-#include <stdlib.h>
+#cgo LDFLAGS: -framework CoreWLAN -framework CoreLocation -framework Foundation
 
 typedef struct {
     int rssi;
@@ -20,14 +18,36 @@ typedef struct {
 } WiFiInfo;
 
 WiFiInfo GetWiFiInformation();
+void InitLocationManager();
+void StartLocationUpdates();
+void StopLocationUpdates();
 */
 import "C"
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type WiFiData struct {
 	rssi  int
 	ssid  string
 	bssid string
+}
+
+func setupLocationAccess() {
+	C.InitLocationManager()
+	fmt.Println("Initialized Location Manager")
+
+	// Start fetching location updates
+	C.StartLocationUpdates()
+	fmt.Println("Started Location Updates")
+
+	// Keep the Go program running to allow location updates to be received.
+	time.Sleep(30 * time.Second)
+
+	// Stop fetching location updates
+	C.StopLocationUpdates()
+	fmt.Println("Stopped Location Updates")
 }
 
 func queryWiFiRSSI() (WiFiData, error) {

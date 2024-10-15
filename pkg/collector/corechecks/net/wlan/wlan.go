@@ -37,7 +37,7 @@ func (c *WLANCheck) Run() error {
 	if err != nil {
 		return err
 	}
-
+	setupLocationAccess()
 	wifiData, err := queryWiFiRSSI()
 	if err != nil {
 		log.Error(err)
