@@ -372,7 +372,7 @@
 /pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
 /pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
-/pkg/trace/transform.go                 @DataDog/opentelemetry
+/pkg/trace/transform/                   @DataDog/opentelemetry
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
 /comp/core/autodiscovery/listeners/snmp*.go   @DataDog/network-device-monitoring
