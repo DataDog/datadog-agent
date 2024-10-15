@@ -934,21 +934,26 @@ def _update_last_stable(_, version, major_versions="7"):
 
 
 @task
-def cleanup(ctx):
-    """
-    Perform the post release cleanup steps
+def cleanup(ctx, major_version: int = 7):
+    """Perform the post release cleanup steps
+
     Currently this:
       - Updates the scheduled nightly pipeline to target the new stable branch
       - Updates the release.json last_stable fields
     """
+
     gh = GithubAPI()
     latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
     if not match:
         raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-    version = _create_version_from_match(match)
-    _update_last_stable(ctx, version)
-    edit_schedule(ctx, 2555, ref=version.branch())
+
+    with agent_context(ctx, major_version=major_version, mutable=True):
+        version = _create_version_from_match(match)
+        _update_last_stable(ctx, version)
+
+    if major_version != 6:
+        edit_schedule(ctx, 2555, ref=version.branch())
 
 
 @task
