@@ -174,7 +174,7 @@ func (m *Check) Run() error {
 	}
 
 	// As we compute the utilization based on the number of threads launched by the kernel, we need to
-	// normalize the utlization if we get above 100%, as the GPU can enqueue threads.
+	// normalize the utilization if we get above 100%, as the GPU can enqueue threads.
 	totalGPUUtilization := 0.0
 	for _, processor := range m.statProcessors {
 		if usedProcessors[processor.key.Pid] {
