@@ -281,9 +281,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("xml add props: %s", err)
 		}
 
-		if err := testContainer.stopAndRemove(); err != nil {
-			// log but do not return error
-			fmt.Fprintf(os.Stderr, "error stopping and removing cws test container: %s\n", err)
+		if testContainer != nil {
+			if err := testContainer.stopAndRemove(); err != nil {
+				// log but do not return error
+				fmt.Fprintf(os.Stderr, "error stopping and removing cws test container: %s\n", err)
+			}
 		}
 	}
 
