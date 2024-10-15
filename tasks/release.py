@@ -920,16 +920,14 @@ def create_release_branches(ctx, base_directory="~/dd", major_version: int = 7, 
             )
 
 
-def _update_last_stable(_, version, major_versions="7"):
+def _update_last_stable(_, version, major_version: int = 7):
     """
     Updates the last_release field(s) of release.json
     """
     release_json = load_release_json()
-    list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
-    for major in list_major_versions:
-        version.major = major
-        release_json['last_stable'][str(major)] = str(version)
+    version.major = major_version
+    release_json['last_stable'][str(major_version)] = str(version)
     _save_release_json(release_json)
 
 
@@ -942,18 +940,23 @@ def cleanup(ctx, major_version: int = 7):
       - Updates the release.json last_stable fields
     """
 
-    gh = GithubAPI()
-    latest_release = gh.latest_release()
-    match = VERSION_RE.search(latest_release)
-    if not match:
-        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    if major_version == 6:
+        agent6_branches = ctx.run(r"git ls-remote -h origin | awk '{print $2}' | grep 'refs/heads/6\.' | sed 's;refs/heads/;;g' | sort -V", hide=True).stdout.strip().split()
+        latest_agent6_branch = agent6_branches[-1]
+    else:
+        gh = GithubAPI()
+        latest_release = gh.latest_release()
+        match = VERSION_RE.search(latest_release)
+        if not match:
+            raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
 
     with agent_context(ctx, major_version=major_version, mutable=True):
         version = _create_version_from_match(match)
-        _update_last_stable(ctx, version)
+        _update_last_stable(ctx, version, major_version=major_version)
 
     if major_version != 6:
         edit_schedule(ctx, 2555, ref=version.branch())
+    # TODO: Add the Agent6 schedule update
 
 
 @task
