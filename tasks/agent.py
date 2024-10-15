@@ -25,7 +25,6 @@ from tasks.libs.common.utils import (
     get_goenv,
     get_version,
     gitlab_section,
-    warn_deprecated_parameter,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -139,7 +138,6 @@ def build(
     python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes=None,
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -158,8 +156,6 @@ def build(
         inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
-
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
 
     if flavor.is_ot():
         # for agent build purposes the UA agent is just like base

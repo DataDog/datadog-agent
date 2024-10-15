@@ -34,7 +34,6 @@ from tasks.libs.common.utils import (
     get_common_test_args,
     get_gobin,
     parse_kernel_version,
-    warn_deprecated_parameter,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
@@ -612,7 +611,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes=None,
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     bundle_ebpf=False,
@@ -627,7 +625,6 @@ def build(
     """
     Build the system-probe
     """
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     if not is_macos:
         build_object_files(
             ctx,
@@ -669,7 +666,6 @@ def build_sysprobe_binary(
     race=False,
     incremental_build=True,
     major_version='7',
-    python_runtimes=None,
     go_mod="mod",
     arch: str = CURRENT_ARCH,
     binary=BIN_PATH,
@@ -678,7 +674,6 @@ def build_sysprobe_binary(
     strip_binary=False,
     bundle=True,
 ) -> None:
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     if bundle and not is_windows:
         return agent_build(
             ctx,

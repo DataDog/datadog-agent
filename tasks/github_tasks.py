@@ -21,7 +21,7 @@ from tasks.libs.ciproviders.github_actions_tools import (
 from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.common.utils import get_git_pretty_ref, warn_deprecated_parameter
+from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
@@ -70,7 +70,6 @@ def trigger_macos(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
-    python_runtimes=None,
     destination=".",
     version_cache=None,
     retry_download=3,
@@ -79,7 +78,6 @@ def trigger_macos(
     test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
             # Provide the release version to be able to fetch the associated

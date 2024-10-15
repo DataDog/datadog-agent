@@ -734,13 +734,3 @@ def experimental(message):
         return wrapper
 
     return decorator
-
-
-def warn_deprecated_parameter(param, name):
-    if param:
-        print(
-            color_message(
-                f'Warning: {name} is deprecated. Please remove this parameter from your scripts',
-                Color.ORANGE,
-            )
-        )

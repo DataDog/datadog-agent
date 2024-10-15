@@ -14,7 +14,7 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import gitlab_section, timed, warn_deprecated_parameter
+from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 
@@ -174,7 +174,6 @@ def build(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes=None,
     omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
@@ -190,7 +189,6 @@ def build(
     Build the Agent packages with Omnibus Installer.
     """
 
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     flavor = AgentFlavor[flavor]
     durations = {}
     if not skip_deps:
@@ -343,12 +341,10 @@ def manifest(
     skip_sign=False,
     release_version="nightly",
     major_version='7',
-    python_runtimes=None,
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
 ):
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     flavor = AgentFlavor[flavor]
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")

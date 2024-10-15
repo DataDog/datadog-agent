@@ -37,7 +37,6 @@ from tasks.libs.common.utils import (
     get_build_flags,
     gitlab_section,
     running_in_ci,
-    warn_deprecated_parameter,
 )
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule, get_module_by_path
@@ -255,7 +254,6 @@ def test(
     python_home_3=None,
     cpus=None,
     major_version='7',
-    python_runtimes=None,
     timeout=180,
     cache=True,
     test_run_name="",
@@ -285,7 +283,6 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)

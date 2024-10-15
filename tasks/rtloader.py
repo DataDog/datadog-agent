@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import gitlab_section, warn_deprecated_parameter
+from tasks.libs.common.utils import gitlab_section
 
 
 def get_rtloader_path():
@@ -32,8 +32,7 @@ def run_make_command(ctx, command=""):
 
 
 @task
-def make(ctx, install_prefix=None, python_runtimes=None, cmake_options=''):
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
+def make(ctx, install_prefix=None, cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:

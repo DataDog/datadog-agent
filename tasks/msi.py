@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import download_to_tempfile, timed, warn_deprecated_parameter
+from tasks.libs.common.utils import download_to_tempfile, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
@@ -265,13 +265,10 @@ def _build_msi(ctx, env, outdir, name, allowlist):
 
 
 @task
-def build(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes=None, release_version='nightly', debug=False
-):
+def build(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Build the MSI installer for the agent
     """
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     env = _get_env(ctx, major_version, release_version)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
@@ -354,13 +351,10 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(
-    ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes=None, release_version='nightly', debug=False
-):
+def test(ctx, vstudio_root=None, arch="x64", major_version='7', release_version='nightly', debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
     env = _get_env(ctx, major_version, release_version)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)

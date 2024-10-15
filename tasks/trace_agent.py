@@ -6,7 +6,7 @@ from invoke import Exit, task
 from tasks.agent import build as agent_build
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, warn_deprecated_parameter
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -22,14 +22,12 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     major_version='7',
-    python_runtimes=None,
     go_mod="mod",
     bundle=False,
 ):
     """
     Build the trace agent.
     """
-    warn_deprecated_parameter(python_runtimes, '--python-runtimes')
 
     if bundle:
         return agent_build(
