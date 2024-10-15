@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -34,7 +33,6 @@ func TestEKSSuite(t *testing.T) {
 	if err == nil {
 		initOnly = initOnlyParam
 	}
-	flake.Mark(t)
 	suite.Run(t, &eksSuite{initOnly: initOnly})
 }
 
