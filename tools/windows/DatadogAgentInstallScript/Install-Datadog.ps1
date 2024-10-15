@@ -151,10 +151,11 @@ function Start-ProcessWithOutput {
 function Test-DatadogAgentPresence() {
    # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
    # We check that particular key since we use it later in the script to restart the service.
-   return 
+   return ( 
       ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 1) -and
       (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
       ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))
+   )
 }
 
 function Update-DatadogAgentConfig() {
