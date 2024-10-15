@@ -35,14 +35,13 @@ type Variables struct {
 
 // NewVariables returns a new [Variables] to collect env. variables.
 func NewVariables(vars map[string]string) Variables {
-	if len(vars) > 0 {
-		// Only some tests pass a non-empty parameter. Check that input variables match the target value.
-		for env := range vars {
-			if _, ok := targets[env]; !ok {
-				return Variables{}
-			}
+	// A regular flow provides an empty input map. For unit tests, verify that the input map has only target variables.
+	for env := range vars {
+		if _, ok := targets[env]; !ok {
+			return Variables{}
 		}
 	}
+
 	return Variables{
 		Vars: vars,
 	}
